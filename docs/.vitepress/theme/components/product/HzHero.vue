@@ -1,15 +1,14 @@
 <script setup lang="ts">
 // The first screen: what Humanize is in one line, the button that downloads it for the reader's
-// platform, the one command that installs the CLI, and a run, running (HzRun). Behind it, the
-// run's clock ruled across the whole page and one accent plane on the poster's diagonal; as the
-// hero scrolls away the plane slides and the copy lifts, driven by where the hero is rather than
-// by a timer.
+// platform, the one command that installs the CLI, and Humanize Desktop at work: a reel of the
+// real window, captured by tests/system/docs/test_docs_home.py. Behind it, twelve faint rules
+// across the whole page and one accent plane on the poster's diagonal; as the hero scrolls away
+// the plane slides and the copy lifts, driven by where the hero is rather than by a timer.
 import { withBase } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { clamp, useScrollProgress } from './motion'
 import { detectOS, installers, PLATFORMS, type Installer, type OS } from './release'
 import { REPO } from './data'
-import HzRun from './HzRun.vue'
 
 const props = defineProps<{ motion: boolean }>()
 
@@ -62,12 +61,12 @@ const copyLift = computed(() =>
       <div class="hero-copy" :style="copyLift">
         <p class="hz-kicker hz-load" style="--d: 0.05s">Humanize · open source</p>
         <h1 id="hz-title" class="hero-title hz-load" style="--d: 0.15s">
-          Get more out of the coding agents <span>you already use.</span>
+          Run coding agents in loops, <span>until the task is done.</span>
         </h1>
         <p class="hz-lead hz-load" style="--d: 0.3s">
-          Humanize runs Claude Code, Codex and the other coding agents in a proven loop: work, review,
-          try again, until the task is done or the budget is spent. Watch every
-          turn, step in when you want, and leave it running when you don't.
+          Humanize runs Claude Code, Codex and other coding agents in flows. A flow is a Python
+          loop: agents work, review and retry until the task is done or the budget is spent. Watch
+          every turn, step in when you want, or leave it running.
         </p>
 
         <div class="hz-actions hz-load" style="--d: 0.45s">
@@ -94,7 +93,16 @@ const copyLift = computed(() =>
 
       <div class="hero-art hz-load" style="--d: 0.35s">
         <div class="hero-plane" aria-hidden="true" :style="plane" />
-        <HzRun class="hero-run" />
+        <!-- Its size is the file's own, so the picture's place is kept before it loads. -->
+        <img
+          class="hero-reel"
+          :src="withBase('/shots/home-desktop.svg')"
+          width="1368"
+          height="908"
+          loading="eager"
+          decoding="async"
+          alt="Humanize Desktop starts. You pick a flow for a new epic, type a budget and a task, and the flow's two agents run the task to completion."
+        />
       </div>
     </div>
   </section>
@@ -110,7 +118,7 @@ const copyLift = computed(() =>
   overflow: hidden;
 }
 
-/* The run's clock, ruled across the page: twelve hours, faint. */
+/* Twelve faint rules across the page. */
 .hero-rule {
   position: absolute;
   inset: 0;
@@ -121,7 +129,7 @@ const copyLift = computed(() =>
 .hero-rule i {
   border-left: 1px solid var(--hz-line-2);
 }
-/* One accent plane on the poster's diagonal, behind the run. */
+/* One accent plane on the poster's diagonal, behind the picture. */
 .hero-plane {
   position: absolute;
   left: -12%;
@@ -229,10 +237,13 @@ const copyLift = computed(() =>
 .hero-art {
   position: relative;
   min-width: 0;
-  padding-right: 14px;
 }
-.hero-run {
+/* The reel draws the app's window, shadow and all, on nothing: it sits on the page as it is. */
+.hero-reel {
   position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 @media (max-width: 1080px) {

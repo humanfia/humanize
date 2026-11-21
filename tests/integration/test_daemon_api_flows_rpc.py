@@ -140,6 +140,35 @@ def test_a_workspace_lists_its_flows_and_the_backends_installed(
     assert relative.message == "Say the workspace as a whole path, not project."
 
 
+def test_flows_are_read_with_no_workspace_and_for_one_since_removed(
+    client: Client, project: Path, tmp_path: Path
+) -> None:
+    client.call("flows.fork", workspace=str(project), flow="goal")
+    listed = client.call("flows.list", workspace=str(project))["flows"]
+    assert "local" in {one["whose"] for one in listed}
+    mine = next(one["name"] for one in listed if one["whose"] == "local")
+
+    # Naming no workspace reads what is on offer whatever the project: none of its own.
+    bare = client.call("flows.list")
+    assert set(bare) == {"flows", "flow", "running"}
+    assert {"goal", "ralph_loop"} <= {one["name"] for one in bare["flows"]}
+    assert "local" not in {one["whose"] for one in bare["flows"]}
+    assert client.call("flows.get", name="goal")["name"] == "goal"
+    assert client.call("flows.get", workspace=str(project), name=mine)["name"] == mine
+    assert client.refused("flows.get", name=mine).code == Code.NOT_FOUND
+
+    # A directory since removed is a workspace with no flows of its own, not a refusal.
+    gone = tmp_path / "gone"
+    removed = client.call("flows.list", workspace=str(gone))
+    assert {"goal", "ralph_loop"} <= {one["name"] for one in removed["flows"]}
+    assert "local" not in {one["whose"] for one in removed["flows"]}
+    assert client.call("flows.get", workspace=str(gone), name="goal")["name"] == "goal"
+    for method in ("flows.fork", "flows.setup", "flows.check"):
+        missing = client.refused(method, workspace=str(gone), flow="goal")
+        assert missing.code == Code.NOT_FOUND
+        assert missing.message == f"There is no directory {gone}."
+
+
 def test_a_line_checks_as_hmz_exec_would_without_starting_anything(
     client: Client, project: Path, tmp_path: Path
 ) -> None:

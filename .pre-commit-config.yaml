@@ -1,7 +1,7 @@
 # The first gate: what a commit is held to. The file hygiene hooks, the formatter, the
 # linter, the type checker and the two that read the workflows -- everything that answers in
 # seconds. CI's `lint` job runs exactly this; its other jobs run the tests
-# (docs/contributing/ci.md).
+# (CONTRIBUTING.md).
 #
 # Install with `uv run pre-commit install`.
 #

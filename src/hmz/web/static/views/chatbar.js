@@ -38,9 +38,8 @@ export function barButton(name, label, props = {}) {
  * one open.
  *
  * @param {(key: string) => void} press Told the pane whose button was pressed.
- * @returns {{nodes: HTMLElement[], said: (open: string, has: (key: string) => boolean, held: boolean) => void}}
- *   The buttons, and a way to say which pane is open, which the chat has now, and whether a
- *   host holds it.
+ * @returns {{nodes: HTMLElement[], said: (open: string, has: (key: string) => boolean) => void}}
+ *   The buttons, and a way to say which pane is open and which the chat's environment keeps.
  */
 export function paneButtons(press) {
   const buttons = new Map(
@@ -51,13 +50,13 @@ export function paneButtons(press) {
   )
   return {
     nodes: [...buttons.values()],
-    said(open, has, held) {
+    said(open, has) {
       for (const [key, button] of buttons) {
         button.setAttribute('aria-pressed', String(key === open))
-        // A pane the chat has not got now -- no host holds it, or its environment keeps none --
-        // is still said, cannot be opened, and says which of the two it is.
+        // Only a pane the chat's environment keeps none of is still said, cannot be opened,
+        // and says so: whether a host holds the chat now never shuts one.
         button.disabled = !has(key)
-        button.title = paneSaid(key, has(key), held)
+        button.title = paneSaid(key, has(key))
       }
     },
   }

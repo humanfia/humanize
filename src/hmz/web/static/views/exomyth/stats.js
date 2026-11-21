@@ -3,6 +3,7 @@
 // Timeline on asking.
 
 import { h } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { counted, lasted } from './model.js'
 
 /** How many rows are drawn, the rest said as a count. */
@@ -10,17 +11,17 @@ const ROWS = 200
 
 /** The columns: a key, its heading, how a value of it is said, and whether it is a number. */
 const COLUMNS = [
-  ['name', 'Name', String, false],
-  ['cat', 'Category', String, false],
-  ['count', 'Count', counted, true],
-  ['total', 'Total', lasted, true],
-  ['self', 'Self', lasted, true],
-  ['avg', 'Avg', lasted, true],
+  ['name', t('Name'), String, false],
+  ['cat', t('Category'), String, false],
+  ['count', t('Count'), counted, true],
+  ['total', t('Total'), lasted, true],
+  ['self', t('Self'), lasted, true],
+  ['avg', t('Avg'), lasted, true],
   ['p50', 'P50', lasted, true],
   ['p95', 'P95', lasted, true],
-  ['max', 'Max', lasted, true],
-  ['in', 'In', counted, true],
-  ['out', 'Out', counted, true],
+  ['max', t('Max'), lasted, true],
+  ['in', t('In'), counted, true],
+  ['out', t('Out'), counted, true],
 ]
 
 /**
@@ -37,11 +38,11 @@ export function stats(told) {
   const head = h('tr')
   const body = h('tbody')
   const more = h('p', { class: 'dim exo-more' })
-  const showing = h('button', { type: 'button', class: 'btn small', 'data-hmz': 'exomyth-show', hidden: true, onclick: () => chosen && told.timeline(chosen) }, 'Show in timeline')
+  const showing = h('button', { type: 'button', class: 'btn small', 'data-hmz': 'exomyth-show', hidden: true, onclick: () => chosen && told.timeline(chosen) }, t('Show in timeline'))
   const node = h(
     'section',
     { class: 'exo-stats', 'data-hmz': 'exomyth-stats' },
-    h('div', { class: 'exo-stats-head' }, h('h3', {}, 'Slices'), showing),
+    h('div', { class: 'exo-stats-head' }, h('h3', {}, t('Slices')), showing),
     h('div', { class: 'table-wrap' }, h('table', { class: 'spending' }, h('thead', {}, head), body)),
     more,
   )
@@ -98,7 +99,7 @@ export function stats(told) {
         ),
       ),
     )
-    more.textContent = rows.length > ROWS ? `${counted(ROWS)} of ${counted(rows.length)}` : ''
+    more.textContent = rows.length > ROWS ? t('{at} of {total}', { at: counted(ROWS), total: counted(rows.length) }) : ''
   }
 
   return {

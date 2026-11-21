@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING, Any
 from hmz.daemon import where
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection
 
     from hmz.daemon.reach import Links
     from hmz.daemon.sessions import Session
     from hmz.rpc import Call, Peer
 
-__all__ = ["Hosted", "Hosts", "Subscription"]
+__all__ = ["CLOSED", "Hosted", "Hosts", "Subscription"]
 
 #: How long a host is given to come up.
 _PATIENCE = 10.0
@@ -40,6 +40,9 @@ _LEFT = 200
 
 #: How often a subscription that asked for figures has them worked out again, at most.
 _FIGURING = 1.0
+
+#: What a host that is going, or has gone, refuses what it is asked with.
+CLOSED = "this host has closed"
 
 #: Why a subscription ends whose host process ended without closing.
 WENT_AWAY = "the host went away"
@@ -366,11 +369,11 @@ class Hosted:
         from hmz.rpc import Closed, Code, RpcError
 
         if self.peer is None:
-            raise RpcError(Code.CONFLICT, "this host has closed")
+            raise RpcError(Code.CONFLICT, CLOSED)
         try:
             return self.peer.call(method, params, timeout=timeout)
         except Closed:
-            raise RpcError(Code.CONFLICT, "this host has closed") from None
+            raise RpcError(Code.CONFLICT, CLOSED) from None
         except RpcError as why:
             raise RpcError(Code.CONFLICT, _why(why.message)) from None
 
@@ -593,10 +596,27 @@ class Hosts:
                         del self._left[next(iter(self._left))]
                 if hosted.slot and not hosted.slot.startswith("ai:"):
                     self._gone.add(key)
+            held = {workspace for workspace, _ in self._held}
         if mine and hosted.slot.startswith("ai:") and self.ai is not None:
             self.ai.went(hosted.slot)
         hosted.went()
+        if mine:
+            # A folderless workspace nothing was started in leaves no directory behind.
+            with contextlib.suppress(Exception):
+                swept(hosted.workspace, held)
         self._changed()
+
+    def outwaited(self, hosted: Hosted) -> bool:
+        """Whether a host that said it has closed is gone, waited for a while.
+
+        Its link closes a moment after it lets its frontends go; until then it is held still.
+        """
+        ended = time.monotonic() + _ANSWERING
+        while self.get(hosted.workspace, hosted.slot) is hosted:
+            if time.monotonic() > ended:
+                return False
+            time.sleep(0.05)
+        return True
 
     def stop_all(self) -> None:
         """Closes every host, as the daemon goes."""
@@ -604,6 +624,29 @@ class Hosts:
             hosted.stop()
             if hosted.peer is not None:
                 hosted.peer.close()
+
+
+def swept(workspace: str, held: Collection[str]) -> None:
+    """Removes a folderless workspace's directory once nothing is left of it.
+
+    Kept while an epic or a chat of it is recorded or a host stands in it (Section 7.7.8 of
+    files.md); a workspace that is somebody's folder is never touched.
+
+    Args:
+      workspace: The workspace, by its whole path.
+      held: The workspaces a host stands in.
+    """
+    import shutil
+
+    from hmz.runtime.epic import chats, epics
+
+    if (
+        where.folderless(workspace)
+        and workspace not in held
+        and not epics(workspace)
+        and not chats(workspace)
+    ):
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 def _follows(following: Any, message: dict[str, Any]) -> None:

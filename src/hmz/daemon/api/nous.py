@@ -8,6 +8,9 @@ terminal interface writes through the same object and into the same file.
 
 from __future__ import annotations
 
+import os
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
 from hmz.rpc import Code, RpcError
@@ -18,7 +21,17 @@ if TYPE_CHECKING:
     from hmz.coganchor.nous import Nous
     from hmz.rpc import Handler
 
-__all__ = ["METHODS", "clear", "listed", "rename", "write"]
+__all__ = ["METHODS", "clear", "listed", "rename", "scan", "scans", "write"]
+
+#: The variable that turns the scan a daemon makes as it starts off.
+SCAN = "HUMANIZE_SCAN"
+
+#: How many harnesses a scan somebody asked for asks at once: asking one starts it.
+_AT_ONCE = 4
+
+#: The scan going on in this process, which a second one asked for meanwhile waits for.
+_going: tuple[Future[list[dict[str, str]]], bool] | None = None
+_GOING = threading.Lock()
 
 
 def _shown(book: Any, one: Nous) -> dict[str, Any]:
@@ -45,6 +58,7 @@ def listed(hmz: Any) -> dict[str, Any]:
         ],
         "faults": list(book.faults()),
         "concrete": _concrete(hmz),
+        "scanning": _going is not None,
     }
 
 
@@ -62,6 +76,83 @@ def _concrete(hmz: Any) -> list[str]:
         for model in accounts.models(one.cli, one.name)
     }
     return sorted(found)
+
+
+def scan(hmz: Any, *, stale: bool = False) -> dict[str, Any]:
+    """Asks every harness installed here what it runs, as each of its accounts.
+
+    What each says is kept, as `accounts.models` keeps it, and is what `nous.list` answers as
+    `concrete` from then on. One scan goes on at a time: one asked for while another is going
+    waits for that one and answers what it found -- unless that one asks only the stale and
+    this one asks all, which then scans in its turn, so that a scan somebody asked for is never
+    answered by the lesser one a daemon starts with.
+
+    Args:
+      hmz: Humanize.
+      stale: Whether only those never asked, or asked too long ago, are asked, one at a time:
+        what a daemon does as it starts, behind everything it serves.
+
+    Returns:
+      What :func:`listed` answers afterwards, and `failed`: each `cli` and `account` that would
+      not say, and `why`.
+    """
+    global _going  # noqa: PLW0603 -- one scan per process
+    while True:
+        with _GOING:
+            held = _going
+            mine = held is None
+            if held is None:
+                held = _going = (Future(), stale)
+        going, lesser = held
+        if mine:
+            failed: list[dict[str, str]] = []
+            try:
+                failed = _asks(hmz, stale=stale)
+            finally:
+                with _GOING:
+                    _going = None
+                going.set_result(failed)
+        found = going.result()
+        if mine or stale or not lesser:
+            return {**listed(hmz), "failed": found}
+
+
+def _asks(hmz: Any, *, stale: bool) -> list[dict[str, str]]:
+    accounts = hmz.accounts
+    pairs = [
+        (cli, name)
+        for cli in hmz.installed()
+        for name in ("", *(one.name for one in accounts.all(cli)))
+        if not stale or accounts.stale(cli, name)
+    ]
+
+    def asks(pair: tuple[str, str]) -> dict[str, str] | None:
+        cli, name = pair
+        try:
+            accounts.ask(cli, name)
+        except Exception as why:  # noqa: BLE001 -- a harness that will not say what it runs
+            # Whatever it failed with is said of it, and the others are still asked.
+            return {"cli": cli, "account": name, "why": str(why)}
+        return None
+
+    if not pairs:
+        return []
+    with ThreadPoolExecutor(1 if stale else _AT_ONCE, "humanize-scan") as pool:
+        return [one for one in pool.map(asks, pairs) if one is not None]
+
+
+def scans() -> None:
+    """Scans in the background, as a daemon starts: what was never asked, or long ago.
+
+    On a thread of its own, one harness at a time, so that nothing the daemon serves waits
+    on it; `HUMANIZE_SCAN` set to `off`, `0`, `no`, `none` or nothing turns it off.
+    """
+    said = os.environ.get(SCAN)
+    if said is not None and said.strip().lower() in {"", "off", "0", "no", "none"}:
+        return
+    threading.Thread(
+        target=lambda: scan(_hmz(), stale=True), daemon=True, name="humanize-scan"
+    ).start()
 
 
 def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
@@ -150,6 +241,7 @@ def _hmz() -> Any:
 #: Every method of `nous.*`, by name.
 METHODS: Mapping[str, Handler] = {
     "nous.list": lambda _: listed(_hmz()),
+    "nous.scan": lambda _: scan(_hmz()),
     "nous.set": lambda call: write(_hmz(), call.params),
     "nous.rename": lambda call: rename(_hmz(), call.params["name"], call.params["to"]),
     "nous.clear": lambda call: clear(_hmz(), call.params["name"]),

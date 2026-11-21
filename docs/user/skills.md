@@ -1,186 +1,101 @@
-<script setup>
-import SkillTrip from '../.vitepress/theme/components/user-skills/SkillTrip.vue'
-</script>
+---
+title: Skills
+description: Find out which skills an agent carries, use one in a chat, and see what a flow adds for its roles.
+---
 
 # Skills
 
-A **skill** is a folder of instructions a coding agent loads when a task calls for it, written
-as a `SKILL.md`. An agent in a flow carries two sets: the ones you installed for its CLI, and
-the ones the flow brings for its role. Use this page to find out what an agent will carry into
-a run, to watch a flow's skill arrive and leave, and to change what a flow brings.
+A skill is a folder holding a `SKILL.md`: instructions a coding agent loads when a task calls for them. Each agent carries the skills you installed for its CLI, plus any skills a flow brings for its role.
 
-## Try it
+![A session's home holds links to your skills and to the flow's, and the coding agent is started in it](/diagrams/user-skills-1.svg)
 
-See what a Claude Code agent will carry of yours and of this project:
+## Find your skills
 
-```sh
-ls ~/.claude/skills .claude/skills
-```
+Humanize does not install, change or disable your skills. Each CLI loads them from its own folders, one skill per `<name>/SKILL.md` subfolder. Every agent of a CLI carries that CLI's skills in every chat and flow.
 
-Then run a flow that brings a skill, such as [`rlar`](https://humanfia.ai/flows/rlar), and watch its reviewer
-read `review-notes`, the flow's own, out of a skills directory beside yours. Neither directory
-above changes.
-
-## Before you start
-
-- A coding agent CLI that loads skills. Every built-in CLI does but DeepSeek Harness (`dsh`).
-- For the flow's skills: a flow whose roles bring some. [`rlar`](https://humanfia.ai/flows/rlar)'s reviewer and
-  both roles of [`aot`](https://humanfia.ai/flows/aot) do; a flow's page says which.
-
-## Yours and the flow's
-
-Neither set is a setting of the agent, and Humanize never changes what you installed.
-
-| | Yours | The flow's |
+| CLI | Yours | The project's |
 | --- | --- | --- |
-| **Where they live** | where that CLI keeps skills, for you and for this project | in the flow's own `skills/` directory, or a git repository it names |
-| **Which agents carry them** | every agent of that CLI | the roles the flow gives them to |
-| **Turned on and off** | the way that CLI turns one off | by the flow alone |
-
-A flow's skill is how a flow teaches one role something the others need not know: `rlar`'s
-reviewer carries `review-notes`, which says how to read a change and write the review the actor
-is handed next. Most CLIs are started in a home of their own for each process: your skills are
-linked into its `skills/`, and the flow's go beside them. opencode and MiMo Code are told where
-the flow's skills are instead. Nothing is put in your workspace for any of these.
-
-<SkillTrip />
-
-## Example: watch a flow's skill arrive and leave
-
-A scratch project with one bug in it, and `rlar` with Claude Code acting and Codex reviewing:
-
-```sh
-mkdir -p /tmp/skills-demo && cd /tmp/skills-demo
-printf 'def add(a, b):\n    return a - b\n' > calc.py
-
-hmz exec -f rlar \
-    -a actor=claude/claude-haiku-4-5:low \
-    -a reviewer=codex/gpt-6-luna:low \
-    -p budget.cost=0.3 "fix add() in calc.py"          # ①
-
-ls -A                                            # ②, once the run has ended
-```
-
-The run, on stderr, shows the reviewer reading the skill out of its own home:
-
-```text
-● Golem99 is working
-● Bash(/bin/zsh -lc "cat /var/folders/…/hmz-home-…/hmz-home-…/skills/review-notes/SKILL.md")   ③
-…
-```
-
-```text
-calc.py                                                                            ②
-```
-
-### What each part means
-
-1. **`reviewer=codex/…`** puts Codex in the role that brings `review-notes`. Codex is started in
-   a home of its own, made for that one app server: a copy of your `config.toml`, links to the
-   rest of `~/.codex`, and a `skills/` holding links to yours and `review-notes` beside them.
-   Claude Code in that role gets the same, under `$CLAUDE_CONFIG_DIR`.
-2. **Once the run has ended**, the project holds only what the agents wrote. No skill was
-   copied into it, and the reviewer's home is gone with its server, together with whatever
-   Codex wrote into its copy of `config.toml`, such as that it trusts this directory.
-3. **The reviewer reads the skill** as part of its turn. What it says, `review-notes` in this
-   case, is how the reviewer goes about its work: read the repository, not the summary. The
-   actor, given no skills, has none of them in its home.
-
-## Check that it worked
-
-- **Yours:** list the directories for that CLI in the table below. A skill is a subdirectory
-  holding a `SKILL.md`.
-- **The flow's:** a CLI that uses a skill says so when the turn reaches for it, as the
-  reviewer's `cat …/hmz-home-…/skills/review-notes/SKILL.md` in the example. After the run,
-  nothing of it is left behind.
-
-## Your skills, CLI by CLI
-
-A skill you installed loads for every agent of that CLI, in every flow. These are the places
-each CLI reads:
-
-| Backend | Yours | This project's |
-| --- | --- | --- |
-| `agy` | `~/.gemini/antigravity-cli/skills/` | `.agents/skills/` |
 | `claude` | `~/.claude/skills/` | `.claude/skills/` |
 | `codex` | `~/.codex/skills/`, `~/.agents/skills/` | `.agents/skills/`, `.codex/skills/` |
+| `agy` | `~/.gemini/antigravity-cli/skills/` | `.agents/skills/` |
 | `cursor-agent` | `~/.cursor/skills/`, `~/.config/cursor/skills/` | `.cursor/skills/` |
 | `grok` | `~/.grok/skills/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.cursor/skills/` | `.grok/skills/`, `.agents/skills/`, `.claude/skills/`, `.cursor/skills/` |
 | `kimi` | `~/.kimi-code/skills/`, `~/.agents/skills/` | `.kimi-code/skills/`, `.agents/skills/` |
 | `mcode` | `~/.minimax/skills/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/` | `.minimax/skills/`, `.claude/skills/`, `.agents/skills/` |
-| `mimo` | `~/.config/mimocode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/` | `.mimocode/skill(s)/`, `.agents/skills/`, `.claude/skills/`, `.codex/skills/` |
+| `mimo` | `~/.config/mimocode/skills/`, `~/.agents/skills/` | `.mimocode/skills/`, `.agents/skills/` |
 | `omp` | `~/.omp/agent/skills/`, `~/.agents/skills/` | `.omp/skills/`, `.agents/skills/` |
-| `opencode` | `~/.config/opencode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skill(s)/`, `.agents/skills/`, `.claude/skills/` |
-| `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | <Badge type="warning" text="only in a project you trusted in pi" /> |
+| `opencode` | `~/.config/opencode/skills/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skills/`, `.agents/skills/`, `.claude/skills/` |
+| `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | Only in a project you trusted in pi |
 | `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
-| `dsh` | <Badge type="danger" text="none" /> | <Badge type="danger" text="none" /> |
+| `dsh`, `litellm` | None | None |
 
-Each directory holds one skill per subdirectory, as `<name>/SKILL.md`. A CLI's home moves with
-its own variable, such as `CODEX_HOME`, `KIMI_CODE_HOME`, `GROK_HOME` or `MINIMAX_DATA_DIR`,
-and opencode's and MiMo Code's move with `XDG_CONFIG_HOME`.
+## Use a skill in a chat
 
-DeepSeek Harness loads no skills at all when Humanize drives it. pi reads a project's own
-skills only in a project you have trusted in pi, and Humanize does not trust one for you.
+Call a skill in a chat the same way you call it in the CLI's own prompt:
 
-## The flow's skills
-
-A flow brings skills for some of its roles. Every CLI but opencode, MiMo Code and dsh is started,
-a process at a time, in a home of their own -- copies of the settings they rewrite as they run,
-links to the rest of yours -- whose user-level `skills/` holds links to yours with the flow's
-beside them. That home goes when the process stops; nothing of yours, and nothing of the
-project's, is written. opencode and MiMo Code are told where the flow's skills are, in the
-configuration Humanize hands each run, and read them after their own. Nothing goes in your
-workspace:
-
-| Backend | Put into |
+| CLI | What to type |
 | --- | --- |
-| `claude` | its own home's `skills/` (`$CLAUDE_CONFIG_DIR/skills/`) |
-| `codex` | its own home's `skills/` (`$CODEX_HOME/skills/`) |
-| `grok` | its own home's `skills/` (`$GROK_HOME/skills/`) |
-| `qwen` | its own home's `skills/` (`$QWEN_HOME/skills/`) |
-| `pi`, `omp` | its own home's `skills/` (`$PI_CODING_AGENT_DIR/skills/`) |
-| `agy` | its own home's `skills/` (named with `--app_data_dir`) |
-| `cursor-agent` | its own home's `skills/` (`$CURSOR_CONFIG_DIR/skills/`) |
-| `kimi` | its own home's `skills/` (`$KIMI_CODE_HOME/skills/`) |
-| `mcode` | its own home's `skills/` (`$MINIMAX_DATA_DIR/skills/`) |
-| `opencode`, `mimo` | named under `skills.paths` in the configuration of each run |
-| `dsh` | <Badge type="danger" text="none" /> it carries only what you installed |
+| Claude Code, Kimi Code, Qwen Code, OpenCode, MiMo Code | `/name` |
+| Codex | `$name` |
+| Pi, Oh My Pi | `/skill:name` |
 
-An agent whose turns run on [another machine](/user/remote-execution) gets them in the home
-built for it there.
+Every other CLI gets the line as typed. Antigravity expands a `/name` line itself; Grok Build, Cursor CLI and MiniMax Code read it as plain text, and their agents load a skill on their own when the task calls for it.
 
-A flow may also name skills from a git repository. Installing the flow fetches them into its
-own `skills/`, so they travel with it like the rest of it and update when the flow does. A flow
-you never installed, such as one in `.hmz/flows/`, fetches them into a cache in your temporary
-directory each time a run needs them, so they keep up with the repository.
+### In the app
 
-## Variations
+1. Type `/` (or `$` for Codex) in the chat box. The completion list shows your skills and the project's skills: among Claude Code's commands, each described as `a skill`, or under **Skills** for Codex.
+2. Press <kbd>tab</kbd> to complete the skill name, add your prompt, and press <kbd>enter</kbd>.
 
-### Change what a flow brings
+![Typing /rel in a chat's box offers the release-notes skill; tab completes it, and the agent answers using it](/shots/user-skills-chat.svg)
 
-Copy the flow into your project: in `/flow`, put the cursor on it and press **Copy here** under
-the list. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit: its
-`skills/`, and which roles carry them, as [Writing a flow](/weaver/writing-a-flow) shows.
+*A skill of yours, used from the chat's box.*
 
-### Keep one of yours in place of the flow's
+![The list after a slash in a Claude Code chat: its commands, then price-check and release-notes, each marked a skill](/shots/user-skills-offered.svg)
 
-Nothing of yours is overwritten. The flow's skill takes the place of a skill of yours of the
-same name at the user level, and yours stays where it is. A project skill of the same name is
-read by the CLI as it reads any project skill. To use yours in place of the flow's, copy the flow
-and edit its skill.
+### In the terminal
 
-## Pitfalls
+In `hmz`, type the same prefix in a chat. After `/`, the CLI's commands and skills follow Humanize's own; after `$`, skills come before flows.
 
-- **An agent ignores your skill.** Check it is in a directory that CLI reads (the table above),
-  as `<name>/SKILL.md`, and that the CLI's home variable points where you think.
-- **`dsh` in a role that brings skills.** It does not get the flow's copy. The role runs
-  without it; give it another CLI if the skill matters.
-- **A skill from a git repository cannot be fetched.** The run is refused before it starts,
-  naming the skill. Check the network, or the repository's address in the flow.
+![The terminal interface after /p is typed in a chat: /prefer, then /price-check marked a skill](/shots/user-skills-terminal.svg)
 
-## Next steps
+### From the command line
 
-- [Permissions](/user/permissions): the other thing a role brings with it
-- [Writing a flow](/weaver/writing-a-flow): giving a role a skill of your own
-- [Flows › The skills a flow brings](/reference/flows#the-skills-a-flow-brings)
-- [Agents › The skills an agent carries](/reference/agents#the-skills-an-agent-carries)
+Pass the skill call as the message:
+
+```sh
+hmz chat -a claude/claude-haiku-4-5 "/release-notes for 0.4.0"
+```
+
+See [Commands, skills and files in a chat](/user/chat-input) for other chat box inputs.
+
+## See what a flow adds
+
+A flow can bring its own skills and assign them to specific roles. For example, in `rlar`, the reviewer carries `review-notes`, while the actor does not.
+
+Humanize starts each role's session in a temporary home built for that process. That home's skills folder links to your skills and to the flow's skills. When the process stops, Humanize removes the temporary home without writing to your project or your skills folders.
+
+![hmz exec of rlar: the actor lists its skills folder and finds release-notes; the reviewer finds release-notes and review-notes](/shots/user-skills-exec.svg)
+
+*Both agents list their skills folder. Only the reviewer has the flow's `review-notes`.*
+
+A flow stores its skills in its `skills/` folder or references them by git URL. Installing a flow fetches its git skills once so runs need no network. An uninstalled flow, such as one in `.hmz/flows/`, fetches its git skills on each run.
+
+To customize a flow's skills, copy the flow into your project with **Copy here** in the terminal (see [Find and install flows](/user/flows)) and edit its `skills/` folder. To add skills to a flow you write, see [Skills](/builder/skills) in the Builder Guide.
+
+## Resolve name collisions with flows
+
+For CLIs whose skills use `$`, such as Codex, `$name` in a chat can mean either a skill or a flow. The chat's preference decides, and defaults to running the skill. Type `/flow name` to always start the flow.
+
+Switch the preference with `/prefer native` or `/prefer flow`, or in the app under the chat's menu (`…`) > **Skill or flow**. See [Commands, skills and files in a chat](/user/chat-input) for details.
+
+## Good to know
+
+- A skill's name is the `name` in its `SKILL.md` front matter, or its folder's name when it states none.
+- As the first message of a Kimi Code chat, `/name` is sent as plain text, because Kimi lists its skills only once the conversation exists. Call the skill from the second message on.
+- If a flow's skill shares a name with one of yours, the session uses the flow's skill and leaves yours untouched on disk.
+- `dsh` and `litellm` load no skills. Roles with skills still run on them, without the skills.
+- `opencode` and `mimo` do not get a temporary home; Humanize passes the flow's skills in each run's configuration. Both CLIs also read a `skill/` folder beside their own `skills/` folders, such as `.opencode/skill/`.
+- If a git-referenced skill cannot be fetched, the run fails before its first turn, and the error names the role that asked for it. A repository fetched before keeps working offline.
+- Moving a CLI's home with an environment variable such as `CODEX_HOME` moves its skills folder with it.
+- An agent running on [another machine](/user/runtimes) gets copies of the flow's skills in the temporary home built for it there. `opencode` and `mimo` run there without the flow's skills.
+- An [error report](/user/reporting) sent from the terminal interface lists the skills each installed CLI would load, by name only.

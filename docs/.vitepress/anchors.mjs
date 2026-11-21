@@ -12,7 +12,7 @@ import { join, relative } from 'node:path'
 
 const DIST = new URL('./dist/', import.meta.url).pathname
 const DOCS = new URL('../', import.meta.url).pathname
-const SKIP = new Set(['node_modules', '.vitepress', 'tapes', 'public'])
+const SKIP = new Set(['node_modules', '.vitepress', 'public'])
 
 async function walk(at, ext) {
   const found = []

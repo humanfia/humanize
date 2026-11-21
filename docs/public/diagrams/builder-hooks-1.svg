@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 316" role="img">
+<title>The moments of a session a hook can be hung on: six on every agent, four more on roles that declare a mixin</title>
+<rect width="760" height="316" rx="12" fill="#f4f8f9"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#5d6a72"/></marker><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#0b7080"/></marker></defs>
+<text x="24" y="42" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#141a1f">Moments of a session</text>
+<rect x="24" y="72" width="144" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="96.0" y="96.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_session_start</text>
+<rect x="184" y="72" width="176" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="272.0" y="96.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_user_prompt_submit</text>
+<rect x="376" y="72" width="120" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="436.0" y="96.0" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">the agent works</text>
+<rect x="512" y="72" width="80" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="552.0" y="96.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_stop</text>
+<rect x="608" y="72" width="128" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="672.0" y="96.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_session_end</text>
+<path d="M170 92H182" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M362 92H374" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M498 92H510" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M594 92H606" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M552 70C552 46 436 46 436 68" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#c)"/>
+<text x="566" y="50" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#0b7080">block: one more round</text>
+<path d="M436 112V144" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="24" y="144" width="712" height="148" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="40" y="170" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#0b7080">Every agent</text>
+<rect x="40" y="180" width="136" height="32" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="108.0" y="200.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_pre_tool_use</text>
+<rect x="188" y="180" width="136" height="32" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="256.0" y="200.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_notification</text>
+<text x="40" y="238" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#80590c">Only a role that declares the mixin</text>
+<rect x="40" y="248" width="176" height="32" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="128.0" y="268.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_permission_request</text>
+<rect x="228" y="248" width="152" height="32" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="304.0" y="268.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_subagent_start</text>
+<rect x="392" y="248" width="144" height="32" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="464.0" y="268.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_subagent_stop</text>
+<rect x="548" y="248" width="104" height="32" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="600.0" y="268.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#141a1f">on_ask_user</text>
+</svg>

@@ -1,10 +1,10 @@
-"""The layers of `src/hmz`, as `docs/contributing/architecture.md` draws them.
+"""The layers of `src/hmz`, as `ARCHITECTURE.md` draws them.
 
 Read off the source with `ast`, and then checked again against what an interpreter actually
 loads: a module imports only what its layer may, no two layers name each other but the one
 pair `hmz.flows` hands its calls through, and a layer's front door costs no other layer.
 
-`ALLOWED` is the table `docs/.vitepress/theme/components/HmzStack.vue` draws; change both at
+`ALLOWED` is the table `ARCHITECTURE.md` lists; change both at
 once.
 """
 

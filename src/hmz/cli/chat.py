@@ -3,6 +3,7 @@
     hmz chat -a claude/MODEL:high "what does this repository do?"
     hmz chat --resume 20261117T100000-ab12cd "and how is it tested?"
     hmz chat --worktree -a claude/MODEL:high "try the other parser"
+    hmz chat --resume 20261117T100000-ab12cd -e ssh@gpu-box/srv/repo "go on there"
     hmz chat --list
     hmz chat --rename 20261117T100000-ab12cd "the parser"
     hmz chat --delete 20261117T100000-ab12cd --yes
@@ -71,6 +72,8 @@ class _Line(NamedTuple):
       agent: The assistant, as `-a` spells an agent after `<role>=`, or "" for none given.
       resume: The chat to carry on, by its id, or "" for a new chat.
       worktree: Whether a new chat's assistant works in a new git worktree of this directory.
+      env: The env its assistant works in, as `-e` spells one after `<role>=`, or "" for
+        this directory, and for a chat carried on where it worked.
       message: What to say, or the title `--rename` gives.
       does: `list`, or what is done to a chat written down (:data:`_DOES`), or "" for a turn.
       chat: The chat that is done to, by its id.
@@ -83,6 +86,7 @@ class _Line(NamedTuple):
     worktree: bool
     message: str
     does: str = ""
+    env: str = ""
     chat: str = ""
     archived: bool = False
     yes: bool = False
@@ -150,6 +154,14 @@ def _read(argv: list[str]) -> _Line:
         action="store_true",
         help="start the chat in a new git worktree of this directory",
     )
+    parser.add_argument(
+        "-e",
+        "--env",
+        default="",
+        metavar="ENV",
+        help="where the agent works: BACKEND[@RUNTIME][/DIRECTORY]; with --resume, the "
+        "chat moves there",
+    )
     doing = parser.add_mutually_exclusive_group()
     doing.add_argument(
         "--list",
@@ -195,9 +207,9 @@ def _read(argv: list[str]) -> _Line:
     if args.yes and does != "delete":
         parser.error("--yes goes with --delete")
     if does:
-        if args.agent or args.resume or args.worktree:
+        if args.agent or args.resume or args.worktree or args.env:
             parser.error(
-                f"--{does} says nothing to a chat: -a, --resume and --worktree do"
+                f"--{does} says nothing to a chat: -a, -e, --resume and --worktree do"
             )
         if does == "rename" and not (args.message or "").strip():
             parser.error("--rename takes the chat and then its title")
@@ -216,6 +228,7 @@ def _read(argv: list[str]) -> _Line:
         message=args.message or "",
         does=does,
         chat="" if does in ("", "list") else getattr(args, does),
+        env=args.env,
         archived=args.archived,
         yes=args.yes,
     )
@@ -292,6 +305,8 @@ def _chats(argv: list[str]) -> int:
         asked["resume"] = line.resume
     if line.worktree:
         asked["worktree"] = True
+    if line.env:
+        asked["env"] = line.env
     try:
         client = Client.local(kind="cli")
     except OSError as error:
@@ -419,7 +434,10 @@ def _row(chat: dict[str, Any]) -> str:
     """One chat on one line: its id, how it stands and its title (Section 15.4 of cli.md)."""
     title = " ".join(str(chat.get("title") or "").split())
     title = title if len(title) <= _TITLE else f"{title[: _TITLE - 1]}…"
-    return f"{chat.get('id')}  {chat.get('state')}  {title}"
+    # Whether a host holds it is not said: a chat no turn of which is open is ready.
+    state = chat.get("state")
+    stands = state if state in ("turn", "asking", "failed") else "ready"
+    return f"{chat.get('id')}  {stands}  {title}"
 
 
 def _sure(chat: dict[str, Any]) -> bool:

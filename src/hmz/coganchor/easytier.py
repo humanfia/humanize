@@ -210,6 +210,39 @@ def community(timeout: float = 10) -> list[Node]:
     return list(nodes.values())
 
 
+#: The public shared nodes EasyTier's docs name, offered whether or not a status page is read.
+KNOWN: tuple[Node, ...] = (
+    Node("tcp://public.easytier.top:11010", "EasyTier public node", "", None, None),
+    Node(
+        "tcp://easytier.public.kkrainbow.top:11010",
+        "kkRainbow public node",
+        "",
+        None,
+        None,
+    ),
+)
+
+
+def shared(timeout: float = 10) -> list[Node]:
+    """The shared nodes to offer: the community's, where its status page is read, then KNOWN.
+
+    A node of KNOWN the status page lists is listed once, as the page says it stands; where
+    the page cannot be read, KNOWN alone is offered, how each stands unknown.
+
+    Args:
+      timeout: How long each read of the status page may take, in seconds.
+
+    Returns:
+      Each node, the status page's first.
+    """
+    try:
+        read = community(timeout)
+    except OSError:
+        read = []
+    listed = {one.url for one in read}
+    return [*read, *(one for one in KNOWN if one.url not in listed)]
+
+
 def checked(secret: str) -> str:
     """A secret, where it is long enough to be one.
 

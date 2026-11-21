@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type SiteConfig } from 'vitepress'
 
 import { chromeFor, loadChrome } from './humanfia/chrome'
+import { SIDEBAR } from './sidebar'
 
 // Deployed to https://humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
 // The domain belongs to the organisation's own Pages site (humanfia/humanfia.github.io, which is
@@ -34,9 +35,9 @@ const PRERENDER_THE_REST = JSON.stringify({
 })
 
 // Where a page used to be, and where it is now: a path on this site, or the full URL of a page
-// that left it. Guides used to be one flat section serving two audiences at once; they are a
-// User Guide and a Weaver Guide now, and the tutorials went with the audience each one
-// teaches. GitHub Pages serves files and nothing else, so a page that
+// that left it. Guides were once one flat section serving two audiences at once; then a
+// User Guide and a Weaver Guide, with the tutorials beside the audience each one
+// taught. GitHub Pages serves files and nothing else, so a page that
 // moved is a 404 for every bookmark and search result unless a file is left where it was --
 // which is what `buildEnd` below writes, one small redirect apiece.
 //
@@ -106,7 +107,7 @@ const MOVED_AGAIN: Record<string, string> = {
   'guide/details': 'user/settings#details',
   'user/details': 'user/settings#details',
   // The two app pages are one, Humanize Desktop, and how to install it is on Installation.
-  'user/desktop-windows': 'user/installation#windows',
+  'user/desktop-windows': 'user/install',
 }
 
 // Every flow had a page here, and has one at humanfia.ai now, under the same name: the flows
@@ -129,7 +130,91 @@ const MOVED_TO_HUMANFIA = [
   'recursive-lean-prover',
 ]
 
-const MOVED: Record<string, string> = {
+// The four sections of today: Tutorials, a User Guide, a Builder Guide (which was Writing Flows)
+// and Reference. Features became pages of the two guides, and Contributing left the site for
+// CONTRIBUTING.md in the repository. Every path of the layout before has a way on here, and the
+// tables above, which point into that layout, are followed through this one.
+const CONTRIBUTING = 'https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md'
+const ARCHITECTURE = 'https://github.com/humanfia/humanize/blob/main/ARCHITECTURE.md'
+const MOVED_NOW: Record<string, string> = {
+  'user/installation': 'user/install',
+  'user/first-run': 'tutorials/first-task-terminal',
+  'user/btw': 'user/side-questions',
+  'user/conversations': 'user/chat',
+  'user/board': 'user/steering',
+  'user/afk': 'user/questions',
+  'user/completion': 'user/install',
+  'user/monitor': 'user/watch-a-run',
+  'user/tally': 'user/usage',
+  'user/containers': 'user/runtimes',
+  'user/remote-execution': 'user/runtimes',
+  'user/unattended': 'user/command-line',
+  'user/ci': 'tutorials/nightly-in-ci',
+  'user/tutorials/take-home': 'tutorials/',
+  'user/tutorials/port-a-project': 'tutorials/',
+  'user/tutorials/build-an-agent': 'tutorials/first-flow',
+  'weaver/': 'builder/',
+  'weaver/writing-a-flow': 'builder/flow',
+  'weaver/loops': 'builder/loops',
+  'weaver/flow-settings': 'builder/params',
+  'weaver/async-flows': 'builder/async',
+  'weaver/calling-flows': 'builder/calling-flows',
+  'weaver/branching': 'builder/branching',
+  'weaver/worktrees': 'builder/worktrees',
+  'weaver/goals': 'builder/goals',
+  'weaver/shapes': 'builder/shapes',
+  'weaver/hooks': 'builder/hooks',
+  'weaver/tools': 'builder/tools',
+  'weaver/human-agent': 'builder/outworlder',
+  'weaver/faces': 'builder/faces',
+  'weaver/testing-flows': 'builder/testing',
+  'weaver/flowverses': 'builder/publishing',
+  'weaver/tutorials/build-under-test': 'tutorials/review-loop',
+  'features/': 'user/',
+  'features/capabilities': 'user/',
+  'features/backends': 'user/agents',
+  'features/accounts': 'user/accounts',
+  'features/surfaces': 'user/',
+  'features/steering': 'user/steering',
+  'features/human': 'user/questions',
+  'features/allowances': 'user/budgets',
+  'features/daemon': 'user/daemon',
+  'features/environments': 'user/environments',
+  'features/anchor': 'user/runtimes',
+  'features/tracing': 'user/tracing',
+  'features/resuming': 'user/resuming',
+  'features/flows': 'builder/flow',
+  'features/concurrency': 'builder/async',
+  'features/shapes': 'builder/shapes',
+  'features/goals': 'builder/goals',
+  'features/hooks': 'builder/hooks',
+  'features/budgets': 'builder/budgets',
+  'reference/providers': 'reference/agents',
+  'reference/machines': 'reference/environments',
+  'reference/remote-execution': 'reference/environments',
+  'contributing/': CONTRIBUTING,
+  'contributing/architecture': ARCHITECTURE,
+  'contributing/ci': CONTRIBUTING,
+  'contributing/docs': CONTRIBUTING,
+  'contributing/releasing': 'https://github.com/humanfia/humanize/blob/main/RELEASING.md',
+  'contributing/tutorials/first-patch': CONTRIBUTING,
+  'contributing/tutorials/a-page-of-docs': CONTRIBUTING,
+}
+
+/** Where a page of an earlier layout is today: each table's answer followed through the next,
+ *  dropping a fragment that named a heading of a page that has itself moved. */
+function today(to: string): string {
+  for (let hops = 0; hops < 8; hops++) {
+    if (/^https?:\/\//.test(to)) return to
+    const [path] = to.split('#')
+    const next = MOVED_NOW[path]
+    if (next === undefined) return to
+    to = next
+  }
+  return to
+}
+
+const MOVED_BEFORE: Record<string, string> = {
   ...Object.fromEntries(MOVED_TO_USER.map((page) => [`guide/${page}`, `user/${page}`])),
   ...Object.fromEntries(MOVED_TO_WEAVER.map((page) => [`guide/${page}`, `weaver/${page}`])),
   'guide/': 'user/',
@@ -147,9 +232,25 @@ const MOVED: Record<string, string> = {
   // it went.
   'flows/agent-cleanup': `${HUMANFIA_FLOWS}ralph-loop-agent-cleanup`,
   // The regression matrix is gone; the system tests, run a file at a time, took its place.
-  'contributing/regression-matrix': 'contributing/#where-a-test-goes',
+  'contributing/regression-matrix': 'contributing/',
   ...MOVED_AGAIN,
 }
+
+/** The paths that are pages today (`tutorials/` was once a redirect, and is a section again):
+ *  a redirect is never written over one. */
+const PAGES = new Set(
+  Object.values(SIDEBAR)
+    .flat()
+    .flatMap((entry) => [entry, ...(entry.items ?? [])])
+    .flatMap((entry) => (entry.link ? [entry.link.slice(1)] : [])),
+)
+
+const MOVED: Record<string, string> = Object.fromEntries(
+  Object.entries({
+    ...Object.fromEntries(Object.entries(MOVED_BEFORE).map(([from, to]) => [from, today(to)])),
+    ...MOVED_NOW,
+  }).filter(([from]) => !PAGES.has(from)),
+)
 
 /** Where a moved page is now: a path on this site, or a full URL on another. */
 const wayTo = (to: string) => (/^https?:\/\//.test(to) ? to : `${BASE}${to}`)
@@ -165,12 +266,6 @@ export default defineConfig({
   // Listed in humanfia.ai's robots.txt beside the organisation site's own.
   sitemap: { hostname: `${HOST}${BASE}` },
 
-  // `docs/tapes/` is the machinery the demos are rendered by, not a page of the site: its
-  // README is written for somebody standing in that directory with docker. Left in, VitePress
-  // publishes it at /tapes/README -- a page no sidebar holds, that the search still offers.
-  // What a reader needs of it is in Contributing.
-  srcExclude: ['tapes/**'],
-
   head: [
     // humanfia.ai's own icon and browser tint, from the domain's root: this is a page of that
     // site. `head` goes to the template as it is, so no base is prepended to these.
@@ -182,280 +277,15 @@ export default defineConfig({
   themeConfig: {
     // humanfia.ai's bar: no logo and no title, because the brand is the animated wordmark the
     // theme puts in the title link (theme/index.ts), and it goes to the organisation's front
-    // page. The links are the organisation's sections. This site's own -- the guides, the
-    // reference, contributing -- are at the head of every sidebar (theme/humanfia/SectionNav.vue)
-    // and on the front page.
+    // page. The links are the organisation's sections. This site's own four -- Tutorials, User
+    // Guide, Builder Guide, Reference -- are tabs at the head of every sidebar
+    // (theme/humanfia/SectionNav.vue) and on the front page.
     siteTitle: false,
     logoLink: { link: CHROME.home, target: '_self', rel: 'home' },
     nav: CHROME.nav,
 
-    // Every sidebar opens with its own section as a link rather than with an entry inside a
-    // group of the same name: a group called Features holding an item called "All of them" is
-    // a title nobody would write on the page itself, and the page is what it goes to. So the
-    // section is the first line, and the groups under it are what they were.
-    //
-    // The three role guides then open with Tutorials, because a reader who has arrived at
-    // their own section wants to be led once before being asked to look something up.
-    sidebar: {
-      // Grouped by what the reader is doing when they would want each one, in the order they
-      // meet it: choosing agents, a run under way, where its work lands, reading it back, and
-      // last, writing a flow of your own. Each title says what you get rather than what the
-      // mechanism is called. The capability map is grouped the same five ways.
-      '/features/': [
-        { text: 'Features', link: '/features/' },
-        { text: 'Everything it does', link: '/features/capabilities' },
-        {
-          text: 'Run it your way',
-          collapsed: false,
-          items: [
-            { text: 'Every coding agent you have', link: '/features/backends' },
-            { text: 'Two accounts of one CLI', link: '/features/accounts' },
-            { text: 'Prompt, browser, script or Python', link: '/features/surfaces' },
-          ],
-        },
-        {
-          text: 'While it runs',
-          collapsed: false,
-          items: [
-            { text: 'Talk into a running turn', link: '/features/steering' },
-            { text: 'When a flow asks you', link: '/features/human' },
-            { text: 'A budget on every run', link: '/features/allowances' },
-            { text: 'Close the terminal, keep the run', link: '/features/daemon' },
-            { text: 'Into its environments', link: '/features/environments' },
-          ],
-        },
-        {
-          text: 'Where the work lands',
-          collapsed: false,
-          items: [{ text: 'Work on another machine', link: '/features/anchor' }],
-        },
-        {
-          text: 'After a run',
-          collapsed: false,
-          items: [
-            { text: 'Every agent on one timeline', link: '/features/tracing' },
-            { text: 'Pick up where it stopped', link: '/features/resuming' },
-          ],
-        },
-        {
-          text: 'Writing a flow',
-          collapsed: false,
-          items: [
-            { text: 'A loop in plain Python', link: '/features/flows' },
-            { text: 'Many conversations at once', link: '/features/concurrency' },
-            { text: 'Answers as typed data', link: '/features/shapes' },
-            { text: 'The agent decides it is done', link: '/features/goals' },
-            { text: 'React to each moment of a turn', link: '/features/hooks' },
-            { text: 'Cap a single turn', link: '/features/budgets' },
-          ],
-        },
-      ],
-
-      // For the person who runs flows, in the order they need it: getting Humanize and a first
-      // run, then the tutorials, then the three ways to use it, then the rest grouped by when a
-      // reader reaches for it -- while a run goes, choosing agents, where the work lands, after a
-      // run, without anybody at it -- and help last.
-      '/user/': [
-        { text: 'User Guide', link: '/user/' },
-        {
-          text: 'Get started',
-          collapsed: false,
-          items: [
-            { text: 'Installation', link: '/user/installation' },
-            { text: 'Your first run', link: '/user/first-run' },
-            { text: 'Security', link: '/user/security' },
-            { text: 'Glossary', link: '/user/concepts' },
-          ],
-        },
-        {
-          text: 'Tutorials',
-          collapsed: false,
-          items: [
-            { text: 'Beat a benchmark', link: '/user/tutorials/take-home' },
-            { text: 'Port a project', link: '/user/tutorials/port-a-project' },
-            { text: 'Build a coding agent', link: '/user/tutorials/build-an-agent' },
-          ],
-        },
-        {
-          text: 'Ways to use it',
-          collapsed: false,
-          items: [
-            { text: 'Chat', link: '/user/chat' },
-            { text: 'Humanize Desktop', link: '/user/desktop' },
-            { text: 'In a browser (hmz web)', link: '/user/web' },
-            { text: 'At the prompt (hmz)', link: '/reference/tui' },
-            { text: 'Run it unattended (hmz exec)', link: '/user/unattended' },
-            { text: 'Humanize in CI', link: '/user/ci' },
-          ],
-        },
-        {
-          text: 'While it runs',
-          collapsed: true,
-          items: [
-            { text: 'Talking to a running turn', link: '/user/steering' },
-            { text: 'Side questions (/btw)', link: '/user/btw' },
-            { text: 'Ai-chan (/ai)', link: '/user/ai-chan' },
-            { text: 'Many conversations at once', link: '/user/conversations' },
-            { text: 'Watching a run (the monitor)', link: '/user/monitor' },
-            { text: 'The mission board', link: '/user/board' },
-            { text: 'Being away (/afk)', link: '/user/afk' },
-            { text: 'Stopping', link: '/user/stopping' },
-            { text: 'Leaving it running', link: '/user/leaving' },
-            { text: 'Completion', link: '/user/completion' },
-            { text: 'History', link: '/user/history' },
-          ],
-        },
-        {
-          text: 'Agents and accounts',
-          collapsed: true,
-          items: [
-            { text: 'Settings (/settings)', link: '/user/settings' },
-            { text: 'Accounts', link: '/user/settings#accounts' },
-            { text: 'Efforts', link: '/user/efforts' },
-            { text: 'Nous', link: '/user/settings#nous' },
-            { text: 'Cost and rate', link: '/user/tally' },
-            { text: 'Permissions', link: '/user/permissions' },
-            { text: 'Skills', link: '/user/skills' },
-            { text: 'Questions', link: '/user/questions' },
-          ],
-        },
-        {
-          text: 'Where the work lands',
-          collapsed: true,
-          items: [
-            { text: 'Remote execution', link: '/user/remote-execution' },
-            { text: 'Where the agent runs (harness setting)', link: '/user/remote-execution#where-the-agent-runs' },
-            { text: 'Containers', link: '/user/containers' },
-            { text: 'Running a relay', link: '/user/relay' },
-          ],
-        },
-        {
-          text: 'After a run',
-          collapsed: true,
-          items: [
-            { text: 'Picking a run up', link: '/user/resuming' },
-            { text: 'Exporting a run', link: '/user/export' },
-            { text: 'Backing epics up', link: '/user/backups' },
-            { text: 'Tracing', link: '/user/tracing' },
-          ],
-        },
-        {
-          text: 'Help',
-          collapsed: false,
-          items: [
-            { text: 'Troubleshooting', link: '/user/troubleshooting' },
-            { text: 'Reporting', link: '/user/reporting' },
-          ],
-        },
-      ],
-
-      // For the weaver: the person who writes the flow. Everything here is Python, and the
-      // reader is expected to have run one before writing one. The order is the order they
-      // need it in: a flow of their own running first, then what grows it, then what an agent
-      // can be asked, and testing and publishing once there is something worth either.
-      '/weaver/': [
-        { text: 'Writing Flows', link: '/weaver/' },
-        {
-          text: 'Start here',
-          collapsed: false,
-          items: [
-            { text: 'Your first flow', link: '/weaver/writing-a-flow' },
-            { text: 'Build under test', link: '/weaver/tutorials/build-under-test' },
-            { text: 'Loops', link: '/weaver/loops' },
-            { text: 'Params of its own', link: '/weaver/flow-settings' },
-          ],
-        },
-        {
-          text: 'Growing a flow',
-          collapsed: false,
-          items: [
-            { text: 'Many turns at once', link: '/weaver/async-flows' },
-            { text: 'A flow that calls a flow', link: '/weaver/calling-flows' },
-            { text: 'Branching a conversation', link: '/weaver/branching' },
-            { text: 'Worktrees, copies and scratch', link: '/weaver/worktrees' },
-          ],
-        },
-        {
-          text: 'What an agent can be asked',
-          collapsed: false,
-          items: [
-            { text: 'Goals', link: '/weaver/goals' },
-            { text: 'Answers in a shape', link: '/weaver/shapes' },
-            { text: 'Hooks', link: '/weaver/hooks' },
-            { text: 'The agent asking the flow', link: '/weaver/tools' },
-            { text: 'The person as an agent', link: '/weaver/human-agent' },
-            { text: 'A face for the person', link: '/weaver/faces' },
-          ],
-        },
-        {
-          text: 'When it is ready',
-          collapsed: false,
-          items: [
-            { text: 'Testing a flow', link: '/weaver/testing-flows' },
-            { text: 'Flowverses', link: '/weaver/flowverses' },
-          ],
-        },
-      ],
-
-      '/contributing/': [
-        { text: 'Contributing', link: '/contributing/' },
-        {
-          text: 'Tutorials',
-          collapsed: false,
-          items: [
-            { text: 'Your first patch', link: '/contributing/tutorials/first-patch' },
-            { text: 'Add a page to these docs', link: '/contributing/tutorials/a-page-of-docs' },
-          ],
-        },
-        {
-          text: 'How the repository works',
-          collapsed: false,
-          items: [
-            { text: 'Architecture', link: '/contributing/architecture' },
-            { text: 'CI', link: '/contributing/ci' },
-            { text: 'Working on these docs', link: '/contributing/docs' },
-          ],
-        },
-        {
-          text: 'Maintaining',
-          collapsed: false,
-          items: [{ text: 'Releasing', link: '/contributing/releasing' }],
-        },
-      ],
-
-      '/reference/': [
-        { text: 'Reference', link: '/reference/' },
-        {
-          text: 'Command line',
-          items: [
-            { text: 'CLI', link: '/reference/cli' },
-            { text: 'TUI', link: '/reference/tui' },
-            { text: 'Web', link: '/reference/web' },
-            { text: 'Daemon', link: '/reference/daemon' },
-          ],
-        },
-        {
-          text: 'Python',
-          items: [
-            { text: 'SDK', link: '/reference/sdk' },
-            { text: 'Flows', link: '/reference/flows' },
-            { text: 'Agents', link: '/reference/agents' },
-            { text: 'Machines', link: '/reference/machines' },
-            { text: 'Providers', link: '/reference/providers' },
-            { text: 'Remote execution', link: '/reference/remote-execution' },
-            { text: 'Tracing', link: '/reference/tracing' },
-          ],
-        },
-        {
-          text: 'State',
-          items: [
-            { text: 'Files', link: '/reference/files' },
-            { text: 'Settings', link: '/reference/settings' },
-            { text: 'Environment variables', link: '/reference/environment' },
-          ],
-        },
-      ],
-    },
+    // One sidebar per section, each opening with the section itself (sidebar.ts).
+    sidebar: SIDEBAR,
 
     socialLinks: CHROME.socialLinks,
 

@@ -80,6 +80,17 @@ def _answers(runs: list[dict[str, Any]], total: int | None = None) -> dict[str, 
     }
 
 
+def _now() -> str:
+    """This moment, as a chat's row says when it was last written."""
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
+#: When every chat a host holds here was last heard of: one moment, so their order stays.
+_NOW = _now()
+
+
 def _chat(row: dict[str, Any]) -> dict[str, Any]:
     """A chat's row as `chat.list` answers it: what it waits on between turns its host says."""
     held = row["held"]
@@ -93,7 +104,8 @@ def _chat(row: dict[str, Any]) -> dict[str, Any]:
         "agent": row["agents"][0]["runs"],
         "model": "sonnet",
         "began": row["began"],
-        "updated": row["ended"] or row["began"],
+        # One a host holds was heard of just now, which is all that stands it first.
+        "updated": row["ended"] or (_NOW if held else row["began"]),
         "state": "failed"
         if how == "failed"
         else "turn"
@@ -275,19 +287,19 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(side.locator("[data-hmz=epic]")).to_have_count(6)
         assert _box(side) == (0, 0, 275, 792)
         # The splitter lies across its right edge.
-        assert _box(side.locator("[data-hmz=side-split]")) == (269, 0, 12, 792)
+        assert _box(side.locator("[data-hmz=side-split]")) == (272, 0, 8, 792)
 
         # The title row: the mark, where a desktop app's window keeps its traffic lights, then
-        # hiding it, back and forward, side by side from 84 in; the bell last.
+        # hiding it, back and forward, side by side from 84 in.
         top = side.locator(".side-top")
-        expect(top.locator(":scope > *")).to_have_count(5)
+        expect(top.locator(":scope > *")).to_have_count(4)
         assert _box(top.locator(".brand")) == (8, 8, 76, 28)
         boxes = [
             _box(top.get_by_role("button", name=name, exact=True))
-            for name in ("Hide sidebar", "Back", "Forward", "Notifications")
+            for name in ("Hide sidebar", "Back", "Forward")
         ]
-        assert [box[1:] for box in boxes] == [(8, 28, 28)] * 4
-        assert [box[0] for box in boxes] == [84, 112, 140, 238]
+        assert [box[1:] for box in boxes] == [(8, 28, 28)] * 3
+        assert [box[0] for box in boxes] == [84, 112, 140]
 
         # Hidden and shown again: the button that undoes each has the focus, and the mark,
         # under the pointer that pressed `Show sidebar`, says nothing over the first entry.
@@ -302,7 +314,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         # The entries: 258 by 32, 2px apart, 8px in, all drawn alike but the one the page is on.
         entries = side.locator(".side-nav a")
         assert [_box(one) for one in entries.all()] == [
-            (8, 46 + 34 * at, 258, 32) for at in range(4)
+            (8, 48 + 34 * at, 258, 32) for at in range(4)
         ]
         expect(entries.nth(0)).to_have_attribute("aria-current", "page")
         weights = {
@@ -310,34 +322,61 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
             for one in entries.all()
         }
         assert len(weights) == 1
+        # A shortcut ends where its row's words may, 8px in from the row's end, on both rows,
+        # and at the sidebar's least width no entry is wider than its row.
+        ends = "(el) => Math.round(el.getBoundingClientRect().right)"
+        assert {one.evaluate(ends) for one in side.locator(".side-keys").all()} == {258}
+        page.evaluate(
+            "document.querySelector('.app').style.setProperty('--side-wide', '200px')"
+        )
+        assert not any(
+            one.evaluate("(el) => el.scrollWidth > el.clientWidth")
+            for one in entries.all()
+        )
+        page.evaluate(
+            "document.querySelector('.app').style.removeProperty('--side-wide')"
+        )
 
-        # A heading 24 tall, a chat's row 258 by 32 under it, rows 2px apart.
+        # A heading as wide and as tall as a row, a chat's row 258 by 32 under it, rows 2px apart.
         group = side.locator("[data-hmz=workspace][data-path='/w']")
         head = group.locator(".side-folder")
-        assert _box(head) == (14, 204, 248, 24)
+        assert _box(head) == (8, 202, 258, 32)
         chats = group.locator("[data-hmz=epic][data-kind=chat]")
         # The two going first, then, past the flow's epic of two lines, the two that are not.
         assert [_box(one) for one in chats.all()] == [
-            (8, top, 258, 32) for top in (234, 268, 355, 389)
+            (8, top, 258, 32) for top in (236, 270, 362, 396)
         ]
         # What sorts the list and what starts a chat stand at the heading's end once pointed at.
         sort, add = head.locator(".side-sort"), head.locator(".side-add")
         expect(sort).to_have_css("opacity", "0")
         head.hover()
         expect(sort).to_have_css("opacity", "1")
-        assert _box(head.locator(".side-toggle")) == (14, 204, 196, 24)
-        assert _box(sort) == (214, 204, 24, 24)
-        assert _box(add) == (238, 204, 24, 24)
+        assert _box(head.locator(".side-toggle")) == (8, 202, 206, 32)
+        assert _box(sort) == (214, 206, 24, 24)
+        assert _box(add) == (238, 206, 24, 24)
         expect(add).to_have_attribute("aria-label", "New chat in w")
 
-        # A chat says how it stands in quiet words straight after its title, and no more:
-        # no glyph, no dot, no flow, nothing that opens it out.
+        # A chat says how it stands in a quiet word straight after its title, and no more:
+        # no glyph, no flow, nothing that opens it out. One that waits on its person says
+        # no word: it is marked by the dot of a row unread, which says so to whoever
+        # cannot see it and where it is pointed at.
         said = {
             name: group.locator(f".side-item[data-epic={name}] [data-hmz=chat-state]")
             for name in ("going", "asks", "failed", "rests")
         }
         expect(said["going"]).to_have_text("Running")
-        expect(said["asks"]).to_have_text("Awaiting input")
+        expect(said["asks"]).to_have_text("")
+        expect(said["asks"]).to_have_class("side-unread")
+        expect(said["asks"]).to_have_attribute("role", "img")
+        expect(said["asks"]).to_have_attribute("aria-label", "Awaiting input")
+        expect(said["asks"]).to_have_attribute("title", "Awaiting input")
+        assert _box(said["asks"])[2:] == (6, 6)
+        expect(group.locator(".side-item[data-epic=asks]")).not_to_contain_text(
+            "Awaiting input"
+        )
+        expect(
+            group.locator(".side-item[data-epic=asks] [data-hmz=unread]")
+        ).to_have_count(0)
         expect(said["asks"]).to_have_css("animation-name", "none")
         expect(said["failed"]).to_have_text("Failed")
         expect(said["rests"]).to_have_count(0)
@@ -349,7 +388,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
             title = _box(group.locator(f".side-item[data-epic={name}] .side-label"))
             state = _box(said[name])
             assert title[0] == 18
-            assert state[0] == title[0] + title[2] + 6
+            assert state[0] == title[0] + title[2] + 8
 
         # Its menu's button, 24 by 24 at its far end, once the row is pointed at or holds
         # the focus.
@@ -361,7 +400,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(more).to_have_css("opacity", "0")
         chat.hover()
         expect(more).to_have_css("opacity", "1")
-        assert _box(more) == (238, 238, 24, 24)
+        assert _box(more) == (238, 240, 24, 24)
 
         # A flow's epic keeps what makes it another kind, on a first line as tall as a chat's.
         flow = group.locator(".side-item[data-epic=e1]")
@@ -370,14 +409,27 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(flow.locator("[data-hmz=epic-state]")).to_have_text("Done")
         assert _box(flow.locator(".side-line").first)[3] == 32
         title = _box(flow.locator(".side-label").first)
-        assert _box(flow.locator("[data-hmz=epic-state]"))[0] == title[0] + title[2] + 6
+        assert _box(flow.locator("[data-hmz=epic-state]"))[0] == title[0] + title[2] + 8
         flow.hover()
         assert _box(flow.locator("[data-hmz=row-menu]"))[0] == 238
 
         # The foot: one row, the daemon bar and the settings beside it.
-        assert _box(side.locator("[data-hmz=daemon-bar]")) == (8, 756, 222, 28)
+        bar = side.locator("[data-hmz=daemon-bar]")
+        assert _box(bar) == (8, 754, 226, 32)
+        # Pressed on its name for as long as a hand presses, it opens its menu, every choice
+        # of which leads with an icon.
+        x, y, _, _ = _box(bar.locator("[data-hmz=daemon-name]"))
+        page.mouse.move(x + 4, y + 8)
+        page.mouse.down()
+        page.wait_for_timeout(80)
+        page.mouse.up()
+        picker = page.locator("[data-hmz=daemon-picker]")
+        expect(picker.locator(".choice-mark svg")).to_have_count(3)
+        expect(picker.locator(".choice-mark:not(:has(svg))")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(picker).to_have_count(0)
         gear = side.get_by_role("button", name="Settings", exact=True)
-        assert _box(gear) == (236, 756, 28, 28)
+        assert _box(gear) == (238, 756, 28, 28)
         gear.click()
         page.wait_for_url(re.compile(r"#/settings/general$"))
         expect(page.locator("[data-hmz=overlay]")).to_be_visible()
@@ -415,6 +467,9 @@ def test_the_sidebar_is_sized_by_its_splitter_and_stays_so(engine: str) -> None:
         expect(split).to_have_attribute("aria-valuenow", "340")
         assert _box(side)[2] == 340
         assert _box(page.locator("[data-hmz=page]"))[0] == 340
+        # A theme painted again leaves it as wide.
+        page.evaluate("window.hmzPaint()")
+        assert _box(side)[2] == 340
         # Kept for the next visit.
         again(page)
         assert _box(side)[2] == 340
@@ -625,12 +680,24 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
         expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
             "Nothing here yet"
         )
+        # Where its rows would be, what starts a chat in it.
+        fresh = page.locator("[data-hmz=epics] [data-hmz=group-empty-new]")
+        expect(fresh).to_have_text("New chat")
         # What brings the chat back is on that heading.
         menu = _group_and_sort(page)
         menu.get_by_role("menuitem", name="Show").hover()
         page.get_by_role("menuitemcheckbox", name="Chats").click()
         expect(epics).to_have_count(1)
         _named(page, "No folder")
+        expect(fresh).to_have_count(0)
+        page.keyboard.press("Escape")
+        menu = _group_and_sort(page)
+        menu.get_by_role("menuitem", name="Show").hover()
+        page.get_by_role("menuitemcheckbox", name="Chats").click()
+        page.keyboard.press("Escape")
+        fresh.click()
+        # In no folder, as the heading it stands under says.
+        expect(page).to_have_url(re.compile(r"#/new/chat\?scratch=1$"))
 
 
 def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(
@@ -667,7 +734,6 @@ def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them
         offered = [
             "New chat here",
             "New epic here",
-            "Flows here",
             "Search here",
             "Copy path",
             "Settings",
@@ -724,6 +790,23 @@ def test_more_options_is_a_popup_button_that_keeps_the_focus(engine: str) -> Non
         expect(menu).to_have_count(1)
         more.click()
         expect(menu).to_have_count(0)
+
+        # One popup at a time: another row's menu opened by the keyboard, with no press
+        # outside the first, shuts the first.
+        more.click()
+        expect(menu).to_have_count(1)
+        next_more = page.locator(
+            "[data-hmz=epics] .side-item:not([data-epic=rests]) [data-hmz=row-menu]"
+        ).first
+        next_more.focus()
+        page.keyboard.press("Enter")
+        expect(next_more).to_have_attribute("aria-expanded", "true")
+        expect(more).to_have_attribute("aria-expanded", "false")
+        expect(menu).to_have_count(1)
+        expect(page.locator(".popover:visible")).to_have_count(1)
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+        expect(next_more).to_be_focused()
 
         # A choice made, the focus is on the row's button still, wherever the row went.
         more.click()
@@ -855,3 +938,94 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
         page.locator("[data-hmz=composer-text]").click()
         page.keyboard.type("hello")
         expect(page.locator("[data-hmz=composer-text]")).to_have_value("hello")
+
+
+@pytest.mark.parametrize(
+    ("language", "said"),
+    [
+        (
+            "zh-Hans",
+            {
+                "nav": ["新建聊天", "新建史诗", "搜索", "流程"],
+                "states": ["运行中", "等待输入", "已完成", "失败"],
+                "menu": ["分组方式", "排序方式", "显示"],
+                "about": ["文件夹", "最近更新"],
+                "reset": "恢复默认",
+                "row": ["打开", "置顶", "标为未读", "重命名"],
+                "date": ["今天", "更早", "文件夹"],
+                "add": "在 w 中新建聊天",
+            },
+        ),
+        (
+            "zh-Hant",
+            {
+                "nav": ["新增聊天", "新增史詩", "搜尋", "流程"],
+                "states": ["執行中", "等待輸入", "已完成", "失敗"],
+                "menu": ["分組方式", "排序方式", "顯示"],
+                "about": ["資料夾", "上次更新"],
+                "reset": "重設為預設值",
+                "row": ["開啟", "置頂", "標示為未讀", "重新命名"],
+                "date": ["今天", "更早", "資料夾"],
+                "add": "在 w 中新增聊天",
+            },
+        ),
+    ],
+)
+def test_the_sidebar_is_written_in_the_language_chosen(
+    engine: str, language: str, said: dict[str, Any]
+) -> None:
+    wire = _wire(_MIXED)
+    kept = f"localStorage.setItem('hmz-language', '{language}')"
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=kept) as page,
+    ):
+        expect(page.locator("html")).to_have_attribute("lang", language)
+        expect(page.locator(".side-nav a > span:not(.side-badge)")).to_have_text(
+            said["nav"]
+        )
+        # What was asked and a folder's name stay as written; how a row stands does not.
+        _named(page, "w", "v", "empty")
+        expect(page.locator("[data-hmz=epics] [data-hmz=epic]")).to_have_count(6)
+        going = page.locator("[data-hmz=epics] .side-item[data-epic=going]")
+        expect(going.locator(".side-label")).to_have_text("Ask going")
+        states = page.locator(
+            "[data-hmz=epics] :is([data-hmz=chat-state], [data-hmz=epic-state])"
+        )
+        assert [
+            one.get_attribute("aria-label") or one.inner_text() for one in states.all()
+        ] == said["states"]
+        expect(page.locator("[data-hmz=group-add]").first).to_have_attribute(
+            "aria-label", said["add"]
+        )
+        # No label of the list is cut short or runs out of its row.
+        labels = page.locator(".side-nav a > span:not(.side-badge), .side-status")
+        for label in labels.all():
+            assert label.evaluate("(el) => el.scrollWidth <= el.clientWidth + 1"), (
+                label.inner_text()
+            )
+
+        menu = _group_and_sort(page)
+        expect(
+            menu.locator(":scope > .choice-sub > .choice .choice-label")
+        ).to_have_text(said["menu"])
+        expect(
+            menu.locator(":scope > .choice-sub > .choice .choice-about")
+        ).to_have_text(said["about"])
+        expect(menu.locator(":scope > .choice")).to_have_text(said["reset"])
+        page.keyboard.press("Escape")
+
+        page.locator("[data-hmz=epics] .side-item[data-epic=rests] a").click(
+            button="right"
+        )
+        expect(page.get_by_role("menuitem")).to_contain_text(said["row"])
+        page.keyboard.press("Escape")
+
+    by_date = (
+        f"{kept}; localStorage.setItem('hmz-list', JSON.stringify({{ group: 'date' }}))"
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=by_date) as page,
+    ):
+        _named(page, *said["date"])

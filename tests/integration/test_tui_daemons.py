@@ -120,8 +120,15 @@ async def _adds(pilot: Pilot[None], name: str) -> None:
 
 
 async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
-    host: Host, tmp_path: Path
+    host: Host, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # And one started there in no folder, in a directory that machine made for it alone.
+    made = host.tmp.resolve() / f"humanize-{os.getuid()}" / "nofolder" / "tmpab12cd34"
+    made.mkdir(parents=True)
+    with monkeypatch.context() as there:
+        there.setenv("HUMANIZE_HOME", str(host.humanize))
+        with Epic("ralph", "nowhere at all", made):
+            pass
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/settings daemons")
@@ -150,6 +157,9 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
         await typed(pilot, "/epics @box")
         await on(pilot, RemoteEpics)
         await shows(pilot, "Epics on box", "tidy the far project", "ralph")
+        # Said to be of no folder, never by the directory made for it (Section 17.3.1.1).
+        said = await shows(pilot, "no folder · nowhere at all")
+        assert "tmpab12cd34" not in said
         pilot.app.save_screenshot("epics-box.svg", str(tmp_path))
 
         # And one brought here from its menu.

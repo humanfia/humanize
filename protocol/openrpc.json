@@ -4342,18 +4342,6 @@
           }
         },
         {
-          "name": "network",
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
-          "name": "title",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
           "name": "task",
           "required": true,
           "schema": {
@@ -4476,6 +4464,75 @@
         "scope": "never"
       },
       "x-hmz-writes": false
+    },
+    {
+      "name": "aichan.rename",
+      "summary": "Change an Ai-chan conversation's title.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rename",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "aichan.forget",
@@ -5571,12 +5628,11 @@
     },
     {
       "name": "flows.list",
-      "summary": "The flows on offer in a workspace.",
+      "summary": "The flows on offer, with those of a workspace where one is named.",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "workspace",
-          "required": true,
           "schema": {
             "$ref": "#/components/schemas/Workspace"
           }
@@ -5637,7 +5693,6 @@
       "params": [
         {
           "name": "workspace",
-          "required": true,
           "schema": {
             "$ref": "#/components/schemas/Workspace"
           }
@@ -6760,6 +6815,13 @@
           "schema": {
             "type": "boolean"
           }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": "string"
+          },
+          "description": "The runtime whose machine the directory is on, as -e spells one with no directory; this machine where absent."
         }
       ],
       "result": {
@@ -6916,12 +6978,6 @@
           "name": "workspace",
           "schema": {
             "$ref": "#/components/schemas/Workspace"
-          }
-        },
-        {
-          "name": "ai_chan",
-          "schema": {
-            "type": "string"
           }
         },
         {
@@ -7519,6 +7575,49 @@
         "scope": "any"
       },
       "x-hmz-writes": false
+    },
+    {
+      "name": "nous.scan",
+      "summary": "Ask every installed harness what it runs, as each of its accounts.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "scan",
+        "schema": {
+          "$ref": "#/components/schemas/NousScan"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "nous.set",
@@ -8277,7 +8376,7 @@
     },
     {
       "name": "easytier.nodes",
-      "summary": "The community's shared EasyTier nodes.",
+      "summary": "The shared EasyTier nodes to offer.",
       "paramStructure": "by-name",
       "params": [],
       "result": {
@@ -9068,9 +9167,9 @@
           "name": "task",
           "required": true,
           "schema": {
-            "type": "string",
-            "minLength": 1
-          }
+            "type": "string"
+          },
+          "description": "The chat's first message, or the one that carries it on; empty only with resume, which carries the chat on with nothing said."
         },
         {
           "name": "resume",
@@ -9108,6 +9207,16 @@
           "schema": {
             "type": "boolean"
           }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]. Where the chat's assistant works; with resume, where the chat is carried on."
         },
         {
           "name": "remember",
@@ -9439,6 +9548,90 @@
         "name": "set",
         "schema": {
           "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.move",
+      "summary": "Move a chat to another env, between turns.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]."
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "move",
+        "schema": {
+          "type": "object",
+          "required": [
+            "env"
+          ],
+          "properties": {
+            "env": {
+              "type": "string"
+            }
+          }
         }
       },
       "errors": [
@@ -10515,6 +10708,7 @@
         "required": [
           "name",
           "workspace",
+          "folderless",
           "kind",
           "flow",
           "task",
@@ -10534,10 +10728,12 @@
         "properties": {
           "name": {},
           "workspace": {},
+          "folderless": {
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
-              "flow",
-              "chat"
+              "flow"
             ]
           },
           "flow": {},
@@ -10635,10 +10831,12 @@
       "Runtimes": {
         "type": "object",
         "required": [
+          "local",
           "runtimes",
           "blanks"
         ],
         "properties": {
+          "local": {},
           "runtimes": {},
           "blanks": {}
         }
@@ -10868,7 +11066,8 @@
           "default",
           "strategies",
           "faults",
-          "concrete"
+          "concrete",
+          "scanning"
         ],
         "properties": {
           "nous": {},
@@ -10876,7 +11075,56 @@
           "default": {},
           "strategies": {},
           "faults": {},
-          "concrete": {}
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NousScan": {
+        "type": "object",
+        "required": [
+          "nous",
+          "policies",
+          "default",
+          "strategies",
+          "faults",
+          "concrete",
+          "scanning",
+          "failed"
+        ],
+        "properties": {
+          "nous": {},
+          "policies": {},
+          "default": {},
+          "strategies": {},
+          "faults": {},
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cli",
+                "account",
+                "why"
+              ],
+              "properties": {
+                "cli": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       },
       "Conversation": {
@@ -10889,10 +11137,11 @@
           "epic",
           "nous",
           "preset",
-          "network",
           "slot",
           "state",
-          "created"
+          "created",
+          "latest",
+          "updated"
         ],
         "properties": {
           "id": {
@@ -10924,9 +11173,6 @@
               "danger-full-access"
             ]
           },
-          "network": {
-            "type": "boolean"
-          },
           "slot": {
             "$ref": "#/components/schemas/Slot"
           },
@@ -10939,6 +11185,13 @@
           },
           "created": {
             "type": "string"
+          },
+          "latest": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "updated": {
+            "type": "string"
           }
         }
       },
@@ -10948,7 +11201,9 @@
           "id",
           "title",
           "workspace",
+          "folderless",
           "workdir",
+          "env",
           "agent",
           "model",
           "began",
@@ -10970,7 +11225,13 @@
           "workspace": {
             "type": "string"
           },
+          "folderless": {
+            "type": "boolean"
+          },
           "workdir": {
+            "type": "string"
+          },
+          "env": {
             "type": "string"
           },
           "agent": {

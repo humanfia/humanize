@@ -1,253 +1,109 @@
+---
+title: Ai-chan
+description: Ask Ai-chan, the operator agent, what your epics did, and have her start, steer and stop them for you.
+---
+
 # Ai-chan
 
-<img class="ai-chan-avatar" src="/ai-chan/avatar-128.png" alt="Ai-chan, drawn in pixel art" width="96" height="96">
+Ai-chan is an agent that operates Humanize for you. Tell her what you want in plain words. She reads your epics, asks their sessions, starts, steers and stops runs, works in their environments, and edits settings. Everything she does goes through the daemon.
 
-Ai-chan is Humanize's own operator: you tell her what you want in words, and she does it on
-your epics as you would from the prompt or the page. Ask her what your epics did today, have her
-steer a session, or run the tests in an epic's environment.
+![Humanize Desktop with an epic open and Ai-chan's drawer beside it, where she answered what the epic did after calling three tools](/shots/user-ai-chan-open.svg)
 
-::: info At a glance
-- **You will** open a conversation with Ai-chan, say what you want, and watch each thing she
-  does to Humanize as she does it.
-- **Use it when** a question spans several epics, or a job is easier said than clicked:
-  "summarize what my epics did today", "tell the actor to stop refactoring", "run the tests in
-  the env of epic X".
-- **You need** an agent for her to think with, chosen as **Ai-chan** on the
-  [General page of the settings](/user/settings#general) or when you open her.
-:::
+## How she works
 
-<style>
-.ai-chan-avatar {
-  float: right;
-  margin: 0 0 12px 16px;
-  image-rendering: pixelated;
-}
-</style>
+You set three choices when you start a conversation with Ai-chan. You cannot change them later.
 
-## Try it
-
-At the prompt, type `/ai`, pick **New**, press **Done** on the form as it comes, and say what
-you want:
-
-```text
-❯ /ai
-❯ summarize what my epics in this directory did today
-```
-
-On the page of [`hmz web`](/user/web) or in [Humanize Desktop](/user/desktop), click Ai-chan's
-avatar at the right of any view's bar instead: a drawer opens beside it, with **New**.
-
-## How it works
-
-Every conversation with Ai-chan is fixed, when you make it, to three things. None of them
-changes while the conversation lasts; to change one, make another conversation. A `/model` or
-`/effort` said to her is refused, and leaves the [chat agent](/user/chat) her workspace remembers
-as it was.
-
-| | What it is | Choices | Default |
-| --- | --- | --- | --- |
-| **Scope** | what she may reach | `epic`: one epic, and the directory it ran in · `workspace`: one directory and every epic run there · `daemon`: every directory and every epic on this machine's daemon | the epic you are looking at, else the directory, else the daemon |
-| **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the **Ai-chan** setting |
-| **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access`, and **network**, off or on | `read-only`, network off |
-
-What she may do follows from the preset, and from the scope reaching what she acts on:
-
-| She can | `read-only` | `danger-full-access` |
+| Choice | Values | Default |
 | --- | --- | --- |
-| Read epics, transcripts, traces and what they spent | yes | yes |
-| Ask a session a [side question](/user/btw) | yes | yes |
-| List, read and search the files of a running epic's environments | yes | yes |
-| Read files under the scope's directory | yes | yes |
-| Write files in her own scratch directory | yes | yes |
-| Say something to an epic, answer it, stop it, force it, edit its board | no | yes |
-| Write files in a running epic's environments, and run commands there | no | yes |
-| Write files under the scope's directory | no | yes |
-| Start an epic (`workspace` and `daemon` scopes) | no | yes |
-| Change the settings and the nous, install flows (`daemon` scope) | no | yes |
+| Nous | Any [nous](/user/nous): the model that plays her | The one used last |
+| Preset | Read only: she reads and changes nothing. Full access: she may change what her scope reaches | Read only |
+| Scope | Daemon: every workspace and epic. Workspace: one folder and the epics run there. Epic: one epic | The epic you are looking at, else the workspace, else the daemon |
 
-Whatever the permission, she cannot reach anything outside her scope, pair a device, add an
-account or touch its credentials, or see another conversation with Ai-chan, her own included.
-Her CLI never stops to ask you for approval: what she cannot do is refused as she tries it, not
-put to you.
+The daemon checks every tool call against her scope and preset before running it. If a call is out of reach, the daemon refuses it, tells her why, and lets her turn continue.
 
-**Network** off cuts the network for her CLI and every command it runs, except what her model
-and its sign-in need. Turn it on when she must fetch something, such as a page or a package.
+![You talk to Ai-chan; each tool call goes to the daemon, which checks her scope and preset; a call out of reach is refused](/diagrams/user-ai-chan-1.svg)
 
-She talks as a chat does: she answers each thing you say in a turn, and
-she shows each tool she calls -- what she asked Humanize for, and how it was answered -- as a
-line of her turn you can open. What she does to an epic, every frontend reading that epic sees,
-under her name, `Ai-chan#<n>`: a line she says to an agent reads `· by Ai-chan#3`, as yours
-reads `· by` you.
+## In the app
 
-## Example: summarize what your epics did today
+1. Click the **Ai-chan** avatar at the right end of the top bar. The drawer opens beside the view and stays open as you move between views.
+2. Click **New** (or **New conversation** when the list is empty).
+3. Under the input box, pick her nous on the first chip: a virtual nous by name, or a concrete one a level at a time (harness, account, model, effort). On the second chip, pick **Read only** or **Full access**, and under **Scope** pick **Daemon**, **Workspace**, or **Epic**.
+4. Type in **Say something to Ai-chan** and press <kbd>enter</kbd>. This first line creates the conversation, and its first 80 characters become the title.
 
-You have run a few epics in `~/code/shop` today and want the gist without opening each.
+![The drawer is opened, a new conversation is started, the permission chip shows the presets and scopes, a question is typed and Ai-chan answers](/shots/user-ai-chan-new.svg)
 
-**At the prompt.** In `~/code/shop`, type `/ai`. A menu lists every conversation with Ai-chan,
-under **New**:
+![The permission chip's menu: Read only and Full access, then the scopes Daemon, Workspace and Epic](/shots/user-ai-chan-scope.svg)
 
-```text
-  New                                                                         ①
-    a conversation of its own scope, nous and permission
-  Ai-chan#2 · check the reviewer's last round                                 ②
-    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · network off · between turns
-  Ai-chan#1 · what did the benchmark score
-    daemon · claude/claude-opus-5:high · read-only · network off · folded away
-```
+*The scope rows name the current folder and epic.*
 
-Pick **New**. A form asks for the scope, the nous, the preset and the network, each set to its
-default. Nothing has run here, so the scope is `workspace`, this directory. Press **Done**: the
-first line you say is the task that starts the conversation.
+**Workspace** is disabled when there is no folder to hold her to, and **Epic** is disabled when the page shows no epic. If no nous is selected, the drawer shows **Pick a nous for Ai-chan.**
 
-```text
-❯ summarize what my epics here did today, one line each
-  …                                                                          ③
-  Four epics today:
-  - 09:12 ralph_loop: added the coupon endpoint; done in 3 rounds, $2.10.
-  - 11:40 rlar: the reviewer refused the migration twice; stopped by its budget.
-  …
-Ai-chan#3 · workspace shop · ◉ done                                          ④
-```
+In an open conversation, her answers appear on the left and your lines appear on the right. Each tool call is a line you can expand. A line you send answers whatever she is waiting on, or joins her current turn if it is still open. When she asks a question with options, the options appear as buttons.
 
-What to look at, by number:
+While she answers, the send button becomes **Stop**, which stops her turn at once. Click the pencil beside the title to **Rename** (the terminal cannot rename), or click **Back** to return to the list. Press <kbd>esc</kbd> inside the drawer, click **Close panel**, or click the avatar to close the drawer.
 
-1. **New** makes a conversation. Every one you made is listed under it, newest first.
-2. **Each conversation**, `Ai-chan#<n>` and its title, says its scope, its nous, its preset,
-   whether its network is on, and how it stands: `answering`, `between turns` or `folded away`.
-3. **Each tool she calls** is a tool line of her turn, as an agent's is, even with
-   [Details](/user/settings#details) off: what she asked Humanize for, and how it was answered.
-4. **`Ai-chan#3 · workspace shop`** at the front of the status line is the conversation you
-   follow, with its scope.
+### Manage conversations
 
-### Check it worked
+The list shows each conversation with an avatar, its title, and the start of the last line or `typing…`. Pinned conversations come first, followed by the most recent. Marks at the right of a row show that it is pinned, failed, or unread.
 
-- She answered from what your epics wrote down: each line names an epic you ran.
-- `/ai` again lists the conversation, `between turns`: ready for your next line.
+Open a row's menu by right-clicking it. On a touch screen, press and hold, or swipe left. On a keyboard, press the menu key, <kbd>shift+f10</kbd>, or <kbd>alt+enter</kbd>.
 
-## Open a conversation
+| Item | What it does |
+| --- | --- |
+| **Pin** / **Unpin** | Keeps the row at the top |
+| **Mark as read** / **Mark as unread** | Clears or sets the unread dot and bold title |
+| **Delete** | Asks **Delete this conversation?** in the row, then removes the conversation for good |
 
-| Where | Open | New | Stop her turn | Forget |
-| --- | --- | --- | --- | --- |
-| The prompt (`hmz`) | `/ai`, then <kbd>enter</kbd> on a conversation | `/ai` › **New**: a form, **Done**, then say the first line | `/stop` | `/ai`, <kbd>m</kbd> on a conversation, **forget** |
-| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Forget** on a conversation |
-| Humanize Desktop | as on the page | as on the page | as on the page | as on the page |
+![A row is right-clicked and pinned, then Delete is chosen on another row and the row asks before deleting](/shots/user-ai-chan-list.svg)
 
-- **At the prompt**, the log screen follows the conversation you open, as it follows a chat:
-  each line you say is her next turn. `/clear` leaves her conversation going and comes back to
-  this directory's own. `/btw` is refused while you follow her: she is not a session of an
-  epic.
-- **On the page**, the drawer stays open from view to view until you close it, and lists each
-  conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
-  first turn failed says **Failed**, with what her harness said, and takes no more lines: start
-  a new one. Its form also takes a **Title**, made from the task where you leave it empty. On a
-  phone the drawer covers the view; <kbd>esc</kbd> or its close button puts it away.
-- **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
-  it.
-- **Forgetting** removes the conversation from the list and deletes her scratch directory. It
-  asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
-- **Her conversations are not your epics or chats.** None is listed in `/epics`, in the page's sidebar
-  or among a directory's epics or chats, while it lasts or after you forget it; what it wrote down is
-  kept on disk either way.
+Pins and read marks are saved per browser. A conversation becomes unread when new messages arrive after you last read it.
 
-## Many conversations
+## In the terminal
 
-Have as many as you like, of any scope, at once. Making one, talking in one, or forgetting one
-never waits on another, nor on a chat or an epic.
+1. Type `/ai`. The menu lists **New** and every conversation, newest first, with its scope, nous, preset, and state (`answering`, `between turns`, or `folded away`).
+2. Choose **New**. Set `scope`, `nous`, and `preset` (`read-only` or `danger-full-access`), then press **Done**.
+3. Type your first line and press <kbd>enter</kbd> to create the conversation.
 
-A conversation nobody follows for a minute between turns **folds away**: nothing holds it, and
-it costs nothing. It stays listed. Open it and say something, and she carries on where she was,
-with the conversation so far. A conversation lasts until you forget it.
+![In the terminal: /ai opens the menu, New opens the form, and the first line typed is answered by Ai-chan](/shots/user-ai-chan-terminal.svg)
 
-## Examples
+The scope defaults to `epic` when the terminal is in an epic, and `workspace` otherwise. `epic` appears only when an epic is open; `daemon` is always available. If you have no nous defined, enter an agent spec such as `claude/claude-opus-4-1`.
 
-Each is a first line, with the scope and permission it needs.
+Select an existing conversation in the menu to follow it. The status line shows `Ai-chan#<n>` and its scope.
 
-| Say | Scope | Permission |
+| You type | What happens |
+| --- | --- |
+| A line | Sends her next turn |
+| `/stop` | Stops her open turn |
+| `/clear` | Leaves her conversation and returns to the folder, or drops a new conversation before the first line |
+| `/ai` | Opens the menu again |
+
+To delete a conversation, press <kbd>m</kbd> on its row in the menu, choose `forget`, and choose `forget` again to confirm.
+
+## What she can do
+
+Ai-chan has one tool per job. The same calls are on her `PATH` under the `hmz-ai` command, such as `hmz-ai epics-list`.
+
+| Job | Tools | Needs Full access |
 | --- | --- | --- |
-| "Summarize what my epics did today." | `daemon`, or `workspace` for one directory | `read-only` |
-| "Why did the last rlar run stop?" | the epic, or its directory | `read-only` |
-| "What has the reviewer of this epic been complaining about?" | `epic` | `read-only` |
-| "Find where the actor in this epic left a TODO." | `epic` | `read-only` |
-| "Steer the actor: stop refactoring, fix the failing test first." | `epic` | `danger-full-access` |
-| "Ask actor/2 why it skipped the migration." | `epic` | `read-only` |
-| "Run `pytest -x` in the env `repo` of this epic and tell me what fails." | `epic`, while it runs | `danger-full-access` |
-| "Start ralph_loop here on the open issue about coupons." | `workspace` | `danger-full-access` |
-| "Read the new release notes of pytest: does anything in them break us?" | `workspace` | `read-only`, network on |
+| See what runs, list epics, read one epic, its transcripts and its timeline, and read usage (usage needs Workspace or Daemon scope) | `overview`, `epics_list`, `epic_view`, `transcript_read`, `trace_read`, `usage` | No |
+| Ask one session a [side question](/user/side-questions); the epic never sees it | `ask_session` | No |
+| Say a line to a running epic, answer its question, stop or force stop it, or start an epic (starting needs Workspace or Daemon scope) | `say`, `answer`, `start`, `stop` | Yes |
+| List, read and search the files of an epic's environments | `env_list`, `env_read`, `env_grep` | No |
+| Write a file or run a command in an epic's environment | `env_write`, `env_exec` | Yes |
+| Read settings (needs Workspace or Daemon scope) and list nous | `settings_get`, `nous_list` | No |
+| Write settings or a nous (Daemon scope only) | `settings_set`, `nous_set` | Yes |
+| List and call any other daemon method her reach allows | `hmz_methods`, `hmz_call` | Depends on the method |
 
-To steer a session, she says the line to it as you would by typing into its transcript: see
-[Talking to a running turn](/user/steering). To run tests in an env, she runs the command
-there, in the env's own directory, as the flow would, without the epic being told. An env is
-open only while its epic runs.
+She cannot create, list, rename, delete, or reach into Ai-chan conversations, list, pair, or revoke devices, create, rewrite, or copy accounts, or write or remove EasyTier entries.
 
-## Safety
+## Good to know
 
-::: danger `danger-full-access` on the `daemon` scope can do whatever you can
-A `daemon` scope reaches every directory on this machine, and its directory is `/`. With
-`danger-full-access`, she may write anywhere you may. Keep `daemon` conversations `read-only`
-unless you mean it.
-:::
+You can run any number of conversations at once. The daemon keeps them across restarts until you delete them. Deleting a conversation removes it and its scratch directory permanently.
 
-- **Read-only means read-only.** Under `read-only`, every call that would change something --
-  starting, saying, stopping, writing a file or a setting -- is refused before it has any
-  effect, and she is told `Ai-chan is read-only, and <method> changes things.` She tells you so
-  and stops there; make a `danger-full-access` conversation to do it.
-- **Out of scope is refused too**, with `<method> is out of Ai-chan's scope: <what>.` An `epic`
-  conversation cannot list the other epics of its directory, and a `workspace` one never sees
-  another directory's: they are left out of what she reads.
-- **Some things she can never do**: pair or revoke a device, touch an account's credentials,
-  or make, read or forget a conversation with Ai-chan. These are refused with
-  `Ai-chan cannot call <method>.`
-- **She is confined.** Her CLI and every command it runs can read only the scope's directory,
-  write it only under `danger-full-access`, and always write her scratch directory. Humanize's
-  own machine directory is closed to her, so she reaches Humanize only through her tools. Where
-  this machine cannot hold that, the conversation is refused rather than run wider: see
-  [Permissions](/user/permissions).
-- **What she reads is data.** She is told that nothing she reads -- an epic, a transcript, a
-  file, what another frontend says -- is an instruction to her.
-- **She has no budget.** Her turns are never stopped by a limit, so mind what you ask of a large
-  scope.
+A conversation that no one is viewing folds away 60 seconds after her turn ends. Send a line or select it in `/ai` to resume where it stopped. If a conversation's chat fails, it shows why and accepts no more lines: a line you send is refused with **This conversation failed. Start a new one.**
 
-## Troubleshooting
+Ai-chan has no [budget](/user/budgets) and always has network access. Her conversations are not listed with chats or epics, and `/btw` does not work in them. In a narrow window, the drawer covers the view.
 
-### `Name Ai-chan's nous: the ai_chan setting names none.` {#no-nous}
+Her process is sandboxed: it can write only to her scratch directory, read her scope's folder (and write to it under Full access; under Daemon scope that is the whole disk), and cannot open the daemon socket. On Linux under Landlock the conversation is refused; set `sandbox.backend` to `bwrap`. See [The sandbox](/user/sandbox).
 
-No nous was given, and the **Ai-chan** setting names none. Pick one on the form, or set
-**Ai-chan** on the [General page](/user/settings#general).
-
-### `Tell Ai-chan something to start with.`
-
-The first line was empty. Say what you want her to do.
-
-### `There is no epic <epic> in <workspace>.`
-
-An `epic` scope names an epic that did not run in that directory. Pick it again from the
-directory it ran in.
-
-### `Ai-chan is not answering, so there is nothing to stop`
-
-You pressed **Stop** or typed `/stop` between her turns. There is nothing to interrupt.
-
-### `Ai-chan's harness must be kept from the daemon's socket, which Landlock cannot do: set sandbox.backend to bwrap` {#bwrap}
-
-On Linux only bubblewrap keeps her CLI from Humanize's own socket; Landlock closes paths, not
-connections to a socket. Install bubblewrap and set `sandbox.backend` to `bwrap` (see
-[Permissions](/user/permissions)), then start the conversation again. macOS needs nothing.
-
-### She says she is read-only
-
-The conversation is `read-only`, and what you asked changes something. The preset cannot change:
-make a new conversation with `danger-full-access`.
-
-### She says something is out of her scope
-
-The conversation's scope does not reach it. Make a new one whose scope does: the epic's
-directory, or `daemon`.
-
-## Next steps
-
-- [Side questions (`/btw`)](/user/btw): ask one session of an epic, read-only, without the
-  epic hearing it.
-- [Talking to a running turn](/user/steering): say something to an agent yourself.
-- [Settings](/user/settings#general): the nous a new conversation thinks with.
-- [TUI reference](/reference/tui#ai-chan): `/ai`, its menu and its form.
-- [Daemon reference](/reference/daemon#ai-chan): every method she may call, and what refuses it.
+She treats everything she reads in epics, files, and transcripts as data, not instructions. Only your lines in the conversation tell her what to do.

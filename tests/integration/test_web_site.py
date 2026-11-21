@@ -135,6 +135,25 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
             == 304
         )
 
+        # The language is set by a script of its own, before the page's: nothing is drawn in
+        # another. The catalogs of every language are the page's files, a fragment an area.
+        scripts = re.findall(r'<script[^>]*src="([^"]+)"', page.body.decode())
+        assert scripts.index("/lang.js") < scripts.index("/app.js")
+        for path in (
+            "/lang.js",
+            "/i18n.js",
+            "/i18n/en.js",
+            "/i18n/zh-Hans.js",
+            "/i18n/zh-Hant.js",
+            "/i18n/zh-Hans/core.js",
+            "/i18n/zh-Hant/settings.js",
+            "/views/settings/language.js",
+        ):
+            catalog = browser.get(path)
+            assert catalog.status == 200, path
+            assert catalog.headers["content-type"].startswith("text/javascript"), path
+            assert catalog.headers["cache-control"] == "no-cache", path
+
         for nothing in (
             "/../pyproject.toml",
             "/site.py",
@@ -212,7 +231,9 @@ def test_a_picture_of_the_page_is_served_as_one(
 
     package = tmp_path / "web"
     (package / "static" / "ai-chan").mkdir(parents=True)
-    (package / "static" / "ai-chan" / "avatar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (package / "static" / "ai-chan" / "avatar.webp").write_bytes(
+        b"RIFF\x04\x00\x00\x00WEBP"
+    )
 
     def files(_: str) -> Path:
         return package
@@ -220,10 +241,10 @@ def test_a_picture_of_the_page_is_served_as_one(
     # The page's own files alone are looked for in `package`.
     monkeypatch.setattr(serving, "resources", SimpleNamespace(files=files))
     with served() as site:
-        avatar = Browser(site).get("/ai-chan/avatar.png")
+        avatar = Browser(site).get("/ai-chan/avatar.webp")
         assert avatar.status == 200
-        assert avatar.headers["content-type"] == "image/png"
-        assert avatar.body == b"\x89PNG\r\n\x1a\n"
+        assert avatar.headers["content-type"] == "image/webp"
+        assert avatar.body == b"RIFF\x04\x00\x00\x00WEBP"
 
 
 def test_a_face_is_framed_by_the_page_alone_and_reaches_nothing(

@@ -47,12 +47,18 @@ class _Authored(GenerateJsonSchema):
         return False
 
 
-def listed(hmz: Any) -> dict[str, Any]:
-    """The flows on offer in a workspace, the one last set up there, and the flows running."""
+def listed(hmz: Any, *, own: bool = True) -> dict[str, Any]:
+    """The flows on offer in a workspace, the one last set up there, and the flows running.
+
+    Args:
+      hmz: Humanize, for the workspace, or for the user's home where a call names none.
+      own: Whether the workspace's own flows are among them: not where no workspace was
+        named, the home's own being the user's, which are listed as theirs already.
+    """
     return {
         "flows": [
             {"whose": one.whose, "name": one.name, "about": one.about}
-            for one in hmz.flows.all()
+            for one in _on_offer(hmz, own=own)
         ],
         "flow": hmz.settings.flow,
         "running": [
@@ -68,16 +74,21 @@ def listed(hmz: Any) -> dict[str, Any]:
     }
 
 
-def offered(hmz: Any, name: str) -> dict[str, Any]:
+def offered(hmz: Any, name: str, *, own: bool = True) -> dict[str, Any]:
     """One flow on offer in a workspace, as :func:`declared` answers it.
 
     Setting a flow up loads it, which runs it: only a flow already on offer, never a path or a
     repository a client names.
 
+    Args:
+      hmz: Humanize, for the workspace, or for the user's home where a call names none.
+      name: The flow, as :func:`listed` names it.
+      own: Whether the workspace's own flows are on offer, as :func:`listed` takes it.
+
     Raises:
       RpcError: 404, if it is not on offer there or will not load.
     """
-    if name not in {one.name for one in hmz.flows.all()}:
+    if name not in {one.name for one in _on_offer(hmz, own=own)}:
         raise RpcError(Code.NOT_FOUND, f"{name} is not a flow on offer here.")
     return declared(hmz, name)
 
@@ -404,11 +415,34 @@ def _settings(hmz: Any) -> Any:
     return Hmz(hmz.workspace).settings
 
 
+def _on_offer(hmz: Any, *, own: bool) -> list[Any]:
+    """Every flow on offer, the workspace's own left out where they are not asked for."""
+    from hmz.runtime.flowing import LOCAL
+
+    return [one for one in hmz.flows.all() if own or one.whose != LOCAL]
+
+
 def _hmz(call: Call) -> Any:
     """Humanize, for the workspace a call names."""
     from hmz.runtime import Hmz
 
     return Hmz(place(call.params["workspace"]))
+
+
+def _read(call: Call) -> tuple[Any, bool]:
+    """Humanize for a call that only reads the flows on offer, and whether a workspace was named.
+
+    One that names no workspace reads the user's home, and one naming a directory since
+    removed reads a workspace holding no flows of its own (Section 4.17.1.1).
+    """
+    from pathlib import Path
+
+    from hmz.runtime import Hmz
+
+    said = call.params.get("workspace")
+    if said is None:
+        return Hmz(Path.home()), False
+    return Hmz(place(said, made=True)), True
 
 
 def _holding(call: Call) -> Any:
@@ -424,6 +458,16 @@ def _setup(call: Call) -> dict[str, Any]:
     return declared(hmz, call.params["flow"])
 
 
+def _list(call: Call) -> dict[str, Any]:
+    hmz, own = _read(call)
+    return listed(hmz, own=own)
+
+
+def _get(call: Call) -> dict[str, Any]:
+    hmz, own = _read(call)
+    return offered(hmz, call.params["name"], own=own)
+
+
 def _backends(_: Call) -> dict[str, Any]:
     from pathlib import Path
 
@@ -434,8 +478,8 @@ def _backends(_: Call) -> dict[str, Any]:
 
 #: Each method of the family, by name.
 METHODS: Mapping[str, Handler] = {
-    "flows.list": lambda call: listed(_hmz(call)),
-    "flows.get": lambda call: offered(_hmz(call), call.params["name"]),
+    "flows.list": _list,
+    "flows.get": _get,
     "flows.backends": _backends,
     "flows.setup": _setup,
     "flows.fork": lambda call: forked(_hmz(call), call.params["flow"]),

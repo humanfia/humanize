@@ -2,9 +2,10 @@
 
 /* The line under the choices of a chat's Skill or flow menu, saying where the one in force comes from. */
 .popover-note {
-  margin: 0;
-  padding: 6px 10px 4px;
-  font-size: 11.5px;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-8);
+  border-top: var(--border);
+  font: var(--text-sm) / 16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -38,17 +39,21 @@
   }
 
   /* In Humanize Desktop's window on Windows the bar, not the pane, is under the window's own
-     buttons then. */
+     buttons then -- unless Ai-chan's drawer, open beside the view, is. */
   :root[data-shell='windows']:not([data-fullscreen]) .view.chat-view:has(> .inspector:not([hidden])) .bar {
-    padding-right: calc(8px + var(--captions));
+    padding-right: calc(var(--space-8) + var(--captions));
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .app.aichan-open .view.chat-view:has(> .inspector:not([hidden])) .bar {
+    padding-right: var(--space-8);
   }
 
   :root[data-shell='windows']:not([data-fullscreen]) .chat-view .panel-close {
-    right: 6px;
+    right: var(--space-8);
   }
 
-  :root[data-shell='windows']:not([data-fullscreen]) .chat-view .panel-body .tabs {
-    padding-right: 46px;
+  :root[data-shell='windows']:not([data-fullscreen]) .chat-view .panel-body > .tabs {
+    padding-right: calc(var(--control-h-sm) + 2 * var(--space-8));
   }
 }
 
@@ -58,45 +63,52 @@
   display: none;
 }
 
-/* A chat's bar, as a chat app's session keeps its toolbar: the height it is there, the title a
-   button with its menu right after it, and the panes' buttons at the far right, 4px apart and
-   8px from the edge. */
+/* A chat's bar, as a chat app's session keeps its toolbar: the title a button with its menu right
+   after it, and the panes' buttons at the far right. It is one row whatever the room: the title
+   gives way. */
 .bar.chat-bar {
-  min-height: 45px;
-  padding: 0 8px;
-  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .chat-bar .bar-title {
+  flex: 1 1 0;
   min-width: 64px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 0;
 }
 
 .chat-bar .bar-title h1 {
   flex: 0 1 auto;
   min-width: 0;
   display: flex;
+  overflow: visible;
 }
 
 .chat-title {
   min-width: 0;
-  height: 28px;
-  padding: 0 12px;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-8);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   font: inherit;
-  letter-spacing: inherit;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: background-color var(--dur) var(--ease);
 }
 
 .chat-title:hover {
   background: var(--hover);
+}
+
+.chat-title:active {
+  background: var(--pressed);
 }
 
 .chat-bar .bar-title .menu-holder {
@@ -105,39 +117,23 @@
 }
 
 .chat-bar .bar-actions {
-  gap: 4px;
+  flex: none;
+  flex-wrap: nowrap;
 }
 
 .chat-bar .bar-actions .menu-holder {
   display: flex;
 }
 
-/* Every button of the bar the size a chat app's are. */
-.chat-bar .icon-btn {
-  width: 28px;
-  height: 28px;
-}
-
-.chat-bar .icon-btn .icon {
-  width: 16px;
-  height: 16px;
-}
-
-.chat-bar .icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-  background: none;
-}
-
-/* How the chat stands, said quietly over its box, at the column's left. */
+/* That the chat failed, said quietly over its box, on the edge the chips under the box keep. */
 .chat-status {
   width: min(100%, var(--column));
-  margin: 0;
+  margin: 0 0 calc(-1 * var(--space-4));
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-  font-size: 12.5px;
+  gap: var(--space-8);
+  padding: 0 var(--space-12);
+  font: var(--text-sm) / 16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -147,65 +143,42 @@
   color: var(--fail);
 }
 
-.chat-status.chat-running .dot {
-  animation: pulse 1.2s ease-in-out infinite;
+/* What the word being typed could become floats over that line too, not on it: the line, the
+   room it keeps from the box, and the room a menu keeps from what it floats over. */
+.chat-status + .composer > .composer-complete {
+  bottom: calc(100% + 16px + var(--space-4) + var(--space-8));
 }
 
-/* What the chat has used: a ring 24px square, as a chat app keeps one there, and beside it what
-   the chat has spent once there is something to say. */
+/* What the chat has used: a ring 24px square, as a chat app keeps one there, with nothing
+   beside it. */
 .composer-under .chip-btn.usage-chip {
-  min-width: 24px;
+  min-width: var(--control-h-xs);
   justify-content: center;
-  padding: 0 4px;
-}
-
-.composer-under .chip-btn.usage-chip .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.usage-chip .chip-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-chip .chip-value:empty {
-  display: none;
-}
-
-/* A chat's environment beside it leaves the conversation the room to be read. */
-@media (min-width: 861px) {
-  .inspector.chat-pane.envs-wide {
-    width: min(50vw, 980px);
-  }
+  padding: 0 var(--space-4);
 }
 
 @media (max-width: 860px) {
-  /* On a phone the bar keeps the title and what opens a pane; the title gives way first. */
-  .chat-bar .bar-actions {
-    gap: 0;
-  }
-
-  .chat-title {
-    padding: 0 6px;
-  }
-
-  /* An archived chat is put back from its menu there: the button would leave the title no room. */
+  /* An archived chat is put back from its menu on a phone: the button would leave the title no room. */
   .chat-bar [data-hmz='chat-unarchive'] {
     display: none;
   }
 }
 
 /* The pane beside a chat is picked on the chat's bar, as a session's is: it is headed by its
-   name, in the row an epic's panel keeps its tabs in, and its environment by no tabs of its own. */
+   name, in a row as high as the bar an epic's panel keeps its tabs in, and its environment by no
+   tabs of its own. */
 .pane-title {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  min-height: var(--bar-h);
   margin: 0;
-  padding: 10px 46px 9px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 0 calc(var(--control-h-sm) + 2 * var(--space-8)) 0 var(--gutter);
+  border-bottom: var(--border);
   background: var(--surface);
-  font: 600 13px/20px var(--sans);
+  font: 600 var(--text) / 20px var(--sans);
 }
 
 .pane-title:empty {
@@ -217,46 +190,80 @@
 }
 
 /* A chat's title being renamed: a field where the title stood, on its bar and in its row of the
-   sidebar, as wide as there is room for. */
-.title-edit {
+   sidebar, its words where the title's were. */
+input.title-edit {
   flex: 1 1 auto;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
+  height: var(--control-h-sm);
+  padding: 0 calc(var(--space-8) - var(--border-w));
   font: inherit;
-  letter-spacing: inherit;
-  outline: none;
 }
 
+/* On the bar the field lies over the title, which keeps its room: what stands after the title
+   stays where it is, to be pressed, while the title is renamed and once it is. A short title's
+   field is wide enough to write in, and lies over the menu after the title then. */
 .chat-bar .bar-title h1:has(> .title-edit) {
-  flex: 1 1 auto;
+  position: relative;
+}
+
+.chat-bar .bar-title h1 > .chat-title[hidden] {
+  display: block !important;
+  visibility: hidden;
 }
 
 .chat-bar .title-edit {
-  width: min(48ch, 100%);
-  flex: 0 1 auto;
+  position: absolute;
+  z-index: var(--z-float);
+  inset: 0 auto 0 0;
+  width: 100%;
+  min-width: min(24ch, 60vw);
+}
+
+/* On a phone the room is the title's column: the field is as wide as what is written in it,
+   never narrower than can be written in, and ends where a title filling the column does --
+   short of the menu after it, and of the panes' buttons. */
+@media (max-width: 860px) {
+  .chat-bar .bar-title:has(.title-edit) {
+    position: relative;
+  }
+
+  .chat-bar .bar-title h1:has(> .title-edit) {
+    position: static;
+  }
+
+  .chat-bar .title-edit {
+    field-sizing: content;
+    width: auto;
+    min-width: min(24ch, 100% - var(--control-h-sm) - var(--space-2));
+    max-width: calc(100% - var(--control-h-sm) - var(--space-2));
+    margin-block: auto;
+  }
 }
 
 .side-run > .title-edit {
-  height: 28px;
-  margin: 2px 32px 2px 2px;
-  font-size: 13px;
+  height: var(--control-h-xs);
+  margin: var(--space-4) calc(var(--control-h-xs) + var(--space-8)) var(--space-4) 0;
+  padding: 0 calc(var(--side-label) - var(--side-gutter) - var(--border-w));
+  border-radius: var(--radius-sm);
+  font: 400 var(--text) var(--sans);
 }
 
 /* Deleting a chat: which one, what goes with it, and the two answers at the dialog's foot. */
 .dialog.dialog-delete {
-  width: min(100%, 440px);
+  width: min(100%, var(--dialog-sm));
 }
 
 .delete-body {
-  padding: 14px 16px;
+  padding: var(--gutter);
 }
 
 .delete-body p {
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-8);
+  line-height: 20px;
+}
+
+.delete-body p:last-of-type {
+  margin-bottom: 0;
 }
 
 .delete-title {
@@ -270,8 +277,23 @@
   color: var(--ink-2);
 }
 
-.delete-foot {
-  justify-content: flex-end;
+.delete-said:not(:empty) {
+  margin-top: var(--space-8);
+}
+
+/* The answer that deletes: filled with what it is. */
+.delete-foot .btn.danger {
+  background: var(--fail);
+  color: var(--on-ink);
+  border-color: transparent;
+}
+
+.delete-foot .btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fail) 88%, var(--paper));
+}
+
+.delete-foot .btn.danger:active:not(:disabled) {
+  background: color-mix(in srgb, var(--fail) 80%, var(--paper));
 }
 
 /* The archived chats of a workspace, in its settings: one row each. */
@@ -285,9 +307,10 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 6px 0;
-  border-top: 1px solid var(--line);
+  gap: var(--space-8);
+  min-height: var(--control-h-lg);
+  padding: var(--space-4) 0;
+  border-top: var(--border);
 }
 
 .archived-row:first-child {
@@ -303,11 +326,21 @@
 }
 
 .archived-when {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 
-.delete-head {
-  padding: 12px 16px;
+/* Those of no folder, under the folder's own: a quiet heading, and a line over it where the
+   folder's chats stand before it. */
+.archived-nowhere > h4 {
+  margin: 0;
+  font: 500 var(--text-sm) / 28px var(--sans);
+  color: var(--ink-3);
+}
+
+.archived-nowhere:not(:first-child) {
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: var(--border);
 }
 
 /* A harness session, only read: what was said in it, and under it the one way on. */
@@ -317,14 +350,9 @@
   min-height: 0;
 }
 
-.harness-tag {
-  font-family: var(--mono);
-}
-
 .harness-note {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 8px 14px;
+  gap: var(--space-8) var(--space-12);
 }

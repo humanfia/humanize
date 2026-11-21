@@ -7,6 +7,7 @@
 // beside the field it is of. The same form asks a flow's params on a new epic.
 
 import { h } from '../dom.js'
+import { t } from '../i18n.js'
 import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, paramLabel, pathKey, problems, requiredLeft, resolved, sentAs, untouched, widgetOf, yesNo } from './logic.js'
 import { markdownInto } from './blocks.js'
 
@@ -38,7 +39,7 @@ export function schemaForm(schema, { value, prefix = 'ask', fold = true, changed
     fields = control.fields
   } else {
     // A value that is not an object is asked as one field, named by its title.
-    const field = { name: top.title || 'answer', node: top, nullable: false, required: true, suggested: 'default' in top, value: top.default }
+    const field = { name: top.title || t('answer'), node: top, nullable: false, required: true, suggested: 'default' in top, value: top.default }
     control = fieldControl([], field, value === undefined ? top.default : value, ctx)
     fields = [control.box]
   }
@@ -139,7 +140,9 @@ export function paramsForm(schema, kept = {}) {
   return {
     fields: form.fields,
     read() {
-      const bad = form.check().find((one) => /not valid JSON|needs a number|whole number/.test(one.message))
+      // What could not be read at all, in the words it is said in.
+      const unread = [t('This is not valid JSON.'), t('This needs a number.'), t('This needs a whole number.')]
+      const bad = form.check().find((one) => unread.includes(one.message))
       if (bad) throw new Error(`${paramLabel(bad.path[0] ?? 'value', given.properties[bad.path[0]])}: ${bad.message}`)
       const said = form.read() || {}
       return Object.fromEntries(Object.entries(said).filter(([, one]) => one !== null && one !== '' && one !== undefined))
@@ -167,8 +170,8 @@ function fieldControl(path, field, value, ctx) {
   const hint = description && !(kind === 'boolean' && yesNo(field.name, field.node).yes.toLowerCase().includes(description.replace(/[.!?]+$/, '').toLowerCase())) ? description : ''
   const describedBy = [hint && hintId, problemId].filter(Boolean).join(' ')
   const inner = controlFor(path, field, value, ctx, { id, label, describedBy })
-  const suggested = field.suggested && !blank(field.value) ? h('span', { class: 'ask-tag ask-suggested', 'data-hmz': 'suggested', title: 'Filled in with what the flow suggests' }, 'suggested') : null
-  const optional = !field.required && !field.suggested ? h('span', { class: 'ask-tag' }, 'optional') : null
+  const suggested = field.suggested && !blank(field.value) ? h('span', { class: 'ask-tag ask-suggested', 'data-hmz': 'suggested', title: t('Filled in with what the flow suggests') }, t('suggested')) : null
+  const optional = !field.required && !field.suggested ? h('span', { class: 'ask-tag' }, t('optional')) : null
   const labelled = inner.group
     ? h('span', { class: 'ask-label', id: `${id}-label`, title: key }, label)
     : h('label', { class: 'ask-label', for: id, id: `${id}-label`, title: key }, label)
@@ -273,7 +276,7 @@ function buttons(options, value, ctx, { id, label, describedBy }, field) {
       // The first group's choices are picked by number, which each says.
       first && at < 9 ? h('kbd', { class: 'ask-key', 'aria-hidden': 'true' }, String(at + 1)) : null,
       h('span', {}, one.label),
-      field.suggested && same(one.value, field.value) ? h('span', { class: 'ask-default', title: 'Suggested' }, '•') : null,
+      field.suggested && same(one.value, field.value) ? h('span', { class: 'ask-default', title: t('Suggested') }, '•') : null,
     ),
   )
   group.append(...each)
@@ -314,13 +317,13 @@ function listed(offered, value, ctx, { id, describedBy }) {
   const select = h(
     'select',
     { id, 'aria-describedby': describedBy, disabled: ctx.disabled, 'data-hmz': 'ask-select' },
-    h('option', { value: '' }, 'Choose…'),
+    h('option', { value: '' }, t('Choose…')),
     offered.map((one, at) => h('option', { value: String(at), selected: same(one, value) }, String(one))),
   )
   select.addEventListener('change', () => changedIn(select))
   let el = select
   if (offered.length > 12) {
-    const search = h('input', { type: 'search', placeholder: `Search ${offered.length} choices`, 'aria-label': 'Search the choices', 'aria-controls': id, disabled: ctx.disabled, 'data-hmz': 'ask-search' })
+    const search = h('input', { type: 'search', placeholder: t('Search {n} choices', { n: offered.length }), 'aria-label': t('Search the choices'), 'aria-controls': id, disabled: ctx.disabled, 'data-hmz': 'ask-search' })
     // What is searched narrows the list, and is no answer of its own.
     search.addEventListener('input', (event) => {
       event.stopPropagation()
@@ -354,7 +357,7 @@ function number(node, value, ctx, { id, describedBy }, integer) {
     el: input,
     read: () => (input.value === '' ? undefined : Number(input.value)),
     focus: () => input.focus(),
-    local: () => (input.validity && input.validity.badInput ? ['This needs a number.'] : []),
+    local: () => (input.validity && input.validity.badInput ? [t('This needs a number.')] : []),
   }
 }
 
@@ -368,11 +371,11 @@ function text(field, value, ctx, { id, describedBy }) {
   const common = { id, 'aria-describedby': describedBy, disabled: ctx.disabled, maxlength: node.maxLength, 'data-hmz': 'ask-input' }
   if (widget === 'secret' || node.format === 'password') {
     const input = h('input', { ...common, type: 'password', value: said, autocomplete: 'off', spellcheck: 'false' })
-    const shown = h('button', { type: 'button', class: 'btn quiet small', 'aria-pressed': 'false', 'aria-controls': id, disabled: ctx.disabled }, 'Show')
+    const shown = h('button', { type: 'button', class: 'btn quiet small', 'aria-pressed': 'false', 'aria-controls': id, disabled: ctx.disabled }, t('Show'))
     shown.addEventListener('click', () => {
       const showing = input.type === 'password'
       input.type = showing ? 'text' : 'password'
-      shown.textContent = showing ? 'Hide' : 'Show'
+      shown.textContent = showing ? t('Hide') : t('Show')
       shown.setAttribute('aria-pressed', String(showing))
     })
     return { el: h('div', { class: 'ask-secret row' }, input, shown), read: () => input.value, focus: () => input.focus() }
@@ -384,14 +387,14 @@ function text(field, value, ctx, { id, describedBy }) {
     if (widget !== 'markdown') return { el: counted ? h('div', { class: 'ask-text' }, area, counted) : area, read: () => area.value, focus: () => area.focus() }
     // Markdown is written, and seen as it will read, a button apart.
     const preview = h('div', { class: 'ask-preview ask-markdown', hidden: true, 'aria-live': 'polite' })
-    const toggle = h('button', { type: 'button', class: 'btn quiet small', 'aria-pressed': 'false', disabled: ctx.disabled }, 'Preview')
+    const toggle = h('button', { type: 'button', class: 'btn quiet small', 'aria-pressed': 'false', disabled: ctx.disabled }, t('Preview'))
     toggle.addEventListener('click', () => {
       const previewing = preview.hidden
       preview.hidden = !previewing
       area.hidden = previewing
-      toggle.textContent = previewing ? 'Write' : 'Preview'
+      toggle.textContent = previewing ? t('Write') : t('Preview')
       toggle.setAttribute('aria-pressed', String(previewing))
-      if (previewing) markdownInto(preview, area.value || '_Nothing written yet._')
+      if (previewing) markdownInto(preview, area.value || t('_Nothing written yet._'))
       else area.focus()
     })
     return {
@@ -454,7 +457,7 @@ function objectControl(path, node, value, ctx, { fold = false, flat = false, sai
   // What was changed from a suggestion is not hidden away.
   const moved = folds && fields.some((field) => field.folded && field.name in value && !same(value[field.name], field.value))
   const more = folded.length
-    ? h('details', { class: 'ask-more', 'data-hmz': 'ask-more', open: moved || undefined }, h('summary', {}, `More options (${folded.length})`), h('div', { class: 'ask-more-fields' }, folded))
+    ? h('details', { class: 'ask-more', 'data-hmz': 'ask-more', open: moved || undefined }, h('summary', {}, t('More options ({n})', { n: folded.length })), h('div', { class: 'ask-more-fields' }, folded))
     : null
   const read = () => {
     const out = {}
@@ -504,7 +507,7 @@ function list(path, field, value, ctx, said) {
     const itemField = { name: `${field.name}-item`, node: items, nullable: false, required: true, suggested: false, value: undefined }
     const id = idOf(ctx)
     const control = controlFor([...path, at], itemField, one, ctx, { id, label: `${singular} ${at + 1}`, describedBy: said.describedBy })
-    const remove = h('button', { type: 'button', class: 'icon-btn ask-remove', 'aria-label': `Remove ${singular} ${at + 1}`, title: 'Remove', disabled: ctx.disabled, 'data-hmz': 'ask-remove' }, '×')
+    const remove = h('button', { type: 'button', class: 'icon-btn ask-remove', 'aria-label': t('Remove {what} {n}', { what: singular, n: at + 1 }), title: t('Remove'), disabled: ctx.disabled, 'data-hmz': 'ask-remove' }, '×')
     const named = control.group ? h('span', { class: 'ask-item-n', id: `${id}-label` }, `${at + 1}.`) : h('label', { class: 'ask-item-n', for: id }, `${at + 1}.`)
     const row = h('div', { class: 'ask-item', 'data-hmz': 'ask-item' }, named, control.el, remove)
     const entry = { row, control }
@@ -517,7 +520,7 @@ function list(path, field, value, ctx, said) {
       for (const [key, box] of [...ctx.boxes]) if (row.contains(box.el)) ctx.boxes.delete(key)
       entries.forEach((one, n) => {
         one.row.querySelector('.ask-item-n').textContent = `${n + 1}.`
-        one.row.querySelector('.ask-remove').setAttribute('aria-label', `Remove ${singular} ${n + 1}`)
+        one.row.querySelector('.ask-remove').setAttribute('aria-label', t('Remove {what} {n}', { what: singular, n: n + 1 }))
       })
       rekey()
       changedIn(rows)
@@ -531,7 +534,7 @@ function list(path, field, value, ctx, said) {
   }
   for (const one of value) add(one)
   if (!value.length && (field.node.minItems || 0) > 0) add(undefined)
-  const adder = h('button', { type: 'button', class: 'btn quiet small ask-add', disabled: ctx.disabled, 'data-hmz': 'ask-add' }, `+ Add ${singular}`)
+  const adder = h('button', { type: 'button', class: 'btn quiet small ask-add', disabled: ctx.disabled, 'data-hmz': 'ask-add' }, t('+ Add {what}', { what: singular }))
   adder.addEventListener('click', () => {
     add(undefined, true)
     changedIn(rows)
@@ -578,6 +581,6 @@ function json(value, ctx, { id, describedBy }) {
     el: area,
     read: () => parse().value,
     focus: () => area.focus(),
-    local: () => (parse().bad ? ['This is not valid JSON.'] : []),
+    local: () => (parse().bad ? [t('This is not valid JSON.')] : []),
   }
 }

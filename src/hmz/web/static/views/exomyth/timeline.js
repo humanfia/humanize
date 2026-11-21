@@ -8,6 +8,9 @@
 // shows it all; a wheel scrolls, sideways or with Shift pans, with Ctrl (a pinch) zooms.
 
 import { h } from '../../dom.js'
+import { t } from '../../i18n.js'
+import { chain } from '../../layers.js'
+import { EDGE } from '../../shell.js'
 import { menuOn } from '../../ui.js'
 import { clock, firstEnding, lasted, locate } from './model.js'
 
@@ -23,7 +26,7 @@ const DRAG = 3
 
 /** Each category's colour, as a theme token. */
 const TOKENS = {
-  flow: '--primary',
+  flow: '--ink-3',
   session: '--lane-3',
   turn: '--lane-1',
   llm: '--lane-2',
@@ -40,7 +43,7 @@ const TOKENS = {
  *   What is told when a span or a process is picked, and when a stretch of time is.
  */
 export function timeline(told) {
-  const canvas = h('canvas', { class: 'exo-canvas', role: 'img', 'aria-label': 'Timeline', 'data-hmz': 'exomyth-canvas' })
+  const canvas = h('canvas', { class: 'exo-canvas', role: 'img', 'aria-label': t('Timeline'), 'data-hmz': 'exomyth-canvas' })
   const spacer = h('div', { class: 'exo-spacer' })
   const node = h('div', { class: 'exo-scroll', tabindex: '0', 'data-hmz': 'exomyth-timeline' }, canvas, spacer)
   const tip = h('div', { class: 'tip exo-tip', role: 'tooltip', hidden: true })
@@ -86,9 +89,10 @@ export function timeline(told) {
       ink3: read('--ink-3'),
       line: read('--line'),
       strong: read('--line-strong'),
-      hover: read('--hover'),
+      selected: parseFloat(read('--selected-mix')) / 100 || 0.1,
+      round: parseFloat(read('--radius-xs')) || 0,
       onFill: read('--on-fill'),
-      onPrimary: read('--on-primary'),
+      onInk: read('--on-ink'),
       pink: read('--pink'),
       cyan: read('--cyan'),
       sans: read('--sans') || 'sans-serif',
@@ -167,7 +171,7 @@ export function timeline(told) {
   // ---------------------------------------------------------------- where things are
 
   const plot = () => width - gutter
-  const xOf = (t) => gutter + ((t - t0) / (t1 - t0)) * plot()
+  const xOf = (time) => gutter + ((time - t0) / (t1 - t0)) * plot()
   const tOf = (x) => t0 + ((x - gutter) / plot()) * (t1 - t0)
   const top = () => node.scrollTop
 
@@ -284,8 +288,8 @@ export function timeline(told) {
 
   function grid(step) {
     ctx.fillStyle = colours.line
-    for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
-      const x = Math.round(xOf(t))
+    for (let time = Math.ceil(t0 / step) * step; time <= t1; time += step) {
+      const x = Math.round(xOf(time))
       if (x >= gutter) ctx.fillRect(x, RULER, 1, height - RULER)
     }
   }
@@ -293,8 +297,8 @@ export function timeline(told) {
   function ruler(step) {
     ctx.fillStyle = colours.surface
     ctx.fillRect(0, 0, width, RULER)
-    ctx.fillStyle = colours.ink
-    ctx.fillRect(0, RULER - 2, width, 2)
+    ctx.fillStyle = colours.line
+    ctx.fillRect(0, RULER - 1, width, 1)
     ctx.font = `10px ${colours.mono}`
     ctx.textBaseline = 'middle'
     ctx.fillStyle = colours.ink3
@@ -303,12 +307,12 @@ export function timeline(told) {
     ctx.beginPath()
     ctx.rect(gutter, 0, plot(), RULER)
     ctx.clip()
-    for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
-      const x = Math.round(xOf(t))
+    for (let time = Math.ceil(t0 / step) * step; time <= t1; time += step) {
+      const x = Math.round(xOf(time))
       ctx.fillStyle = colours.strong
       ctx.fillRect(x, RULER - 8, 1, 6)
       ctx.fillStyle = colours.ink2
-      ctx.fillText(clock(t, step), x + 4, RULER / 2 - 1)
+      ctx.fillText(clock(time, step), x + 4, RULER / 2 - 1)
     }
     if (range) {
       const from = xOf(range.from)
@@ -316,23 +320,29 @@ export function timeline(told) {
       const said = lasted(range.to - range.from)
       const wide = ctx.measureText(said).width + 10
       const x = Math.max(gutter, Math.min((from + to) / 2 - wide / 2, width - wide))
-      ctx.fillStyle = colours.pink
-      ctx.fillRect(x, 3, wide, RULER - 8)
+      chip(x, wide, colours.pink)
       ctx.fillStyle = colours.onFill
       ctx.fillText(said, x + 5, RULER / 2 - 1)
     } else if (pointer && pointer.x > gutter) {
       const said = clock(tOf(pointer.x), step / 100)
       const wide = ctx.measureText(said).width + 10
       const x = Math.min(pointer.x + 1, width - wide)
-      ctx.fillStyle = colours.cyan
-      ctx.fillRect(x, 3, wide, RULER - 8)
+      chip(x, wide, colours.cyan)
       ctx.fillStyle = colours.onFill
       ctx.fillText(said, x + 5, RULER / 2 - 1)
     }
     ctx.restore()
   }
 
-  /** A process's head: where open, a line over its span of time; folded, its spans in brief. */
+  /** The ground of what the ruler says of the pointer or of the stretch picked: a mark's corners. */
+  function chip(x, wide, colour) {
+    ctx.fillStyle = colour
+    ctx.beginPath()
+    ctx.roundRect(x, 3, wide, RULER - 8, colours.round)
+    ctx.fill()
+  }
+
+  /** A process's head: where open, a hairline over its span of time; folded, its spans in brief. */
   function heads(row, y) {
     const process = model.processes[row.process]
     if (folded.has(row.process)) {
@@ -347,7 +357,7 @@ export function timeline(told) {
     const to = Math.min(width, xOf(process.end))
     if (to < gutter || from > width) return
     ctx.fillStyle = swatch(process)
-    ctx.fillRect(from, y + HEAD - 6, Math.max(1, to - from), 3)
+    ctx.fillRect(from, y + HEAD - 5, Math.max(1, to - from), 1)
   }
 
   /**
@@ -431,7 +441,7 @@ export function timeline(told) {
       if (fits < 2) return
       text = `${said.slice(0, fits)}…`
     }
-    ctx.fillStyle = model.strings[track.cat[i]] === 'flow' ? colours.onPrimary : colours.onFill
+    ctx.fillStyle = model.strings[track.cat[i]] === 'flow' ? colours.onInk : colours.onFill
     ctx.fillText(text, x + 4, y)
   }
 
@@ -479,7 +489,7 @@ export function timeline(told) {
     }
   }
 
-  /** Each agent's colour, as its lane, in the order agents first appear; a flow in ink. */
+  /** Each agent's colour, as its lane, in the order agents first appear; a flow in quiet ink. */
   function swatch(process) {
     if (process.kind === 'flow') return colours.flow
     if (process.kind === 'os') return colours.process
@@ -489,7 +499,7 @@ export function timeline(told) {
   function gutters(scroll) {
     ctx.fillStyle = colours.surface
     ctx.fillRect(0, RULER, gutter, height - RULER)
-    ctx.fillStyle = colours.strong
+    ctx.fillStyle = colours.line
     ctx.fillRect(gutter - 1, RULER, 1, height - RULER)
     ctx.save()
     ctx.beginPath()
@@ -504,10 +514,10 @@ export function timeline(told) {
       const indent = 8 + Math.min(process.level, 8) * 12
       if (row.track < 0) {
         if (picked && picked.process === row.process && picked.span === undefined) {
-          ctx.fillStyle = colours.hover
+          ctx.globalAlpha = colours.selected
+          ctx.fillStyle = colours.ink
           ctx.fillRect(0, y, gutter - 1, HEAD)
-          ctx.fillStyle = colours.pink
-          ctx.fillRect(0, y, 3, HEAD)
+          ctx.globalAlpha = 1
         }
         caret(indent, y + HEAD / 2, !folded.has(row.process))
         ctx.fillStyle = swatch(process)
@@ -561,14 +571,14 @@ export function timeline(told) {
     const row = rowAt(y - RULER + top())
     if (!row) return null
     if (x < gutter) return { process: row.process, caret: row.track < 0 && x < 8 + Math.min(model.processes[row.process].level, 8) * 12 + 14, gutter: true }
-    const t = tOf(x)
+    const time = tOf(x)
     const slack = ((t1 - t0) / plot()) * 2
     const process = model.processes[row.process]
     const look = (track, depth) => {
       const list = track.rows[depth]
       if (!list) return null
-      const at = firstEnding(list, track.end, t - slack)
-      if (at < list.length && track.start[list[at]] <= t + slack) return track.first + list[at]
+      const at = firstEnding(list, track.end, time - slack)
+      if (at < list.length && track.start[list[at]] <= time + slack) return track.first + list[at]
       return null
     }
     if (row.track >= 0) {
@@ -587,7 +597,8 @@ export function timeline(told) {
   }
 
   function tipped(it, x, y) {
-    if (!it || it.span === undefined) {
+    // Nothing is said beside the pointer while a menu is open: the chart's own opens there.
+    if (!it || it.span === undefined || chain().length) {
       tip.hidden = true
       return
     }
@@ -595,13 +606,13 @@ export function timeline(told) {
     const track = model.tracks[at.track]
     const i = at.index
     const said = (index) => model.strings[index]
-    const tokens = track.in[i] || track.out[i] ? ` · ${track.in[i]} in · ${track.out[i]} out` : ''
-    tip.textContent = `${said(track.name_[i])}\n${said(track.cat[i])} · ${lasted(track.dur[i])} at ${clock(track.start[i], 1000)}${said(track.model[i]) ? ` · ${said(track.model[i])}` : ''}${tokens}`
+    const tokens = track.in[i] || track.out[i] ? ` · ${t('{in} in · {out} out', { in: track.in[i], out: track.out[i] })}` : ''
+    tip.textContent = `${said(track.name_[i])}\n${said(track.cat[i])} · ${t('{lasted} at {when}', { lasted: lasted(track.dur[i]), when: clock(track.start[i], 1000) })}${said(track.model[i]) ? ` · ${said(track.model[i])}` : ''}${tokens}`
     tip.hidden = false
     const box = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.
-    tip.style.left = `${Math.max(4, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - 4))}px`
-    tip.style.top = `${y + 18 + box.height > innerHeight ? y - box.height - 8 : y + 18}px`
+    tip.style.left = `${Math.max(EDGE, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - EDGE))}px`
+    tip.style.top = `${y + 18 + box.height > innerHeight - EDGE ? y - box.height - 8 : y + 18}px`
   }
 
   let pressed = null
@@ -624,9 +635,9 @@ export function timeline(told) {
     pointer = { x, y }
     if (pressed && !pressed.gutter && (pressed.dragging || Math.abs(x - pressed.x) > DRAG)) {
       pressed.dragging = true
-      const t = Math.max(0, Math.min(model.end, tOf(x)))
+      const time = Math.max(0, Math.min(model.end, tOf(x)))
       const from = Math.max(0, Math.min(model.end, pressed.t))
-      range = { from: Math.min(from, t), to: Math.max(from, t) }
+      range = { from: Math.min(from, time), to: Math.max(from, time) }
       tip.hidden = true
       draw()
       return
@@ -671,6 +682,9 @@ export function timeline(told) {
     draw()
   })
 
+  // The chart's menu opens where the tip stands.
+  canvas.addEventListener('contextmenu', () => (tip.hidden = true))
+
   canvas.addEventListener('dblclick', (event) => {
     const { x, y } = local(event)
     const it = hit(x, y)
@@ -708,11 +722,11 @@ export function timeline(told) {
     if (it && it.span !== undefined) {
       const at = locate(model, it.span)
       const said = model.strings[model.tracks[at.track].name_[at.index]]
-      items.push({ head: said }, { label: 'Zoom', glyph: 'fit', act: () => zoomTo(it.span) }, { label: 'Pick', glyph: 'check', act: () => pick({ span: it.span }) })
+      items.push({ head: said }, { label: t('Zoom'), glyph: 'fit', act: () => zoomTo(it.span) }, { label: t('Pick'), glyph: 'check', act: () => pick({ span: it.span }) })
     } else if (it && it.process !== undefined) {
-      items.push({ head: model.processes[it.process].name }, { label: folded.has(it.process) ? 'Expand' : 'Collapse', glyph: 'down', act: () => fold(it.process) })
+      items.push({ head: model.processes[it.process].name }, { label: folded.has(it.process) ? t('Expand') : t('Collapse'), glyph: 'down', act: () => fold(it.process) })
     }
-    items.push('-', { label: 'Reset', glyph: 'fit', act: reset })
+    items.push('-', { label: t('Reset'), glyph: 'fit', act: reset })
     return items
   })
 

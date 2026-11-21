@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { DEFAULTS, GROUP_ROWS, NO_FOLDER, WIDTHS, arranged, paged, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
+import { DEFAULTS, GROUP_ROWS, NO_FOLDER, WIDTHS, arranged, paged, shownFolders, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 const run = (name, workspace, began, more = {}) => ({ name, workspace, began, task: name, kind: 'chat', ...more })
 const names = (groups) => groups.filter((one) => one.kind !== 'folders').map((one) => [one.kind === 'folder' && one.path ? one.path : one.label, one.runs.map((row) => row.name)])
@@ -21,14 +21,23 @@ test('a browser keeps nothing of a view that is the defaults', () => {
   assert.deepEqual(viewOf(viewText({ ...DEFAULTS, chats: false })), { ...DEFAULTS, chats: false })
 })
 
-test('last updated puts one going first, then by when each ended, else began', () => {
+test('last updated puts an epic going first, then by when each ended, else began', () => {
   const rows = [
     run('began-late', '/a', '2026-10-12T10:00:00Z'),
     run('ended-late', '/a', '2026-10-10T10:00:00Z', { ended: '2026-10-13T10:00:00Z' }),
-    run('going', '/a', '2026-10-01T10:00:00Z', { held: true }),
+    run('going', '/a', '2026-10-01T10:00:00Z', { kind: 'flow', held: true }),
   ]
   assert.deepEqual(sorted(rows, DEFAULTS, NOW).map((one) => one.name), ['going', 'ended-late', 'began-late'])
   assert.deepEqual(sorted(rows, { ...DEFAULTS, sort: 'created' }, NOW).map((one) => one.name), ['began-late', 'ended-late', 'going'])
+})
+
+test('a chat a host holds is never going: it stands by when it was last heard of, as any chat', () => {
+  const rows = [
+    run('late', '/late', '2026-10-13T10:00:00Z', { ended: '2026-10-13T11:00:00Z' }),
+    run('held', '/held', '2026-10-01T10:00:00Z', { held: true, ended: '2026-10-12T10:00:00Z' }),
+  ]
+  assert.deepEqual(sorted(rows, DEFAULTS, NOW).map((one) => one.name), ['late', 'held'])
+  assert.deepEqual(arranged({ runs: rows, view: DEFAULTS, now: NOW }).map((one) => one.path), ['/late', '/held'])
 })
 
 test('Show leaves out the chats or the epics, as it says', () => {
@@ -51,7 +60,7 @@ test('a workspace no list of workspaces names is still offered, by what ran in i
 })
 
 test('a workspace with one a host goes with stands before a later one that rests', () => {
-  const runs = [run('late', '/late', '2026-10-13T10:00:00Z'), run('held', '/held', '2026-10-12T10:00:00Z', { held: true }), run('early', '/early', '2026-10-11T10:00:00Z')]
+  const runs = [run('late', '/late', '2026-10-13T10:00:00Z'), run('held', '/held', '2026-10-12T10:00:00Z', { kind: 'flow', held: true }), run('early', '/early', '2026-10-11T10:00:00Z')]
   assert.deepEqual(arranged({ runs, view: DEFAULTS, now: NOW }).map((one) => one.path), ['/held', '/late', '/early'])
 })
 
@@ -76,7 +85,7 @@ test('by folder, a list with no folder and nothing to show keeps a heading, wher
 
 test('by date, the rows stand under how long ago each was last updated, the empty days left out', () => {
   const runs = [
-    run('now', '/w', '2026-10-01T10:00:00', { held: true }),
+    run('now', '/w', '2026-10-01T10:00:00', { kind: 'flow', held: true }),
     run('today', '/w', '2026-10-20T01:00:00'),
     run('yesterday', '/v', '2026-10-19T23:00:00'),
     run('week', '/w', '2026-10-14T10:00:00'),
@@ -120,6 +129,16 @@ test('by folder, the rows of no folder stand last, under No folder', () => {
   assert.ok(groups.at(-1).key)
 })
 
+test('what was started in no folder stands together under No folder, whatever directory each got', () => {
+  const made = (name, at) => run(name, `/tmp/humanize-501/nofolder/${name}`, at, { folderless: true })
+  const runs = [made('tmp1', '2026-10-13T10:00:00Z'), run('a', '/w', '2026-10-12T10:00:00Z'), made('tmp2', '2026-10-11T10:00:00Z'), run('nowhere', '', '2026-10-10T10:00:00Z')]
+  const groups = arranged({ workspaces: [{ path: '/w' }], runs, view: DEFAULTS, now: NOW })
+  // One group, the last, and never a folder named for a directory made for one of them.
+  assert.deepEqual(names(groups), [['/w', ['a']], [NO_FOLDER, ['tmp1', 'tmp2', 'nowhere']]])
+  // Nor a row of Folders, where the list is grouped otherwise.
+  assert.deepEqual(folders(arranged({ workspaces: [{ path: '/w' }], runs, view: { ...DEFAULTS, group: 'date' }, now: NOW })), [[':folders', 'Folders', [{ path: '/w', count: 1 }]]])
+})
+
 test('grouped by nothing, the rows are one group, even an empty one', () => {
   const runs = [run('a', '/w', '2026-10-13T10:00:00Z'), run('b', '/v', '2026-10-12T10:00:00Z')]
   assert.deepEqual(names(arranged({ runs, view: { ...DEFAULTS, group: 'none' }, now: NOW })), [['All', ['a', 'b']]])
@@ -158,4 +177,18 @@ test('the sidebar is as wide as it was dragged, within its bounds, and the usual
   assert.equal(widthOf(10), WIDTHS.least)
   assert.equal(widthOf(4000), WIDTHS.most)
   assert.equal(WIDTHS.usual, 275)
+})
+
+test('a folder whose directory is gone is listed only while it holds something', () => {
+  const rows = [
+    { path: '/there', there: true },
+    { path: '/unsaid' },
+    { path: '/gone-empty', there: false, epics: 0, chats: 0, running: false },
+    { path: '/gone-epic', there: false, epics: 1, chats: 0, running: false },
+    { path: '/gone-chat', there: false, epics: 0, chats: 2, running: false },
+    { path: '/gone-going', there: false, epics: 0, chats: 0, running: true },
+  ]
+  assert.deepEqual(shownFolders(rows).map((one) => one.path), ['/there', '/unsaid', '/gone-epic', '/gone-chat', '/gone-going'])
+  assert.deepEqual(shownFolders(null), [])
+  assert.deepEqual(shownFolders(), [])
 })

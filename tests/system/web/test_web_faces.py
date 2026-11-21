@@ -182,6 +182,11 @@ _MOUNT = """async (question) => {
   if (el.parentElement !== box) box.replaceChildren(el)
 }"""
 
+#: What is drawn with a shadow: nothing floats by one, a hairline edge parts it from the page.
+_SHADOWED = """() => [...document.querySelectorAll('*')]
+  .filter((one) => getComputedStyle(one).boxShadow !== 'none')
+  .map((one) => `${one.tagName.toLowerCase()}.${one.className}`)"""
+
 
 #: What a browser says as it refuses a face a way out: its frame's policy holding.
 _HELD = re.compile(r"Content Security Policy|connect-src|img-src")
@@ -406,11 +411,19 @@ def test_the_plain_form_is_a_click_away_and_the_face_waits_behind_it(
 ) -> None:
     wire = _wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        # A menu of the page's, open as the face arrives.
+        bell = page.locator("[data-hmz=daemon-bar]")
+        bell.click()
+        expect(bell).to_have_attribute("aria-expanded", "true")
         page.evaluate(_MOUNT, _question("q1", "review"))
         face = page.locator("[data-hmz=face]")
         expect(face).to_have_attribute("data-state", "ready")
+        expect(bell).to_have_attribute("aria-expanded", "true")
         inside = page.frame_locator("[data-hmz=face-frame]")
         inside.locator("#notes").fill("Half a thought")
+        # The window left for the face's frame is a press outside the menu: it shuts.
+        expect(bell).to_have_attribute("aria-expanded", "false")
+        expect(page.locator(".popover:visible")).to_have_count(0)
 
         switch = face.locator("[data-hmz=face-plain]")
         expect(switch).to_have_text("Plain form")
@@ -453,6 +466,9 @@ def test_a_face_is_drawn_in_the_pages_colours(
             " probe.remove(); return said }",
             ink,
         )
+        # Flat, as the page is: nothing of the face's kit, nor of its box, casts a shadow.
+        assert frame.evaluate(_SHADOWED) == []
+        assert page.evaluate(_SHADOWED) == []
         # Nothing of it runs past the frame at a phone's width.
         width_ = frame.evaluate("document.documentElement.scrollWidth")
         assert width_ <= frame.evaluate("innerWidth")

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 224" role="img">
+  <title>An epic goes from running to stopping to stopped; a force stop skips the wait</title>
+  <rect width="760" height="224" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5d6a72"/>
+    </marker>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#b83a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="40" y="44" font-size="16" font-weight="600" fill="#141a1f">What a stop does</text>
+
+    <rect x="40" y="64" width="180" height="72" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="130" y="96" font-size="14" font-weight="600" text-anchor="middle" fill="#0b7080">Running</text>
+    <text x="130" y="118" font-size="12" text-anchor="middle" fill="#435058">turns under way</text>
+
+    <rect x="290" y="64" width="180" height="72" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+    <text x="380" y="96" font-size="14" font-weight="600" text-anchor="middle" fill="#80590c">Stopping</text>
+    <text x="380" y="118" font-size="12" text-anchor="middle" fill="#435058">turns interrupted</text>
+
+    <rect x="540" y="64" width="180" height="72" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="630" y="96" font-size="14" font-weight="600" text-anchor="middle" fill="#5a8f00">Stopped</text>
+    <text x="630" y="118" font-size="12" text-anchor="middle" fill="#435058">nothing left open</text>
+
+    <line x1="222" y1="100" x2="286" y2="100" stroke="#b83a72" stroke-width="1.5" marker-end="url(#p)"/>
+    <text x="254" y="90" font-size="12" font-weight="600" text-anchor="middle" fill="#b83a72">Stop</text>
+
+    <line x1="472" y1="100" x2="536" y2="100" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="504" y="90" font-size="12" text-anchor="middle" fill="#5d6a72">unwinds</text>
+
+    <path d="M380 138 C380 184, 630 184, 630 140" fill="none" stroke="#b83a72" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#p)"/>
+    <text x="505" y="196" font-size="12" text-anchor="middle" fill="#b83a72"><tspan font-weight="600">Force stop</tspan>: sessions closed at once</text>
+  </g>
+</svg>

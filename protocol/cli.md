@@ -1274,7 +1274,7 @@ machine, and MUST NOT start or reach a daemon.
 ### 15.1. Synopsis
 
 ```text
-hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>
+hmz chat [-a <agent>] [-e <env>] [--resume <chat> | --worktree] [--] <message>
 hmz chat --list [--archived]
 hmz chat --rename <chat> <title>
 hmz chat --fork <chat>
@@ -1315,6 +1315,12 @@ workspace (`chat.start` with `worktree` true, Section 4.25 of [DAEMON]). `--work
 worked. Where the workspace is no git repository, the refusal of `chat.start` MUST be written as
 Section 15.3.2 states.
 
+**15.1.9** `-e` and `--env` MUST be the same option, MUST take one env written as the text of an
+`-e` item of Section 7.5 after `<role>=`, and MUST start the chat with its assistant working there
+(`chat.start` with `env`, Section 4.25.1.10 of [DAEMON]); with `--resume`, the chat MUST be carried
+on there, which moves it (Section 8.3.16 of [CORE]). A refusal of `chat.start` MUST be written as
+Section 15.3.2 states.
+
 ### 15.2. Output
 
 **15.2.1** `hmz chat` MUST draw the turn on standard error and write its answer to standard output
@@ -1344,7 +1350,7 @@ exit with status 1 (Section 8.4.9 of [CORE]).
 ### 15.4. The chats written down
 
 **15.4.1** `--list`, `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete` MUST be
-mutually exclusive and MUST take no turn of a chat; each together with `-a`, `--resume` or
+mutually exclusive and MUST take no turn of a chat; each together with `-a`, `-e`, `--resume` or
 `--worktree`, a positional argument with any of them but `--rename`, `--archived` without `--list`
 and `--yes` without `--delete` MUST each be a usage error.
 
@@ -1353,9 +1359,10 @@ named for it, starting the daemon where none runs, `<chat>` being a chat's id; `
 read or write a chat's files for any of them.
 
 **15.4.3** `hmz chat --list` MUST write to standard output one line per chat of the current
-workspace that is not archived (`chat.list` with `workspace`), newest first: its id, its state
-(Section 4.25.5.3 of [DAEMON]) and its title with white space runs collapsed and cut to 60
-characters, separated by two spaces. With `--archived` it MUST write the archived chats alone.
+workspace that is not archived (`chat.list` with `workspace`), newest first: its id, how it stands
+and its title with white space runs collapsed and cut to 60 characters, separated by two spaces.
+How it stands MUST be its state (Section 4.25.5.3 of [DAEMON]) where that is `turn`, `asking` or
+`failed`, and `ready` otherwise, `going` and `resting` alike (Section 8.5.3 of [CORE]). With `--archived` it MUST write the archived chats alone.
 
 **15.4.4** `hmz chat --rename <chat> <title>` MUST give the chat that title (`chat.rename`),
 `<title>` being the one positional argument and saying something, else a usage error; `--archive

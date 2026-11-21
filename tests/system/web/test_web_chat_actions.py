@@ -3,7 +3,8 @@
 A chat is renamed where its title stands -- on its bar and in its row of the sidebar -- forked,
 archived and put back, and deleted once a dialog has asked; what the daemon refuses is said in
 its own words. The archived chats of a workspace are listed in its settings. A new chat is
-started in a git worktree where its folder is in a repository. The chats are real ones, of the
+started in a git worktree where its folder is in a repository, and a chat begun is moved to
+another environment between its turns, from the chip under its box. The chats are real ones, of the
 stand-in `claude`, on a real daemon. A session a harness had of its own is offered `Continue in
 chat` only where its harness carries a copy of one on.
 """
@@ -136,15 +137,51 @@ def test_a_chat_is_renamed_where_its_title_stands(
             expect(title).to_have_attribute("aria-label", "first thing, rename")
 
             # Pressed, the title is a field holding it; Escape leaves it as it was.
+            more = page.locator("[data-hmz=bar] [data-hmz=chat-menu]")
+            more_at = more.bounding_box()
             title.click()
             field = page.locator("[data-hmz=bar] [data-hmz=title-edit]")
             expect(field).to_be_focused()
             expect(field).to_have_value("first thing")
+            # The field lies over the title, which keeps its room: the menu's button after
+            # it is not thrown aside, to be pressed where it no longer is.
+            assert more_at is not None
+            assert more.bounding_box() == more_at
             field.fill("never kept")
             field.press("Escape")
             expect(field).to_have_count(0)
             expect(title).to_have_text("first thing")
             expect(title).to_be_focused()
+
+            # One menu at a time. A right-click in the bar's menu is that menu's own:
+            # the title's menu does not open over it.
+            menu = _bar_menu(page)
+            menu.get_by_role("menuitem", name="Copy link").click(button="right")
+            expect(page.locator(".popover.context")).to_have_count(0)
+            expect(menu).to_be_visible()
+            expect(page.get_by_role("menu")).to_have_count(1)
+            # The focus gone to another button, the menu closes; that button's menu,
+            # opened by a key, is the only one, and Escape gives its button the focus.
+            view = page.locator("[data-hmz=bar] [data-hmz=chat-view]")
+            view.focus()
+            expect(menu).to_have_count(0)
+            page.keyboard.press("Enter")
+            expect(page.get_by_role("menu", name="View options")).to_be_visible()
+            expect(page.get_by_role("menu")).to_have_count(1)
+            page.keyboard.press("Escape")
+            expect(page.get_by_role("menu")).to_have_count(0)
+            expect(view).to_be_focused()
+            if width >= 860:
+                # A tip never stands over the menu its own button opened.
+                more.hover()
+                tip = page.locator(".tip")
+                expect(tip).to_have_text("More options")
+                more.click()
+                page.mouse.move(more_at["x"] + 9, more_at["y"] + 9)
+                page.wait_for_timeout(400)
+                expect(tip).to_have_count(0)
+                expect(page.get_by_role("menu", name="Chat menu")).to_be_visible()
+                page.keyboard.press("Escape")
 
             # Enter saves it, and its row in the sidebar follows.
             title.click()
@@ -233,16 +270,16 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             page.keyboard.press("Escape")
 
             # The workspace's settings list it among the archived, and put it back.
-            go(page, "/settings/workspace")
+            go(page, "/settings/archived")
             archived = page.locator("[data-hmz=archived-chats]")
-            expect(archived.locator("h2")).to_have_text("Archived chats")
+            expect(page.locator(".settings-head h3")).to_have_text("Archived chats")
             listed = archived.locator("[data-hmz=archived-chat]")
             expect(listed).to_have_count(1)
             expect(listed).to_have_attribute("data-chat", fork)
             expect(listed.locator(".archived-title")).to_have_text("first thing")
             listed.get_by_role("button", name="Unarchive").click()
             expect(listed).to_have_count(0)
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert not _call(page, "chat.get", {"chat": fork})["archived"]
             page.keyboard.press("Escape")
             expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
@@ -281,7 +318,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             _call(page, "chat.archive", {"chat": name})
             if width < 860:
                 page.keyboard.press("Escape")
-            go(page, "/settings/workspace")
+            go(page, "/settings/archived")
             expect(listed).to_have_count(1)
             listed.locator("[data-hmz=archived-delete]").click()
             expect(dialog.locator("[data-hmz=delete-title]")).to_have_text(
@@ -296,29 +333,43 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog).to_have_count(0)
             expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
 
-def test_what_the_daemon_refuses_of_a_chat_going_is_said_in_its_words(
+def test_a_chat_is_deleted_between_turns_and_refused_only_while_its_turn_is_open(
     project: Path, engine: str
 ) -> None:
     with served() as site:
-        name = _chatted(site, "still going", stopped=False)
+        name = _chatted(site, "still here", stopped=False)
         with opened(site, engine=engine, width=1280, height=800) as page:
             go(page, f"/chats/{name}")
-            expect(_title(page)).to_have_text("still going")
+            expect(_title(page)).to_have_text("still here")
+            # A turn open: what the daemon refuses is said in its words.
+            button = page.locator("[data-hmz=say] .send")
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill('run: [["sleep", "60"]]')
+            say.press("Enter")
+            expect(button).to_have_attribute("aria-label", "Stop")
             _bar_menu(page).get_by_role("menuitem", name="Delete").click()
             dialog = page.locator("[data-hmz=dialog-delete]")
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog.locator(".delete-said")).to_have_text(
-                f"Chat {name} is going on; delete it once it rests."
+                f"Chat {name} has a turn open; delete it once it is done."
             )
             # The chat stays, and so does the dialog, to be cancelled.
             dialog.locator("[data-hmz=delete-cancel]").click()
             expect(dialog).to_have_count(0)
             assert _call(page, "chat.get", {"chat": name})["id"] == name
-            stop(page)
+
+            # Between turns, a host holding it is no reason to keep it: it is deleted.
+            button.click()
+            expect(button).to_have_attribute("aria-label", "Send")
+            assert _call(page, "chat.get", {"chat": name})["slot"]
+            _bar_menu(page).get_by_role("menuitem", name="Delete").click()
+            dialog.locator("[data-hmz=delete-confirm]").click()
+            expect(page.locator("div[data-hmz=new-chat]")).to_be_visible()
+            assert _call(page, "chat.list")["chats"] == []
 
 
 def _git(at: Path, *argv: str) -> None:
@@ -338,34 +389,56 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
     with served() as site, opened(site, engine=engine, width=width, height=800) as page:
         # A folder in no repository offers no worktree, and says why.
         go(page, "/new/chat")
+        where = page.locator("[data-hmz=start] [data-hmz=environment]")
         box = page.locator("[data-hmz=new-worktree]")
-        label = page.locator("[data-hmz=start] .desk-check")
-        expect(label).to_have_text("Worktree")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute(
-            "data-tip", "This folder is not a git repository"
+        # Not under the box: one of the places Environment's menu offers, after this
+        # computer, picked as any of them is.
+        expect(box).to_have_count(0)
+        expect(page.locator("[data-hmz=start] .desk-check")).to_have_count(0)
+        expect(where).to_have_text("This computer")
+        where.click()
+        menu = page.get_by_role("menu", name="Environment")
+        expect(box.locator(".choice-label")).to_have_text("New worktree")
+        expect(box).to_have_attribute("role", "menuitemradio")
+        assert (
+            menu.get_by_role("menuitemradio")
+            .nth(1)
+            .evaluate("(el) => el.dataset.hmz === 'new-worktree'")
         )
-        # After the folder, in the row's left group.
-        assert label.evaluate(
-            "(el) => el.previousElementSibling.matches('.menu-holder, .flow-picker')"
-            " || Boolean(el.previousElementSibling.querySelector('[data-hmz=workspace-picker]'))"
-        )
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        expect(box).to_have_attribute("data-tip", "This folder is not a git repository")
+        # Pressed all the same, it picks nothing.
+        box.click(force=True)
+        expect(box).to_have_attribute("aria-checked", "false")
+        page.keyboard.press("Escape")
+        expect(where).to_have_text("This computer")
 
         # Nor does no folder.
         go(page, "/new/chat?scratch=1")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute("data-tip", "A worktree needs a folder")
+        where.click()
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("data-tip", "A worktree needs a folder")
+        page.keyboard.press("Escape")
 
-        # In a repository it is on offer; ticked, the chat works in a worktree of it.
+        # In a repository it is on offer; picked, the chat works in a worktree of it.
         _git(project, "init", "-q")
         (project / "kept.txt").write_text("kept\n")
         _git(project, "add", ".")
         _git(project, "commit", "-q", "-m", "first")
         go(page, f"/new/chat?workspace={urllib.parse.quote(str(project))}")
-        expect(box).to_be_enabled()
-        expect(box).not_to_be_checked()
-        label.click()
-        expect(box).to_be_checked()
+        where.click()
+        expect(box).not_to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        box.click()
+        # Picked, the menu closes and the chip says so; opened again, the row is marked.
+        expect(menu).to_have_count(0)
+        expect(where).to_have_text("New worktree")
+        expect(where).to_have_attribute("data-env", "worktree")
+        where.click()
+        expect(box).to_have_attribute("aria-checked", "true")
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_attribute("data-value", "claude-haiku-4-5")
@@ -388,6 +461,205 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
         expect(works.locator(".path")).to_have_attribute("data-path", chat["workdir"])
         expect(page.locator("[data-hmz=inspector] dt")).to_contain_text(["Works in"])
         stop(page)
+
+
+@pytest.mark.parametrize("width", _WIDTHS)
+def test_a_chat_is_moved_to_another_environment_between_its_turns(
+    project: Path, engine: str, width: int
+) -> None:
+    other = project.parent / "elsewhere"
+    other.mkdir()
+    with served() as site:
+        name = _chatted(site, "still here", stopped=False)
+        with opened(site, engine=engine, width=width, height=800) as page:
+            go(page, f"/chats/{name}")
+            where = page.locator("[data-hmz=say] [data-hmz=environment]")
+            menu = page.get_by_role("menu", name="Environment")
+            form = page.locator("[data-hmz=say] [data-hmz=env-dir-form]")
+            # Where the chat works, and never which daemon serves it.
+            expect(where).to_have_text("This computer")
+            expect(where).to_have_attribute("data-env", "local")
+            expect(
+                page.locator("[data-hmz=say] [data-hmz=composer-under] [data-daemon]")
+            ).to_have_count(0)
+
+            # While its turn is open nothing is picked, and the menu says why.
+            button = page.locator("[data-hmz=say] .send")
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill('run: [["sleep", "60"]]')
+            say.press("Enter")
+            expect(button).to_have_attribute("aria-label", "Stop")
+            where.click()
+            expect(menu.locator("[data-hmz=environment-about]")).to_have_text(
+                "A turn is open. Move the chat once it is done."
+            )
+            expect(menu.locator("[data-env=local]")).to_have_attribute(
+                "aria-disabled", "true"
+            )
+            expect(menu.locator("[data-hmz=new-worktree]")).to_have_count(0)
+            page.keyboard.press("Escape")
+            button.click()
+            expect(button).to_have_attribute("aria-label", "Send")
+
+            # Between turns: the directory is chosen as a folder is, written or browsed for.
+            where.click()
+            expect(menu.locator("[data-hmz=environment-about]")).to_have_text(
+                "Where this chat\u2019s commands run and its files live."
+            )
+            menu.locator("[data-hmz=env-dir-choose]").click()
+            expect(menu).to_have_count(0)
+            expect(form.locator(".label")).to_have_text("Directory on this computer")
+            field = form.locator("[data-hmz=env-dir]")
+            expect(field).to_have_value(str(project))
+            # One that cannot take the chat is said there, in the daemon's words, and the
+            # chat stays where it was.
+            field.fill(str(other / "missing"))
+            form.locator("[data-hmz=env-dir-pick]").click()
+            expect(form.locator(".hint")).to_contain_text(
+                "The chat stays where it was: "
+            )
+            assert _call(page, "chat.get", {"chat": name})["workdir"] == str(project)
+            # Browsed for, as a folder is.
+            field.fill(str(project.parent))
+            form.locator("[data-hmz=path-browse]").click()
+            panel = form.locator("[data-hmz=path-panel]")
+            panel.locator("[data-name=elsewhere]").click()
+            panel.locator("[data-hmz=path-choose]").click()
+            expect(field).to_have_value(re.compile(r"elsewhere$"))
+            form.locator("[data-hmz=env-dir-pick]").click()
+            expect(form).to_be_hidden()
+            expect(where).to_have_text("This computer · elsewhere")
+            chat = _call(page, "chat.get", {"chat": name})
+            assert (chat["workspace"], chat["workdir"]) == (str(project), str(other))
+            assert chat["env"] == f"local{other}"
+
+            # Its next turn is taken there, in the same chat.
+            say.fill("and here?")
+            say.press("Enter")
+            landed = other / "landed.txt"
+            until = time.monotonic() + 60
+            while not landed.is_file():
+                assert time.monotonic() < until
+                time.sleep(0.1)
+            assert landed.read_text() == "and here?\n"
+
+            # Back to the folder itself, from the menu.
+            expect(button).to_have_attribute("aria-label", "Send")
+            where.click()
+            expect(menu.locator("[data-env=local]")).to_have_attribute(
+                "aria-checked", "false"
+            )
+            menu.locator("[data-env=local]").click()
+            expect(where).to_have_text("This computer")
+            assert _call(page, "chat.get", {"chat": name})["env"] == f"local{project}"
+            stop(page)
+
+
+def test_a_resting_chat_moved_while_its_host_stands_by_stays_where_it_was_put(
+    project: Path, engine: str
+) -> None:
+    """Moved with nothing said yet, the chip keeps the new place and the turn runs there."""
+    other = project.parent / "elsewhere"
+    other.mkdir()
+    with served() as site:
+        name = _chatted(site, "still here")
+        with opened(site, engine=engine, width=1280, height=800) as page:
+            go(page, f"/chats/{name}")
+            where = page.locator("[data-hmz=say] [data-hmz=environment]")
+            form = page.locator("[data-hmz=say] [data-hmz=env-dir-form]")
+            expect(where).to_have_text("This computer")
+            # Its environment opened, a host is brought up for it with nothing said.
+            page.locator("[data-hmz=bar] [data-hmz=pane-files]").click()
+            until = time.monotonic() + 60
+            while not _call(page, "chat.get", {"chat": name})["slot"]:
+                assert time.monotonic() < until
+                time.sleep(0.1)
+            # The page reads the chat again and follows that host, whose box takes the
+            # place of the one it had: what is opened next is opened in the box that stays.
+            page.wait_for_timeout(4500)
+
+            # Moved on that host: the row says where it now works, though its record says
+            # nothing until something is said, and the chip does not go back.
+            where.click()
+            page.get_by_role("menu", name="Environment").locator(
+                "[data-hmz=env-dir-choose]"
+            ).click()
+            form.locator("[data-hmz=env-dir]").fill(str(other))
+            form.locator("[data-hmz=env-dir-pick]").click()
+            expect(form).to_be_hidden()
+            expect(where).to_have_text("This computer · elsewhere")
+            chat = _call(page, "chat.get", {"chat": name})
+            assert (chat["env"], chat["workdir"]) == (f"local{other}", str(other))
+            # Read again a few times over, it is still there.
+            page.wait_for_timeout(4500)
+            expect(where).to_have_text("This computer · elsewhere")
+
+            # What is said next is said there.
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill("and here?")
+            say.press("Enter")
+            landed = other / "landed.txt"
+            until = time.monotonic() + 60
+            while not landed.is_file():
+                assert time.monotonic() < until
+                time.sleep(0.1)
+            assert landed.read_text() == "and here?\n"
+            assert "and here?" not in (project / "landed.txt").read_text()
+            expect(page.locator("[data-hmz=say] .send")).to_have_attribute(
+                "aria-label", "Send"
+            )
+            stop(page)
+
+
+def test_an_archived_chat_of_no_folder_is_listed_put_back_and_deleted_in_settings(
+    project: Path, engine: str
+) -> None:
+    """No folder picked names its directory: it is listed under `No folder` all the same."""
+    with served() as site, opened(site, engine=engine, width=1280, height=800) as page:
+        go(page, "/new/chat?scratch=1")
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
+        page.locator("[data-hmz=start] [data-hmz=permission]").click()
+        page.get_by_role("menu", name="Permissions").locator(
+            "[data-permission=danger-full-access]"
+        ).click()
+        page.locator("[data-hmz=composer-text]").fill("of no folder")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
+        name = urllib.parse.unquote(page.url.split("#/chats/")[1])
+        expect(page.locator("[data-hmz=say] .send")).to_have_attribute(
+            "aria-label", "Send"
+        )
+        assert _call(page, "chat.get", {"chat": name})["folderless"] is True
+        stop(page)
+        _bar_menu(page).get_by_role("menuitem", name="Archive", exact=True).click()
+        expect(_rows(page)).to_have_count(0)
+
+        # Whichever folder is picked, it stands under `No folder`, the folder's own list
+        # saying nothing of an empty one beside it.
+        go(page, "/settings/archived")
+        archived = page.locator("[data-hmz=archived-chats]")
+        nowhere = archived.locator("[data-hmz=archived-nowhere]")
+        expect(nowhere.locator("h4")).to_have_text("No folder")
+        listed = nowhere.locator("[data-hmz=archived-chat]")
+        expect(listed).to_have_count(1)
+        expect(listed).to_have_attribute("data-chat", name)
+        expect(archived).not_to_contain_text("No archived chats.")
+        listed.get_by_role("button", name="Unarchive").click()
+        expect(nowhere).to_have_count(0)
+        expect(archived).to_contain_text("No archived chats.")
+        assert not _call(page, "chat.get", {"chat": name})["archived"]
+
+        # Archived again, it is deleted from there, its directory with it.
+        _call(page, "chat.archive", {"chat": name})
+        go(page, "/settings/general")
+        go(page, "/settings/archived")
+        expect(listed).to_have_count(1)
+        listed.locator("[data-hmz=archived-delete]").click()
+        page.locator("[data-hmz=dialog-delete] [data-hmz=delete-confirm]").click()
+        expect(listed).to_have_count(0)
+        assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
 
 def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
@@ -515,7 +787,7 @@ def test_a_harness_session_is_offered_a_chat_only_where_its_harness_carries_one_
         go(page, f"/harness/opencode/ses_1?workspace={workspace}")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("the word is plum")
         expect(note).to_have_text(
-            "Read-only. A session of opencode cannot be continued in a chat."
+            "Read-only. A session of OpenCode cannot be continued in a chat."
         )
         expect(adopt).to_have_count(0)
         refused = page.evaluate(

@@ -1,319 +1,108 @@
-<script setup>
-import PickUp from '../.vitepress/theme/components/user-resuming/PickUp.vue'
-</script>
+---
+title: Resume a run
+description: Pick up an epic that stopped, from the app, the terminal or the command line, and know what carries over.
+---
 
-# Picking a run up
+# Resume a run
 
-Carry a loop on from where its last run stopped, instead of starting it over. Use this after
-<kbd>ctrl+c</kbd>, after a budget ran out before the work was done, or after the machine went
-down mid-run. By the end of this page you will have stopped a loop, picked it up both at the
-prompt and from a script, and checked that its conversation went on where it left off.
+When an epic stops before the work is done—because you stopped it, its budget ran out, or the machine went down—you can resume it. Resuming starts a new epic that continues from the saved state of the earlier one.
 
-## Try it
+![Resuming copies the saved state of the earlier epic into a new epic](/diagrams/user-resuming-1.svg)
 
-::: code-group
+## Check if you can resume
 
-```text [At the prompt]
-/resume
-```
+You can resume an epic if it uses a resumable flow, saved state, and is not currently running. A resumable flow saves progress as it runs, so you can pick up even a killed run. In the official [catalogue](https://humanfia.ai/flows/), `stateful_ralph` and `rlar` are resumable, for example; the one-turn `goal` is not. On the [Flows](/user/flows) page, click an installed flow's card: its **Resumable** row says yes or no. If a flow is not resumable, [start it again](/user/epics).
 
-```sh [hmz exec]
-hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -p budget.duration=2h \
-    --resume "$(cat TASK.md)"
-```
+## In the app
 
-:::
+1. Open the ended epic and click **Resume** in the top bar, or click **Resume** in the `Ended · Resume` note at the bottom of the page.
 
-At the prompt, `/resume` first says which run it carries on, then the flow starts again. It
-does this with a flow on the screen, as after one stops; in a [chat](/user/chat), where `hmz`
-opens, `/resume` carries on an earlier chat instead, and `/epics` picks a flow's run up:
+![An ended epic in Humanize Desktop with the Resume button in its bar](/shots/user-resuming-app-ended.svg)
 
-```text
-resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state
-```
+2. The **Resume epic** page opens with the earlier epic's flow, folder, agents, budget, profiling switches, and task filled in, alongside the note `Picks up <name>, carrying on from where it stopped.`
+3. Adjust any settings, such as a larger budget, and press <kbd>enter</kbd> in the task box.
 
-## Before you start
+![The Resume epic page, filled in from the earlier epic](/shots/user-resuming-app-form.svg)
 
-- A flow that can be picked up. Most of the official loops can,
-  [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) and [`rlar`](https://humanfia.ai/flows/rlar) among them; each flow's page says
-  whether it can. [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) cannot: it keeps
-  nothing but the repository, so running it again is carrying it on. A [chat](/user/chat) is
-  not picked up but [carried on](#a-chat-is-carried-on).
-- That flow, installed. Humanize ships no flow: install `stateful_ralph`, used on this page,
-  from the official [flowverse](/weaver/flowverses#managing-flowverses) with `/flow`,
-  **Install more…**, `official`. `hmz exec` installs nothing.
-- An earlier run of that flow, **in this directory**, that got far enough to save something.
-  Runs are kept per directory, so start `hmz` or `hmz exec` where the first run started.
-- Nothing running here now. [Stop](/user/stopping) a running flow first.
+You can also resume from the sidebar. Click **More options** on the epic's row (or right-click it) and select **Resume**. Right-clicking the epic's title in the top bar opens the same menu. This option appears for resumable epics that did not finish as done.
 
-## What picking up means
+![The row menu of a stopped epic, with Resume](/shots/user-resuming-app-menu.svg)
 
-A flow that can be picked up keeps a small record of where its loop has got to, such as whose
-turn is next, the last review, or the session it works in, and saves it every time it changes.
-A run that stops for any reason — <kbd>ctrl+c</kbd>, a spent budget, a crash, a machine
-switched off — leaves that record behind. Picking the run up starts the flow again **with that
-record**, so the loop carries on from there instead of starting from nothing.
+On the new epic's **Epic** tab, the **Resumed from** row links to the earlier epic.
 
-<PickUp />
+![The Epic tab of the new epic, with a Resumed from link](/shots/user-resuming-app-origin.svg)
 
-Three things are worth knowing before you rely on it:
+## In the terminal
 
-- **It is a new run.** The run that stopped is never reopened. The one that carries it on is a
-  run of its own, with its own sessions, its own trace and its own row in
-  [`/epics`](/user/tracing#what-a-run-writes-down). A week of stops and starts reads as one run
-  per stretch. A [chat](/user/chat) is the one exception: it is one conversation, so saying
-  something in one that has folded away carries it on as the same chat, its agent remembering
-  what was said.
-- **The agents' conversations carry over only where the flow kept them.** What carries over
-  is what the flow chose to keep, and the files the agents already changed in your project. A
-  flow that kept a session in its record, as `stateful_ralph` does, has that conversation
-  carried on from where it was kept; every other turn opens a fresh one.
-- **Budgets do not carry over.** What the earlier run spent is not counted against the new one.
+To choose an epic from the current directory:
 
-There are three ways in:
+1. Type `/epics`.
+2. Press <kbd>enter</kbd> on a row ending with `resumable`.
+3. Choose `resume epic`.
 
-| Way in | Picks up | Runs it with |
-| --- | --- | --- |
-| `/resume` at the prompt, with a flow on the screen | the last run here of a flow that can be picked up | that run's own agents, environments, params, budget and task |
-| `/epics`, then **resume epic** | any run you choose | the same: that run's own setup |
-| `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e` and `-p`, budget included |
+![Opening /epics, choosing an epic and then resume epic](/shots/user-resuming-terminal-epics.svg)
 
-A run whose environments were written down as `local@/srv/x`, `docker@local/srv/x`,
-`swarm@local/srv/x`, `apple-container@local/srv/x`, `slurm@local/srv/x` or an ssh host nobody
-saved out of brackets is picked up on the same places, spelled as `-e` takes them: `local/srv/x`,
-`docker/srv/x`, `swarm/srv/x`, `apple-container/srv/x`, `slurm/srv/x`, `ssh@[host]/…` -- the `@local` ones only while no
-runtime of theirs is saved as `local`, and an ssh host only while none is saved by its name.
+To resume the newest epic immediately, type `/resume` while a flow is on the screen, such as right after it stops. `/resume` takes no argument.
 
-## Example: stop a loop on its budget, then carry it on
+![A new epic running after /resume](/shots/user-resuming-terminal-resume.svg)
 
-A tiny project with two failing tests, and [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph),
-which sends the task again every round in one session, and keeps that session in its record
-after every round. The budget is deliberately small so the run stops by itself.
+Both commands run the epic's recorded flow, agents, environments, params, budget, profiling switches, and task, ignoring the terminal's current settings.
+
+When the screen shows a chat, as it does when `hmz` opens with no flow on it, `/resume` lists earlier chats instead: use `/epics` to resume an epic. See [Organise chats](/user/manage-chats).
+
+## From the command line
+
+Add `--resume` to `hmz exec` in the directory where the earlier epic ran:
 
 ```sh
-hmz exec -f stateful_ralph \
-    -a agent=claude/claude-haiku-4-5-20251001:low \
-    -p budget.output_tokens=1500 \
-    "$(cat TASK.md)"
+hmz exec -f stateful_ralph -a agent=claude/claude-haiku-4-5 -p budget.output_tokens=300 --resume "Add a discount code to checkout"
 ```
 
-The run, as it appeared at the terminal (the agents' thinking trimmed):
+![hmz exec --resume carrying on until its new budget is spent](/shots/user-resuming-exec.svg)
 
-```text
-● agent is working                                                     ①
-● Read(…/app2/test_slug.py)
-● Read(…/app2/slug.py)
-● Edit(…/app2/slug.py)
-● Bash(cd …/app2 && python -m pytest test_slug.py -v)
-● Done! Both tests now pass. …
-✻ input 50 · output 1.0k · cache_read 127.5k · cache_write 1.8k · $0.02 · claude-haiku-4-5-20251001 · agent
-✻ Worked for 14s · agent
-● agent is working
-● Bash(cd …/app2 && python -m pytest test_slug.py -v)
-● Both tests still pass; slug.py needs no further change. …
-✻ input 26 · output 810 · cache_read 62.8k · cache_write 1.2k · $0.01 · claude-haiku-4-5-20251001 · agent
-✻ Worked for 11s · agent
-hmz exec: stopped -- stateful_ralph:stateful_ralph: its budget's output tokens are spent   ②
-```
+`--resume` takes no value. It resumes the newest epic of the `-f` flow in this directory that saved state and is not running. The new epic uses the agents, environments, params, and budget from your new command line, not the earlier ones. Without `--resume`, `hmz exec` starts from the beginning.
 
-`echo $?` prints `0`. Now run the same line again with `--resume` and a fresh budget:
+If the flow is not resumable, or no epic in the directory can be picked up, `hmz exec` exits with status 2 before starting any agent.
 
-```sh
-hmz exec -f stateful_ralph \
-    -a agent=claude/claude-haiku-4-5-20251001:low \
-    -p budget.output_tokens=800 \
-    --resume "$(cat TASK.md)"                                          # ③
-```
-
-```text
-● agent is working                                                     ④
-● Bash(cd …/app2 && python -m pytest test_slug.py -v)
-● As in the last two rounds, both tests pass and slug.py is done. …
-✻ input 34 · output 1.0k · cache_read 84.2k · cache_write 1.5k · $0.02 · claude-haiku-4-5-20251001 · agent
-✻ Worked for 13s · agent
-hmz exec: stopped -- stateful_ralph:stateful_ralph: its budget's output tokens are spent
-```
-
-### What each part means
-
-1. **`● agent is working`** opens each round: the task again, in the same session.
-   `stateful_ralph` prints nothing of its own. After each round it saves the session in its
-   record, which keeps the conversation as it stands then.
-2. **`hmz exec: stopped -- …`** names the limit that was reached, on stderr. The budget was
-   found spent as the third round was to start, before the agent began working. A budget
-   stopping a loop is the ordinary way for a loop to end, so the exit status is still `0`.
-3. **`--resume`** asks for the newest run of `stateful_ralph` in this directory that saved
-   something. The rest of the line is read as usual: the `-a` and `-p` here are what the
-   carried-on run uses, so this is where you change the model or give it more room.
-4. **The agent remembers.** The first round of the new run carries on the conversation the
-   flow kept after round 2, so the agent knows what the earlier rounds did. The files it fixed
-   in round 1 are still in your project too.
-
-## Example: pick it up at the prompt
-
-In the `hmz` the run stopped in, type `/resume`. The command is offered in the `/` list only
-while there is a run here to carry on and nothing is running. A new `hmz` opens on a
-[chat](/user/chat), where `/resume` lists earlier chats instead: there, open `/epics` and
-choose **resume epic**, as below. Either way:
-
-```text
-❯ /resume
-resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state  ①
-── agent
-● agent is working
-                                          agent · claude/claude-haiku-4-5-20251001:low · ● 1   ②
-```
-
-1. **`resuming <run>: running <flow> from saved state`** names the run being carried on, by
-   the name `/epics` lists it under, and the flow it runs.
-2. **The agent line** shows the agent **that run** was set up with, here Claude Haiku at `low`,
-   even though the prompt itself is set up for another flow. `/resume` runs what ran: the
-   flow, its agents, environments, params, budget and task all come from the run. The budget
-   is counted from zero again.
-
-To carry on an **older** run than the last, open `/epics`. Runs you can pick up end with
-`resumable`:
-
-![The /epics list: two runs, newest first, the newer marked
-"resumable"](/demo/epics.png)
-
-Press <kbd>enter</kbd> on one and choose **resume epic**:
-
-```text
-  hmz › /epics › 2026-09-30 05:38 · stateful_ralph
-  …/epics/-tmp-hmzdocs-C-app/20260930T053826.667Z-55bb87
-  It stopped with 1 agent in 1 session.
-
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ resume epic               resume the flow from this epic                 │
-  │ export epic               the entire epic as an archive, with its trace  │
-  ╰──────────────────────────────────────────────────────────────────────────╯
-
-  enter choose   esc back
-```
-
-The **resume epic** row is there only when the flow, as it is today, can be picked up. When it
-cannot, the line under the list says `<flow> is not resumable, so this epic cannot be resumed`.
-<kbd>esc</kbd>, <kbd>←</kbd> or a click on `/epics` across the top goes back to the runs.
-
-## Check that it worked
-
-- **The conversation went on.** The first answer after `--resume` or `/resume` knows what the
-  rounds before the stop did, as in ④ above.
-- **A new row in `/epics`.** The carried-on run is listed above the one it came from, with its
-  own session count:
-
-  ```text
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ 2026-09-30 05:40 · stateful_ralph Make the tests in test_slug.py pass.   │
-  │                                   Change slug.py only. · 1 session ·     │
-  │                                   stopped · resumable                    │
-  │ 2026-09-30 05:38 · stateful_ralph Make the tests in test_slug.py pass.   │
-  │                                   Change slug.py only. · 1 session ·     │
-  │                                   stopped · resumable                    │
-  │ 2026-09-30 05:37 · stateful_ralph Make the tests in test_slug.py pass.   │
-  │                                   Change slug.py only. · 1 session ·     │
-  │                                   stopped · resumable                    │
-  ╰──────────────────────────────────────────────────────────────────────────╯
-  ```
-
-- **The work is where it was.** Your files are as the earlier run left them. Temporary copies
-  and scratch directories the flow made are where they were too.
+![hmz exec refusing --resume for a flow that is not resumable](/shots/user-resuming-refused.svg)
 
 ## What carries over
 
-| | Picked up? |
+| Item | Carried over? |
 | --- | --- |
-| What the flow kept, such as whose turn was next | Yes. The flow saves as it goes, so a run that was killed keeps it too. |
-| Flows it called | Where they are called again the same way: the same flow, task, agents, environments and params. From the first call that differs, flows start afresh. |
-| Temporary copies and scratch directories | Yes, where they were. |
-| The agents' conversations | Only a session the flow kept in its record, carried on from where it was kept. Every other turn opens a fresh session. |
-| What the budget had spent | No. `--resume` runs under the new line's `-p budget.…`. `/resume` runs under the old run's budget, counted from zero. |
+| Flow state | Yes. |
+| Conversations saved in flow state | Yes, the agent remembers them. Every other session starts fresh. |
+| Temporary clones and scratch directories | Yes. |
+| Files changed in your folder | Left as the earlier epic modified them. |
+| Earlier budget spent | No. The new budget counts from zero. |
+| The earlier epic | Unchanged. The new epic gets its own name, sessions, and trace. |
 
-## Variations
+## Troubleshoot resume errors
 
-- **Change the agents while you carry on.** On a `--resume` line, `-a`, `-e` and `-p` may all
-  differ from the first run. The flow at the top always picks up, so changing them does not
-  start it over; leaving `--resume` off does. A kept session is carried on only by the same
-  CLI: give its role another, and its first turn is
-  [refused](/reference/flows#sessions-in-state).
-- **Give a longer leash.** Pick up an overnight loop that ran out of money with
-  `-p budget.duration=8h,budget.cost=40 --resume`.
-- **Start over on purpose.** Run the line without `--resume`. At the prompt, start the flow
-  as usual: `$<flow> <task>`.
+When `/resume` or `resume epic` cannot run, it shows one of these messages:
 
-## If it goes wrong
+| Message | Meaning |
+| --- | --- |
+| `no flow has been run here, so there is nothing to resume` | No epic in this directory. |
+| `no epic here was of a flow that can be resumed, so there is nothing to resume` | Every epic here is of a flow that is not resumable. |
+| `<flow> does not support resuming, so <epic> cannot be resumed` | The flow is not currently resumable. |
+| `<epic> cannot be resumed: <why>` | The flow can no longer be loaded. |
+| `<epic> cannot be read, so there is nothing to resume` | The epic's record is unreadable. |
+| `<epic> has no saved state to resume: enter a task to start the flow from the beginning` | The run ended before saving state. |
+| `<epic> cannot be resumed here: <why>` | An imported epic whose folder or commit is not on this machine. |
+| `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | An epic is running. See [Stop a run](/user/stopping). In `/epics` the message is `a flow is running; press ctrl+c twice to stop it before resuming another`. |
+| `/resume takes no arguments: it resumes the last epic here; use /epics to choose another epic` | You passed an argument to `/resume`. |
 
-At the prompt, `/resume` typed when it cannot carry a run on says why:
+On the command line, `hmz exec --resume` prints `hmz exec: error: <flow> does not support resuming, so there is no run to resume` or `hmz exec: error: <flow> has no run to resume here: none saved any progress`.
 
-| It says | Means | Do |
-| --- | --- | --- |
-| `no flow has been run here, so there is nothing to resume` | Nothing has run in this directory. | Start `hmz` where the run started. |
-| `no epic here was of a flow that can be resumed, so there is nothing to resume` | Every run here was of a flow that cannot be. | Start the flow afresh. |
-| `<run> cannot be resumed: <flow>: a flow of local is called @local/<flow> now` | The run is from before flows of anywhere but `official` were named after an `@`, and is not carried on under the new name. | Start `$@local/<flow>` afresh. |
-| `<flow> does not support resuming, so <run> cannot be resumed` | The flow has been changed since that run and no longer can be. | Start it afresh. |
-| `<run> has no saved state to resume: enter a task to start the flow from the beginning` | The run was killed before it saved anything. | Start it with `$<flow> <task>`: the flow starts from the top. |
-| `<run> cannot be resumed: its saved progress could not be copied (<reason>)` | What the run saved could not be copied into the run that would carry it on: it cannot be read, or the copy could not be written (a full disk). Nothing was started, and the run is left as it was. | Fix what the reason names, and resume it again. |
-| `<run> cannot be read, so there is nothing to resume` | The run's record is damaged. | Pick another run from `/epics`. |
-| `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | A flow is running. | [Stop](/user/stopping) it first. |
-| `cannot resume an epic while the flow is still stopping: it is finishing the turn it was in` | The flow is closing out its turn. | Wait for it to finish. |
-| `/resume takes no arguments: it resumes the last epic here; use /epics to choose another epic` | Something was typed after it. | Use `/epics` to choose a run. |
+## Good to know
 
-From a script, `--resume` with nothing to carry on is refused before any agent starts, with
-exit status 2:
+`/resume` checks only the newest epic of a resumable flow. If that epic cannot be resumed, it tells you why and does not fall back to an older epic. Use `/epics` to pick an older one. Outside a chat, `/resume` is hidden from the `/` menu when there is nothing to resume in the current directory.
 
-```console
-$ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --resume "…"
-hmz exec: error: ralph_loop does not support resuming, so there is no run to resume
-$ hmz exec -f stateful_ralph -a agent=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --resume "…"
-hmz exec: error: stateful_ralph has no run to resume here: none saved any progress
-```
+`resume epic` refuses to run an epic from another directory, saying `this epic ran in <dir>; resume it from hmz there`. Open `hmz` in that directory first.
 
-The second one also appears in a directory where the flow never ran: check that you are in
-the directory the first run started in. On a fresh CI runner there is never anything to pick
-up; see [Humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshooting).
+An [imported](/user/export) epic resumes only if its folder exists on this machine at the same path and, for a git repository, contains the recorded commit. Otherwise, its page shows `Imported · not resumable here: <why>`.
 
-## A chat is carried on {#a-chat-is-carried-on}
+You do not resume chats this way. Type in the chat to continue it: see [Chat with an agent](/user/chat).
 
-A [chat](/user/chat) is never picked up into a new run: it is one conversation and no epic,
-and it goes on as the same chat. Carry one on by saying something in it -- `/resume` in a chat,
-which lists this directory's earlier chats newest first, the chat's page in
-[`hmz web`](/user/web), or `hmz chat --resume <chat id> "<message>"`. Its agent remembers what
-was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and it works where it
-worked, having spent what each stretch spent. `/epics` lists no chat; an epic an earlier hmz
-recorded for a chat is read there and cannot be carried on.
-
-## Make a flow resumable
-
-::: details For whoever writes the flow
-A flow can be picked up when its weaver says so with `resumable=True`. It then gets a
-**state**, a mapping it keeps what the loop knows in, saved as each key is set:
-
-```python{1,7}
-@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
-async def nightly(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-):
-    fixer, state = agents["fixer"], ctx.state
-    while True:
-        state["round"] = (state["round"] if "round" in state else 0) + 1
-        session = await fixer.spawn()
-        await fixer.run(f"{task}\n\nRound {state['round']}.", session=session)
-```
-
-- A turn run with no `env`, as here, works in the workspace, the directory hmz ran in.
-- Store only what JSON can hold, or a [session](/reference/flows#sessions-in-state), which
-  keeps its conversation. Anything else raises `StateNotSerializable` where it is set.
-- Changing a value inside the state, such as appending to a list, is not saved. Set the key
-  again: `state["seen"] = [*state["seen"], path]`.
-- `ctx.resumed` says whether this call picked up an earlier one.
-
-See [Loops](/weaver/loops) and the [flow API reference](/reference/flows).
-:::
-
-## Next steps
-
-- [Stopping](/user/stopping): the ways a run ends, and what each leaves to pick up
-- [Tracing a run](/user/tracing): the runs `/epics` lists, and what each one did
-- [Run it unattended](/user/unattended): `--resume` in a scheduled script
-- [CLI reference › Picking a run up](/reference/cli#picking-a-run-up): the exact rules
+To make your own flow resumable, see [Resumable flows](/builder/resumable). To resume from Python, see [The Python SDK](/builder/sdk).

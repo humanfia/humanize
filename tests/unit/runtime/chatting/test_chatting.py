@@ -18,6 +18,7 @@ from hmz.flows import (
     AskUserHookAgentMixin,
     AskUserHookResult,
     EnvBackendKind,
+    EnvUnavailable,
     HarnessKind,
     HarnessRefused,
     HookKind,
@@ -26,7 +27,16 @@ from hmz.flows import (
     Usage,
 )
 from hmz.runtime import epic, flowing
-from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec, Role, resolve
+from hmz.runtime.chatting import (
+    TURN_OPEN,
+    Busy,
+    Chat,
+    ChatEnd,
+    ChatSpec,
+    Role,
+    env_spec,
+    resolve,
+)
 from hmz.runtime.flowing import harnesses
 from hmz.runtime.flowing.spi import HookTable, Kept, Placement, TurnRequest
 from hmz.runtime.runner import Refused
@@ -904,6 +914,62 @@ def test_a_chat_carried_on_goes_on_in_its_epic_and_its_conversation(
     assert ran.spent == {"cost": 1.5, "output_tokens": 6, "seconds": 3.0}
 
 
+def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_nothing(
+    wired: Wired,
+) -> None:
+    first = _had(wired, Person())
+    wrote = epic.journal(first.at).read_bytes()
+    seen: list[tuple[object, object, bool, bool]] = []
+
+    @dataclass
+    class Waits(Person):
+        chat: Chat | None = None
+
+        async def next(self, answered: str) -> str:
+            chat = self.chat
+            assert chat is not None
+            held = chat.envs
+            seen.append(
+                (
+                    chat.at,
+                    held and [one.role for one in held.held_envs()],
+                    chat.between,
+                    epic.going(first.at),
+                )
+            )
+            return await super().next(answered)
+
+    # Ended with nothing said: nothing was opened, and nothing written down.
+    person = Waits()
+    person.chat = _chat(wired, person, task="", resume=first.at)
+    ended = asyncio.run(person.chat.run())
+
+    assert (ended.at, ended.state) == (first.at, "stopped")
+    assert seen == [(first.at, ["workspace"], True, False)]
+    assert person.chat.envs is None
+    assert epic.journal(first.at).read_bytes() == wrote
+    assert len(wired.driver.sessions) == 1
+    assert wired.env.closes == 2
+
+    # Said something, it is carried on by that, as one carried on with it is.
+    person = Waits(["and now?"])
+    person.chat = _chat(wired, person, task="", resume=first.at)
+    again = asyncio.run(person.chat.run())
+
+    assert again.at == first.at
+    _, carried = wired.driver.sessions
+    assert carried.carried == Kept(
+        HarnessKind.CLAUDE, "s1", first.at / epic.SESSIONS / "claude"
+    )
+    assert carried.requests[0].prompt == "and now?"
+    assert person.shown == ["", "did: and now?"]
+    events = _events(first.at)
+    assert [one["event"] for one in events].count("reopened") == 1
+    assert next(one for one in events if one["event"] == "reopened")["task"] == (
+        "and now?"
+    )
+
+
 def test_a_chat_started_in_a_worktree_works_there_and_says_where(
     wired: Wired, tmp_path: Path
 ) -> None:
@@ -935,6 +1001,202 @@ def test_a_chat_started_in_a_worktree_works_there_and_says_where(
     # Not even where one is asked for, which the daemon refuses before it gets this far.
     _had(wired, Person(), task="go", resume=ended.at, worktree=True)
     assert wired.env.derived == [(None, None)]
+
+
+@dataclass
+class Elsewhere:
+    """The envs a chat is put in other than its workspace: each opened, by where it is."""
+
+    opened: dict[str, Env] = field(default_factory=dict[str, Env])
+    #: Why the next one cannot be reached, or None where it can.
+    unreachable: Exception | None = None
+    probed: list[Env] = field(default_factory=list[Env])
+
+
+@pytest.fixture
+def elsewhere(monkeypatch: pytest.MonkeyPatch) -> Elsewhere:
+    made = Elsewhere()
+
+    def open_env(spec: Any) -> Env:
+        at = str(spec.workdir)
+        made.opened[at] = Env(Path(at))
+        return made.opened[at]
+
+    async def probe(env: Env) -> None:
+        made.probed.append(env)
+        if made.unreachable is not None:
+            raise made.unreachable
+
+    monkeypatch.setattr(flowing, "open_env", open_env, raising=False)
+    monkeypatch.setattr(flowing, "probe", probe, raising=False)
+    return made
+
+
+@dataclass
+class Mover(Person):
+    """A person who moves the chat before saying each line they have a move for."""
+
+    chat: Chat | None = None
+    moves: dict[str, str] = field(default_factory=dict[str, str])
+    refused: list[str] = field(default_factory=list[str])
+    moved: list[str] = field(default_factory=list[str])
+
+    async def next(self, answered: str) -> str:
+        said = await super().next(answered)
+        if said in self.moves and self.chat is not None:
+            try:
+                self.moved.append(await self.chat.move(self.moves[said]))
+            except ValueError as why:
+                self.refused.append(str(why))
+        return said
+
+
+def test_a_chat_moved_between_turns_carries_its_conversation_on_in_the_env_it_went_to(
+    wired: Wired, elsewhere: Elsewhere
+) -> None:
+    person = Mover(["more", "and more"], moves={"more": "local/srv/other"})
+    person.chat = chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    assert person.moved == ["local/srv/other"]
+    first, second = wired.driver.sessions
+    assert [one.prompt for one in first.requests] == ["hi"]
+    assert [one.prompt for one in second.requests] == ["more", "and more"]
+    # The conversation it had is closed, and carried on where the chat went.
+    assert first.closed
+    assert second.carried == Kept(
+        HarnessKind.CLAUDE, "s1", ended.at / epic.SESSIONS / "claude"
+    )
+    assert [str(one["placement"].workdir) for one in wired.driver.opened] == [
+        str(wired.workspace.resolve()),
+        "/srv/other",
+    ]
+    assert person.shown == ["did: hi", "did: more", "did: and more"]
+    # Its record says where it works, and it is its workspace's still.
+    assert "env" not in _events(ended.at)[0]
+    assert [one["env"] for one in _events(ended.at) if "env" in one] == [
+        "local/srv/other"
+    ]
+    ran = _ran(ended.at)
+    assert (ran.env, ran.workspace) == (
+        "local/srv/other",
+        str(wired.workspace.resolve()),
+    )
+    # Both are closed as the chat ends, and neither before.
+    assert (wired.env.closes, elsewhere.opened["/srv/other"].closes) == (1, 1)
+
+    # Carried on, it returns there; carried on with another env, it works in that one.
+    _had(wired, Person(), task="go", resume=ended.at)
+    assert str(wired.driver.opened[-1]["placement"].workdir) == "/srv/other"
+    _had(wired, Person(), task="back", resume=ended.at, env="local/srv/back")
+    assert str(wired.driver.opened[-1]["placement"].workdir) == "/srv/back"
+    assert _ran(ended.at).env == "local/srv/back"
+    assert wired.placed == [wired.workspace.resolve()]
+
+
+def test_a_chat_is_not_moved_while_its_turn_is_open(
+    wired: Wired, elsewhere: Elsewhere
+) -> None:
+    chat: Chat
+    refused: list[str] = []
+
+    async def moves(session: Session, request: TurnRequest) -> str:
+        with pytest.raises(Busy) as busy:
+            await chat.move("local/srv/other")
+        refused.append(str(busy.value))
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = moves
+    chat = _chat(wired, Person())
+
+    ended = asyncio.run(chat.run())
+
+    assert refused == [TURN_OPEN]
+    assert elsewhere.opened == {}
+    assert len(wired.driver.sessions) == 1
+    assert _ran(ended.at).env == ""
+
+
+def test_an_env_that_cannot_take_the_chat_leaves_it_where_it_was(
+    wired: Wired, elsewhere: Elsewhere
+) -> None:
+    elsewhere.unreachable = EnvUnavailable("gpu-box cannot be reached")
+    person = Mover(["more"], moves={"more": "local/srv/other"})
+    person.chat = chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    assert person.refused == ["gpu-box cannot be reached"]
+    # What was opened for it is let go of, and the conversation goes on where it was.
+    assert elsewhere.opened["/srv/other"].closes == 1
+    (only,) = wired.driver.sessions
+    assert [one.prompt for one in only.requests] == ["hi", "more"]
+    assert _ran(ended.at).env == ""
+    assert all("env" not in one for one in _events(ended.at))
+
+
+def test_a_conversation_that_cannot_go_on_where_the_chat_went_is_a_new_one_that_says_why(
+    wired: Wired, elsewhere: Elsewhere
+) -> None:
+    person = Mover(["more"], moves={"more": "local/srv/other"})
+    person.chat = chat = _chat(wired, person)
+    wired.driver.refuses_carrying = UnsupportedOperation(
+        "claude cannot fork a session onto another machine"
+    )
+
+    ended = asyncio.run(chat.run())
+
+    first, second = wired.driver.sessions
+    assert (first.closed, second.carried) == (True, None)
+    assert person.shown == [
+        "did: hi",
+        (
+            "This conversation could not be carried on (claude cannot fork a session "
+            "onto another machine), so this is a new one.\n\ndid: more"
+        ),
+    ]
+    assert _ran(ended.at).env == "local/srv/other"
+
+
+def test_a_chat_carried_on_with_nothing_said_is_moved_and_says_so_once_something_is(
+    wired: Wired, elsewhere: Elsewhere
+) -> None:
+    first = _had(wired, Person())
+    before = _events(first.at)
+    person = Mover(["go"], moves={"go": "local/srv/other"})
+    person.chat = chat = _chat(wired, person, task="", resume=first.at)
+
+    asyncio.run(chat.run())
+
+    assert person.moved == ["local/srv/other"]
+    assert str(wired.driver.opened[-1]["placement"].workdir) == "/srv/other"
+    after = _events(first.at)[len(before) :]
+    assert [one["event"] for one in after][:2] == ["reopened", "set"]
+    assert after[1]["env"] == "local/srv/other"
+
+
+def test_an_ai_chan_conversation_works_where_it_was_made(
+    wired: Wired, elsewhere: Elsewhere, tmp_path: Path
+) -> None:
+    from hmz.flows import Permission
+
+    role = Role(tmp_path, Permission(preset="read-only"), "You are Ai-chan.")
+    person = Mover(["more"], moves={"more": "local/srv/other"})
+    person.chat = chat = _chat(wired, person, role=role)
+
+    asyncio.run(chat.run())
+
+    assert person.refused == ["an Ai-chan conversation works where it was made"]
+    assert elsewhere.opened == {}
+
+
+def test_an_env_is_checked_as_e_reads_one_and_spelled_as_it_writes_it() -> None:
+    assert env_spec(" local/srv/other ") == "local/srv/other"
+    assert env_spec("docker/srv/other") == "docker/srv/other"
+    for said in ("", None, "nowhere/else", "local@here/srv"):
+        with pytest.raises(ValueError):  # noqa: PT011 -- in the words -e refuses it with
+            env_spec(said)
 
 
 def test_a_worktree_that_cannot_be_made_refuses_the_chat_before_it_is_written(
@@ -1056,7 +1318,7 @@ def test_a_chat_with_no_conversation_kept_is_carried_on_in_a_new_one(
     )
 
 
-def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on(
+def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on_once_moved(
     wired: Wired,
 ) -> None:
     at = epic.under(wired.workspace) / "20260101T000000.000Z-abcdef"
@@ -1081,6 +1343,13 @@ def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on(
         {"event": "ended", "how": "done"},
     ]
     (at / epic.JOURNAL).write_text("".join(json.dumps(one) + "\n" for one in written))
+    # Until it is moved it is no chat to carry on, and nothing is written beside its record.
+    with pytest.raises(Refused, match="is not a chat"):
+        _had(wired, Person(), task="go", resume=at)
+    assert [one.name for one in at.iterdir()] == [epic.JOURNAL]
+    # Moved among the chats, as the daemon moves it as it starts, it is a chat as any other.
+    assert epic.migrated() == ([at.name], {})
+    (at,) = epic.chats(wired.workspace)
 
     _had(wired, Person(), task="go", resume=at)
 

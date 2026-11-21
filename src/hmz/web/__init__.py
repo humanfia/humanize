@@ -120,6 +120,25 @@ def _reaches() -> None:
         raise
 
 
+@contextlib.contextmanager
+def _held_back() -> Generator[None]:
+    """Keeps the signals that stop the server from arriving until this is left.
+
+    Where the platform cannot hold a signal back -- Windows -- nothing is held.
+    """
+    import signal
+
+    if not hasattr(signal, "pthread_sigmask"):
+        yield
+        return
+    stopping = {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
+    before = signal.pthread_sigmask(signal.SIG_BLOCK, stopping)
+    try:
+        yield
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, before)
+
+
 def serve(
     *,
     port: int | None = None,
@@ -162,9 +181,14 @@ def serve(
             made.callback(page.unlink, missing_ok=True)
             _forwarding(site, page)
             # Off the thread that serves: a browser slow to start is no page slow to load.
-            threading.Thread(
+            opening = threading.Thread(
                 target=opened, args=(page.as_uri(),), daemon=True, name="hmz-web-open"
-            ).start()
+            )
+            # A signal that stops this raises here; raised while the thread is being
+            # started it would leave a lock of `threading` half let go, and end this with
+            # that error rather than stopped. So it waits until the server is serving.
+            with _held_back():
+                opening.start()
         with contextlib.suppress(KeyboardInterrupt):
             site.serve_forever(poll_interval=0.5)
 

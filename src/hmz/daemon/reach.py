@@ -1,8 +1,8 @@
 """Ai-chan's reach: what the session of one Ai-chan conversation may call, and see.
 
 Every Ai-chan conversation is fixed, when it is made, to a scope -- the daemon, one workspace or
-one epic -- and a permission: a preset, `read-only` or `danger-full-access`, and a network
-(Section 14 of core.md). Its host is told the socket of a link of its own, its scoped link, and
+one epic -- and a permission: a preset, `read-only` or `danger-full-access` (Section 14 of
+core.md). Its host is told the socket of a link of its own, its scoped link, and
 every session over it carries the conversation's reach (Section 4.21 of daemon.md): each call is
 held to it by the method's `x-hmz-reach` and `x-hmz-writes` in the OpenRPC document, refused 403
 by the first of four rules that holds, and the lists it is answered are cut to what it reaches.
@@ -80,6 +80,17 @@ PRESETS = ("read-only", "danger-full-access")
 #: How often the host of a conversation is asked whether it has named its epic yet.
 _NAMING = 0.2
 
+#: How often a conversation's host is asked what was last said in it, once it is named, in
+#: seconds.
+_FOLLOWING = 1.0
+
+#: The first question a host asks in its life, as a host numbers them (`q<n>`, Section 4.9.2
+#: of daemon.md): what a chat carried on with nothing said waits on as it comes up.
+_FIRST = "q1"
+
+#: How much of what was last said in a conversation is kept as its `latest`, in characters.
+_LATEST = 120
+
 #: How often a scoped link looks at whether it has been closed.
 _TICK = 0.5
 
@@ -94,7 +105,6 @@ class Reach:
       workspace: The workspace of its host: of its scope, or `<home>/ai/<machine>`.
       epic: The epic name of an `epic` scope, else "".
       preset: `read-only` or `danger-full-access`.
-      network: Whether its harness may reach the network.
     """
 
     id: int
@@ -102,7 +112,6 @@ class Reach:
     workspace: str
     epic: str
     preset: str
-    network: bool
 
     @classmethod
     def of(cls, conversation: Mapping[str, Any]) -> Reach:
@@ -113,7 +122,6 @@ class Reach:
             str(conversation["workspace"]),
             str(conversation.get("epic") or ""),
             str(conversation["preset"]),
-            conversation.get("network") is True,
         )
 
 
@@ -384,11 +392,57 @@ def ran_in(name: str) -> str:
 def epic_at(name: str) -> Path | None:
     """The directory of a chat or an epic, by its name, or None where there is none.
 
-    An Ai-chan conversation is kept as a chat is; one an earlier hmz began is kept as an epic.
+    An Ai-chan conversation is kept as a chat is, one an earlier hmz began as an epic among
+    them once the daemon has moved it (Section 6.12.14 of files.md): until then it is
+    neither, and is not read or carried on (Section 8.7.10 of core.md).
     """
-    from hmz.runtime.epic import chats, every
+    from hmz.runtime.epic import chats, chatted, every
 
-    return next((at for at in (*chats(), *every()) if at.name == name), None)
+    kept = (one for one in every() if one.name == name and not chatted(one))
+    return next((at for at in (*chats(), *kept) if at.name == name), None)
+
+
+def _left(name: str) -> bool:
+    """Whether a name is that of a chat an earlier hmz kept as an epic, not yet moved."""
+    from hmz.runtime.epic import chatted, every
+
+    return any(at.name == name and chatted(at) for at in every())
+
+
+def preview(text: object) -> str:
+    """What a conversation's `latest` is of something said in it: one line, cut short.
+
+    Its whitespace made single spaces, and cut at 120 characters (Section 4.22.3.1 of
+    daemon.md).
+    """
+    return " ".join(str(text or "").split())[:_LATEST]
+
+
+def heard(status: Mapping[str, Any]) -> tuple[str, str]:
+    """What Ai-chan last answered, as her host says it: what it waits between turns on.
+
+    Returns:
+      Which wait that is, another each turn, and what she answered; or two "".
+    """
+    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
+    return next(
+        (
+            (str(one.get("question") or ""), preview(one.get("text")))
+            for one in reversed(pending)
+            if one.get("mode") == "listen"
+        ),
+        ("", ""),
+    )
+
+
+def turning(status: Mapping[str, Any]) -> bool:
+    """Whether Ai-chan's turn is open, as her host says it (Section 4.22.3.2 of daemon.md)."""
+    if "turn" in status:
+        return status["turn"] == "running"
+    # Her turn is open while her epic runs and asks nobody what to say next.
+    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
+    listening = any(one.get("mode") == "listen" for one in pending)
+    return status.get("state") == "running" and not listening
 
 
 class Conversations:
@@ -442,16 +496,18 @@ class Conversations:
         """Records a new conversation, its `id` the next, and makes its scratch directory.
 
         Args:
-          said: Every key of its entry but `id`, `record` and `created`.
+          said: Every key of its entry but `id`, `record`, `created` and `updated`.
         """
         with self._lock:
             held = self.all()
             ident = max((int(one["id"]) for one in held), default=0) + 1
+            now = where.now()
             made = {
                 "id": ident,
                 **said,
                 "record": "",
-                "created": where.now(),
+                "created": now,
+                "updated": now,
             }
             self._writes([*held, made])
             self.scratch(ident).mkdir(mode=0o700, exist_ok=True)
@@ -575,7 +631,8 @@ class Links:
         """Starts the chat of a conversation's host, which has just come up (Section 4.22.5).
 
         Anew, its task the first message, the first time; carrying it on every later time.
-        Its name is written down once the host has named it.
+        Its name is written down once the host has named it, and what she last answered as
+        she answers it, for as long as the host is up.
 
         Raises:
           RpcError: 404 where the conversation was forgotten, and 409 where the host refused.
@@ -589,10 +646,17 @@ class Links:
             )
         record = str(conversation.get("record") or "")
         picked = epic_at(record) if record else None
+        if record and picked is None and _left(record):
+            # Not begun anew either, which would name another record and lose this one.
+            raise RpcError(
+                Code.NOT_FOUND,
+                f"There is no chat {record}: an earlier hmz kept it as an epic, and it is "
+                "moved among the chats the next time the daemon starts.",
+            )
         task = "" if picked else self.tasks.get(hosted.slot, "")
         reach = {
             key: conversation[key]
-            for key in ("id", "scope", "workspace", "epic", "preset", "network")
+            for key in ("id", "scope", "workspace", "epic", "preset")
         }
         if FLOW:
             answer = hosted.started(
@@ -622,23 +686,49 @@ class Links:
         self.tasks.pop(hosted.slot, None)
         if not answer.get("ok"):
             raise RpcError(Code.CONFLICT, str(answer.get("why") or "refused"))
-        if picked is None:
-            threading.Thread(
-                target=self._names,
-                args=(hosted, int(conversation["id"])),
-                name="hmz-ai-epic",
-                daemon=True,
-            ).start()
+        threading.Thread(
+            target=self._follows,
+            args=(hosted, conversation),
+            kwargs={"named": bool(picked)},
+            name="hmz-ai-epic",
+            daemon=True,
+        ).start()
 
-    def _names(self, hosted: Hosted, ident: int) -> None:
-        """Writes down what a conversation's host writes it in, once it has named it."""
+    def _follows(
+        self, hosted: Hosted, conversation: Mapping[str, Any], *, named: bool
+    ) -> None:
+        """Writes down what a conversation's host says of it, until that host goes.
+
+        What it writes it in, once it has named it, and what Ai-chan last answered with when
+        she did, each time she has (Section 4.16.2 of files.md): what `aichan.list` says of a
+        conversation no host holds.
+
+        Args:
+          hosted: Its host.
+          conversation: Its entry, as the host came up.
+          named: Whether its entry names what it is written in already.
+        """
+        ident = int(conversation["id"])
+        # The wait a host carried on comes up on, the first it asks: on nothing, or on why it
+        # could not be carried on, and no answer of hers. Told by which wait it is and not by
+        # a turn seen open since, which a host asked this seldom may never be seen with.
+        came_up = _FIRST if named else None
+        # Which wait she was last heard on: another one is another answer, the same words or not.
+        waited: str | None = None
         while hosted.peer is not None and not hosted.peer.closed:
             status = hosted.status()
+            said: dict[str, Any] = {}
             epic = str(status.get("chat") or status.get("epic") or "")
-            if epic:
-                self.kept.changed(ident, record=epic)
-                return
-            time.sleep(_NAMING)
+            if not named and epic:
+                said["record"] = epic
+                named = True
+            wait, answered = heard(status)
+            if answered and wait not in (waited, came_up):
+                waited = wait
+                said |= {"latest": answered, "updated": where.now()}
+            if said:
+                self.kept.changed(ident, **said)
+            time.sleep(_FOLLOWING if named else _NAMING)
 
     def went(self, slot: str) -> None:
         """Stops listening on a slot's scoped link, and closes every session over it."""

@@ -25,7 +25,6 @@ _ONE: dict[str, Any] = {
     "epic": "Ab_1",
     "nous": "claude/m:low",
     "preset": "read-only",
-    "network": False,
     "slot": "ai:abc",
     "state": "folded",
     "created": "2026-11-17T00:00:00Z",
@@ -40,7 +39,7 @@ def test_the_list_offers_new_first_and_says_each_conversation() -> None:
         (
             "3",
             "Ai-chan#3 · what is going on",
-            "epic Ab_1 · claude/m:low · read-only · network off · folded away",
+            "epic Ab_1 · claude/m:low · read-only · folded away",
         ),
     ]
     assert sheet.conversation("3") == _ONE
@@ -71,7 +70,6 @@ def test_a_new_conversation_defaults_to_the_epic_shown_and_the_setting() -> None
         ("scope", "epic"),
         ("nous", "claude/m:low"),
         ("preset", "read-only"),
-        ("network", "off"),
     ]
     assert form.choices("scope") == ("daemon", "workspace", "epic")
     # The setting first where it names no nous written down, then every nous.
@@ -107,7 +105,6 @@ def test_a_conversation_is_made_with_only_what_its_scope_takes(
         epic=named.get("epic", ""),
         nous="fast",
         preset="read-only",
-        network=True,
     )
 
     assert asked.made("look") == {
@@ -115,7 +112,6 @@ def test_a_conversation_is_made_with_only_what_its_scope_takes(
         **named,
         "nous": "fast",
         "preset": "read-only",
-        "network": True,
         "task": "look",
     }
 

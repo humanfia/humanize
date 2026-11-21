@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { PAGE, TABS, asked, chosenOf, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, turned } from '../../../../src/hmz/web/static/search-model.js'
+import { PAGE, TABS, asked, chosenOf, cleared, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, spentAt, turned } from '../../../../src/hmz/web/static/search-model.js'
 
 const chosen = (text = '') => chosenOf(new URLSearchParams(text))
 
@@ -74,6 +74,21 @@ test('nothing found is nothing like that only where something typed or filtered 
   assert.doesNotMatch(nothing(chosen('kind=chat'))[1], /filters/)
 })
 
+test('nothing found offers what gets something there: the filters cleared, or a chat or an epic started', () => {
+  assert.deepEqual(nothing(chosen())[2], ['chat', 'epic'])
+  assert.deepEqual(nothing(chosen('kind=chat'))[2], ['chat'])
+  assert.deepEqual(nothing(chosen('kind=flow'))[2], ['epic'])
+  for (const one of ['q=hello', 'kind=flow&status=done', 'flow=ralph', 'workspace=/w']) assert.deepEqual(nothing(chosen(one))[2], ['clear'])
+})
+
+test('clearing takes back what was typed and filtered for, and leaves the tab, which is no filter', () => {
+  const was = chosen('kind=flow&status=done&flow=ralph&workspace=/w&q=hello&offset=50')
+  assert.deepEqual(cleared(was), { kind: 'flow', status: '', flow: '', workspace: '', q: '', offset: 0 })
+  // Nothing found then is none of the tab's kind yet, with nothing left to clear.
+  assert.deepEqual(nothing(cleared(was))[2], ['epic'])
+  assert.equal(was.q, 'hello')
+})
+
 test('an address with nothing in it asks for everything from the first', () => {
   assert.deepEqual(chosen(), { kind: '', status: '', flow: '', workspace: '', q: '', offset: 0 })
   // Everything is the chats and the epics, each asked for from its first.
@@ -104,7 +119,7 @@ test('a chat is not found by how it went: the tab of the chats drops it', () => 
 
 test('what was found is one list, the chats and the epics newest first, a chat at its own address', () => {
   const chats = { chats: [{ id: 'c1', title: 'A chat', workspace: '/w', agent: 'claude/opus', began: '2026-01-03T00:00:00Z', updated: '2026-01-03T00:00:00Z', state: 'resting', slot: '', asking: [] }], total: 1 }
-  const epics = { runs: [{ name: 'e2', kind: 'flow', flow: 'ralph', task: 'An epic', began: '2026-01-04T00:00:00Z' }, { name: 'e1', kind: 'chat', flow: '', task: 'An old chat', began: '2026-01-02T00:00:00Z' }], total: 2, counts: { done: 2 }, flows: ['chat', 'ralph'] }
+  const epics = { runs: [{ name: 'e2', kind: 'flow', flow: 'ralph', task: 'An epic', began: '2026-01-04T00:00:00Z' }, { name: 'e1', kind: 'flow', flow: 'chat', task: 'An epic of a flow named chat', began: '2026-01-02T00:00:00Z' }], total: 2, counts: { done: 2 }, flows: ['chat', 'ralph'] }
   const all = found(chosen(), [chats, epics])
   assert.deepEqual(all.runs.map((run) => [run.name, run.kind, run.flow]), [['e2', 'flow', 'ralph'], ['c1', 'chat', ''], ['e1', 'flow', 'chat']])
   assert.deepEqual([all.total, all.offset, all.counts, all.flows], [3, 0, { done: 2 }, ['chat', 'ralph']])
@@ -123,10 +138,12 @@ test('an address says its tab, and one that is no tab is everything', () => {
   assert.equal(chosen('kind=session').kind, '')
 })
 
-test('an address of before the tabs, with chats as a flow, is the tab of the chats', () => {
-  const old = chosen('flow=chat&q=hello')
-  assert.deepEqual([old.kind, old.flow, old.q], ['chat', '', 'hello'])
-  assert.deepEqual(asked(old), [['chat.list', { workspace: '', q: 'hello', offset: 0, limit: PAGE }]])
+test('a flow named chat is a flow as any other, not the tab of the chats', () => {
+  const named = chosen('flow=chat&q=hello')
+  assert.deepEqual([named.kind, named.flow, named.q], ['', 'chat', 'hello'])
+  assert.deepEqual(asked(named).map(([method]) => method), ['runs.list'])
+  assert.equal(asked(named)[0][1].flow, 'chat')
+  assert.deepEqual([chosen('kind=flow&flow=chat').kind, chosen('kind=flow&flow=chat').flow], ['flow', 'chat'])
 })
 
 test('an address that names a flow is on everything, and with the chats the flow is dropped', () => {
@@ -191,4 +208,13 @@ test('what is listed is headed as the newest, or as what was found', () => {
 test('the foot says which rows of how many, and nothing of none', () => {
   assert.equal(paged({ offset: 50, total: 120, runs: new Array(50) }), '51–100 of 120')
   assert.equal(paged({ offset: 0, total: 0, runs: [] }), '')
+})
+
+test('what a flow spent is found where Search lists it: the chats on their tab, in the workspace named', () => {
+  assert.equal(spentAt('goal'), '/search?flow=goal')
+  assert.equal(spentAt('chat'), '/search?kind=chat')
+  assert.equal(spentAt('chat', '/w/app'), '/search?kind=chat&workspace=%2Fw%2Fapp')
+  // Each is an address Search reads back as what was meant.
+  assert.equal(chosen(spentAt('chat', '/w/app').split('?')[1]).kind, 'chat')
+  assert.deepEqual([chosen(spentAt('a/b', '/w').split('?')[1]).flow, chosen(spentAt('a/b', '/w').split('?')[1]).workspace], ['a/b', '/w'])
 })

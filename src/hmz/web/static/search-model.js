@@ -2,13 +2,14 @@
 // what the daemon is asked for it, what it answered as one list, which result the arrows move
 // to, and what its foot says of the keys.
 
-import { chatRow, epicRow } from './chats.js'
+import { chatRow } from './chats.js'
+import { t } from './i18n.js'
 
 /** The kinds Search lists, as its tabs name them, in their order: a chat is never an epic. */
 export const TABS = [
-  ['', 'All'],
-  ['chat', 'Chats'],
-  ['flow', 'Epics'],
+  ['', t('All')],
+  ['chat', t('Chats')],
+  ['flow', t('Epics')],
 ]
 
 /**
@@ -17,12 +18,12 @@ export const TABS = [
  */
 export function hints(mac) {
   return [
-    ['Close', ['Esc']],
-    ['Change type', ['←', '→']],
-    ['Filters', ['/']],
-    ['Actions', [mac ? 'Option' : 'Alt', 'Enter']],
-    ['Move', ['↑', '↓']],
-    ['Open', ['Enter']],
+    [t('Close'), ['Esc']],
+    [t('Change type'), ['←', '→']],
+    [t('Filters'), ['/']],
+    [t('Actions'), [mac ? 'Option' : 'Alt', 'Enter']],
+    [t('Move'), ['↑', '↓']],
+    [t('Open'), ['Enter']],
   ]
 }
 
@@ -53,14 +54,22 @@ export const PAGE = 50
 const MOST = 200
 
 /**
- * What an address asks Search for: its tab, and the filters under it. An address of before the
- * tabs named chats as the flow `chat`, which is the tab `Chats` now. A flow named with no tab is
+ * The address at which Search lists what a flow counted: the chats on their own tab, which the
+ * flow `chat` stands for where spending is summed (`runs.usage`), an epic's flow by its name, and
+ * either in one workspace where one is named.
+ */
+export function spentAt(flow, workspace = '') {
+  return `/search?${new URLSearchParams({ ...(flow === 'chat' ? { kind: 'chat' } : { flow }), ...(workspace ? { workspace } : {}) })}`
+}
+
+/**
+ * What an address asks Search for: its tab, and the filters under it. A flow named with no tab is
  * on `All`, where only that flow's epics are of it; one named with `Chats` is dropped, as the
  * tab pressed drops it, and so is how it went, which no chat is filtered by.
  */
 export function chosenOf(query) {
   const said = (name) => query.get(name) || ''
-  const kind = said('flow') === 'chat' ? 'chat' : TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
+  const kind = TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
   return {
     kind,
     status: kind === 'chat' ? '' : said('status'),
@@ -98,7 +107,7 @@ export function asked(chosen) {
  * @returns {{runs: object[], total: number, offset: number, counts: Record<string, number>, flows: string[]}}
  */
 export function found(chosen, answers, running = []) {
-  const rows = answers.flatMap((one) => (one.chats ? one.chats.map((chat) => chatRow(chat, running)) : one.runs.map(epicRow)))
+  const rows = answers.flatMap((one) => (one.chats ? one.chats.map((chat) => chatRow(chat, running)) : one.runs))
   const epics = answers.find((one) => one.runs)
   const whole = { total: answers.reduce((sum, one) => sum + one.total, 0), offset: chosen.offset, counts: epics ? epics.counts : {}, flows: epics ? epics.flows : [] }
   if (answers.length < 2) return { ...whole, runs: rows }
@@ -133,19 +142,25 @@ export function narrowed(chosen) {
 }
 
 /**
- * What is said where nothing was found, as a headline and what to do about it: nothing like what
- * was typed or filtered for, or none of the tab's kind yet -- a tab is no filter to clear.
+ * What is said where nothing was found, as a headline, what to do about it, and which buttons do
+ * it: nothing like what was typed or filtered for, which `clear` takes back, or none of the tab's
+ * kind yet -- a tab is no filter to clear -- which a new `chat` or a new `epic` starts.
  */
 export function nothing(chosen) {
-  if (chosen.q || filtered(chosen)) return ['Nothing is like that.', ' Clear the filters to see every chat and epic.']
-  if (chosen.kind === 'chat') return ['No chats yet.', ' Start a chat, and it is written down here as it goes.']
-  if (chosen.kind === 'flow') return ['No epics yet.', ' Start an epic, and it is written down here as it goes.']
-  return ['Nothing here yet.', ' Start a chat or an epic, and it is written down here as it goes.']
+  if (chosen.q || filtered(chosen)) return [t('Nothing is like that.'), t(' Clear the filters to see every chat and epic.'), ['clear']]
+  if (chosen.kind === 'chat') return [t('No chats yet.'), t(' Start a chat, and it is written down here as it goes.'), ['chat']]
+  if (chosen.kind === 'flow') return [t('No epics yet.'), t(' Start an epic, and it is written down here as it goes.'), ['epic']]
+  return [t('Nothing here yet.'), t(' Start a chat or an epic, and it is written down here as it goes.'), ['chat', 'epic']]
+}
+
+/** What is chosen once what was typed and filtered for is cleared: the tab stays, which is no filter. */
+export function cleared(chosen) {
+  return { ...chosen, q: '', status: '', flow: '', workspace: '', offset: 0 }
 }
 
 /** What stands over the results: the newest of everything, or what was found. */
 export function heading(chosen) {
-  return narrowed(chosen) ? 'Results' : 'Recents'
+  return narrowed(chosen) ? t('Results') : t('Recents')
 }
 
 /**
@@ -163,5 +178,5 @@ export function moved(at, count, key) {
 
 /** Which rows a page shows of how many, as the foot says it. */
 export function paged(data) {
-  return data.total ? `${data.offset + 1}–${data.offset + data.runs.length} of ${data.total}` : ''
+  return data.total ? t('{from}–{to} of {total}', { from: data.offset + 1, to: data.offset + data.runs.length, total: data.total }) : ''
 }

@@ -425,8 +425,9 @@ one MUST leave it on the screen.
 stands, by attaching to that host; any other MUST be carried on by the next line said (`chat.start`
 with `resume` the chat's id), the interface saying so.
 
-**7.12.5.3** `/resume` MUST NOT list or carry on an epic an earlier Humanize recorded for a chat
-(Section 17.2.3).
+**7.12.5.3** `/resume` MUST list and carry on a chat an earlier Humanize recorded as an epic as any
+other chat, once the daemon has moved it among the chats (Section 8.7.10 of [CORE]), and MUST NOT
+list or carry on one not yet moved (Section 17.2.3).
 
 **7.12.5.4** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
 then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
@@ -546,8 +547,7 @@ seconds to finish, saying so where it waits and where one was left unfinished.
 
 **7.19.1** `/ai` MUST open a menu (Section 15) listing, under an entry **New**, every Ai-chan
 conversation of the daemon (Section 4.22.3 of [DAEMON]), newest first, each with its title, its
-scope, its nous, its preset, whether its network is on, and whether a turn is open, it is between
-turns or it has folded away.
+scope, its nous, its preset, and whether a turn is open, it is between turns or it has folded away.
 
 **7.19.2** Choosing a conversation MUST follow its host in the log screen, carrying it on where it
 has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 states.
@@ -555,9 +555,8 @@ has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 s
 **7.19.3** **New** MUST open a form (Section 2.17) asking, in order: the scope, `daemon`, `workspace`
 or `epic`, defaulting to `epic`, of the epic going or last on the host this interface follows, where
 there is one, and otherwise to `workspace`, of this directory; the nous, offering every nous
-`nous.list` answers and defaulting to the `ai_chan` setting (Section 14.3.2 of [CORE]); the preset,
-`read-only` or `danger-full-access`, defaulting to `read-only`; and the network, `off` or `on`,
-defaulting to `off`.
+`nous.list` answers and defaulting to the nous last used, the `ai_chan` setting (Section 14.3.2 of
+[CORE]); and the preset, `read-only` or `danger-full-access`, defaulting to `read-only`.
 
 **7.19.4** **Done** on the form of Section 7.19.3 MUST leave the menu with the log screen waiting
 on a new conversation, and the first line said MUST make it by `aichan.create`, that line being its
@@ -585,7 +584,10 @@ this interface follows -- a chat's workspace among them -- as the snapshot `envs
 chain and marked where it is closed; `/env <role>` MUST open the first env of that role, and MUST be
 refused, naming the roles it takes, for a role that has none.
 
-**7.20.2** `/env` MUST be refused while the host holds no env.
+**7.20.2** `/env` MUST be refused while the host holds no env, except for a chat to be carried on
+that no host holds (Section 7.12.5.2): `/env` MUST then carry that chat on with nothing said
+(`chat.start` with `resume` the chat's id and an empty `task`, Section 4.25.1.9 of [DAEMON]) and
+MUST open once its host lists its envs.
 
 **7.20.3** An env MUST open on its pages as Section 7.13.3 of [CORE] chooses them: `Files` where it
 serves files, `Changes` where it serves git, and `Shell` where it serves a shell; it MUST open on
@@ -1170,7 +1172,8 @@ path`.
 another directory, saying where it ran; while an epic is going; and for an epic whose flow is not
 resumable or that cannot be resumed here, saying why.
 
-**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) MUST be listed as an epic,
+**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) that the daemon has not
+yet moved among the chats (Section 8.7.10 of [CORE]) MUST be listed as an epic,
 named `chat` where another names its flow, MUST be read as any other, and MUST NOT be offered
 `resume epic` or any way to carry it on, saying that it cannot be carried on.
 
@@ -1197,6 +1200,9 @@ epic of kind `chat`.
 **17.3.1** On a daemon of another machine, `/epics` MUST list the epics that daemon holds, read
 over a session to it (Section 3.8 of [DAEMON]) in the background, and MUST say why where it cannot
 be reached.
+
+**17.3.1.1** A row of that list whose workspace is folderless (the `folderless` of its row, Section
+4.16.2 and Section 4.25.5.2 of [DAEMON]) MUST say `no folder` in place of its workspace.
 
 **17.3.2** `enter`, `m` or a click on such an epic MUST offer `follow` for one a host there holds,
 `export` for one not going, `upload`, `copy name`, `copy task` and `copy workspace`.
@@ -1244,17 +1250,14 @@ return to the landing screen with the cursor on that page's card.
 
 **19.1.6** Each saved setting MUST take effect at once where it can; otherwise the interface MUST
 say beside its row while held and in the transcript when it lands: account changes from the next
-agent session, forgetting a directory from the next launch, the `ai_chan` setting from the next
-Ai-chan conversation made.
+agent session, forgetting a directory from the next launch.
 
 **19.1.7** Leaving `/settings` MUST write one dim line per change into the transcript.
 
 ### 19.2. General
 
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool calls,
-thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
-14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
-titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
+thinking and harness output; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
 whose own is not overridden (Section 8.9.10 of [CORE]); **Harness sessions**, whether `/resume` in a
 chat lists them (Section 7.12.5.4); **Error reports**, on or off; and **What is sent**, which says
 what error reports include and exclude.

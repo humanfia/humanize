@@ -219,6 +219,22 @@ def test_worktree_starts_the_chat_in_a_new_worktree(
     assert "resume" not in started
 
 
+def test_an_env_starts_the_chat_there_and_moves_one_carried_on(
+    workspace: mock.Mock, client: _Client
+) -> None:
+    del workspace
+    assert main(["chat", "-e", "ssh@gpu-box/srv/repo", "-a", "codex/o3", "hi"]) == 0
+    assert client.params("chat.start")["env"] == "ssh@gpu-box/srv/repo"
+    client.asked.clear()
+    assert main(["chat", "--resume", "E", "--env", "local/srv/repo", "back"]) == 0
+    started = client.params("chat.start")
+    assert (started["resume"], started["env"]) == ("E", "local/srv/repo")
+    client.asked.clear()
+    # None named: the chat works where it is started, or where it worked.
+    assert main(["chat", "hello"]) == 0
+    assert "env" not in client.params("chat.start")
+
+
 def test_a_chat_started_without_worktree_does_not_ask_for_one(
     workspace: mock.Mock, client: _Client
 ) -> None:
@@ -273,6 +289,7 @@ def test_resume_with_an_agent_carries_the_chat_on_with_that_one(
         (["--rename", "E"], "--rename takes the chat and then its title"),
         (["--rename", "E", " "], "--rename takes the chat and then its title"),
         (["--fork", "E", "-a", "codex/o3"], "--fork says nothing to a chat"),
+        (["--fork", "E", "-e", "local/srv"], "--fork says nothing to a chat"),
         (["--delete", "E", "--resume", "F"], "--delete says nothing to a chat"),
         (["one", "two"], "unrecognized arguments"),
     ],
@@ -648,7 +665,7 @@ def test_list_says_each_chat_of_this_directory_by_its_id_newest_first(
         )
     ]
     assert capsys.readouterr().out == (
-        f"E2  resting  the parser {'x' * 48}…\nE1  going  hi\n"
+        f"E2  ready  the parser {'x' * 48}…\nE1  ready  hi\n"
     )
     assert client.closed
 
@@ -691,7 +708,7 @@ def test_a_chat_is_renamed_archived_and_put_back_and_said_as_it_now_stands(
     assert main(["chat", *argv]) == 0
 
     assert client.asked == [(method, params)]
-    assert capsys.readouterr().out == "E  resting  the parser\n"
+    assert capsys.readouterr().out == "E  ready  the parser\n"
 
 
 def test_fork_says_the_id_of_the_new_chat(
@@ -745,7 +762,7 @@ def test_delete_asks_at_a_terminal_saying_it_is_for_good(
 
     assert client.methods() == methods
     err = capsys.readouterr().err
-    assert "hmz chat: delete E  resting  the parser\n" in err
+    assert "hmz chat: delete E  ready  the parser\n" in err
     assert "for good? It cannot be brought back. [y/N] " in err
     assert ("hmz chat: chat E was not deleted\n" in err) is bool(status)
 

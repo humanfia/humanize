@@ -261,7 +261,7 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     sent = carried(hmz, CARRIED)
 
     assert sent == [
-        ("settings.set", {"ai_chan": "", "details": True, "reports": False}),
+        ("settings.set", {"details": True, "reports": False}),
         (
             "nous.set",
             {

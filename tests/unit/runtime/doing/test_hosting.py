@@ -391,12 +391,14 @@ class Workspace:
         role: Any = None,
         permission: str | None = None,
         worktree: bool = False,
+        env: str = "",
     ) -> FakeChatting:
         self.asked_chats.append(
             {"agent": agent, "task": task, "resume": resume, "prefer": prefer}
             | ({} if role is None else {"role": role})
             | ({} if permission is None else {"permission": permission})
             | ({"worktree": True} if worktree else {})
+            | ({"env": env} if env else {})
         )
         made = FakeChatting(
             agent,
@@ -1707,7 +1709,7 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
     host = Host(cast("Any", where), "ai:1")
     try:
         alice = Told(host, "alice")
-        ai = {"id": 1, "scope": "daemon", "preset": "read-only", "network": False}
+        ai = {"id": 1, "scope": "daemon", "preset": "read-only"}
         # Hers is the daemon's to start, with the reach it keeps: no frontend's.
         assert alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai) == {
             "ok": False,
@@ -1751,6 +1753,46 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
         )
     finally:
         host.close()
+
+
+def test_a_chat_carried_on_needs_nothing_said_and_a_new_one_does(
+    where: Workspace,
+) -> None:
+    where.epics.kept["20260101-chat"] = where.workspace / "20260101-chat"
+    checked = hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20260101-chat"}
+    )
+    assert (checked["ok"], checked["task"]) == (True, "")
+    assert hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20200101-nothing"}
+    ) == {
+        "ok": False,
+        "why": f"20200101-nothing is not a chat of {where.workspace}.",
+        "code": 404,
+    }
+    assert hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": ""}
+    ) == {"ok": False, "why": "a chat starts with something said", "code": 400}
+
+
+def test_a_chat_is_checked_for_the_env_it_is_put_in(where: Workspace) -> None:
+    said = {"agent": "claude/opus", "task": "hi"}
+    # None named is none: the workspace, or where a chat carried on worked.
+    assert hosting.chat_checked(cast("Any", where), said)["env"] == ""
+    assert hosting.chat_checked(cast("Any", where), said | {"env": None})["env"] == ""
+    # One named is spelled as -e writes it, and one that is none is refused as -e refuses it.
+    checked = hosting.chat_checked(cast("Any", where), said | {"env": " local/srv/x "})
+    assert (checked["ok"], checked["env"]) == (True, "local/srv/x")
+    refused = hosting.chat_checked(cast("Any", where), said | {"env": "nowhere/x"})
+    assert (refused["ok"], refused["code"]) == (False, 400)
+    assert "nowhere" in refused["why"]
+    # A chat carried on may be carried on in another: that moves it.
+    where.epics.kept["20260101-chat"] = where.workspace / "20260101-chat"
+    moved = hosting.chat_checked(
+        cast("Any", where),
+        {"task": "go", "resume": "20260101-chat", "env": "local/srv/x"},
+    )
+    assert (moved["ok"], moved["env"]) == (True, "local/srv/x")
 
 
 def test_an_ai_chan_conversation_carried_on_needs_nothing_said(
@@ -1940,6 +1982,8 @@ def test_what_is_said_to_a_chat_is_its_next_message_and_its_turn_runs_until_answ
     host, alice = chatting
     chat = _chatted(host, alice, where)
     assert host.status()["turn"] == "done"
+    # Where it works, as the chat itself says: none said, for one in its workspace.
+    assert host.status()["env"] == str(getattr(chat, "env", "") or "")
 
     assert host.chatted({"do": "say", "text": "and more", "by": "bob"}) == {"ok": True}
 

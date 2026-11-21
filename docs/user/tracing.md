@@ -1,262 +1,191 @@
-<script setup>
-import TraceMock from '../.vitepress/theme/components/user-after/TraceMock.vue'
-</script>
+---
+title: Trace a run with Exomyth
+description: Profile an epic, then read where its time and tokens went on a timeline, a flame graph and a table.
+---
 
-# Tracing a run
+# Trace a run with Exomyth
 
-Open one run as a timeline in [Perfetto](https://ui.perfetto.dev): each agent's sessions in
-rows, a slice for every thing it did, with the prompts and tool output attached. Use this
-after a long run, to see what each agent did, in what order, and where the time went. By the
-end of this page you will have found a run, exported its trace and read it.
+Exomyth is the trace viewer for an epic. It draws every flow call, session, turn, model call and tool call on one timeline, and sums them in a flame graph and a table.
 
-## Try it
+![Exomyth in Humanize Desktop: the timeline of an epic with a tool call picked and its arguments in the side panel](/shots/user-tracing-timeline.svg)
 
-1. In the project you ran in, type `/epics`. Every run here is listed, newest first.
-2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>enter</kbd>. In a long list,
-   press <kbd>/</kbd> first (or the **Search…** button) and type part of the run's flow, task
-   or name to narrow it.
-3. Choose **export epic**. Humanize gathers the trace and packs the run into an archive, then
-   says what it wrote under the list.
-4. Open [ui.perfetto.dev](https://ui.perfetto.dev) and drop in `traces/export.trace.json` from
-   the archive. Nothing is uploaded: Perfetto reads the file in your browser.
+## What a trace holds
 
-<HmzCast name="epics" alt="/epics listing two runs, going into the newest, and exporting it: the archive's path, its size, and 1 session, 10 slices, 3 programs" />
+Every epic records a trace by default. Flow calls come from the epic record, and turns, model calls and tool calls come from the coding agents' session logs.
 
-To read a run without leaving the terminal, choose **Exomyth** instead of **export epic**: every
-session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
-<kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
-shows the one under the cursor whole, <kbd>p</kbd> its process, and <kbd>v</kbd> picks a stretch
-from one span to another and sums it by category. <kbd>tab</kbd> turns it into a flame of
-where that stretch went, each agent with its sessions merged or apart, weighed by time, tokens
-in or out, or count; and again into a table of every slice name, sorted by any column. Every
-key is in [Exomyth](/reference/tui#exomyth). The run going opens there from the
-[monitor](/user/monitor) as well, with <kbd>ctrl+e</kbd>.
+Two profiling switches add sampling data to the trace:
 
-Or choose **graph**: its agents as the monitor draws them, who handed to whom, the flows it
-called, and its sessions under each agent. <kbd>enter</kbd> on a session reads what it did, turn
-by turn, read back out of its log.
+| Switch | Flag of `hmz exec` | What it adds |
+| --- | --- | --- |
+| Profile flow | `--profile-flow` | Call stacks of the flow's Python code, sampled every 1 ms. Shows as a `python` process under the flow. |
+| Profile environment | `--profile-environment` | Programs the agents start, sampled every 50 ms. Each program shows as a process with one row per thread. |
 
-## Before you start
+![The epic record and the session logs are always in a trace; the flow profile and the environment profile only when switched on; Exomyth and a Chrome trace file are made from them](/diagrams/user-tracing-1.svg)
 
-- A run of a flow in this directory. `/epics` lists the runs of the directory `hmz` was
-  started in, finished or not.
-- A browser, for Perfetto. `chrome://tracing`, or anything else that reads a Chrome JSON
-  trace, opens it as well.
-- Agents on a CLI whose logs a trace can read: every built-in CLI but Cursor Agent (see
-  [Which CLIs a trace can read](#which-clis-a-trace-can-read)).
+Profiling only samples. It cannot stop or fail an epic.
 
-## Every run is kept {#what-a-run-writes-down}
+## Turn profiling on
 
-Humanize keeps a record of every run of a flow, called an **epic**, whether the run finished or
-not. `/epics` lists them for the directory you are in: when each ran, which flow, what it was
-asked to do, its agents, what it spent and how long it took, where it is backed up, how many
-sessions it opened, and how it ended if it did not finish.
+Set the profiling switches when you [start an epic](/user/epics). They apply to that epic alone.
 
-A run ends one of three ways: **done**, **failed**, or **stopped**, which covers a
-[stop by hand](/user/stopping), <kbd>ctrl+c</kbd>, and a spent budget. <kbd>enter</kbd> goes
-into a run, where you can [export it](/user/export) or, for a flow that can be picked up,
-[resume it](/user/resuming). Carrying a run on starts a new run, with its own sessions and
-trace.
+### In the app {#profile-in-the-app}
 
-A **trace** is built from that record and from each agent's own log of its sessions. It is
-gathered when you export, so it covers the run as it stands then.
+On **New epic**, tick **Profile flow**, **Profile environment** or both, then start the epic.
 
-## Example: read the trace of a Ralph loop
+![The New epic page with Profile flow and Profile environment ticked under the budget](/shots/user-tracing-switches.svg)
 
-A [Ralph loop](https://humanfia.ai/flows/ralph-loop) ran three rounds on a small project, each round a fresh
-session of Claude Code. Its `/epics` list:
+### In the terminal {#profile-in-the-terminal}
 
-```text
-  hmz › Epics
-  Every epic in this directory, newest first: task, agents, spend,
-  duration, session count, and status.
+1. Type `/flow` followed by the flow's name.
+2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `on`. A switch that is off reads `traced only`.
+3. Choose **Save**.
 
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · Ralph · 1 session · stopped│
-  │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · Ralph · 3 sessions ·       │  ①
-  │                               stopped                                    │
-  ╰──────────────────────────────────────────────────────────────────────────╯
+![The page of a flow in the terminal with both profiling rows on](/shots/user-tracing-terminal-switches.svg)
 
-  Search…                                                                       ②
+### From the command line {#profile-from-the-command-line}
 
-  enter open   / search   tab actions   esc close
+Pass `--profile-flow` or `--profile-environment` to `hmz exec`:
+
+```sh
+hmz exec -f rlar \
+  -a actor=claude/claude-haiku-4-5 -a reviewer=claude/claude-haiku-4-5 \
+  -p budget.output_tokens=20000 \
+  --profile-flow --profile-environment \
+  "Add a discount code to checkout"
 ```
 
-<kbd>↓</kbd> to the second run, <kbd>enter</kbd>, **export epic**, and say where it goes
-([Exporting a run](/user/export)):
+![The output of hmz exec for a run started with both profiling flags](/shots/user-tracing-exec.svg)
 
-```text
-   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.hmzepic · 162 kB · 3 sessions, 53 slices
-                                                                                    ③           ④
-```
+The terminal output does not change. The profiles are saved in the epic for you to read in Exomyth.
 
-Unpack the archive and drop its `traces/export.trace.json` into Perfetto. Laid out the way
-Perfetto lays out a trace, it looks like this:
+## Read a trace in the app {#in-the-app}
 
-<TraceMock />
+Open an epic and click the **Exomyth** icon in the top bar, or open the epic's menu in the sidebar and choose **Exomyth**. If the epic is still running, the page refreshes every 2 seconds.
 
-### What each part means
+![An ended epic in Humanize Desktop with the pointer on the Exomyth icon of its top bar](/shots/user-tracing-open.svg)
 
-1. **`3 sessions · stopped`**: three rounds of a Ralph loop are three sessions, and the run was
-   stopped by its budget. The row ends in `resumable` when the flow can be picked up.
-2. **Search…** narrows the list as you type, by flow, task or run name, for a directory with a
-   long history. <kbd>/</kbd> opens it too, and <kbd>esc</kbd> clears it.
-3. **`3 sessions`**: every session the run opened and a trace could read. The same figure as
-   the list, unless an agent ran on a CLI a trace cannot read.
-4. **`53 slices`**: the things the agents did, across those sessions.
+The top bar shows the epic's state, process count, span count and duration. Below it are the **Timeline** and **Flame** tabs. Click **Copy link** to copy the address of the current view.
 
-And in Perfetto:
+### The timeline
 
-| Part | Is |
+Each process is a block of rows. The flow sits at the top, followed by `python` if you profiled the flow, then each session under the process that started it, and finally any profiled programs. Each span is a bar coloured by category: `flow`, `session`, `turn`, `llm`, `tool`, `message`, `event` or `process`. A profiled flow adds `sample` spans: the Python frames it was sampled in.
+
+| To do this | Do this |
 | --- | --- |
-| a **process** | one agent of the run: its role, its model (and its effort, where the CLI logs one) and how many [sessions](/user/concepts#session) it opened, as `agent · claude-haiku-4-5-20251001 · 3 sessions` |
-| a **track** | a row of that agent's sessions: `main` for its own, `subagent` for agents its turns started, with their kind after it when the row holds one kind. Sessions that never overlap share a row. |
-| a **slice** | one thing the agent did: its session and each turn, and inside a turn a tool call (`Read: …/test_slug.py`, `Bash: python -m pytest test_slug.py -v`), a message (`say: …`), time spent reasoning (`think: …`) or waiting on the model (`generate`) |
+| See a span in brief | Point at it. |
+| Pick a span or a process | Click the span, or the process's name. |
+| Zoom in and out | <kbd>w</kbd> and <kbd>s</kbd>, <kbd>ctrl</kbd> or <kbd>cmd</kbd> and the wheel, or pinch. |
+| Pan | <kbd>a</kbd> and <kbd>d</kbd>, <kbd>shift</kbd> and the wheel, or a sideways wheel. |
+| Scroll through the processes | The wheel. |
+| Zoom to what is picked | <kbd>f</kbd>, or double-click a span. |
+| Show the whole epic | <kbd>0</kbd>, <kbd>home</kbd> or **Reset**. |
+| Fold one process | Click the caret beside its name, or double-click the name's column. |
+| Fold or unfold every process | **Collapse** and **Expand**. |
+| Pick a stretch of time | Drag across the chart. |
+| Let go of what is picked | <kbd>esc</kbd>. |
 
-Click a slice to see its arguments: the prompt, the reasoning, the tool's input and output, as
-much as the CLI logged.
+Right-click the chart for **Zoom**, **Pick**, **Expand**, **Collapse** and **Reset**.
 
-## Check that it worked
+### The details panel
 
-- **The summary line has sessions in it.** `0 sessions, 0 slices` means the trace is empty;
-  see [If it goes wrong](#if-it-goes-wrong).
-- **Perfetto shows one process per agent**, each named after its agent and model, with as
-  many sessions as `/epics` counted.
-- **The slices read like the transcript.** The first tool calls of the first session are the
-  first things the agent did in the run.
+The right-hand panel describes your selection.
 
-## What to look for
-
-On a first trace, look for:
-
-- **A gap on every track.** No agent was working: the flow was between turns.
-- **One very wide slice.** A single tool call that took minutes, usually a test suite.
-- **A reviewer that only starts when the actor stops.** The loop taking turns, as designed.
-- **Slices back to back on one `main` track.** A Ralph loop: a fresh session every round.
-
-A trace shows what the agents did, not what it cost. For tokens and money, see
-[Cost and rate](/user/tally).
-
-## Profile the programs too {#profiling-a-run}
-
-An agent's turn is mostly other programs: the tests, the build, the greps. A CLI logs the tool
-call, not the processes it started. Profile a run and it also records each program its agents
-ran, what started it, and how long it took. Like the budget, it is a choice about a run, made
-where the budget is:
-
-```text
-  hmz › /flow › Installed › ralph_loop                            ● unsaved changes
-  Configure each role: an agent (CLI, account, model and effort) or an environment;
-  then what the flow takes and what an epic may spend.
-
-  ╭──────────────────────────────────────────────────────────────────────────────╮
-  │ agent                                          claude/claude-opus-5-5:high ▸ │
-  │   agent                                                                      │
-  │──────────────────────────────────────────────────────────────────────────────│
-  │ budget                                                                 set ▸ │
-  │   what an epic may spend: stops at 20m, $0.50                                │
-  │──────────────────────────────────────────────────────────────────────────────│
-  │ profile flow                                                         ○ off ▾ │
-  │   traced only                                                                │
-  │──────────────────────────────────────────────────────────────────────────────│
-  │ profile environment                                                   ● on ▾ │  ①
-  │   samples the programs agents start                                          │
-  ╰──────────────────────────────────────────────────────────────────────────────╯
-
-     Update   Uninstall   Copy here                                       Save  ②
-
-  enter choose   tab actions   esc back
-```
-
-1. **`profile environment`**, just under `budget` and `profile flow` on
-   [`/flow`](/reference/tui#roles-page): a switch. **`profile flow`** above it is the same
-   switch for the flow's own Python. On the web page they are the **Profile flow** and
-   **Profile environment** boxes under **Options**.
-   <kbd>enter</kbd> drops `on` and `off` under it, the cursor already on the other one, so
-   <kbd>enter</kbd> twice turns it round. It is off until you turn it on.
-2. **Save**: kept with the rest of the flow's setup in this directory, so the next run of the
-   flow here is profiled too until you turn it off.
-
-From the command line, add `--profile-environment` to
-[`hmz exec`](/reference/cli#exec-profile); from Python, `profile_environment=True` to
-[`Hmz().run`](/reference/sdk#hmz-run).
-
-The flow's own Python can be profiled too, apart: `--profile-flow`, or `profile_flow=True`.
-Its trace then has one more process, `python`, whose one track is the flow's code as a
-sampling profiler draws it -- each function a slice as long as the flow stayed in it, what it
-called nested under it, and the time it spent waiting on a turn an `[await]` under the call
-that waited.
-
-A trace of a profiled run shows each program as a process of its own, on the same clock as the
-sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
-
-```text
-/tmp/hmzdocs-C/app/issues/20260930T054014.242Z-bdae4a.hmzepic · 59 kB · 1 session, 13 slices, 7 programs
-```
-
-<TraceMock profiled />
-
-A run already going is not profiled halfway through, and `/resume` profiles the run it picks
-up exactly as the run it goes on from was. An `hmz exec` line is profiled only when it says
-`--profile-environment` or `--profile-flow`.
-
-## Which CLIs a trace can read
-
-A trace reads each CLI's own logs, where the run kept them, so it holds the sessions of every
-built-in CLI but one:
-
-| CLI | In a trace |
+| Picked | What the panel shows |
 | --- | --- |
-| Claude Code, Codex, Antigravity, DeepSeek Harness, Grok Build, Kimi Code, MiniMax Code, pi, Oh My Pi, Qwen Code, opencode, mimocode | <Badge type="tip" text="yes" /> |
-| Cursor Agent | <Badge type="warning" text="no" /> Watch it live on [the monitor](/user/monitor) instead. |
+| Nothing | The epic's name, state, start time, duration, spans and processes, followed by a breakdown by category (spans, time, tokens in and out) and the process list. Click a process in the list to pick it. |
+| A process | Its kind, agent, role, backend, model, parent, start and duration. |
+| A span | Its category, start, duration, model, tokens, process and track. **Arguments** shows the call payload, such as a tool's input and output. |
+| A stretch of time | Start, end, duration, the spans and tokens inside it, and the breakdown by category. |
 
-## Variations
+Click **Zoom** to fit the chart to your selection. Click **Clear** to drop a stretch of time.
 
-::: details Read one session's own log
-Each session a run opened is kept in the `sessions/` folder in the run's directory, a folder
-per CLI laid out as that CLI lays out its home: Claude Code's are under
-`sessions/claude/projects/`. It is the only copy -- the CLI wrote it there, not into its own
-home, and resumes it from there -- so the run is the one place to look, and nothing a run did
-shows up among the conversations you had with the CLI yourself.
+![A stretch of time dragged across the reviewer's turn, summed by category in the side panel](/shots/user-tracing-range.svg)
 
-![ls of one run's directory, then every file under its sessions/ folder: one Claude Code
-transcript, under sessions/claude/projects/](/demo/run-kept.png)
+*Drag across the chart to sum a stretch of time.*
 
-To send a run elsewhere, [export it](/user/export).
-:::
+### Find a span
 
-::: details Trace sessions no run opened
-Your own sessions with a coding agent, outside any flow, are not in `/epics`. Trace them by id
-from Python:
+Press <kbd>/</kbd> or click **Find** and type part of a span name. The counter shows the match position, such as `1/2`. On the **Flame** tab it shows a percentage instead: the share of the graph the matching frames hold. Press <kbd>enter</kbd> in the box, <kbd>n</kbd> outside it, or click **Next** for the next match. Press <kbd>shift+enter</kbd> in the box, <kbd>shift+n</kbd> outside it, or click **Previous** for the previous one. On the timeline, each match is selected and scrolled into view; on the **Flame** tab the matching frames are only lit. Press <kbd>esc</kbd> to clear the search, and press <kbd>esc</kbd> again to leave the box.
+
+### The flame graph and the slices
+
+Click **Flame** to sum the whole epic or the stretch of time selected on the timeline. Stacks nest from the epic to the agent, flow or program, and then through its spans.
+
+![The Flame tab: a flame graph of the whole epic over the Slices table](/shots/user-tracing-flame.svg)
+
+| Control | What it does |
+| --- | --- |
+| **Time**, **Tokens in**, **Tokens out**, **Count** | Sets what frame width measures. |
+| **Merge sessions** | Groups all sessions of an agent into one frame when on (the default), or keeps each session separate when off. |
+| **Bottom up** | Places the root at the bottom of the graph. |
+
+Click a frame to zoom in. Click the trail above the graph or press <kbd>esc</kbd> to zoom out. Point at a frame to see its total, self value, share of the graph and span count.
+
+The **Slices** table below lists up to 200 span names with their Name, Category, Count, Total, Self, Avg, P50, P95, Max, In and Out. Click a column heading to sort. Click a row and then **Show in timeline** to jump to the timeline with that name in **Find**.
+
+## Read a trace in the terminal {#in-the-terminal}
+
+Type `/epics`, press <kbd>enter</kbd> on an epic and choose `Exomyth`; the epic's `graph` page has an `Exomyth` button too. On the monitor of a running epic, press <kbd>ctrl+e</kbd> or click `Exomyth`; the trace refreshes every 3 seconds.
+
+![Exomyth in the terminal: the timeline with a tool call under the cursor and its pane open](/shots/user-tracing-terminal.svg)
+
+Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to cycle through the three views: timeline, flame and slices.
+
+![The three views of Exomyth in the terminal in turn: the timeline, the flame view and the slices table](/shots/user-tracing-terminal-views.svg)
+
+| View | Key | What it does |
+| --- | --- | --- |
+| Timeline | <kbd>↑</kbd> <kbd>↓</kbd> | Move one row. <kbd>pageup</kbd> and <kbd>pagedown</kbd> move ten. |
+| Timeline | <kbd>←</kbd> <kbd>→</kbd> | Move to the previous or next span. |
+| Timeline | <kbd>w</kbd> <kbd>+</kbd> <kbd>=</kbd> and <kbd>s</kbd> <kbd>-</kbd> | Zoom in and out around the cursor. |
+| Timeline | <kbd>a</kbd> <kbd>shift+←</kbd> and <kbd>d</kbd> <kbd>shift+→</kbd> | Pan. |
+| Timeline | <kbd>enter</kbd> | Open the span pane (name, process, timing, tokens and arguments). |
+| Timeline | <kbd>p</kbd> | Open the process pane. |
+| Timeline | <kbd>v</kbd> | Start a time stretch at this span, move the cursor to extend it, press <kbd>v</kbd> to hold it, and press <kbd>v</kbd> again to drop it. The pane sums the stretch by category. |
+| Timeline | <kbd>f</kbd> | Fit the view to the stretch or span. |
+| Timeline | <kbd>0</kbd> | Show the whole epic. |
+| Timeline | <kbd>space</kbd> | Fold or unfold the process. |
+| Timeline | <kbd>/</kbd> | Search for a span by name. <kbd>n</kbd> and <kbd>N</kbd> jump to the next and previous match. |
+| Flame | <kbd>↑</kbd> <kbd>↓</kbd> | Move through the stacks. |
+| Flame | <kbd>t</kbd> | Cycle the weight: time, tokens in, tokens out, count. |
+| Flame | <kbd>m</kbd> | Toggle merging sessions. |
+| Slices | <kbd>↑</kbd> <kbd>↓</kbd> | Move through the slices. |
+| Slices | <kbd>o</kbd> and <kbd>O</kbd> | Sort by the next column, or reverse the sort order. |
+| Slices | <kbd>enter</kbd> | Jump to that slice's spans on the timeline. |
+| All | <kbd>r</kbd> | Reload the epic. |
+| All | <kbd>esc</kbd> | Close the search box, stretch, pane or Exomyth, in that order. |
+
+The flame view and slices table measure the selected stretch of time, or the visible timeline when no stretch is selected.
+
+## Export a Chrome trace
+
+You can export a trace as a Chrome JSON file to open in Perfetto or `chrome://tracing`.
+
+In the terminal, type `/epics`, press <kbd>enter</kbd> on an epic and choose `export epic`. Humanize writes the trace to `traces/export.trace.json` inside the epic and packs it into the archive. See [Export and import a run](/user/export).
+
+In Python, gather the trace of the latest epic in the current folder:
 
 ```python
 from hmz.sdk import Hmz
 
-Hmz().epics.trace(
-    sessions=["0a1b2c3d"],  # the start of an id is enough
-    output="trace.json",
-    start="3 days ago",     # anything dateparser understands
-)
+epics = Hmz().epics
+where, trace = epics.traced(epics.all()[-1])
+print(where)
 ```
 
-See [SDK reference](/reference/sdk) and the [Tracing reference](/reference/tracing).
-:::
+Each call writes a timestamped file under `traces/` in the epic, keeping earlier exports intact. See [The Python SDK](/builder/sdk).
 
-## If it goes wrong
+In the app, **Export** packs only the trace files the epic already has. It does not gather a new one.
 
-- **`… · 0 sessions, 0 slices`.** The run opened no session before it ended, its agents ran
-  on Cursor Agent, or the CLI's logs have been moved or deleted since. See
-  [Troubleshooting](/user/troubleshooting#_0-sessions-0-slices).
-- **Fewer sessions in the trace than `/epics` counted.** Some agents ran on Cursor Agent,
-  which a trace cannot read. Everything else is still there.
-- **No programs in a profiled trace.** The run was started before profiling was turned on, or
-  by an `hmz exec` line without `--profile-environment`. Run the flow again with it on.
+## Supported coding agents
 
-## Next steps
+Traces read session logs from `agy`, `claude`, `codex`, `dsh`, `grok`, `kimi`, `litellm`, `mcode`, `mimo`, `omp`, `opencode`, `pi` and `qwen`. Because `cursor-agent` does not write a readable log, its sessions do not appear. See [Coding agents](/user/agents).
 
-- [Exporting a run](/user/export): the whole run as one archive, to send to someone else
-- [Picking a run up](/user/resuming)
-- [The monitor](/user/monitor): the same shape, live, while the run goes
-- [Tracing reference](/reference/tracing)
+## Good to know
+
+- Only epics have Exomyth. Chats do not.
+- The app and terminal remember the two profiling switches per flow and folder. `hmz exec` ignores those saved settings and profiles only when you pass the flags.
+- The flow profile is written when the epic ends. The environment profile is written as each program runs.
+- An unreadable agent log omits that agent without failing the trace.
+- In the terminal, the span pane shows at most 12 arguments, the flame view draws 6 levels and 400 stacks, and the slices table lists at most 400 rows.
+- See [Trace formats](/reference/tracing) for file formats, and [Terminal commands and keys](/reference/tui) and [Page addresses and shortcuts](/reference/web) for all shortcuts.

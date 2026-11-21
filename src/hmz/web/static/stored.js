@@ -1,12 +1,13 @@
 // A store of values by key in this browser's IndexedDB, for what the page keeps for itself alone
-// and never in any daemon's settings: its notifications and what it wants told of them.
+// and never in any daemon's settings: where each daemon's notices are taken up and what it wants
+// told of them.
 
 /**
  * One IndexedDB database of one store of values by key.
  *
  * @param {string} name The database.
  * @param {IDBFactory} [indexedDB]
- * @returns {{get: (key: string) => Promise<any>, put: (key: string, value: any) => Promise<void>}}
+ * @returns {{get: (key: string) => Promise<any>, put: (key: string, value: any) => Promise<void>, drop: (key: string) => Promise<void>}}
  */
 export function stored(name, indexedDB = globalThis.indexedDB) {
   /** @type {Promise<IDBDatabase> | null} */
@@ -31,5 +32,6 @@ export function stored(name, indexedDB = globalThis.indexedDB) {
   return {
     get: (key) => kept('readonly', (store) => store.get(key)),
     put: (key, value) => kept('readwrite', (store) => store.put(value, key)).then(() => undefined),
+    drop: (key) => kept('readwrite', (store) => store.delete(key)).then(() => undefined),
   }
 }

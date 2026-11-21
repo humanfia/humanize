@@ -4,13 +4,14 @@
 // file's bytes as text or as a binary one, and where a diff's changes are.
 
 import { moment } from '../../dom.js'
+import { t } from '../../i18n.js'
 
 /** The groups, in the order they are drawn, each with its title. */
 export const GROUPS = [
-  { id: 'merge', title: 'Merge Changes' },
-  { id: 'staged', title: 'Staged Changes' },
-  { id: 'changes', title: 'Changes' },
-  { id: 'untracked', title: 'Untracked' },
+  { id: 'merge', title: t('Merge Changes') },
+  { id: 'staged', title: t('Staged Changes') },
+  { id: 'changes', title: t('Changes') },
+  { id: 'untracked', title: t('Untracked') },
 ]
 
 /** How many bytes a side of a diff holds before it is drawn only once asked. */
@@ -18,13 +19,13 @@ export const LARGE = 2 * 1024 * 1024
 
 /** What each letter means, said on hover. */
 export const MEANING = {
-  M: 'Modified',
-  A: 'Added',
-  D: 'Deleted',
-  R: 'Renamed',
-  C: 'Copied',
-  U: 'Conflict',
-  '?': 'Untracked',
+  M: t('Modified'),
+  A: t('Added'),
+  D: t('Deleted'),
+  R: t('Renamed'),
+  C: t('Copied'),
+  U: t('Conflict'),
+  '?': t('Untracked'),
 }
 
 /** The letter a porcelain v2 status character is marked with: a type change is a modification. */
@@ -215,11 +216,11 @@ export function moveOf(group) {
  * nothing is staged it stages the tracked changes, or, where there are none, the untracked files.
  */
 export function commitPlan({ groups, message, amend = false }) {
-  if (groups.merge.length) return { action: 'refuse', why: 'Resolve the merge conflicts before committing.' }
-  if (!String(message || '').trim()) return { action: 'refuse', why: 'Write a commit message first.' }
+  if (groups.merge.length) return { action: 'refuse', why: t('Resolve the merge conflicts before committing.') }
+  if (!String(message || '').trim()) return { action: 'refuse', why: t('Write a commit message first.') }
   if (groups.staged.length || amend) return { action: 'commit' }
   const some = groups.changes.length ? groups.changes : groups.untracked
-  if (!some.length) return { action: 'refuse', why: 'There is nothing to commit.' }
+  if (!some.length) return { action: 'refuse', why: t('There is nothing to commit.') }
   return { action: 'stage', paths: pathsOf(some) }
 }
 
@@ -237,20 +238,17 @@ export function relative(stamp, now = Date.now()) {
   const at = moment(stamp)
   if (!at) return ''
   const seconds = Math.max(0, Math.round((now - at.getTime()) / 1000))
-  if (seconds < 45) return 'just now'
+  if (seconds < 45) return t('just now')
   const steps = [
-    ['minute', 60, 3600],
-    ['hour', 3600, 86400],
-    ['day', 86400, 604800],
-    ['week', 604800, 2592000],
-    ['month', 2592000, 31536000],
-    ['year', 31536000, Infinity],
+    [(n) => t('{n} minutes ago', { n }), 60, 3600],
+    [(n) => t('{n} hours ago', { n }), 3600, 86400],
+    [(n) => t('{n} days ago', { n }), 86400, 604800],
+    [(n) => t('{n} weeks ago', { n }), 604800, 2592000],
+    [(n) => t('{n} months ago', { n }), 2592000, 31536000],
+    [(n) => t('{n} years ago', { n }), 31536000, Infinity],
   ]
-  for (const [unit, size, upto] of steps) {
-    if (seconds < upto - size / 2 || upto === Infinity) {
-      const count = Math.max(1, Math.round(seconds / size))
-      return `${count} ${unit}${count === 1 ? '' : 's'} ago`
-    }
+  for (const [ago, size, upto] of steps) {
+    if (seconds < upto - size / 2 || upto === Infinity) return ago(Math.max(1, Math.round(seconds / size)))
   }
   return ''
 }

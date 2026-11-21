@@ -6,8 +6,12 @@
 // letters of its path. What can be decided without a page is in files_logic.js.
 
 import { fill, h, icon, iconButton } from '../../dom.js'
-import { menuOn } from '../../ui.js'
+import { pieces, t } from '../../i18n.js'
+import * as layers from '../../layers.js'
+import { menuOf, menuOn } from '../../ui.js'
 import * as L from './files_logic.js'
+import { splitter } from './split.js'
+import { menuKey } from './tree.js'
 
 /** How tall a row of the explorer and of the search's results is, in pixels. */
 const ROW = 22
@@ -125,8 +129,8 @@ export async function mount(el, ctx) {
 
   // The page --------------------------------------------------------------------------------------
 
-  const treeBox = h('div', { class: 'files-tree', role: 'tree', tabindex: '0', 'aria-label': 'Files', 'data-hmz': 'files-tree' })
-  const filterBox = h('input', { class: 'files-filter', type: 'search', placeholder: 'Filter', 'aria-label': 'Filter files', 'data-hmz': 'files-filter' })
+  const treeBox = h('div', { class: 'files-tree', role: 'tree', tabindex: '0', 'aria-label': t('Files'), 'data-hmz': 'files-tree' })
+  const filterBox = h('input', { class: 'files-filter', type: 'search', placeholder: t('Filter'), 'aria-label': t('Filter files'), 'data-hmz': 'files-filter' })
   const explorer = h(
     'div',
     { class: 'files-explorer' },
@@ -134,31 +138,31 @@ export async function mount(el, ctx) {
       'div',
       { class: 'files-pane-head' },
       h('span', { class: 'files-root', title: tree.root }, L.baseName(tree.root) || '/'),
-      iconButton('file', 'New file', { class: 'small', 'data-hmz': 'files-new-file', onclick: () => startNew('file') }),
-      iconButton('folder', 'New folder', { class: 'small', 'data-hmz': 'files-new-dir', onclick: () => startNew('dir') }),
-      iconButton('resume', 'Refresh', { class: 'small', 'data-hmz': 'files-refresh', onclick: () => refresh() }),
-      iconButton('minus', 'Collapse all', { class: 'small', onclick: () => collapseAll() }),
+      iconButton('file', t('New file'), { class: 'small', 'data-hmz': 'files-new-file', onclick: () => startNew('file') }),
+      iconButton('folder', t('New folder'), { class: 'small', 'data-hmz': 'files-new-dir', onclick: () => startNew('dir') }),
+      iconButton('resume', t('Refresh'), { class: 'small', 'data-hmz': 'files-refresh', onclick: () => refresh() }),
+      iconButton('minus', t('Collapse all'), { class: 'small', onclick: () => collapseAll() }),
     ),
     filterBox,
     treeBox,
   )
-  const queryBox = h('input', { class: 'files-input', type: 'search', placeholder: 'Search', 'aria-label': 'Search in files', 'data-hmz': 'files-search-query' })
-  const caseBox = h('button', { class: 'files-toggle', type: 'button', 'aria-pressed': 'false', title: 'Match case', 'data-hmz': 'files-search-case' }, 'Aa')
-  const regexBox = h('button', { class: 'files-toggle', type: 'button', 'aria-pressed': 'false', title: 'Use regular expression', 'data-hmz': 'files-search-regex' }, '.*')
-  const globBox = h('input', { class: 'files-input', type: 'text', placeholder: 'Files to include, e.g. *.py', 'aria-label': 'Files to include', 'data-hmz': 'files-search-glob' })
+  const queryBox = h('input', { class: 'files-input', type: 'search', placeholder: t('Search'), 'aria-label': t('Search in files'), 'data-hmz': 'files-search-query' })
+  const caseBox = h('button', { class: 'files-toggle', type: 'button', 'aria-pressed': 'false', title: t('Match case'), 'data-hmz': 'files-search-case' }, 'Aa')
+  const regexBox = h('button', { class: 'files-toggle', type: 'button', 'aria-pressed': 'false', title: t('Use regular expression'), 'data-hmz': 'files-search-regex' }, '.*')
+  const globBox = h('input', { class: 'files-input', type: 'text', placeholder: t('Files to include, e.g. *.py'), 'aria-label': t('Files to include'), 'data-hmz': 'files-search-glob' })
   const summary = h('div', { class: 'files-summary', role: 'status', 'data-hmz': 'files-search-summary' })
   const resultsBox = h('div', { class: 'files-results', role: 'list', 'data-hmz': 'files-results' })
   const searcher = h(
     'div',
     { class: 'files-search' },
-    h('div', { class: 'files-pane-head' }, h('span', { class: 'files-root' }, 'Search')),
+    h('div', { class: 'files-pane-head' }, h('span', { class: 'files-root' }, t('Search'))),
     h('div', { class: 'files-query' }, queryBox, caseBox, regexBox),
     globBox,
     summary,
     resultsBox,
   )
-  const explorerTab = h('button', { class: 'files-side-tab', type: 'button', role: 'tab', 'data-hmz': 'files-side-explorer', onclick: () => sideTo('explorer') }, 'Explorer')
-  const searchTab = h('button', { class: 'files-side-tab', type: 'button', role: 'tab', 'data-hmz': 'files-side-search', onclick: () => sideTo('search') }, 'Search')
+  const explorerTab = h('button', { class: 'files-side-tab', type: 'button', role: 'tab', 'data-hmz': 'files-side-explorer', onclick: () => sideTo('explorer') }, t('Explorer'))
+  const searchTab = h('button', { class: 'files-side-tab', type: 'button', role: 'tab', 'data-hmz': 'files-side-search', onclick: () => sideTo('search') }, t('Search'))
   const sideBox = h('aside', { class: 'files-side' }, h('div', { class: 'files-side-tabs', role: 'tablist' }, explorerTab, searchTab), explorer, searcher)
 
   const tabsBox = h('div', { class: 'files-tabs', role: 'tablist', 'data-hmz': 'files-tabs' })
@@ -167,11 +171,13 @@ export async function mount(el, ctx) {
   const otherBox = h('div', { class: 'files-other', 'data-hmz': 'files-other' })
   const statusBox = h('footer', { class: 'files-status', 'data-hmz': 'files-status' })
   const main = h('section', { class: 'files-main' }, tabsBox, bannerBox, h('div', { class: 'files-body' }, editorBox, otherBox), statusBox)
-  const quickInput = h('input', { class: 'files-input', type: 'text', placeholder: 'Go to file by name, path:line', 'aria-label': 'Go to file', 'data-hmz': 'files-quick-input', autocomplete: 'off', spellcheck: 'false' })
+  const quickInput = h('input', { class: 'files-input', type: 'text', placeholder: t('Go to file by name, path:line'), 'aria-label': t('Go to file'), 'data-hmz': 'files-quick-input', autocomplete: 'off', spellcheck: 'false' })
   const quickList = h('div', { class: 'files-quick-list', role: 'listbox', 'data-hmz': 'files-quick-list' })
   const quickNote = h('div', { class: 'files-quick-note' })
-  const quick = h('div', { class: 'files-quick', role: 'dialog', 'aria-label': 'Go to file', hidden: true, 'data-hmz': 'files-quick' }, quickInput, quickNote, quickList)
+  const quick = h('div', { class: 'files-quick', role: 'dialog', 'aria-label': t('Go to file'), hidden: true, 'data-hmz': 'files-quick' }, quickInput, quickNote, quickList)
   const panel = h('div', { class: 'files', 'data-hmz': 'files' }, sideBox, main, quick)
+  // The explorer takes two fifths of the panel at most, as files.css lays it out.
+  sideBox.after(splitter(panel, { name: '--files-side', key: 'hmz-files-side', label: t('Resize the explorer'), kind: 'files-split', most: (whole) => whole * 0.4, hmz: 'files-split' }))
   fill(el, panel)
 
   // The editor ------------------------------------------------------------------------------------
@@ -201,7 +207,8 @@ export async function mount(el, ctx) {
     return cm.EditorState.create({
       doc: text,
       extensions: [
-        cm.keymap.of([cm.indentWithTab]),
+        // Before the editor's own keys: its Go to line is opened as the page opens it, one panel at a time.
+        cm.keymap.of([{ key: 'Mod-Alt-g', run: () => (panelTo('goto'), true) }, cm.indentWithTab]),
         cm.basicSetup,
         themeC.of(cm.themeFor(ctx.theme())),
         langC.of(cm.languageFor(L.baseName(doc.path)) || []),
@@ -465,7 +472,7 @@ export async function mount(el, ctx) {
     const doc = docs.get(path)
     if (doc && doc.saver.dirty) {
       const ok = !doc.conflict && !closed && (await doc.saver.now())
-      if (!ok && !(await ctx.confirm(`${L.baseName(path)} has edits not written to the environment. Close it and lose them?`))) return
+      if (!ok && !(await ctx.confirm(t('{name} has edits not written to the environment. Close it and lose them?', { name: L.baseName(path) })))) return
     }
     if (doc) drop(doc)
     tabs = L.closeTab(tabs, path)
@@ -482,7 +489,9 @@ export async function mount(el, ctx) {
     const closing = tabs.tabs.filter((one) => one.path !== path)
     await Promise.all(closing.map((one) => docs.get(one.path)).filter((doc) => doc && doc.saver.dirty && !doc.conflict && !closed).map((doc) => doc.saver.now()))
     const unsaved = closing.map((one) => docs.get(one.path)).filter((doc) => doc && doc.saver.dirty)
-    if (unsaved.length && !(await ctx.confirm(`${unsaved.map((doc) => L.baseName(doc.path)).join(', ')} ${unsaved.length === 1 ? 'has' : 'have'} edits not written to the environment. Close and lose them?`))) return
+    const names = unsaved.map((doc) => L.baseName(doc.path)).join(', ')
+    const asked = unsaved.length === 1 ? t('{name} has edits not written to the environment. Close and lose them?', { name: names }) : t('{names} have edits not written to the environment. Close and lose them?', { names })
+    if (unsaved.length && !(await ctx.confirm(asked))) return
     for (const one of closing) {
       const doc = docs.get(one.path)
       if (doc) drop(doc)
@@ -520,7 +529,7 @@ export async function mount(el, ctx) {
       twin ? h('span', { class: 'files-tab-dir' }, L.relative(L.parentOf(one.path), tree.root)) : null,
       h(
         'button',
-        { class: 'files-tab-close', type: 'button', 'aria-label': `Close ${name}`, 'data-hmz': 'files-tab-close', tabindex: '-1' },
+        { class: 'files-tab-close', type: 'button', 'aria-label': t('Close {name}', { name }), 'data-hmz': 'files-tab-close', tabindex: '-1' },
         h('span', { class: 'files-dot', 'aria-hidden': 'true' }),
         icon('close'),
       ),
@@ -545,13 +554,13 @@ export async function mount(el, ctx) {
       persist()
     })
     menuOn(tab, () => [
-      { label: 'Close', glyph: 'close', act: () => close(one.path) },
-      { label: 'Close others', act: () => closeAllBut(one.path) },
-      { label: 'Close all', act: () => closeAllBut(null) },
+      { label: t('Close'), glyph: 'close', act: () => close(one.path) },
+      { label: t('Close others'), act: () => closeAllBut(one.path) },
+      { label: t('Close all'), act: () => closeAllBut(null) },
       '-',
-      !one.pinned && { label: 'Keep open', act: () => pin(one.path) },
-      { label: 'Reveal in explorer', act: () => (sideTo('explorer'), revealInTree(one.path, true)) },
-      { label: 'Copy path', glyph: 'copy', act: () => navigator.clipboard?.writeText(one.path) },
+      !one.pinned && { label: t('Keep open'), act: () => pin(one.path) },
+      { label: t('Reveal in explorer'), act: () => (sideTo('explorer'), revealInTree(one.path, true)) },
+      { label: t('Copy path'), glyph: 'copy', act: () => navigator.clipboard?.writeText(one.path) },
     ])
     return tab
   }
@@ -588,13 +597,13 @@ export async function mount(el, ctx) {
     editorBox.hidden = !doc || doc.kind !== 'text'
     otherBox.hidden = !editorBox.hidden
     if (!doc) {
-      fill(otherBox, h('div', { class: 'files-welcome' }, h('strong', {}, 'No file open'), h('p', {}, 'Pick one in the explorer, or press ', h('kbd', {}, mod, '+P'), ' to open one by name.')))
+      fill(otherBox, h('div', { class: 'files-welcome' }, h('strong', {}, t('No file open')), h('p', {}, pieces('Pick one in the explorer, or press {key} to open one by name.', { key: h('kbd', {}, mod, '+P') }))))
     } else if (doc.kind === 'loading') {
-      fill(otherBox, h('div', { class: 'files-welcome' }, 'Reading…'))
+      fill(otherBox, h('div', { class: 'files-welcome' }, t('Reading…')))
     } else if (doc.kind === 'error') {
-      fill(otherBox, notice('Could not open this file', doc.error, button('Try again', () => reopen(doc))))
+      fill(otherBox, notice(t('Could not open this file'), doc.error, button(t('Try again'), () => reopen(doc))))
     } else if (doc.kind === 'too-large') {
-      fill(otherBox, notice('Too large to open', `${L.baseName(doc.path)} is ${L.sizeOf(doc.size)}; files over ${L.sizeOf(L.LARGEST)} are not opened here.`))
+      fill(otherBox, notice(t('Too large to open'), t('{name} is {size}; files over {limit} are not opened here.', { name: L.baseName(doc.path), size: L.sizeOf(doc.size), limit: L.sizeOf(L.LARGEST) })))
     } else if (doc.kind === 'image') {
       fill(otherBox, h('div', { class: 'files-image' }, h('img', { src: doc.image, alt: L.baseName(doc.path), 'data-hmz': 'files-image' }), h('p', { class: 'files-caption' }, L.sizeOf(doc.size))))
     } else if (inView !== doc) {
@@ -620,16 +629,16 @@ export async function mount(el, ctx) {
   function drawBanner() {
     const doc = current()
     const banners = []
-    if (closed) banners.push(h('div', { class: 'files-banner warn', role: 'alert', 'data-hmz': 'files-closed' }, h('span', {}, `${L.CLOSED} Edits not written are kept here, read-only.`)))
+    if (closed) banners.push(h('div', { class: 'files-banner warn', role: 'alert', 'data-hmz': 'files-closed' }, h('span', {}, t('That environment has closed. Edits not written are kept here, read-only.'))))
     if (doc?.conflict) {
       banners.push(
         h(
           'div',
           { class: 'files-banner danger', role: 'alert', 'data-hmz': 'files-conflict' },
-          h('span', {}, `${L.baseName(doc.path)} changed in the environment since you opened it.`),
-          button(merge ? 'Back to editing' : 'Compare', () => (merge ? drawBody() : compare(doc)), { hmz: 'files-compare' }),
-          button('Keep mine', () => keepMine(doc), { hmz: 'files-keep-mine' }),
-          button('Reload', () => reload(doc), { hmz: 'files-reload', quiet: true }),
+          h('span', {}, t('{name} changed in the environment since you opened it.', { name: L.baseName(doc.path) })),
+          button(merge ? t('Back to editing') : t('Compare'), () => (merge ? drawBody() : compare(doc)), { hmz: 'files-compare' }),
+          button(t('Keep mine'), () => keepMine(doc), { hmz: 'files-keep-mine' }),
+          button(t('Reload'), () => reload(doc), { hmz: 'files-reload', quiet: true }),
         ),
       )
     } else if (doc?.error && doc.kind === 'text') {
@@ -637,15 +646,16 @@ export async function mount(el, ctx) {
         h(
           'div',
           { class: 'files-banner danger', role: 'alert', 'data-hmz': 'files-save-error' },
-          h('span', {}, `Not saved: ${doc.error}`),
-          closed ? null : button('Try again', () => ((doc.error = null), doc.saver.now(), drawBanner())),
+          h('span', {}, t('Not saved: {why}', { why: doc.error })),
+          closed ? null : button(t('Try again'), () => ((doc.error = null), doc.saver.now(), drawBanner())),
         ),
       )
     }
-    if (doc?.gone && !doc.conflict) banners.push(h('div', { class: 'files-banner warn', role: 'status', 'data-hmz': 'files-gone' }, h('span', {}, `${L.baseName(doc.path)} is no longer in the environment; saving writes it again.`)))
+    if (doc?.gone && !doc.conflict) banners.push(h('div', { class: 'files-banner warn', role: 'status', 'data-hmz': 'files-gone' }, h('span', {}, t('{name} is no longer in the environment; saving writes it again.', { name: L.baseName(doc.path) }))))
     if (doc?.readOnly && doc.kind === 'text') {
-      const why = doc.why === 'binary' ? 'is not UTF-8 text' : `is ${L.sizeOf(doc.size)}, over ${L.sizeOf(L.LARGE)}`
-      banners.push(h('div', { class: 'files-banner', role: 'status', 'data-hmz': 'files-read-only' }, h('span', {}, `${L.baseName(doc.path)} ${why}, so it is open read-only.`)))
+      const name = L.baseName(doc.path)
+      const why = doc.why === 'binary' ? t('{name} is not UTF-8 text, so it is open read-only.', { name }) : t('{name} is {size}, over {limit}, so it is open read-only.', { name, size: L.sizeOf(doc.size), limit: L.sizeOf(L.LARGE) })
+      banners.push(h('div', { class: 'files-banner', role: 'status', 'data-hmz': 'files-read-only' }, h('span', {}, why)))
     }
     fill(bannerBox, banners)
   }
@@ -655,24 +665,52 @@ export async function mount(el, ctx) {
   function status() {
     const doc = current()
     if (!doc || doc.kind !== 'text' || inView !== doc) {
-      fill(statusBox, doc ? h('span', { class: 'files-state' }, doc.kind === 'image' ? 'Image' : '') : null)
+      fill(statusBox, doc ? h('span', { class: 'files-state' }, doc.kind === 'image' ? t('Image') : '') : null)
       return
     }
     const state = view.state
     const head = state.selection.main.head
     const line = state.doc.lineAt(head)
     const chosen = state.selection.ranges.reduce((sum, range) => sum + (range.to - range.from), 0)
-    const saving = doc.conflict ? 'Conflict' : closed ? 'Read-only' : doc.readOnly ? 'Read-only' : { saving: 'Saving…', saved: 'Saved', dirty: 'Unsaved', error: 'Not saved' }[doc.saver.state]
+    const language = L.languageOf(doc.path)
+    const saving = doc.conflict ? t('Conflict') : closed ? t('Read-only') : doc.readOnly ? t('Read-only') : { saving: t('Saving…'), saved: t('Saved'), dirty: t('Unsaved'), error: t('Not saved') }[doc.saver.state]
     fill(
       statusBox,
       h('span', { class: ['files-state', `is-${doc.conflict ? 'error' : doc.saver.state}`], 'data-hmz': 'files-saved' }, saving),
       h('span', { class: 'files-gap' }),
-      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => cm.gotoLine(view) }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
-      h('span', { class: 'files-status-item' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
-      h('button', { class: 'files-status-item', type: 'button', title: 'Change the line endings', 'data-hmz': 'files-eol', onclick: () => toggleEol(doc) }, doc.eol === '\r\n' ? 'CRLF' : 'LF'),
-      h('span', { class: 'files-status-item', 'data-hmz': 'files-language' }, L.languageOf(doc.path)),
-      h('button', { class: ['files-status-item', wrap && 'on'], type: 'button', title: 'Wrap lines (Alt+Z)', 'aria-pressed': wrap ? 'true' : 'false', 'data-hmz': 'files-wrap', onclick: () => toggleWrap() }, 'Wrap'),
+      // As files.css orders them: where the bar has no room for them all, the last give way first.
+      h('button', { class: 'files-status-item', type: 'button', title: t('Change the line endings'), 'data-hmz': 'files-eol', onclick: () => toggleEol(doc) }, doc.eol === '\r\n' ? 'CRLF' : 'LF'),
+      h('span', { class: 'files-status-item', 'data-hmz': 'files-language' }, language === 'Plain Text' ? t('Plain Text') : language),
+      h('button', { class: ['files-status-item', wrap && 'on'], type: 'button', title: t('Wrap lines (Alt+Z)'), 'aria-pressed': wrap ? 'true' : 'false', 'data-hmz': 'files-wrap', onclick: () => toggleWrap() }, t('Wrap')),
+      h('button', { class: 'files-status-item', type: 'button', title: t('Go to line'), 'data-hmz': 'files-position', onclick: () => panelTo('goto') }, t('Ln {line}, Col {column}', { line: line.number, column: head - line.from + 1 }), chosen ? ` ${t('({count} selected)', { count: chosen })}` : '', state.selection.ranges.length > 1 ? ` · ${t('{count} cursors', { count: state.selection.ranges.length })}` : ''),
+      h('span', { class: 'files-status-item', 'data-hmz': 'files-encoding' }, doc.bom ? t('UTF-8 with BOM') : 'UTF-8'),
     )
+    reach()
+  }
+
+  /**
+   * What the bar has no room for falls under its one line, where it is not seen: it is not
+   * reached by a key or a press there either.
+   */
+  function reach() {
+    const line = statusBox.offsetHeight
+    for (const item of statusBox.children) item.inert = line > 0 && item.offsetTop - statusBox.offsetTop >= line
+  }
+  const barSized = new ResizeObserver(reach)
+  barSized.observe(statusBox)
+
+  /**
+   * Shows one of the editor's own panels, `find` or `goto`, in place of the other: one at a
+   * time. Go to line asked for again closes it, as asking for neither closes both.
+   */
+  function panelTo(which) {
+    const goto = view.dom.querySelector('.cm-goto-line .cm-dialog-close')
+    goto?.click()
+    if (which === 'find') return cm.openSearchPanel(view)
+    cm.closeSearchPanel(view)
+    if (which !== 'goto') return
+    if (goto) view.focus()
+    else cm.gotoLine(view)
   }
 
   function toggleEol(doc) {
@@ -717,7 +755,7 @@ export async function mount(el, ctx) {
     try {
       const whole = await readAll(doc.path)
       const text = L.decode(whole.bytes)
-      if (text.binary) throw new Error('It is not UTF-8 text any more.')
+      if (text.binary) throw new Error(t('It is not UTF-8 text any more.'))
       replaced(doc, text.text)
       Object.assign(doc, { etag: whole.etag, mtime: whole.mtime, size: whole.size, eol: text.eol, bom: text.bom, conflict: false, error: null, gone: false })
       doc.saver.clean()
@@ -765,7 +803,7 @@ export async function mount(el, ctx) {
     otherBox.hidden = false
     const extensions = [cm.EditorState.readOnly.of(true), cm.EditorView.editable.of(false), cm.themeFor(ctx.theme()), cm.languageFor(L.baseName(doc.path)) || [], wrap ? cm.EditorView.lineWrapping : []]
     const holder = h('div', { class: 'files-merge', 'data-hmz': 'files-merge' })
-    fill(otherBox, h('div', { class: 'files-merge-head' }, h('span', {}, 'Yours'), h('span', {}, 'In the environment')), holder)
+    fill(otherBox, h('div', { class: 'files-merge-head' }, h('span', {}, t('Yours')), h('span', {}, t('In the environment'))), holder)
     merge = new cm.MergeView({ a: { doc: doc.state.doc.toString(), extensions }, b: { doc: disk.binary ? '' : disk.text, extensions }, parent: holder })
     drawBanner()
   }
@@ -859,24 +897,25 @@ export async function mount(el, ctx) {
   }
 
   const nameInput = () => {
-    const input = h('input', { class: 'files-rename', type: 'text', spellcheck: 'false', 'aria-label': naming.kind === 'rename' ? 'New name' : naming.kind === 'dir' ? 'Folder name' : 'File name', 'data-hmz': 'files-name' })
+    const input = h('input', { class: 'files-rename', type: 'text', spellcheck: 'false', 'aria-label': naming.kind === 'rename' ? t('New name') : naming.kind === 'dir' ? t('Folder name') : t('File name'), 'data-hmz': 'files-name' })
     input.value = naming.kind === 'rename' ? L.baseName(naming.path) : ''
     let done = false
-    const finish = async (keep) => {
+    // The tree has the focus back unless it went on to something else, which keeps it.
+    const finish = async (keep, away = false) => {
       if (done) return
       done = true
       const what = naming
       naming = null
       if (keep) await named(what, input.value.trim())
       drawTree()
-      treeBox.focus()
+      if (!away) treeBox.focus()
     }
     input.addEventListener('keydown', (event) => {
       event.stopPropagation()
       if (event.key === 'Enter') finish(true)
       else if (event.key === 'Escape') finish(false)
     })
-    input.addEventListener('blur', () => finish(Boolean(input.value.trim())))
+    input.addEventListener('blur', (event) => finish(Boolean(input.value.trim()), Boolean(event.relatedTarget)))
     requestAnimationFrame(() => {
       input.focus()
       const dot = input.value.lastIndexOf('.')
@@ -913,16 +952,16 @@ export async function mount(el, ctx) {
   function entryMenu(row) {
     const dir = row.kind === 'dir' ? row.path : L.parentOf(row.path)
     return [
-      { head: L.relative(row.path, tree.root) },
-      row.kind !== 'dir' && { label: 'Open', glyph: 'open', act: () => open(row.path, { pin: true }) },
-      { label: 'New file…', glyph: 'file', act: () => startNew('file', dir) },
-      { label: 'New folder…', glyph: 'folder', act: () => startNew('dir', dir) },
+      { head: L.relative(row.path, tree.root), path: true },
+      row.kind !== 'dir' && { label: t('Open'), glyph: 'open', act: () => open(row.path, { pin: true }) },
+      { label: t('New file…'), glyph: 'file', act: () => startNew('file', dir) },
+      { label: t('New folder…'), glyph: 'folder', act: () => startNew('dir', dir) },
       '-',
-      !closed && { label: 'Rename…', act: () => startRename(row.path) },
-      !closed && { label: 'Delete', danger: true, act: () => remove(row.path) },
+      !closed && { label: t('Rename…'), act: () => startRename(row.path) },
+      !closed && { label: t('Delete'), danger: true, act: () => remove(row.path) },
       '-',
-      { label: 'Copy path', glyph: 'copy', act: () => navigator.clipboard?.writeText(row.path) },
-      { label: 'Copy relative path', act: () => navigator.clipboard?.writeText(L.relative(row.path, tree.root)) },
+      { label: t('Copy path'), glyph: 'copy', act: () => navigator.clipboard?.writeText(row.path) },
+      { label: t('Copy relative path'), act: () => navigator.clipboard?.writeText(L.relative(row.path, tree.root)) },
     ]
   }
 
@@ -1000,12 +1039,20 @@ export async function mount(el, ctx) {
       Delete: () => row && !closed && remove(row.path),
       Backspace: () => (event.metaKey || event.ctrlKey) && row && !closed && remove(row.path),
     }
-    const act = keys[event.key]
+    const act = menuKey(event) ? () => menuAt(row) : keys[event.key]
     if (!act) return
     event.preventDefault()
     act()
   })
   const within = (path) => L.within(path, tree.root)
+
+  /** Opens an entry's menu under its row, brought into view: the tree has the focus back as it closes. */
+  function menuAt(row) {
+    if (!row) return
+    tree.view.show(rows.indexOf(row))
+    const at = tree.view.element(row.path)
+    if (at) menuOf(at, treeBox)
+  }
 
   filterBox.addEventListener('input', () => {
     filter = filterBox.value
@@ -1095,7 +1142,7 @@ export async function mount(el, ctx) {
   async function remove(path) {
     const name = L.baseName(path)
     const isDir = tree.listed.has(path) || rows.find((one) => one.path === path)?.kind === 'dir'
-    if (!(await ctx.confirm(isDir ? `Delete the folder ${name} and everything in it?` : `Delete ${name}?`))) return
+    if (!(await ctx.confirm(isDir ? t('Delete the folder {name} and everything in it?', { name }) : t('Delete {name}?', { name })))) return
     try {
       await call('env.remove', { path })
     } catch (error) {
@@ -1177,14 +1224,7 @@ export async function mount(el, ctx) {
         return made
       }
       const span = L.matchOn(row.text, searching.query, searching, row.column || 1)
-      let text = row.text
-      let at = span
-      // A match far along a long line is shown with what is just before it.
-      const cut = span && span[0] > 40 ? span[0] - 24 : 0
-      if (cut) {
-        text = `…${text.slice(cut)}`
-        at = [span[0] - cut + 1, span[1] - cut + 1]
-      }
+      const { text, span: at } = L.snippet(row.text, span)
       const said_ = at ? [text.slice(0, at[0]), h('mark', {}, text.slice(at[0], at[1])), text.slice(at[1])] : [text]
       const made = h('div', { class: 'files-result', role: 'listitem', tabindex: '0', 'data-hmz': 'files-result', 'data-path': row.path, 'data-line': String(row.line), title: `${L.relative(row.path, tree.root)}:${row.line}` }, h('span', { class: 'files-line' }, String(row.line)), h('span', { class: 'files-text' }, said_))
       const go = () => open(row.path, { line: row.line, column: (span ? span[0] : (row.column || 1) - 1) + 1 })
@@ -1203,14 +1243,16 @@ export async function mount(el, ctx) {
       fill(summary)
       return
     }
-    fill(summary, 'Searching…')
+    fill(summary, t('Searching…'))
     try {
       const got = await call('env.search', { query: searching.query, regex: searching.regex, case: searching.caseSensitive, glob: searching.glob, limit: 2000 })
       if (asked !== searching.asked) return
       searching.groups = L.grouped(got.matches || [], tree.root)
       searching.folded = new Set()
       const count = (got.matches || []).length
-      fill(summary, count ? `${count} result${count === 1 ? '' : 's'} in ${searching.groups.length} file${searching.groups.length === 1 ? '' : 's'}${got.truncated ? ', and more not shown' : ''}` : 'No results.')
+      const found_ = t('{n} results', { n: count })
+      const files = searching.groups.length
+      fill(summary, !count ? t('No results.') : got.truncated ? t('{results} in {n} files, and more not shown', { results: found_, n: files }) : t('{results} in {n} files', { results: found_, n: files }))
       results.set(L.resultRows(searching.groups, searching.folded))
     } catch (error) {
       if (asked !== searching.asked) return
@@ -1268,9 +1310,21 @@ export async function mount(el, ctx) {
 
   let picks = []
   let picked = 0
+  /** The list over the panel, as one thing that floats: closed, the editor or the tree has the focus. */
+  const quickLayer = {
+    node: quick,
+    kind: 'panel',
+    close: quickClose,
+    get back() {
+      return inView ? view.contentDOM : treeBox
+    },
+  }
 
   async function quickOpen() {
+    // In place of the editor's own panels, not over them.
+    panelTo('')
     quick.hidden = false
+    layers.opened(quickLayer)
     quickInput.value = ''
     quickInput.focus()
     drawQuick()
@@ -1280,7 +1334,7 @@ export async function mount(el, ctx) {
       const got = await asking
       if (finding !== asking) return
       found = { paths: got.paths || [], truncated: Boolean(got.truncated) }
-      fill(quickNote, found.truncated ? `Only the first ${found.paths.length} files are searched.` : '')
+      fill(quickNote, found.truncated ? t('Only the first {count} files are searched.', { count: found.paths.length }) : '')
     } catch (error) {
       if (finding === asking) fill(quickNote, h('span', { class: 'error' }, said(error)))
     }
@@ -1295,11 +1349,11 @@ export async function mount(el, ctx) {
     } else picks = found ? L.rank(query, found.paths, 50) : []
     picked = Math.min(picked, Math.max(0, picks.length - 1))
     if (!found && !picks.length) {
-      fill(quickList, h('div', { class: 'files-quick-empty' }, 'Listing files…'))
+      fill(quickList, h('div', { class: 'files-quick-empty' }, t('Listing files…')))
       return
     }
     if (!picks.length) {
-      fill(quickList, h('div', { class: 'files-quick-empty' }, 'No matching files.'))
+      fill(quickList, h('div', { class: 'files-quick-empty' }, t('No matching files.')))
       return
     }
     fill(
@@ -1326,8 +1380,9 @@ export async function mount(el, ctx) {
   }
 
   function quickClose() {
+    if (quick.hidden) return
+    layers.closed(quickLayer)
     quick.hidden = true
-    if (inView) view.focus()
   }
 
   function choose() {
@@ -1347,7 +1402,6 @@ export async function mount(el, ctx) {
       ArrowDown: () => ((picked = Math.min(picks.length - 1, picked + 1)), drawQuick()),
       ArrowUp: () => ((picked = Math.max(0, picked - 1)), drawQuick()),
       Enter: () => choose(),
-      Escape: () => quickClose(),
     }
     const act = keys[event.key]
     if (!act) return
@@ -1355,7 +1409,6 @@ export async function mount(el, ctx) {
     event.stopPropagation()
     act()
   })
-  quickInput.addEventListener('blur', () => setTimeout(() => !quick.contains(document.activeElement) && (quick.hidden = true), 0))
 
   // Keys, the page and what is heard ---------------------------------------------------------------
 
@@ -1370,7 +1423,10 @@ export async function mount(el, ctx) {
     else if (mod_ && event.shiftKey && key === 'f') act = () => searchFor()
     else if (mod_ && event.shiftKey && key === 'e') act = () => (sideTo('explorer'), tabs.active ? revealInTree(tabs.active, true) : treeBox.focus())
     else if (mod_ && !event.shiftKey && key === 's') act = () => current()?.saver.now()
-    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => cm.gotoLine(view)
+    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => panelTo('goto')
+    else if (mod_ && !event.shiftKey && key === 'f' && view.dom.contains(document.activeElement)) act = () => panelTo('find')
+    // Find closes itself from the text; Go to line, only from its own field.
+    else if (key === 'escape' && view.hasFocus && view.dom.querySelector('.cm-goto-line')) act = () => panelTo('')
     else if (mod_ && !event.shiftKey && key === 'w' && tabs.active) act = () => close(tabs.active)
     else if (event.altKey && !mod_ && event.code === 'KeyZ') act = () => toggleWrap()
     if (!act) return
@@ -1466,6 +1522,7 @@ export async function mount(el, ctx) {
       window.removeEventListener('pagehide', flushAll)
       window.removeEventListener('focus', poll)
       seeing.disconnect()
+      barSized.disconnect()
       theming.disconnect()
       scheme.removeEventListener('change', retheme)
       off?.()

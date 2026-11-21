@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { batched, concrete, freshId, graphSaid, held, named, ordered, removed, renamed, withEffort, written } from '../../../../src/hmz/web/static/nous.js'
+import { batched, concrete, found, freshId, graphSaid, held, named, ordered, removed, renamed, wayName, withEffort, written } from '../../../../src/hmz/web/static/nous.js'
 
 /** A graph as `nous.list` answers it: a balance node, failing over by fault class. */
 const GRAPH = {
@@ -30,6 +30,8 @@ test('a graph is said from its start along its edges, each node once', () => {
     { id: 'wait', start: false, text: 'codex/gpt-5', edges: '* → last' },
   ])
   assert.deepEqual(ordered(null), [])
+  // Each nous by the name it is given, where it is given one.
+  assert.deepEqual(graphSaid(GRAPH, (nous) => nous.toUpperCase()).map((one) => one.text), ['shuffle: CLAUDE@WORK/CLAUDE-OPUS-5:HIGH ×2, FAST, 1 at most', 'CLAUDE/CLAUDE-HAIKU-4-5', 'CODEX/GPT-5'])
 })
 
 test('a graph held by the form is written back as it was read', () => {
@@ -80,4 +82,29 @@ test('every nous is written after the virtual nous it names', () => {
     { name: 'b', graph: { start: 'n', nodes: [{ id: 'n', use: 'a' }] }, then: null },
   ]
   assert.deepEqual(batched(round).map(([, params]) => params.name), ['a', 'b'])
+})
+
+test('every concrete nous found is listed under its harness, with what is written of it or nothing', () => {
+  const rule = { name: 'claude/claude-opus-5:high', virtual: false, tries: 2 }
+  const gone = { name: 'grok/grok-5', virtual: false, tries: 1 }
+  const data = { nous: [rule, gone, { name: 'fast', virtual: true }], concrete: ['codex/gpt-5', 'claude/claude-opus-5', 'claude@work/claude-opus-5'] }
+  assert.deepEqual(found(data, ['claude', 'codex', 'kimi']), [
+    // A harness in the order given; of each, what was found and what is written with an effort.
+    { cli: 'claude', rows: [{ name: 'claude/claude-opus-5', written: null }, { name: 'claude/claude-opus-5:high', written: rule }, { name: 'claude@work/claude-opus-5', written: null }] },
+    { cli: 'codex', rows: [{ name: 'codex/gpt-5', written: null }] },
+    // Installed, and nothing found of it yet: a group all the same.
+    { cli: 'kimi', rows: [] },
+    // Written of a harness that is not installed: listed still, last.
+    { cli: 'grok', rows: [{ name: 'grok/grok-5', written: gone }] },
+  ])
+  assert.deepEqual(found({ nous: [], concrete: [] }), [])
+})
+
+test('a way of waiting or of picking is named shortly, and explained apart from its name', () => {
+  assert.deepEqual(wayName('policy', { name: 'exponential-jitter', about: 'as the daemon says it' }), { name: 'Exponential with jitter', about: 'Exponential, each wait anywhere up to it: for agents that fail at the same moment.' })
+  assert.deepEqual(wayName('strategy', 'round-robin'), { name: 'Round robin', about: 'Each in turn, each as often as its weight says.' })
+  // One added to the daemon, which the page does not know: as the daemon says it.
+  assert.deepEqual(wayName('strategy', { name: 'mine', about: 'my own' }), { name: 'mine', about: 'my own' })
+  assert.deepEqual(wayName('policy', 'later'), { name: 'later', about: '' })
+  for (const kind of ['policy', 'strategy']) assert.ok(!wayName(kind, kind === 'policy' ? 'fibonacci' : 'cost').name.includes('—'))
 })

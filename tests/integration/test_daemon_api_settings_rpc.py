@@ -15,9 +15,12 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
+import hmz.coganchor.models
 from hmz import home
+from hmz.coganchor import easytier as tier
 from hmz.daemon.api import accounts, easytier, nous, runtimes, settings
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, document, hello
+from hmz.runtime import Hmz
 from tests.integration.doubles_easytier import kuma
 
 if TYPE_CHECKING:
@@ -86,6 +89,34 @@ def test_each_family_names_every_method_of_its_namespace() -> None:
         assert set(family.METHODS) == {n for n in listed if n.startswith(prefix)}
 
 
+def test_settings_are_read_and_forgotten_where_no_directory_is_left(
+    client: Peer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, started = tmp_path / "workspace", tmp_path / "started"
+    for one in (workspace, started):
+        one.mkdir()
+    chat = _call(client, "settings.set", workspace=str(workspace), chat="claude/opus")[
+        "chat"
+    ]
+    assert chat
+    assert str(workspace.resolve()) in _file()["workspaces"]
+    # The daemon outlives the directory it was started in, and a workspace its directory.
+    monkeypatch.chdir(started)
+    for one in (workspace, started):
+        one.rmdir()
+
+    assert _call(client, "settings.get")["chat"] == ""
+    assert _call(client, "settings.get", workspace=str(workspace))["chat"] == chat
+    for method in ("accounts.list", "nous.list", "runtimes.list"):
+        assert _call(client, method)
+    forgot = _call(client, "settings.forget", workspace=str(workspace))
+    assert (forgot["forgot"], forgot["chat"]) == (True, "")
+    assert str(workspace.resolve()) not in (_file().get("workspaces") or {})
+    assert _refused(client, 404, "settings.set", workspace=str(workspace)) == (
+        f"There is no directory {workspace}."
+    )
+
+
 def test_settings_are_written_read_back_and_never_echo_a_secret(
     client: Peer, tmp_path: Path
 ) -> None:
@@ -99,11 +130,14 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
     }
     turn = {"urls": ["turn:t.lab:3478"], "username": "me", "credential": _TURN}
 
+    # Not a setting to set: the nous Ai-chan last used is written by `aichan.create`.
+    with pytest.raises(RpcError, match=r"settings\.set takes no ai_chan\."):
+        _call(client, "settings.set", workspace=workspace, ai_chan="claude/opus")
+
     said = _call(
         client,
         "settings.set",
         workspace=workspace,
-        ai_chan="claude/opus",
         details=True,
         reports=False,
         backup={"targets": [{"name": "t", "url": "https://me:pw@x.lab/e.git"}]},
@@ -113,11 +147,8 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
     )
 
     file = _file()
-    assert (file["ai_chan"], file["details"], file["enable_sentry"]) == (
-        "claude/opus",
-        True,
-        False,
-    )
+    assert "ai_chan" not in file
+    assert (file["details"], file["enable_sentry"]) == (True, False)
     assert file["listen"] == ["tcp://127.0.0.1:0", "easytier:lab"]
     assert file["ice_servers"] == [turn]
     assert file["easytier"]["lab"]["secret"] == _SECRET
@@ -207,6 +238,27 @@ def test_nous_and_runtimes_are_written_into_the_settings_file(
     assert listed["default"] in {one["name"] for one in listed["policies"]}
     assert "shuffle" in {one["name"] for one in listed["strategies"]}
     assert "*" in listed["faults"]
+    # A scan asks every harness installed, and answers as the list does with who would not say.
+    asked: list[tuple[str, str]] = []
+
+    def asks(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[()]:
+        asked.append((cli, provider))
+        if cli == "claude":
+            raise OSError("claude is not signed in")
+        return ()
+
+    def installed(_: Hmz) -> dict[str, tuple[()]]:
+        return {"claude": (), "codex": ()}
+
+    with monkeypatch.context() as patched:
+        patched.setattr(hmz.coganchor.models, "ask", asks)
+        patched.setattr(Hmz, "installed", installed)
+        scanned = _call(client, "nous.scan")
+    assert sorted(asked) == [("claude", ""), ("codex", "")]
+    assert scanned["failed"] == [
+        {"cli": "claude", "account": "", "why": "claude is not signed in"}
+    ]
+    assert scanned["scanning"] is False
     written = _call(
         client, "nous.set", name="claude/opus", then=["codex/gpt"], tries=2, timeout=5
     )
@@ -253,6 +305,10 @@ def test_nous_and_runtimes_are_written_into_the_settings_file(
     assert _call(client, "runtimes.remove", backend="ssh", name="gpu")["runtimes"] == []
     _refused(client, 404, "runtimes.remove", backend="ssh", name="gpu")
 
+    known = [one.url for one in tier.KNOWN]
     with kuma({"publicGroupList": []}, {}, monkeypatch):
-        assert _call(client, "easytier.nodes") == {"nodes": []}
-    assert "could not be read" in _refused(client, 503, "easytier.nodes")
+        assert [one["url"] for one in _call(client, "easytier.nodes")["nodes"]] == known
+    # A status page that cannot be read leaves the nodes known, how each stands unknown.
+    unread = _call(client, "easytier.nodes")["nodes"]
+    assert [one["url"] for one in unread] == known
+    assert {one["up"] for one in unread} == {None}

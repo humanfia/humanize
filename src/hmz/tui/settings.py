@@ -40,15 +40,14 @@ from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.runtime import telemetry
-from hmz.runtime.kept import Runs, read_back, written
+from hmz.runtime.kept import Runs, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 from hmz.runtime.watching.notices import KINDS, prefer, preferences
 
 from .chats import Archived
-from .dropdown import Dropdown, Value
+from .dropdown import Value
 from .pick import (
     _ACCOUNTS,
-    _APART_MARK,
     _BACKUP,
     _DAEMONS,
     _DIRECTORY,
@@ -155,7 +154,7 @@ _PAGES = (
     _Page(
         "General",
         "⚙",
-        "this machine: what epics show, Ai-chan's nous, chat $, error reports",
+        "this machine: what epics show, chat $, error reports",
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
@@ -178,7 +177,6 @@ _HOME_ABOUT = "Every setting Humanize keeps. What you change is held until you s
 _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
-_AI_CHAN = "ai_chan"
 _PREFER = "prefer"
 _HARNESS = "harness_sessions"
 _RUNS = "flow"
@@ -211,13 +209,9 @@ _PREFERS: dict[Literal["native", "flow"], str] = {
     "flow": "the flow of that name; the skill stays $ in the harness",
 }
 
-#: What the list of Ai-chan's nous offers beside the ones it can already be: setting one up.
-_ANOTHER = f"{_APART_MARK}another"
-
 #: When a setting that cannot land at once does land, said beside its row while it is held
 #: and in the transcript once it is saved.
 _NEXT_LAUNCH = "takes effect on next launch"
-_NEXT_AI = "takes effect on the next Ai-chan conversation"
 _NEXT_CHAT = "takes effect on next chat"
 
 
@@ -322,8 +316,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._sentry = self._sentry_was = settings.enable_sentry
         self._overridden = telemetry.enabled() is not self._sentry
         self._details = self._details_was = settings.details
-        #: The nous a new Ai-chan conversation defaults to, or "" for none.
-        self._ai_chan = self._ai_chan_was = settings.ai_chan
         #: What a chat's `$<name>` means where it names both a native skill and a flow, for
         #: every chat that does not say for itself.
         self._prefer: Literal["native", "flow"] = settings.chat_prefer
@@ -525,13 +517,11 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             return (
                 self._sentry,
                 self._details,
-                self._ai_chan,
                 self._prefer,
                 self._harness,
             ) != (
                 self._sentry_was,
                 self._details_was,
-                self._ai_chan_was,
                 self._prefer_was,
                 self._harness_was,
             )
@@ -669,15 +659,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 "show every tool call and all of the thinking",
                 _SWITCH,
                 group="Display",
-            ),
-            _Setting(
-                _AI_CHAN,
-                "Ai-chan",
-                self._ai_chan or "none",
-                "the nous a new Ai-chan conversation defaults to",
-                _PICK,
-                _NEXT_AI if self._ai_chan != self._ai_chan_was else "",
-                group="Agents",
             ),
             _Setting(
                 _PREFER,
@@ -876,8 +857,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never sent: {kept}."
             self._fill()
-        elif held == _AI_CHAN:
-            self._chooses_ai_chan()
         elif held == _CHAT_AGENT:
             self._sets_chat_agent()
         elif held == _ARCHIVED:
@@ -958,46 +937,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             _SYSTEM: self._system,
             **self._kinds,
         }[held]
-
-    @work
-    async def _chooses_ai_chan(self) -> None:
-        """Asks which nous a new Ai-chan conversation defaults to, from the list under its row.
-
-        None, the one chosen already where one is, another nous, or an agent set up on the
-        sheet every agent is set up on (Section 19.2.1 of tui.md). None is no default: `/ai`
-        then asks for one each time.
-        """
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            values = [Value("", "none", "ask for one each time")]
-            if self._ai_chan:
-                values.append(Value(self._ai_chan, self._ai_chan, "chosen"))
-            values.extend(
-                Value(one.name, one.name, "a nous")
-                for one in self._nous
-                if one.name != self._ai_chan
-            )
-            values.append(Value(_ANOTHER, "another…", "set an agent up"))
-            picked = await showing.push_screen_wait(
-                Dropdown("Ai-chan", values, self._ai_chan, at=self.dropped_at())
-            )
-            if picked == _ANOTHER:
-                chosen = await self._agent_set_up(
-                    "Ai-chan", read_back(self._ai_chan) or Runs("")
-                )
-                picked = written(chosen) if chosen is not None else None
-        finally:
-            self.opened()
-        if picked is None or picked == self._ai_chan:
-            return
-        self._ai_chan, self._said = picked, ""
-        self.changed()
-        self._fill()
 
     @work
     async def _sets_chat_agent(self) -> None:
@@ -1113,7 +1052,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 else None,
                 details=self._details if self._details != self._details_was else None,
                 forget=self._forget,
-                ai_chan=self._ai_chan if self._ai_chan != self._ai_chan_was else None,
                 told=tuple(told),
                 corrected=tuple(self._corrected),
             )

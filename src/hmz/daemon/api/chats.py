@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.daemon import reach
+from hmz.daemon import hosts, reach, where
 from hmz.daemon.api import runs, workspaces
 from hmz.rpc import Code, RpcError
 
@@ -92,11 +92,22 @@ def row(
     """
     assistant = ran.agents[-1] if ran.agents else None
     workspace = runs.resolved(ran.workspace)
+    workdir = ran.workdir or workspace
+    # Where the host holding it says it works, which is ahead of its record while it is
+    # carried on with nothing said (Section 4.6.4.1): moved there, it is there.
+    placed = str((status or {}).get("env") or "") or ran.env
+    env = placed or f"local/{workdir.lstrip('/')}"
+    if placed:
+        # The directory there, as `-e` writes one: absolute, or from `~`.
+        at = placed.partition("/")[2]
+        workdir = at if at.startswith("~") else f"/{at}"
     return {
         "id": ran.name,
         "title": ran.title[:_TITLE],
         "workspace": workspace,
-        "workdir": ran.workdir or workspace,
+        "folderless": where.folderless(workspace),
+        "workdir": workdir,
+        "env": env,
         "agent": assistant.spec if assistant else "",
         "model": assistant.model if assistant else "",
         "began": ran.began,
@@ -221,14 +232,7 @@ def _list(call: Call) -> dict[str, Any]:
 
 
 def _get(call: Call) -> dict[str, Any]:
-    name = str(call.params["chat"])
-    try:
-        ran = CHATS.named(name)
-    except RpcError:
-        if name not in _hers():
-            raise
-        # Her conversation an earlier hmz began, which is kept as an epic.
-        ran = runs.RUNS.named(name)
+    ran = CHATS.named(str(call.params["chat"]))
     said = detail(ran, hosted().get(ran.name), going=CHATS.going(ran))
     if call.params.get("trace") is True:
         said["trace"] = CHATS.traced(ran)
@@ -284,12 +288,20 @@ def _delete(call: Call) -> dict[str, Any]:
     from hmz.runtime.epic import going
 
     ran = _named(call)
+    # Not while anything holds it: the daemon ends a host that holds it between turns
+    # before this is asked, so what holds it still has a turn of it open.
     if ran.name in hosted() or going(ran.at):
         raise RpcError(
-            Code.CONFLICT, f"Chat {ran.name} is going on; delete it once it rests."
+            Code.CONFLICT,
+            f"Chat {ran.name} has a turn open; delete it once it is done.",
         )
     # Its record and the sessions kept beside it; a worktree it worked in is never removed.
     shutil.rmtree(ran.at)
+    # And, of a folderless chat, the directory made for it, once nothing else is of it.
+    hosts.swept(
+        runs.resolved(ran.workspace),
+        {status["workspace"] for status in workspaces.statuses().values()},
+    )
     return {}
 
 

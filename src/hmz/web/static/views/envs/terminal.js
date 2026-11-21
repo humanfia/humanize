@@ -8,6 +8,8 @@
 // so a page slow to draw slows the shell rather than drowning in its output (protocol/core.md).
 
 import { fill, h, icon, iconButton } from '../../dom.js'
+import { pieces, t } from '../../i18n.js'
+import * as layers from '../../layers.js'
 import {
   binary,
   closedRefusal,
@@ -74,8 +76,8 @@ export async function mount(el, ctx) {
   const orphans = new Map()
   const offs = []
 
-  const add = iconButton('plus', 'New terminal', { class: 'term-new', 'data-hmz': 'term-new' })
-  const bar = h('div', { class: 'term-tabs', role: 'tablist', 'aria-label': 'Terminals', 'data-hmz': 'term-tabs' })
+  const add = iconButton('plus', t('New terminal'), { class: 'term-new', 'data-hmz': 'term-new' })
+  const bar = h('div', { class: 'term-tabs', role: 'tablist', 'aria-label': t('Terminals'), 'data-hmz': 'term-tabs' })
   const notice = h('div', { class: 'term-notice', 'data-hmz': 'term-notice', role: 'status', hidden: true })
   const stack = h('div', { class: 'term-stack', 'data-hmz': 'term-stack' })
   const finder = findBar()
@@ -116,7 +118,7 @@ export async function mount(el, ctx) {
   try {
     lib = await import('/vendor/xterm.js')
   } catch (error) {
-    tell('error', h('strong', {}, 'The terminal could not be loaded.'), ' ', said(error))
+    tell('error', h('strong', {}, t('The terminal could not be loaded.')), ' ', said(error))
     add.disabled = true
     return { leave }
   }
@@ -270,7 +272,7 @@ export async function mount(el, ctx) {
     }
     const title = h('span', { class: 'term-title', 'data-hmz': 'term-title' })
     const dot = h('span', { class: 'term-dot', 'aria-hidden': 'true' })
-    const shut_ = iconButton('close', 'Close terminal', { class: 'term-close', 'data-hmz': 'term-close', tabindex: '-1' })
+    const shut_ = iconButton('close', t('Close terminal'), { class: 'term-close', 'data-hmz': 'term-close', tabindex: '-1' })
     const tabEl = h('div', { class: 'term-tab', role: 'tab', 'data-hmz': 'term-tab', tabindex: '-1', 'aria-selected': 'false' }, dot, title, shut_)
     const exit = h('div', { class: 'term-exit', 'data-hmz': 'term-exit', hidden: true })
     host.append(exit)
@@ -308,8 +310,8 @@ export async function mount(el, ctx) {
     tab.retitle = () => {
       const text = tabTitle(tab)
       title.textContent = text
-      tabEl.title = `${text}${tab.alive ? '' : ' (exited)'} — double-click to rename`
-      shut_.setAttribute('aria-label', `Close ${text}`)
+      tabEl.title = tab.alive ? t('{name} — double-click to rename', { name: text }) : t('{name} (exited) — double-click to rename', { name: text })
+      shut_.setAttribute('aria-label', t('Close {name}', { name: text }))
     }
     tab.retitle()
     xterm.onData((data) => type(tab, utf8(data)))
@@ -477,12 +479,12 @@ export async function mount(el, ctx) {
     tab.alive = false
     tab.typing.now()
     tab.flow.flush()
-    const code = status === null || status === undefined ? '' : ` with status ${status}`
-    tab.xterm.write(`\r\n${DIM}[exited${code}]${PLAIN}\r\n`)
+    const known = status !== null && status !== undefined
+    tab.xterm.write(`\r\n${DIM}${known ? t('[exited with status {status}]', { status }) : t('[exited]')}${PLAIN}\r\n`)
     tab.tabEl.classList.add('exited')
-    const restart = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-restart', disabled: state.closed }, icon('resume'), 'Restart')
+    const restart = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-restart', disabled: state.closed }, icon('resume'), t('Restart'))
     restart.addEventListener('click', () => relaunch(tab))
-    fill(tab.exit, h('span', { 'data-hmz': 'term-status' }, `Exited${code}.`), restart)
+    fill(tab.exit, h('span', { 'data-hmz': 'term-status' }, known ? t('Exited with status {status}.', { status }) : t('Exited.')), restart)
     tab.exit.hidden = false
     tab.retitle()
   }
@@ -510,7 +512,7 @@ export async function mount(el, ctx) {
 
   async function closeTab(tab) {
     if (tab.alive && tab.term && !state.closed) {
-      const sure = await ctx.confirm(`Close ${tabTitle(tab)}? What runs in it is ended.`)
+      const sure = await ctx.confirm(t('Close {name}? What runs in it is ended.', { name: tabTitle(tab) }))
       if (!sure || state.left) return
     }
     if (tab.term && !state.closed) {
@@ -551,9 +553,9 @@ export async function mount(el, ctx) {
   /** No terminals: said so, with a way to open one. */
   function idle() {
     if (state.closed) return
-    const button = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-open' }, icon('plus'), 'New terminal')
+    const button = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-open' }, icon('plus'), t('New terminal'))
     button.addEventListener('click', () => create())
-    tell('quiet', 'No terminal is open here.', ' ', button)
+    tell('quiet', t('No terminal is open here.'), ' ', button)
   }
 
   function select(tab) {
@@ -595,9 +597,10 @@ export async function mount(el, ctx) {
 
   function rename(tab) {
     if (tab.tabEl.querySelector('input')) return
-    const input = h('input', { class: 'term-rename', 'data-hmz': 'term-rename', value: tabTitle(tab), 'aria-label': 'Terminal name', spellcheck: 'false' })
+    const input = h('input', { class: 'term-rename', 'data-hmz': 'term-rename', value: tabTitle(tab), 'aria-label': t('Terminal name'), spellcheck: 'false' })
     let done = false
-    const finish = (keep) => {
+    // The terminal has the keys back unless the focus went on to something else, which keeps it.
+    const finish = (keep, away = false) => {
       if (done) return
       done = true
       if (keep) {
@@ -611,14 +614,14 @@ export async function mount(el, ctx) {
       }
       input.replaceWith(tab.title)
       tab.retitle()
-      if (state.active === tab) tab.xterm.focus()
+      if (!away && state.active === tab) tab.xterm.focus()
     }
     input.addEventListener('keydown', (event) => {
       event.stopPropagation()
       if (event.key === 'Enter') finish(true)
       else if (event.key === 'Escape') finish(false)
     })
-    input.addEventListener('blur', () => finish(true))
+    input.addEventListener('blur', (event) => finish(true, Boolean(event.relatedTarget)))
     tab.title.replaceWith(input)
     input.focus()
     input.select()
@@ -695,7 +698,7 @@ export async function mount(el, ctx) {
       tab.flow.stop()
       tab.exit.querySelector('[data-hmz=term-restart]')?.setAttribute('disabled', '')
     }
-    tell('closed', h('strong', {}, 'This environment has closed.'), ' Its terminals are kept to read; nothing more can be typed into them.')
+    tell('closed', h('strong', {}, t('This environment has closed.')), t(' Its terminals are kept to read; nothing more can be typed into them.'))
   }
 
   /** What a refusal means for a tab, or for the panel. */
@@ -704,14 +707,12 @@ export async function mount(el, ctx) {
     if (closedRefusal(text)) return shut()
     if (pairedRefusal(text)) {
       if (tab && !tab.term) drop(tab)
-      const retry = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-retry' }, 'Try again')
+      const retry = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'term-retry' }, t('Try again'))
       retry.addEventListener('click', () => create())
       return tell(
         'paired',
-        h('strong', {}, 'Terminals are off for paired devices.'),
-        ' This page reaches its daemon as a paired device, which may not open a shell unless the daemon allows it. On the machine the daemon runs on, turn on ',
-        h('code', {}, 'envs.paired_terminals'),
-        ' in its settings, then try again.',
+        h('strong', {}, t('Terminals are off for paired devices.')),
+        pieces(' This page reaches its daemon as a paired device, which may not open a shell unless the daemon allows it. On the machine the daemon runs on, turn on {setting} in its settings, then try again.', { setting: h('code', {}, 'envs.paired_terminals') }),
         ' ',
         retry,
       )
@@ -736,15 +737,19 @@ export async function mount(el, ctx) {
     notice.replaceChildren()
   }
 
-  /** The find bar over the terminal shown: Ctrl/Cmd+F, Enter for the next, Shift+Enter back. */
+  /**
+   * The find bar over the terminal shown: Ctrl/Cmd+F, Enter for the next, Shift+Enter back. It
+   * floats by the panel, which is pressed, typed into and scrolled under it, and closed, the
+   * terminal shown has the keys again.
+   */
   function findBar() {
-    const input = h('input', { class: 'term-find-input', 'data-hmz': 'term-find', type: 'search', placeholder: 'Find', 'aria-label': 'Find in terminal', spellcheck: 'false' })
+    const input = h('input', { class: 'term-find-input', 'data-hmz': 'term-find', type: 'search', placeholder: t('Find'), 'aria-label': t('Find in terminal'), spellcheck: 'false' })
     const count = h('span', { class: 'term-find-count', 'data-hmz': 'term-find-count', 'aria-live': 'polite' })
-    const cased = iconButton('check', 'Match case', { class: 'term-find-case', 'aria-pressed': 'false' })
+    const cased = iconButton('check', t('Match case'), { class: 'term-find-case', 'aria-pressed': 'false' })
     cased.replaceChildren('Aa')
-    const back = iconButton('up', 'Previous match')
-    const next = iconButton('down', 'Next match')
-    const shut_ = iconButton('close', 'Close find')
+    const back = iconButton('up', t('Previous match'))
+    const next = iconButton('down', t('Next match'))
+    const shut_ = iconButton('close', t('Close find'))
     const node = h('div', { class: 'term-find', 'data-hmz': 'term-finder', role: 'search', hidden: true }, input, count, cased, back, next, shut_)
     let decorations = null
     let listening = null
@@ -760,21 +765,17 @@ export async function mount(el, ctx) {
         listening = tab
         tab.search.onDidChangeResults?.(({ resultIndex, resultCount }) => {
           if (state.active !== tab) return
-          count.textContent = resultCount ? `${resultIndex + 1} of ${resultCount}` : 'No results'
+          count.textContent = resultCount ? t('{at} of {total}', { at: resultIndex + 1, total: resultCount }) : t('No results')
         })
       }
       const found = forward ? tab.search.findNext(input.value, { ...options(), incremental }) : tab.search.findPrevious(input.value, options())
-      if (!found && !decorations) count.textContent = 'No results'
+      if (!found && !decorations) count.textContent = t('No results')
     }
     input.addEventListener('input', () => find(true, true))
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        find(!event.shiftKey)
-      } else if (event.key === 'Escape') {
-        event.preventDefault()
-        close()
-      }
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      find(!event.shiftKey)
     })
     cased.addEventListener('click', () => {
       cased.setAttribute('aria-pressed', String(cased.getAttribute('aria-pressed') !== 'true'))
@@ -783,16 +784,31 @@ export async function mount(el, ctx) {
     back.addEventListener('click', () => find(false))
     next.addEventListener('click', () => find(true))
     shut_.addEventListener('click', () => close())
+    const layer = {
+      node,
+      kind: 'panel',
+      // Escape closes it from inside it alone: in a tab's name or the shell, the key is theirs.
+      escape: 'within',
+      close,
+      get anchor() {
+        return root
+      },
+      get back() {
+        return state.active?.xterm.textarea
+      },
+    }
     function close() {
+      if (node.hidden) return
+      layers.closed(layer)
       node.hidden = true
       count.textContent = ''
       state.active?.search.clearDecorations()
-      state.active?.xterm.focus()
     }
     return {
       node,
       open() {
         node.hidden = false
+        layers.opened(layer)
         const selected = state.active?.xterm.getSelection()
         if (selected && !selected.includes('\n')) input.value = selected
         input.focus()

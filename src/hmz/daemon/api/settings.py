@@ -86,8 +86,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
 
     Args:
       hmz: Humanize, for the workspace.
-      said: Any of `chat`, `prefer`, `ai_chan`, `details`, `harness_sessions`, `reports`,
-        `backup`, `listen` and `ice_servers`; anything else is not read.
+      said: Any of `chat`, `prefer`, `details`, `harness_sessions`, `reports`, `backup`,
+        `listen` and `ice_servers`; anything else is not read.
 
     Returns:
       What :func:`read` answers afterwards.
@@ -108,8 +108,6 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
             raise _refused(f"chat is an agent as -a spells one: {why}") from why
     if "prefer" in said and said["prefer"] not in ("native", "flow"):
         raise _refused("prefer is native or flow.")
-    if "ai_chan" in said and not isinstance(said["ai_chan"], str):
-        raise _refused("ai_chan is a nous or an agent spec, or nothing.")
     if "details" in said and not isinstance(said["details"], bool):
         raise _refused("details is true or false.")
     if "harness_sessions" in said and not isinstance(said["harness_sessions"], bool):
@@ -131,8 +129,6 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         hmz.settings.chat_agent = chat
     if "prefer" in said:
         hmz.settings.chat_prefer = said["prefer"]
-    if "ai_chan" in said:
-        hmz.settings.ai_chan = said["ai_chan"]
     if "details" in said:
         hmz.settings.detailing(on=said["details"])
     if "harness_sessions" in said:
@@ -331,5 +327,5 @@ def _hmz(call: Call, *, made: bool) -> Any:
 METHODS: Mapping[str, Handler] = {
     "settings.get": lambda call: read(_hmz(call, made=True)),
     "settings.set": lambda call: write(_hmz(call, made=False), call.params),
-    "settings.forget": lambda call: forget(_hmz(call, made=False)),
+    "settings.forget": lambda call: forget(_hmz(call, made=True)),
 }

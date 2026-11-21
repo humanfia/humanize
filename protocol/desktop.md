@@ -264,7 +264,11 @@ address, a new window included, MUST open in the default browser, and only where
 with the window controls over its top row.
 
 **3.7.4** The window MUST be moved by dragging any part of that top row that is not a control, and
-MUST zoom on a double click there, on the splash and on the page alike.
+MUST zoom on a double click there, on the splash and on the page alike. Whatever the page shows
+over that row -- a dialog and what dims the page under it, a drawer -- MUST leave the window moved
+and zoomed so by the window's top 44 CSS pixels, wherever no control of what is shown stands in them.
+A dialog that does not fill the window MUST stand clear of those 44 CSS pixels, however low the
+window, so that the whole of that row moves the window while the dialog is open.
 
 **3.7.5** The app MUST say in its user agent that it is the app, as `humanize-desktop/<version>`,
 and the page MUST then draw its top row around the window controls from its first frame.
@@ -275,10 +279,10 @@ and the page MUST then draw its top row around the window controls from its firs
 
 **3.7.8** The app MUST keep the window's size and position from one launch to the next.
 
-**3.7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, with `About Humanize
-Desktop` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all; `View`,
-with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`, with the
-documentation.
+**3.7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, titled `Humanize`, with
+`About Humanize` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all;
+`View`, with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`,
+with the documentation.
 
 **3.7.10** On macOS, the menus MUST NOT take a shortcut the page binds: the shortcuts of Section
 3.4.3.1 of [WEB] to Section 3.4.3.3 of [WEB] MUST reach the page.

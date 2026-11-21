@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 288" role="img">
+  <title>An agent calls a tool or runs a program, and a function in the flow's process answers it</title>
+  <rect width="760" height="288" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="call" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#0b7080"/>
+    </marker>
+    <marker id="back" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#5a8f00"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <rect x="24" y="24" width="248" height="240" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="40" y="52" font-weight="600">The agent</text>
+    <rect x="488" y="24" width="248" height="240" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="504" y="52" font-weight="600">Your flow's process</text>
+
+    <rect x="40" y="72" width="216" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="56" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">owner</text>
+    <text x="56" y="120" font-size="12" fill="#435058">one of its tools</text>
+
+    <rect x="40" y="168" width="216" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="56" y="196" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">tix file</text>
+    <text x="56" y="216" font-size="12" fill="#435058">a program on its PATH</text>
+
+    <rect x="504" y="72" width="216" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="520" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">owner(asked)</text>
+    <text x="520" y="120" font-size="12" fill="#435058">your function</text>
+
+    <rect x="504" y="168" width="216" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="520" y="196" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">file(ticket)</text>
+    <text x="520" y="216" font-size="12" fill="#435058">your function</text>
+
+    <g font-size="12" fill="#435058" text-anchor="middle">
+      <text x="380" y="88">arguments</text>
+      <line x1="260" y1="96" x2="500" y2="96" stroke="#0b7080" stroke-width="1.5" marker-end="url(#call)"/>
+      <line x1="500" y1="112" x2="260" y2="112" stroke="#5a8f00" stroke-width="1.5" marker-end="url(#back)"/>
+      <text x="380" y="130">what it returns, as text</text>
+
+      <text x="380" y="184">options</text>
+      <line x1="260" y1="192" x2="500" y2="192" stroke="#0b7080" stroke-width="1.5" marker-end="url(#call)"/>
+      <line x1="500" y1="208" x2="260" y2="208" stroke="#5a8f00" stroke-width="1.5" marker-end="url(#back)"/>
+      <text x="380" y="226">output and exit status</text>
+    </g>
+  </g>
+</svg>

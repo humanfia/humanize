@@ -16,7 +16,7 @@
     if (one.work === null && !one.deleted) one.work = one.index
   }
   const repo = window.repo = {files, commits: [{hash: 'f00dfeed0123456789', parents: [], author: 'Ada', date: new Date(Date.now() - 3 * 3600e3).toISOString(), subject: 'First commit'}],
-    calls: [], asked: [], answer: true, opened: [], handlers: {}, snapshots: ['hmz/snap/1', 'hmz/snap/2']}
+    calls: [], pending: 0, asked: [], answer: true, opened: [], handlers: {}, snapshots: ['hmz/snap/1', 'hmz/snap/2']}
   const char = (from, to) => from === to ? '.' : from === null ? 'A' : to === null ? 'D' : 'M'
   const status = () => {
     const out = Object.entries(files).map(([path, f]) => {
@@ -56,9 +56,14 @@
     async call(method, params) {
       repo.calls.push([method, params])
       if (repo.closed) throw new Error('That environment has closed.')
-      await new Promise((r) => setTimeout(r, 5))
-      if (!methods[method]) throw new Error(`no ${method}`)
-      return structuredClone(methods[method](params))
+      repo.pending += 1
+      try {
+        await new Promise((r) => setTimeout(r, 5))
+        if (!methods[method]) throw new Error(`no ${method}`)
+        return structuredClone(methods[method](params))
+      } finally {
+        repo.pending -= 1
+      }
     },
     on(type, fn) { (repo.handlers[type] ||= []).push(fn); return () => {} },
     keep(key, value) { if (value === undefined) return kept[key]; kept[key] = value },

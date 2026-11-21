@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+<title>A flow loads another flow by its ref and awaits it: what it passes is checked, the called flow runs as a nested call, and its return value or exception comes back</title>
+<rect width="760" height="280" rx="12" fill="#f4f8f9"/>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0b7080"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5d6a72"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+<rect x="32" y="64" width="176" height="152" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="120" y="96" text-anchor="middle" font-weight="600">Your flow</text>
+<text x="120" y="132" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#435058">goal = load("goal")</text>
+<text x="120" y="156" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#435058">await goal(task, ...)</text>
+<text x="120" y="192" text-anchor="middle" font-size="12" fill="#5d6a72">waits for the call</text>
+
+<rect x="296" y="64" width="168" height="72" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="380" y="92" text-anchor="middle" fill="#80590c" font-weight="600">Checked first</text>
+<text x="380" y="116" text-anchor="middle" font-size="12" fill="#435058">roles, mixins, params</text>
+
+<rect x="552" y="64" width="176" height="152" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="640" y="96" text-anchor="middle" font-weight="600" fill="#0b7080">Called flow</text>
+<text x="640" y="132" text-anchor="middle" font-size="12" fill="#435058">its own ctx, sessions</text>
+<text x="640" y="152" text-anchor="middle" font-size="12" fill="#435058">and hooks</text>
+<text x="640" y="188" text-anchor="middle" font-size="12" fill="#435058">budget: its own and yours</text>
+
+<path d="M208 100H292" stroke="#0b7080" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<path d="M464 100H548" stroke="#0b7080" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<text x="250" y="88" text-anchor="middle" font-size="12" fill="#0b7080">call</text>
+<text x="506" y="88" text-anchor="middle" font-size="12" fill="#0b7080">runs</text>
+<path d="M552 184H212" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#b)"/>
+<text x="380" y="176" text-anchor="middle" font-size="12" fill="#435058">what it returned, or the exception it raised</text>
+<text x="380" y="244" text-anchor="middle" font-size="12" fill="#5d6a72">A refused call raises before the called flow runs or spends anything.</text>
+</g>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 344" role="img">
+<title>Where the fence is put up when the work is on another machine</title>
+<rect width="760" height="344" rx="12" fill="#f4f8f9"/>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5d6a72"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+<text x="296" y="48" text-anchor="middle" font-size="12" fill="#5d6a72">This machine</text>
+<text x="600" y="48" text-anchor="middle" font-size="12" fill="#5d6a72">The other machine</text>
+<path d="M448 32V320" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="2 6"/>
+<!-- row 1: env -->
+<text x="24" y="100" font-size="12" fill="#435058">Harness runs on</text>
+<text x="24" y="120" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">env</text>
+<rect x="208" y="80" width="176" height="48" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+<text x="296" y="109" text-anchor="middle">Humanize</text>
+<rect x="472" y="64" width="264" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+<rect x="488" y="80" width="232" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="604" y="109" text-anchor="middle">Agent CLI and its commands</text>
+<path d="M384 104H470" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<!-- row 2: local -->
+<text x="24" y="228" font-size="12" fill="#435058">Harness runs on</text>
+<text x="24" y="248" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">local</text>
+<rect x="192" y="192" width="208" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+<rect x="208" y="208" width="176" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="296" y="237" text-anchor="middle">Agent CLI</text>
+<rect x="472" y="192" width="264" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+<rect x="488" y="208" width="232" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="604" y="237" text-anchor="middle">Commands it runs</text>
+<path d="M400 232H470" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<!-- legend -->
+<rect x="24" y="296" width="32" height="16" rx="4" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="68" y="309" font-size="12" fill="#435058">A fence, put up by that machine</text>
+</g>
+</svg>

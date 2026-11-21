@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { chatDetail, chatRow, epicRow, harnessRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
+import { chatDetail, chatRow, harnessRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
 import { GROUP_ROWS, paged, sorted } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 /** A chat as `chat.list` rows one. */
@@ -14,18 +14,19 @@ test('a chat listed is a row named by its id and told by its title, of the kind 
   assert.equal(pathOf(row), '/chats/20260101-000000-abcdef')
 })
 
-test('a chat stands as its state says: resting, failed, between turns, or with a turn open', () => {
+test('a chat is never going or at rest: only failed where it failed, with a turn open where its host says so', () => {
   const stands = (fields) => {
     const { how, turn, held, ended } = chatRow(chat(fields))
     return [how, turn, held, ended]
   }
   assert.deepEqual(stands({ state: 'resting' }), ['stopped', '', false, '2026-01-02T00:00:00Z'])
   assert.deepEqual(stands({ state: 'failed' }), ['failed', '', false, '2026-01-02T00:00:00Z'])
-  assert.deepEqual(stands({ state: 'going', slot: 'chat:ab' }), ['running', 'done', true, ''])
-  assert.deepEqual(stands({ state: 'turn', slot: 'chat:ab' }), ['running', 'running', true, ''])
-  assert.deepEqual(stands({ state: 'asking', slot: 'chat:ab', asking: ['1:q1'] }), ['running', 'running', true, ''])
-  // Held by another process than a host: going, its turn unknown.
-  assert.deepEqual(stands({ state: 'going' }), ['running', '', false, ''])
+  // A host that holds it is where it is asked, not how it stands.
+  assert.deepEqual(stands({ state: 'going', slot: 'chat:ab' }), ['stopped', 'done', true, '2026-01-02T00:00:00Z'])
+  assert.deepEqual(stands({ state: 'turn', slot: 'chat:ab' }), ['stopped', 'running', true, '2026-01-02T00:00:00Z'])
+  assert.deepEqual(stands({ state: 'asking', slot: 'chat:ab', asking: ['1:q1'] }), ['stopped', 'running', true, '2026-01-02T00:00:00Z'])
+  // Held by another process than a host: its turn unknown.
+  assert.deepEqual(stands({ state: 'going' }), ['stopped', '', false, '2026-01-02T00:00:00Z'])
 })
 
 test('what a chat going waits on is what its host says, its reply between turns among it', () => {
@@ -36,32 +37,27 @@ test('what a chat going waits on is what its host says, its reply between turns 
   assert.deepEqual(chatRow(chat(), [{ chat: chat().id, asking: ['1:q2'] }]).asking, [])
 })
 
-test('a chat resting is sorted by when it was last heard of, and one going first', () => {
-  const rows = [chatRow(chat({ id: 'old', updated: '2026-01-02T00:00:00Z' })), chatRow(chat({ id: 'new', updated: '2026-01-05T00:00:00Z' })), chatRow(chat({ id: 'live', state: 'turn', slot: 'chat:ab' }))]
-  assert.deepEqual(sorted(rows, { sort: 'updated', chats: true, epics: true }).map((row) => row.name), ['live', 'new', 'old'])
+test('a chat is sorted by when it was last heard of, whether or not a host holds it', () => {
+  const rows = [chatRow(chat({ id: 'old', updated: '2026-01-02T00:00:00Z' })), chatRow(chat({ id: 'new', updated: '2026-01-05T00:00:00Z' })), chatRow(chat({ id: 'held', state: 'going', slot: 'chat:ab', updated: '2026-01-03T00:00:00Z' }))]
+  assert.deepEqual(sorted(rows, { sort: 'updated', chats: true, epics: true }).map((row) => row.name), ['new', 'held', 'old'])
   assert.deepEqual(sorted(rows, { sort: 'updated', chats: false, epics: true }), [])
 })
 
-test('a chat read whole is told by its first message, keeps its title, and is carried on only while it rests', () => {
+test('a chat read whole is told by its first message, keeps its title, and is always one to say something in', () => {
   const whole = { at: '/home/chats/w/c1', task: 'Fix the build\nand the tests', prefer: 'flow', forked: '', agents: [{ name: 'assistant', role: 'assistant', runs: 'claude/opus:high' }], sessions: [{ agent: 'assistant', backend: 'claude', ident: 's1' }], earlier: 1, backup: [], backed: {} }
   const detail = chatDetail({ ...chat({ title: 'Renamed' }), ...whole })
   assert.deepEqual([detail.name, detail.kind, detail.title, detail.task, detail.earlier, detail.prefer, detail.permission], ['20260101-000000-abcdef', 'chat', 'Renamed', 'Fix the build\nand the tests', 1, 'flow', 'workspace-write'])
   assert.equal(detail.picks_up, true)
-  assert.equal(chatDetail({ ...chat({ state: 'failed' }), ...whole }).picks_up, false)
-  assert.equal(chatDetail({ ...chat({ state: 'turn', slot: 'chat:ab' }), ...whole }).picks_up, false)
+  assert.equal(chatDetail({ ...chat({ state: 'failed' }), ...whole }).picks_up, true)
+  assert.equal(chatDetail({ ...chat({ state: 'turn', slot: 'chat:ab' }), ...whole }).picks_up, true)
   // What an epic has and a chat has not is empty, so that one view draws both.
   assert.deepEqual([detail.used, detail.calls, detail.params, detail.budget, detail.foreign], [[], [], {}, null, ''])
 })
 
-test('an epic an earlier hmz recorded for a chat is an epic of the flow chat, at an epic address, only read', () => {
-  const old = epicRow({ name: 'e1', kind: 'chat', flow: '', task: 'hello', resumable: true, picks_up: true })
-  assert.deepEqual([old.kind, old.flow, old.resumable, old.picks_up], ['flow', 'chat', false, false])
-  assert.equal(pathOf(old), '/epics/e1')
-  // A row of a list says nothing of picking up, and an epic of a flow is left as it is.
-  assert.equal('picks_up' in epicRow({ name: 'e1', kind: 'chat', flow: '' }), false)
-  const flow = { name: 'e2', kind: 'flow', flow: 'ralph', resumable: true }
-  assert.equal(epicRow(flow), flow)
+test('an epic is at an epic address, and a chat at a chat address by the same name', () => {
   assert.equal(pathOf({ name: 'a b', kind: 'flow' }), '/epics/a%20b')
+  // A chat an earlier hmz kept as an epic keeps its name, and is a chat as any other.
+  assert.equal(pathOf(chatRow(chat({ id: 'a b' }))), '/chats/a%20b')
 })
 
 /** A harness session as `chat.harness.list` rows one. */

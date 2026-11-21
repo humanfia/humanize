@@ -44,7 +44,9 @@ def _hosts_in(workspace: str, telling: int, link: int, slot: str) -> None:
     os.chdir(workspace)
     with contextlib.suppress(OSError, ValueError):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    hmz = Holding()
+    # Named, not wherever the process stands: a workspace removed under its host is still
+    # the one it holds, and a directory that has gone has no name to ask for.
+    hmz = Holding(workspace)
     # If it has been answered yes, and never otherwise: nobody is here to ask.
     hmz.reports()
     held = Host(hmz, slot)
@@ -95,6 +97,12 @@ def _main(argv: list[str]) -> None:
         else:
             from hmz.daemon import routing
 
+            # The daemon is this machine's, not of the directory whoever started it stood
+            # in: it outlives that one, and a CLI it asks cannot start in one that has gone.
+            for there in (os.path.expanduser("~"), os.sep):  # noqa: PTH111 -- never raises
+                with contextlib.suppress(OSError):
+                    os.chdir(there)
+                    break
             routing.serves(telling)
     except _Terminated:
         pass

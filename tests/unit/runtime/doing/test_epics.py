@@ -396,7 +396,14 @@ def test_a_chat_to_carry_on_is_a_chat_of_this_workspace_by_its_name(
     assert epics.chat(str(chat)) is None
     assert epics.chat("") is None
     assert epics.chat("20200101-none") is None
-    # Neither a run, nor the epic an earlier hmz recorded for a chat, is one to carry on.
+    # Neither a run, nor the epic an earlier hmz recorded for a chat, is one to carry on,
+    # until that one is moved among the chats.
     assert epics.chat(flow.name) is None
     assert epics.chat(old.name) is None
+    from hmz.runtime.epic import migrated
+
+    assert migrated() == ([old.name], {})
+    moved = epics.chat(old.name)
+    assert moved is not None
+    assert moved.parent == chat.parent
     assert Epics(elsewhere).chat(chat.name) is None

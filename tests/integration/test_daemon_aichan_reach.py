@@ -8,6 +8,7 @@ and is refused 403 as Section 4.21.3 states, in its order, and answered lists cu
 
 from __future__ import annotations
 
+import re
 import socket
 from typing import TYPE_CHECKING, Any
 
@@ -52,7 +53,6 @@ class Params(FlowParams):
     workspace: str = ""
     epic: str = ""
     preset: str = ""
-    network: bool = False
 
 
 @flow(agents=Agents, envs=Envs, params=Params, name="ai_chan")
@@ -170,6 +170,10 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
         # Each refusal, and the first of them that holds where more than one does.
         assert _refused(ai, "devices.list") == "Ai-chan cannot call devices.list."
         assert _refused(ai, "aichan.list") == "Ai-chan cannot call aichan.list."
+        assert (
+            _refused(ai, "aichan.rename", {"id": 1, "title": "mine"})
+            == "Ai-chan cannot call aichan.rename."
+        )
         assert (
             _refused(ai, "hosts.stop", {"workspace": str(other), "slot": slot})
             == "Ai-chan cannot reach an Ai-chan conversation."
@@ -442,7 +446,17 @@ def test_a_conversation_is_made_only_as_said(workspace: tuple[Path, Path]) -> No
         assert refused(
             scope="epic", workspace=str(project), epic="none", nous=AGENT
         ) == (f"404 There is no epic none in {where.workspace(project)}.")
+        # Her network is hers always, and her title what was first said: neither is said.
+        for unsaid in ("network", "title"):
+            with pytest.raises(RpcError, match=rf"aichan\.create takes no {unsaid}\."):
+                user.call(
+                    "aichan.create",
+                    {"scope": "daemon", "nous": AGENT, "task": "hi", unsaid: "on"},
+                    timeout=30,
+                )
         assert user.call("aichan.list", {}, timeout=30) == {"conversations": []}
+        # None was made: no nous is remembered as the one last used.
+        assert user.call("settings.get", {}, timeout=30)["ai_chan"] == ""
 
         # A daemon scope lives in the daemon's own directory under the home.
         made = user.call(
@@ -451,6 +465,32 @@ def test_a_conversation_is_made_only_as_said(workspace: tuple[Path, Path]) -> No
             timeout=60,
         )
         assert "/humanize-home/ai/" in made["workspace"]
+        # Its nous is the one the next conversation is made with, where it names none.
+        assert user.call("settings.get", {}, timeout=30)["ai_chan"] == AGENT
+        (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        assert (listed["latest"], listed["updated"]) == ("hi", listed["created"])
+        assert "network" not in listed
+        # Titled by what was first said, until it is given another.
+        assert listed["title"] == "hi"
+        renamed = {"id": made["id"], "title": "  The   plan "}
+        assert user.call("aichan.rename", renamed, timeout=30) == {}
+        (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        assert (listed["title"], listed["latest"]) == ("The plan", "hi")
+        for said, why in (
+            (
+                {"id": made["id"], "title": " "},
+                "A conversation's title says something.",
+            ),
+            ({"id": 99, "title": "x"}, "There is no Ai-chan #99."),
+        ):
+            with pytest.raises(RpcError, match=re.escape(why)):
+                user.call("aichan.rename", said, timeout=30)
+        again = user.call("aichan.create", {"scope": "daemon", "task": "x"}, timeout=60)
+        assert [
+            one["nous"]
+            for one in user.call("aichan.list", {}, timeout=30)["conversations"]
+        ] == [AGENT, AGENT]
+        user.call("aichan.forget", {"id": again["id"]}, timeout=30)
         with pytest.raises(RpcError, match="There is no Ai-chan conversation ai:0"):
             user.call(
                 "hosts.open",

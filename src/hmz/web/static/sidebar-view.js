@@ -3,10 +3,12 @@
 // or marked unread in this browser, and how wide the sidebar may be dragged. Nothing here touches
 // the page, so it is read the same by the sidebar and by its tests.
 
+import { t } from './i18n.js'
+
 /** What `Group and sort` offers, the first of each the default. */
-export const GROUPS = /** @type {const} */ ([['folder', 'Folder'], ['date', 'Date'], ['none', 'None']])
-export const SORTS = /** @type {const} */ ([['updated', 'Last updated'], ['created', 'Created']])
-export const SHOWS = /** @type {const} */ ([['chats', 'Chats'], ['epics', 'Epics']])
+export const GROUPS = /** @type {const} */ ([['folder', t('Folder')], ['date', t('Date')], ['none', t('None@@group')]])
+export const SORTS = /** @type {const} */ ([['updated', t('Last updated')], ['created', t('Created')]])
+export const SHOWS = /** @type {const} */ ([['chats', t('Chats')], ['epics', t('Epics')]])
 
 /** The list as it is until `Group and sort` says otherwise. */
 export const DEFAULTS = Object.freeze({ group: 'folder', sort: 'updated', chats: true, epics: true })
@@ -48,8 +50,8 @@ export function viewText(view) {
 /** Whether a row is a chat, as its row says it. */
 const byKind = (run) => run.kind === 'chat'
 
-/** Whether a row is going, by a host or by another process. */
-const going = (run) => Boolean(run.held) || run.how === 'running'
+/** Whether a row is going, by a host or by another process: an epic's alone, a chat never is. */
+const going = (run) => !byKind(run) && (Boolean(run.held) || run.how === 'running')
 
 /** When a row was last heard of: when it ended, else when it began. */
 const last = (run) => Date.parse(run.ended) || Date.parse(run.began) || 0
@@ -78,11 +80,11 @@ export function sorted(runs, view, now = Date.now(), chat = byKind) {
 
 /** The groups `Date` makes, by how many days ago a row stands. */
 const DAYS = [
-  [0, 'today', 'Today'],
-  [1, 'yesterday', 'Yesterday'],
-  [7, 'week', 'Last 7 days'],
-  [30, 'month', 'Last 30 days'],
-  [Infinity, 'older', 'Older'],
+  [0, 'today', t('Today')],
+  [1, 'yesterday', t('Yesterday')],
+  [7, 'week', t('Last 7 days')],
+  [30, 'month', t('Last 30 days')],
+  [Infinity, 'older', t('Older')],
 ]
 
 /** How many midnights of this place lie between a moment and now. */
@@ -94,14 +96,25 @@ function daysAgo(at, now) {
   return Math.max(0, Math.round((day(now) - day(at)) / 86400000))
 }
 
+/**
+ * The workspaces the list gives a heading: every one `workspaces.list` answers but those whose
+ * directory is gone (`there` false) and that hold nothing -- no epic, no chat, nothing going --
+ * which have nothing to show and nowhere to start anything.
+ *
+ * @param {{path: string, there?: boolean, epics?: number, chats?: number, running?: boolean}[]} [workspaces]
+ */
+export function shownFolders(workspaces = []) {
+  return (workspaces || []).filter((one) => one.there !== false || one.epics || one.chats || one.running)
+}
+
 /** What the group of the rows that have no folder is called, and what it is kept by. */
-export const NO_FOLDER = 'No folder'
+export const NO_FOLDER = t('No folder')
 const NOWHERE = ':nowhere'
 
 /**
  * The list's groups, in their order: the rows pinned first, under `Pinned`, then the rest by
  * folder -- every workspace offered, those with a row a host goes with first, then by their
- * latest, and last the rows of no folder -- by date, or as one group. Grouped by date, a list with
+ * latest, and last the rows of no folder, those of every folderless workspace together -- by date, or as one group. Grouped by date, a list with
  * nothing to show keeps `Today`, and grouped by folder, with no folder either, `No folder`, so
  * that a heading is always there; grouped by anything but
  * folder, the folders stand last as a group of their own, `Folders`, each with how many rows it has.
@@ -113,23 +126,24 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
   const rows = sorted(runs, view, now, chat)
   const kept = rows.filter((run) => pinned.has(run.name))
   const rest = rows.filter((run) => !pinned.has(run.name))
-  const groups = kept.length ? [{ key: ':pinned', kind: 'pinned', label: 'Pinned', path: '', runs: kept }] : []
+  const groups = kept.length ? [{ key: ':pinned', kind: 'pinned', label: t('Pinned'), path: '', runs: kept }] : []
   const folders = new Map()
   for (const one of workspaces || []) if (one.path) folders.set(one.path, { key: one.path, kind: 'folder', label: '', path: one.path, runs: [] })
   for (const run of rest) {
-    const path = run.workspace || ''
+    // What was started in no folder stands together, whatever directory was made for each.
+    const path = run.folderless ? '' : run.workspace || ''
     if (!folders.has(path)) folders.set(path, { key: path || NOWHERE, kind: 'folder', label: path ? '' : NO_FOLDER, path, runs: [] })
     folders.get(path).runs.push(run)
   }
-  const rank = (group) => (group.runs.some((one) => one.held) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
+  const rank = (group) => (group.runs.some((one) => one.held && !byKind(one)) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
   const ordered = [...folders.values()].sort((a, b) => Number(!a.path) - Number(!b.path) || rank(b) - rank(a))
   // A list with no folder and nothing to show keeps the group of none, so that a heading, and
   // `Group and sort` on it, is always there.
   if (view.group === 'folder') return groups.length || ordered.length ? [...groups, ...ordered] : [{ key: NOWHERE, kind: 'folder', label: NO_FOLDER, path: '', runs: [] }]
   // Every folder, reachable though the list is not grouped by them.
   const named = ordered.filter((one) => one.path).map((one) => ({ path: one.path, count: one.runs.length }))
-  const places = named.length ? [{ key: ':folders', kind: 'folders', label: 'Folders', path: '', runs: [], folders: named }] : []
-  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: 'All', path: '', runs: rest }, ...places]
+  const places = named.length ? [{ key: ':folders', kind: 'folders', label: t('Folders'), path: '', runs: [], folders: named }] : []
+  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: t('All'), path: '', runs: rest }, ...places]
   const days = DAYS.map(([, key, label]) => ({ key: `:date:${key}`, kind: 'date', label, path: '', runs: [] }))
   for (const run of rest) days[DAYS.findIndex(([most]) => daysAgo(stamp(run, view.sort, now), now) <= most)].runs.push(run)
   const full = days.filter((one) => one.runs.length)

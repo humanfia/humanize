@@ -380,7 +380,7 @@ class Asides:
 
     def listed(self, call: Call) -> dict[str, Any]:
         """`btw.list`: the asides open about one epic or one chat, attaching to nothing."""
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         epic = str(call.params.get("chat") or call.params.get("epic") or "")
         with self._lock:
             held = self._held.get(named)
@@ -401,7 +401,7 @@ class Asides:
 
     def leave(self, call: Call) -> dict[str, Any]:
         """`btw.leave`: closes one aside, or every one of the workspace."""
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         aside = call.params.get("aside")
         with self._lock:
             held = self._held.get(named)
@@ -464,10 +464,13 @@ def _named(epic: str) -> Any:
     Raises:
       RpcError: 404 where there is none.
     """
-    from hmz.runtime.epic import chats, every, read
+    from hmz.runtime.epic import chats, chatted, every, read
 
     if epic and "/" not in epic and not epic.startswith("."):
-        for at in (*every(), *chats()):
+        # Not a chat an earlier hmz kept as an epic, which is neither until it is moved
+        # (Section 8.7.10 of core.md).
+        kept = (one for one in every() if one.name == epic and not chatted(one))
+        for at in (*kept, *chats()):
             if at.name == epic and (ran := read(at)) is not None:
                 return ran
     raise _refused(404, f"There is no epic {epic}.")

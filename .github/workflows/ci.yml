@@ -9,7 +9,7 @@
 # merges, so a push to `main`, already tested there, runs none of this: cache.yml saves the
 # caches these restore. A push to a `release/*` branch runs it, on what the push changed.
 # title.yml checks the pull request's title. `tests/system` runs real agents, and the web page
-# in real browsers, and is never run here. docs/contributing/ci.md has the rest.
+# in real browsers, and is never run here. CONTRIBUTING.md has the rest.
 
 name: ci
 
@@ -451,6 +451,8 @@ jobs:
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           pnpm tauri build --debug --bundles app,dmg
+          named=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' src-tauri/target/debug/bundle/macos/*.app/Contents/Info.plist)
+          test "$named" = Humanize || { echo "::error::The menu bar names the app $named, not Humanize."; exit 1; }
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" src-tauri/target/debug/bundle/dmg/*.dmg
           test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
 

@@ -5,19 +5,21 @@
 // is read the same by the views and by their tests (Sections 3.6.6.15 to 3.6.6.21 and 3.8.21
 // to 3.8.24 of protocol/web.md).
 
+import { t } from './i18n.js'
+
 /**
  * What the Add menu of a chat's box offers, in its order: each a prefix the box reads a line by
  * (Section 8.9 of protocol/core.md), under a name that says what it is for.
  */
 export const ADDS = [
-  { key: 'files', label: 'Add files', sigil: '@', glyph: 'file' },
-  { key: 'commands', label: 'Slash commands', sigil: '/', glyph: 'menu' },
-  { key: 'skills', label: 'Skills and flows', sigil: '$', glyph: 'flows' },
-  { key: 'shell', label: 'Run a shell command', sigil: '!', glyph: 'chevron' },
+  { key: 'files', label: t('Add files'), sigil: '@', glyph: 'file' },
+  { key: 'commands', label: t('Slash commands'), sigil: '/', glyph: 'menu' },
+  { key: 'skills', label: t('Skills and flows'), sigil: '$', glyph: 'flows' },
+  { key: 'shell', label: t('Run a shell command'), sigil: '!', glyph: 'chevron' },
 ]
 
 /** Why `Add files` cannot be picked on a form whose folder is none: there is nothing to list. */
-export const NO_FOLDER = 'Pick a folder first'
+export const NO_FOLDER = t('Pick a folder first')
 
 /**
  * Whether the focus is still to be given: a form that reads what it offers before its box is
@@ -102,55 +104,108 @@ export function dismissing(dismissed, key, kept = 200) {
 
 /**
  * What a chip under a box is called by whoever cannot see it: what it picks, then what is picked
- * -- `Environment: Local`, `Usage: $0.42` -- or what it picks alone while nothing is.
+ * -- `Environment: Local` -- or what it picks alone while nothing is.
  */
 export function chipNamed(what, value = '') {
-  return value ? `${what}: ${value}` : what
+  return value ? t('{what}: {value}', { what, value }) : what
 }
 
 /**
- * What a pane's button says where pointed at: its name, or why it cannot be opened -- no host
- * holds the chat, so it has no environment now, or the environment it has keeps no such panel.
+ * What a pane's button says where pointed at: its name, or why it cannot be opened -- the
+ * environment the chat works in keeps no such panel. Whether a host holds the chat is never
+ * why: its environment is brought up as a pane of it is opened.
  *
  * @param {string} key The pane, by its key in `PANES`.
- * @param {boolean} has Whether the chat has that pane now.
- * @param {boolean} held Whether a host holds the chat.
+ * @param {boolean} has Whether the chat's environment keeps that pane, as far as is known.
  */
-export function paneSaid(key, has, held) {
+export function paneSaid(key, has) {
   const pane = PANES.find((one) => one.key === key)
   if (!pane) return ''
-  if (has) return pane.label
-  return held ? `No ${pane.label.toLowerCase()} in this environment` : `${pane.label} opens once the chat goes on`
+  return has ? pane.label : UNOPENED[key]
 }
 
+/** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
+export function thousands(count) {
+  if (count < 1e3) return String(Math.round(count))
+  return count < 1e6 ? `${(count / 1e3).toFixed(1)}k` : `${(count / 1e6).toFixed(2)}M`
+}
+
+/** The kinds of token a backend counts, as a person reads each. */
+const KINDS = {
+  input: t('Input'),
+  output: t('Output'),
+  cache_read: t('Cache read'),
+  cache_write: t('Cache write'),
+  reasoning: t('Reasoning'),
+}
+
+/** A kind of token as a person reads it: `cache_read` is `Cache read`; one the page has no word for, as it is spelled. */
+const kindName = (kind) => KINDS[kind] || `${kind[0].toUpperCase()}${kind.slice(1)}`.replaceAll('_', ' ')
+
 /**
- * What a chat's Usage chip says beside its ring: what it has spent where that is priced, else
- * the tokens it has written, else nothing -- and then the ring stands alone.
+ * The rows of a chat's Usage popup: what it has spent, the tokens it has gone through and how
+ * long it has run, and while it runs each kind of token with its share of them all; what the
+ * chat written down spent once it has folded away; none while nothing was spent.
  *
- * @param {{tally?: string[]} | null} figures A chat going's figures, as its host says them.
- * @param {{money?: string, tokens?: string} | null} spent What a chat written down spent.
+ * @param {{tally?: string[], lasting?: string, reckoning?: {kind: string, tokens: number, whole: boolean}[]} | null} figures
+ *   A chat going's figures, as its host says them.
+ * @param {{money?: string, tokens?: string, worked?: string} | null} spent What a chat written down spent.
+ * @returns {{label: string, value: string, share?: number}[]} A row with a `share`, 0 to 1, is a kind of token.
  */
-export function usageSaid(figures, spent) {
+export function usageRows(figures, spent) {
   const [tokens = '', money = ''] = (figures && figures.tally) || []
-  const priced = money.split(' · ')[0]
-  if (priced.startsWith('$')) return priced
-  if (tokens) return tokens.split(' · ')[0]
-  if (spent && spent.money && spent.money !== '$0.00') return spent.money
-  if (spent && spent.tokens && spent.tokens !== '0') return `${spent.tokens} tokens`
-  return ''
+  if (tokens) {
+    const priced = money.split(' · ')[0]
+    const kinds = figures.reckoning || []
+    const all = kinds.reduce((sum, one) => sum + one.tokens, 0)
+    // A figure short of what some agent spends without counting is a floor, marked as the tally marks it.
+    const floor = (whole) => (whole ? '' : '+')
+    return [
+      { label: t('Spent'), value: priced.startsWith('$') ? priced : '—' },
+      { label: t('Tokens'), value: all ? `${thousands(all)}${floor(kinds.every((one) => one.whole))}` : tokens.replace(/ tokens$/, '') },
+      { label: t('Time'), value: figures.lasting || '—' },
+      ...kinds.map((one) => ({ label: kindName(one.kind), value: `${thousands(one.tokens)}${floor(one.whole)}`, share: all ? one.tokens / all : 0 })),
+    ]
+  }
+  const paid = spent && spent.money && spent.money !== '$0.00'
+  const wrote = spent && spent.tokens && spent.tokens !== '0'
+  if (!paid && !wrote) return []
+  return [
+    { label: t('Spent'), value: spent.money || '—' },
+    { label: t('Output tokens'), value: spent.tokens || '—' },
+    { label: t('Time working'), value: spent.worked || '—' },
+  ]
 }
 
 /**
- * How a chat stands, said in a line over its box only while there is something to say: who is
- * answering while a turn is open, that it waits on its person, or that it failed.
+ * The rows of what a workspace has used lately, out of what `runs.usage` answers for 7 days:
+ * today, the last of its days, and the whole of them.
+ *
+ * @param {{days?: object[], whole?: object}} data
+ * @returns {{label: string, value: string, about: string, sub?: string}[]} `about`, the output
+ *   tokens beside the money; `sub`, under the whole of them, over how many chats and epics.
+ */
+export function usedLately(data) {
+  const row = (label, one = {}) => ({ label, value: one.money || '$0.00', about: t('{tokens} output tokens', { tokens: one.tokens || '0' }) })
+  const whole = (data && data.whole) || {}
+  const runs = whole.runs || 0
+  return [
+    // A day of the daemon's is a UTC day, as the Usage page of Settings says of its own.
+    row(t('Today (UTC)'), ((data && data.days) || []).at(-1)),
+    // Said of none as well, so that the popup is as tall whatever the answer.
+    { ...row(t('Last 7 days'), whole), sub: !runs ? t('No chats or epics yet') : t('Over {n} chats and epics', { n: runs }) },
+  ]
+}
+
+/**
+ * What is said of how a chat stands in a line over its box: that it failed, and nothing else.
+ * That a turn is open its button says, which stops it, and that it waits on its person the
+ * conversation says, which ends on what was answered.
  *
  * @param {string} state The chat's mark (`markOf`).
- * @param {string} model The model answering it, as a person reads it, or ''.
  */
-export function standing(state, model = '') {
-  if (state === 'running') return `${model || 'The assistant'} is responding`
-  if (state === 'asking') return 'Waiting for you'
-  return ['failed', 'refused', 'crashed'].includes(state) ? 'The chat failed' : ''
+export function standing(state) {
+  return ['failed', 'refused', 'crashed'].includes(state) ? t('The chat failed') : ''
 }
 
 /**
@@ -169,11 +224,22 @@ export function stoppable(turn = '') {
  * panels of the environment it works in, each opened on its own tab.
  */
 export const PANES = [
-  { key: 'details', label: 'Details', tab: 'epic', env: '' },
-  { key: 'terminal', label: 'Terminal', tab: 'env', env: 'terminal' },
-  { key: 'changes', label: 'Changes', tab: 'env', env: 'changes' },
-  { key: 'files', label: 'Files', tab: 'env', env: 'files' },
+  { key: 'details', label: t('Details'), tab: 'epic', env: '' },
+  { key: 'terminal', label: t('Terminal'), tab: 'env', env: 'terminal' },
+  { key: 'changes', label: t('Changes'), tab: 'env', env: 'changes' },
+  { key: 'files', label: t('Files'), tab: 'env', env: 'files' },
 ]
+
+/**
+ * Why a pane cannot be opened, by its key in `PANES`: the environment the chat has keeps no such
+ * panel. `Details` is the chat's own, and always opens.
+ */
+const UNOPENED = {
+  details: '',
+  terminal: t('No terminal in this environment'),
+  changes: t('No changes in this environment'),
+  files: t('No files in this environment'),
+}
 
 /**
  * Which pane is open beside a chat, by its key in `PANES`: none while its panel is shut, or

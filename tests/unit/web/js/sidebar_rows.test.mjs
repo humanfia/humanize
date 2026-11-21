@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { CHAT_SAID, chatState, epicSaid, rowSaid, rowTitle, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
+import { CHAT_SAID, chatState, epicSaid, rowSaid, rowTitle, shortcut, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
 
 test('a chat goes, asks, failed, or says nothing', () => {
   assert.equal(chatState('running'), 'working')
@@ -42,4 +42,11 @@ test('a row stands in the same words in every list: a chat only where there is s
   assert.equal(rowSaid('done', false), 'Done')
   assert.equal(rowSaid('budget', false), 'Budget spent')
   assert.equal(rowSaid('waiting', false), 'Waiting')
+})
+
+test('a shortcut is written a key apiece, as the system writes it', () => {
+  assert.deepEqual(shortcut('chat', true), ['⇧', '⌘', 'O'])
+  assert.deepEqual(shortcut('chat', false), ['Ctrl', 'Shift', 'O'])
+  assert.deepEqual(shortcut('search', true), ['⌘', 'K'])
+  assert.deepEqual(shortcut('search', false), ['Ctrl', 'K'])
 })

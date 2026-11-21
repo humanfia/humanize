@@ -147,7 +147,7 @@ const NEXT = [
         </template>
 
         <p class="dl-links">
-          <a :href="withBase('/user/installation')">Installation guide →</a>
+          <a :href="withBase('/user/install')">Installation guide →</a>
           <a :href="RELEASES">All releases ↗</a>
           <a :href="REPO">Source ↗</a>
         </p>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 336" role="img">
+<title>A turn of an outworlder is one ask, and one of four things answers it: a person, nobody, a hook of the calling flow, or an SDK driver</title>
+<rect width="760" height="336" rx="12" fill="#f4f8f9"/>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#5d6a72"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+<text x="24" y="44" font-size="16" font-weight="600">Who answers a turn of the person</text>
+
+<rect x="24" y="136" width="152" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="100" y="164" text-anchor="middle">Your flow</text>
+<text x="100" y="184" text-anchor="middle" font-size="12" fill="#0b7080" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">human.run(…)</text>
+
+<rect x="232" y="120" width="168" height="96" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="316" y="148" text-anchor="middle">One ask</text>
+<text x="316" y="170" text-anchor="middle" font-size="12" fill="#435058">prompt</text>
+<text x="316" y="186" text-anchor="middle" font-size="12" fill="#435058">context blocks</text>
+<text x="316" y="202" text-anchor="middle" font-size="12" fill="#435058">schema, or none</text>
+
+<rect x="488" y="64" width="248" height="48" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+<text x="504" y="85">A person</text>
+<text x="504" y="102" font-size="12" fill="#435058">in the app or the terminal</text>
+
+<rect x="488" y="128" width="248" height="48" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="504" y="149">Nobody: the role is away</text>
+<text x="504" y="166" font-size="12" fill="#435058">defaults, at once</text>
+
+<rect x="488" y="192" width="248" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="504" y="213">A hook of the calling flow</text>
+<text x="504" y="230" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Outworlder.new()</text>
+
+<rect x="488" y="256" width="248" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="504" y="277">A program</text>
+<text x="504" y="294" font-size="12" fill="#435058">an SDK outworlder driver</text>
+</g>
+<g fill="none" stroke="#5d6a72" stroke-width="1.5">
+<path d="M176 168H228" marker-end="url(#a)"/>
+<path d="M400 168H440V88H484" marker-end="url(#a)"/>
+<path d="M440 152H484" marker-end="url(#a)"/>
+<path d="M440 168V216H484" marker-end="url(#a)"/>
+<path d="M440 216V280H484" marker-end="url(#a)"/>
+</g>
+</svg>
