@@ -219,6 +219,22 @@ def test_worktree_starts_the_chat_in_a_new_worktree(
     assert "resume" not in started
 
 
+def test_an_env_starts_the_chat_there_and_moves_one_carried_on(
+    workspace: mock.Mock, client: _Client
+) -> None:
+    del workspace
+    assert main(["chat", "-e", "ssh@gpu-box/srv/repo", "-a", "codex/o3", "hi"]) == 0
+    assert client.params("chat.start")["env"] == "ssh@gpu-box/srv/repo"
+    client.asked.clear()
+    assert main(["chat", "--resume", "E", "--env", "local/srv/repo", "back"]) == 0
+    started = client.params("chat.start")
+    assert (started["resume"], started["env"]) == ("E", "local/srv/repo")
+    client.asked.clear()
+    # None named: the chat works where it is started, or where it worked.
+    assert main(["chat", "hello"]) == 0
+    assert "env" not in client.params("chat.start")
+
+
 def test_a_chat_started_without_worktree_does_not_ask_for_one(
     workspace: mock.Mock, client: _Client
 ) -> None:
@@ -273,6 +289,7 @@ def test_resume_with_an_agent_carries_the_chat_on_with_that_one(
         (["--rename", "E"], "--rename takes the chat and then its title"),
         (["--rename", "E", " "], "--rename takes the chat and then its title"),
         (["--fork", "E", "-a", "codex/o3"], "--fork says nothing to a chat"),
+        (["--fork", "E", "-e", "local/srv"], "--fork says nothing to a chat"),
         (["--delete", "E", "--resume", "F"], "--delete says nothing to a chat"),
         (["one", "two"], "unrecognized arguments"),
     ],

@@ -20,6 +20,7 @@ ROW = {
     "title",
     "workspace",
     "workdir",
+    "env",
     "agent",
     "model",
     "began",
@@ -78,6 +79,7 @@ def _ran(name: str = "20260101-abc", **said: Any) -> Any:
         "permission": "",
         "archived": False,
         "workdir": "",
+        "env": "",
         "forked": "",
         "adopted": "",
     }
@@ -176,6 +178,7 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
         "workspace": WORKSPACE,
         # Where its assistant works: the workspace, for one in no worktree.
         "workdir": WORKSPACE,
+        "env": f"local/{WORKSPACE.lstrip('/')}",
         "agent": "claude@work/opus:high",
         "model": "opus",
         "began": "2026-01-01T00:00:00.000Z",
@@ -216,6 +219,17 @@ def test_a_row_says_the_worktree_the_permission_the_spending_and_the_host() -> N
         "read-only",
         True,
     )
+    assert said["env"] == "local/home/envs/w/worktrees/x"
+    # Moved to a runtime, it works in the directory there, whatever worktree it began in.
+    moved = chats.row(
+        _ran(workdir="/home/envs/w/worktrees/x", env="ssh@gpu-box/~/repo")
+    )
+    assert (moved["env"], moved["workdir"], moved["workspace"]) == (
+        "ssh@gpu-box/~/repo",
+        "~/repo",
+        WORKSPACE,
+    )
+    assert chats.row(_ran(env="docker/srv/repo"))["workdir"] == "/srv/repo"
     assert (said["state"], said["slot"], said["asking"]) == (
         "asking",
         "chat:1a",

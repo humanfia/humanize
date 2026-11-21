@@ -29,9 +29,9 @@ pytestmark = pytest.mark.usefixtures("daemon")
 
 
 #: The control that names the folder picked, by the form it is on: a new chat keeps it on
-#: `Environment` under its box, a new epic in `Environment` in the middle of the page.
+#: `Folder` under its box, a new epic in `Environment` in the middle of the page.
 _FOLDER = {
-    "/new/chat": "[data-hmz=start] [data-hmz=environment]",
+    "/new/chat": "[data-hmz=start] [data-hmz=folder]",
     "/new": "[data-hmz=setup-folder] [data-hmz=workspace-picker]",
 }
 
@@ -238,7 +238,7 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
                     "There is no directory"
                 )
                 chip.click()
-                # A new chat lists the folders in its `Environment`, a new epic in `Folders`.
+                # A new chat lists the folders in its `Folder`, a new epic in `Folders`.
                 rows = page.locator(".popover[role=menu]")
                 expect(rows.locator("[data-missing]")).to_have_text("otherMissing")
                 page.keyboard.press("Escape")
@@ -332,7 +332,7 @@ async def mine(
 def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
     project: Path, other: Path, form: str, engine: str
 ) -> None:
-    """A new chat and a new epic keep the folder in Environment, and neither switches kind."""
+    """A new chat and a new epic keep the folder a control of its own, and neither switches kind."""
     chat = form == "/new/chat"
     with served() as site, opened(site, engine=engine) as page:
         go(page, f"{form}?workspace={other}")
@@ -352,9 +352,9 @@ def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
         assert box is not None
         assert under is not None
         if chat:
-            # Under the box, at its left, the one chip there, set in from the box's
-            # edge as its Add button is: it names the daemon, then the folder.
-            expect(chip).to_have_text("Local · other")
+            # Under the box, at its left, the first chip there, set in from the box's
+            # edge as its Add button is: it names the folder, and no daemon.
+            expect(chip).to_have_text("other")
             assert under["y"] >= box["y"] + box["height"]
             assert 0 <= under["x"] - box["x"] <= 12
             expect(
@@ -363,7 +363,7 @@ def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
         else:
             # In the middle of the page, over the box, under where it runs: nothing of
             # where it runs is under the box.
-            runs = page.locator("[data-hmz=setup-daemon] [data-hmz=environment]")
+            runs = page.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")
             before = runs.bounding_box()
             assert before is not None
             assert under["y"] + under["height"] <= box["y"]
@@ -373,11 +373,12 @@ def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
             ).to_have_count(0)
 
         chip.click()
-        menu = page.get_by_role("menu", name="Environment" if chat else "Folders")
+        menu = page.get_by_role("menu", name="Folder" if chat else "Folders")
         if chat:
             # A chat app's folder menu: each folder one row by its name, its path said
-            # where it is pointed at, under the one heading that parts them from the daemons.
-            expect(menu.locator(".popover-head")).to_have_text(["Runs on", "Folder"])
+            # where it is pointed at, under no heading, and no daemon among them.
+            expect(menu.locator(".popover-head")).to_have_count(0)
+            expect(menu.locator("[data-daemon]")).to_have_count(0)
             expect(menu.locator("[data-folder] .choice-about")).to_have_count(0)
             expect(menu.get_by_role("menuitem", name="project")).to_have_attribute(
                 "data-tip", str(project)
@@ -393,7 +394,7 @@ def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
         # Named, as every chip is, by what it picks and what is picked.
         expect(chip).to_have_attribute(
             "aria-label",
-            "Environment: Local, No folder" if chat else "Folder: No folder",
+            "Folder: No folder",
         )
         page.wait_for_url(re.compile(r".*scratch=1.*"))
         # With no folder there are no files to name: Add says so, and offers none.

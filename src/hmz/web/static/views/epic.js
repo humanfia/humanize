@@ -23,6 +23,7 @@ import { go, renamed } from '../app.js'
 import { confirming } from '../confirm.js'
 import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { agentLabel } from '../chips/agent.js'
+import { envSaid, environmentChip } from '../chips/environment.js'
 import { modelFact } from '../chips/model.js'
 import { PANES, paneOf, standing as standingSaid, stoppable, thousands, toggled, usageRows } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
@@ -30,6 +31,7 @@ import { pieces, t } from '../i18n.js'
 import { chatPermission } from '../chips/permission.js'
 import { usageChip } from '../chips/usage.js'
 import { harnessName, modelName } from '../names.js'
+import { placed as envOf, where as envSpelled } from '../pickers.js'
 import { lostSaid, unplaced } from '../places.js'
 import { composer as composed } from '../composer.js'
 import { archiving, retitling } from '../chat-actions.js'
@@ -624,6 +626,9 @@ export function mount(root, { parts, query }) {
     // Every line of a chat a host holds is said to it, an answer to what it asks included.
     if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
+    // Where the chat works, as it was read last: moved, its chip says where to.
+    talk?.environment.again()
+    carry?.environment.again()
     // While a turn is open, the button of the box stops it: the chat stays, between turns.
     talk?.stops(going && stoppable(standing.run && standing.run.turn) ? () => chatAsk(here, 'stop') : null)
     const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry.node : null
@@ -941,7 +946,7 @@ export function mount(root, { parts, query }) {
       return
     }
     wokeAt = Date.now()
-    const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null }).then(
+    const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null, ...(carry ? carry.movedTo() : {}) }).then(
       (started) => {
         refresh('chat.get')
         return started.slot
@@ -977,7 +982,7 @@ export function mount(root, { parts, query }) {
         }
       }
       // A folder that went is said as the forms that start in one say it, with no other to pick.
-      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() }).catch((error) => {
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked(), ...box.movedTo() }).catch((error) => {
         throw unplaced(error, detail.workspace, lostSaid)
       })
       carry = null
@@ -1144,8 +1149,11 @@ export function mount(root, { parts, query }) {
       const { dir, base } = pathParts(typed.word)
       // Names starting with `.` are listed only once a `.` is typed, as a shell completes them.
       const hidden = base.startsWith('.')
-      const key = `${hidden}\n${dir}`
-      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${root.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      // In a runtime, that machine's paths, where they can be listed.
+      const at = envOf(detail.env || '')
+      const there = at.backend === 'local' ? '' : `${at.backend}${at.provider ? `@${at.provider}` : ''}`
+      const key = `${there}\n${root}\n${hidden}\n${dir}`
+      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${root.replace(/\/+$/, '')}/${dir}`, files: true, hidden, ...(there ? { env: there } : {}) }).then((read) => read.entries, () => []))
       const items = pathItems(dir, base, await pathsListed.get(key))
       if (items.length) groups.unshift({ source: 'path', label: t('Files'), items })
     }
@@ -1180,9 +1188,32 @@ export function mount(root, { parts, query }) {
       workspace: () => now().workspace || '',
     })
     usages.add(usage)
+    /** Where a chat no host holds is carried on, picked before it is: null for where it worked. */
+    let movingTo = null
+    // Where the chat works, which it may be moved from between turns (Section 3.6.6.28 of
+    // protocol/web.md): a chat a host holds is moved at once, and one no host holds as it is
+    // carried on.
+    const environment = environmentChip({
+      now: () => movingTo || envOf(now().env || ''),
+      home: () => now().workspace || '',
+      busy: () => (seen && seen.going && held() && stoppable(held().standing.run && held().standing.run.turn) ? t('A turn is open. Move the chat once it is done.') : ''),
+      failed: (error) => toast(error.message, 6000),
+      pick: async (to) => {
+        const env = envSpelled(to)
+        if (!env) return
+        const slot = going ? here.slot : (seen && seen.detail && seen.detail.slot) || ''
+        if (!slot) {
+          movingTo = to
+          return
+        }
+        await chatAsk({ workspace: now().workspace, slot }, 'move', { env })
+        movingTo = null
+        refresh('chat.get')
+      },
+    })
     const box = composed({
-      // Under the box, at its right: how the chat runs. Where it runs is settled once it has begun.
-      desk: { add: true, right: [model.node, permission.node, usage.node] },
+      // Under the box, at its left where the chat works, and at its right how it runs.
+      desk: { add: true, left: [environment.node], right: [model.node, permission.node, usage.node] },
       placeholder: t('Reply…'),
       label: t('What to say'),
       complete: (text, caret) => completing(now(), text, caret),
@@ -1202,7 +1233,7 @@ export function mount(root, { parts, query }) {
     // whoever cannot see that menu.
     box.text.setAttribute('aria-description', INPUT_HINT)
     box.node.dataset.hmz = 'say'
-    return Object.assign(box, { model, permission, usage })
+    return Object.assign(box, { model, permission, usage, environment, movedTo: () => (movingTo ? { env: envSpelled(movingTo) } : {}) })
   }
 
   /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */
@@ -1529,7 +1560,7 @@ function facts(detail, chat = false) {
     h('dt', {}, said('workspace')),
     h('dd', {}, pathed(detail.workspace)),
     // A chat started in a worktree works there, in place of its folder.
-    chat && worksIn(detail) ? [h('dt', {}, said('workdir')), h('dd', { 'data-hmz': 'chat-workdir' }, pathed(worksIn(detail)))] : null,
+    chat && worksIn(detail) ? [h('dt', {}, said('workdir')), h('dd', { 'data-hmz': 'chat-workdir' }, envOf(detail.env || '').backend === 'local' ? null : h('div', { class: 'dim', 'data-hmz': 'chat-env' }, envSaid(envOf(detail.env), detail.workspace).name), pathed(worksIn(detail)))] : null,
     // When a chat began is said here: its bar says its title alone.
     chat && detail.began ? [h('dt', {}, said('began')), h('dd', { title: when(detail.began) }, ago(detail.began))] : null,
     h('dt', {}, said('agents')),

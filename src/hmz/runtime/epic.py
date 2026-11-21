@@ -384,6 +384,8 @@ class Ran(NamedTuple):
       title: A chat's title, as it was last set, else the first line of its first message.
       archived: Whether a chat was last set archived.
       workdir: Where a chat's assistant works, where that is not its workspace, or "".
+      env: The env a chat was last moved to, as `-e` spells one after `<role>=` (Section
+        8.3.15 of [CORE]), or "" for a chat that works where it began.
       forked: The chat a chat was forked from, by its name, or "".
       adopted: The session of a harness's own a chat was made from, as `<harness>:<id>`, or
         "".
@@ -419,6 +421,7 @@ class Ran(NamedTuple):
     title: str = ""
     archived: bool = False
     workdir: str = ""
+    env: str = ""
     forked: str = ""
     adopted: str = ""
     updated: str = ""
@@ -828,6 +831,7 @@ class Epic:
         prefer: str | None = None,
         permission: str | None = None,
         workdir: str = "",
+        env: str = "",
     ) -> None:
         """Opens an epic, or a chat's record, and writes down what it is a run of.
 
@@ -864,6 +868,8 @@ class Epic:
           prefer: A chat's own preference, where it has one, or None.
           permission: A chat's permission, where it is not `workspace-write`, or None.
           workdir: Where a chat's assistant works, where that is not its workspace, or "".
+          env: The env a chat begins in, as `-e` spells one, where that is not a directory
+            of this machine `workdir` names, or "".
 
         Raises:
           Uncarried: Where the journal of the epic picked up is there and cannot be copied.
@@ -926,6 +932,7 @@ class Epic:
                 **({"prefer": prefer} if prefer else {}),
                 **({"permission": permission} if permission else {}),
                 **({"workdir": workdir} if workdir else {}),
+                **({"env": env} if env else {}),
             )
             return
         from hmz.coganchor.machines.store import SPELLING
@@ -1472,6 +1479,7 @@ def forked(chat: Path) -> Path:
             **({"prefer": ran.prefer} if ran.prefer else {}),
             **({"permission": ran.permission} if ran.permission else {}),
             **({"workdir": ran.workdir} if ran.workdir else {}),
+            **({"env": ran.env} if ran.env else {}),
         },
         # Each session it kept, as it was opened: what carrying the copy on goes on from.
         *(
@@ -1902,6 +1910,11 @@ def read(epic: Path) -> Ran | None:
             False,
         ),
         workdir=str(began.get("workdir") or ""),
+        env=str(
+            next((one["env"] for one in reversed(said_so) if "env" in one), "") or ""
+        )
+        if kind == CHAT
+        else "",
         forked=str(began.get("forked") or ""),
         adopted=str(began.get("adopted") or ""),
         updated=str(events[-1].get("at") or ""),

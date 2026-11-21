@@ -1755,6 +1755,9 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
   (Section 8.3.9 of [CORE]); present only where it is not `workspace-write`;
 - `workdir`: string, the absolute path of the worktree its assistant works in (Section 8.3.13 of
   [CORE]); present only where it works in one;
+- `env`: string, the env its assistant works in, as `-e` writes one after `<role>=` (Section
+  8.3.15 of [CORE]); present only where the **chat** began in an env named for it, and then in
+  place of `workdir`;
 - `title`: string, the title of the **chat** as it began; present only for a fork and for a
   **chat** made from a harness session;
 - `adopted`: string, `<harness>:<id>`, the harness session this **chat** was made from (Section
@@ -1764,10 +1767,13 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
 
 **6.12.6** `hmz` MUST write the event `set` into the chat record each time the preference of the
 **chat** is overridden, its agent is changed (Section 8.9.5 of [CORE]), its permission is set
-(Section 8.3.10 of [CORE]), its title is changed or it is archived or put back (Section 8.10 of
-[CORE]), with the key `prefer` (string), `agents` (as `began` gives it), `permission` (string,
-`read-only`, `workspace-write` or `danger-full-access`), `title` (string), `archived` (boolean), or
-any of them together. A reader MUST take each of these from the last event that gives it, `began`
+(Section 8.3.10 of [CORE]), it is moved to another env (Section 8.3.16 of [CORE]), its title is
+changed or it is archived or put back (Section 8.10 of [CORE]), with the key `prefer` (string),
+`agents` (as `began` gives it), `permission` (string, `read-only`, `workspace-write` or
+`danger-full-access`), `env` (string, as `began` gives it), `title` (string), `archived` (boolean),
+or any of them together. A reader MUST read a **chat** as working in the env the last `env`
+gives, and, where no event gives one, in the worktree `workdir` names or else in its
+**workspace**. A reader MUST take each of these from the last event that gives it, `began`
 included, MUST read a **chat** whose record gives no permission as of permission `workspace-write`,
 one that gives no title as titled by the first line of its `task`, and one that gives no `archived`
 as not archived.

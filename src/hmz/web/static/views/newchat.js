@@ -1,16 +1,18 @@
 // A new chat, as a chat app opens a new session: a plain heading in the bar, the chats that wait
 // on their person listed in the middle, and the box the first message is typed into docked at
-// the foot of the page, which Enter sends to start it. Under the box, at its left, where the
-// chat runs, on one chip, `Environment` -- the daemon, the folder, and whether in a worktree of
-// it -- and at its right how -- the model that answers it, starting from the chat agent that
-// workspace remembers, and what it may touch (Sections 3.8.18 and 3.8.21 to 3.8.23 of
-// protocol/web.md). A new epic of a flow is a form of its own
+// the foot of the page, which Enter sends to start it. Under the box, at its left, what the
+// chat is of and where it works, a chip each: `Folder`, and `Environment` -- this computer, a
+// new worktree of the folder, or a runtime saved here and the directory there -- and at its
+// right how -- the model that answers it, starting from the chat agent that workspace
+// remembers, and what it may touch (Sections 3.8.18 and 3.8.21 to 3.8.23 of protocol/web.md).
+// Which hmz serves it, the daemon, is the whole page's, picked at the foot of the sidebar and
+// never here. A new epic of a flow is a form of its own
 // (views/new.js), which the sidebar opens beside this one.
 
 import { call, daemon, given, hash, poll } from '../api.js'
 import { NO_WORKTREE, chatRow, inRepository, pathOf } from '../chats.js'
 import { covered, focusing, go, stays } from '../app.js'
-import { environmentChip } from '../chips/environment.js'
+import { environmentChip, folderChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER, dismissing, nextSteps, stepKey } from '../desk.js'
@@ -20,9 +22,9 @@ import { markOf, waitsOn } from '../epic.js'
 import { permissionChip } from '../chips/permission.js'
 import { usageChip } from '../chips/usage.js'
 import { chatAsk } from '../held.js'
-import { readBackends } from '../pickers.js'
+import { readBackends, where } from '../pickers.js'
 import { firstWorkspace, folderFiles, goneNote, goneSaid, missing, unplaced, workspacePicker, workspaces } from '../places.js'
-import { bar, choice, keep, kept } from '../shell.js'
+import { bar, keep, kept } from '../shell.js'
 
 export function mount(root, { query }) {
   // Where the chat works: the workspace the address names, or none -- a directory of its own made
@@ -36,49 +38,27 @@ export function mount(root, { query }) {
     // Gone since, or back: the form says so, or reads what the folder remembers again.
   }, { none: true, hosted: true, went: (lost) => !scratch && lost !== gone && load('') })
   const permission = permissionChip({ up: true })
-  // Whether the chat works in a new git worktree of its folder, as a chat app's session may:
-  // a row of Environment's menu that is ticked, not on offer with no folder, nor in one known
-  // to be no git repository.
-  let inWorktree = false
+  // Where the chat works: this computer, in the folder itself, until another is picked -- a new
+  // git worktree of the folder, as a chat app's session may, not on offer with no folder, nor in
+  // one known to be no git repository; or a runtime saved here, and the directory there.
+  let env = { backend: 'local', provider: '', workdir: '', worktree: false }
   /** Why a worktree is not on offer, or '' where it is. */
   let unoffered = ''
-  /** The row as the menu open now draws it, if any. */
-  let worktree = null
-  function worktreeRow() {
-    // Ticked, the menu stays: it says so on the row.
-    const row = choice({
-      label: t('Worktree'),
-      chosen: inWorktree,
-      glyph: 'fork',
-      act: () => {
-        if (unoffered) return
-        inWorktree = !inWorktree
-        redrawn(true)
-      },
-      close: () => {},
-    })
-    row.setAttribute('role', 'menuitemcheckbox')
-    row.setAttribute('aria-checked', String(inWorktree))
-    row.dataset.hmz = 'new-worktree'
-    // Said, not switched off: a row that cannot be reached says nothing of why.
-    if (unoffered) {
-      row.setAttribute('aria-disabled', 'true')
-      row.dataset.tip = unoffered
-    }
-    return (worktree = row)
-  }
-  /** Draws the row again where a menu shows it, keeping the keys on it. */
-  function redrawn(held = document.activeElement === worktree) {
-    const was = worktree
-    if (!was || !was.isConnected) return
-    was.replaceWith(worktreeRow())
-    if (held) worktree.focus()
-  }
+  const environment = environmentChip({
+    now: () => env,
+    home: () => (scratch ? '' : workspace),
+    pick: (to) => {
+      env = { worktree: false, ...to }
+    },
+    worktree: () => unoffered,
+    // The folder of this computer is the chip beside it.
+    folders: false,
+  })
   /** Says whether a worktree is on offer, and why not where it is not. */
   const offered = (why) => {
     unoffered = why
-    if (why) inWorktree = false
-    redrawn()
+    if (why && env.worktree) env = { ...env, worktree: false }
+    environment.again()
   }
   offered(scratch ? NO_WORKTREE.none : '')
   // Before a chat there is no catalogue to complete from: `@` names a file of the folder.
@@ -93,7 +73,7 @@ export function mount(root, { query }) {
     submit: (task) => start(task),
     complete: files.complete,
     // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
-    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat', { place, rows: worktreeRow }).node], right: [permission.node, usage.node] },
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [folderChip(place).node, environment.node], right: [permission.node, usage.node] },
   })
   box.node.dataset.hmz = 'start'
   const steps = h('section', { class: 'next-steps', 'aria-label': t('Next steps'), 'data-hmz': 'next-steps', hidden: true })
@@ -234,7 +214,9 @@ export function mount(root, { query }) {
       throw new Error(t('Pick a nous for the chat.'))
     }
     // A new chat's own host, beside every epic here; the agent is remembered for the next.
-    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: inWorktree && !unoffered, remember: !scratch, scratch }).catch((error) => {
+    // In a runtime, the directory picked there; one saved with its own is named alone.
+    const there = env.backend === 'local' ? '' : where(env)
+    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: env.worktree && !unoffered, ...(there ? { env: there } : {}), remember: !scratch, scratch }).catch((error) => {
       throw unplaced(error, workspace)
     })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)

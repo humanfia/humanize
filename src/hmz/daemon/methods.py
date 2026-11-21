@@ -494,6 +494,11 @@ class _Methods:
                 # Said to the host standing by with it, nothing said yet, as its first turn;
                 # one of another agent ends as it was first.
                 first = {key: checked[key] for key in ("agent", "prefer", "permission")}
+                if checked["env"]:
+                    # Where it is carried on, before anything is said there.
+                    self._chatted(
+                        call, holding[0], {"do": "move", "env": checked["env"]}
+                    )
                 said = {"do": "say", "text": checked["task"], "first": first}
                 if not self._chatted(call, holding[0], said).get("ended"):
                     return {"slot": holding[0].slot, "chat": resumed}
@@ -555,6 +560,7 @@ class _Methods:
                 "prefer": checked["prefer"],
                 "permission": checked["permission"],
                 "worktree": checked["worktree"],
+                "env": checked["env"],
                 "remember": params.get("remember") is True,
             },
         )
@@ -586,6 +592,16 @@ class _Methods:
             raise _refused(400, refused)
         self._chatted(call, self._chat_held(call), {"do": "set", **said})
         return {}
+
+    def chat_move(self, call: Call) -> dict[str, Any]:
+        """Moves a chat to another env, between turns (Section 4.25.9)."""
+        from hmz.runtime.chatting import env_spec
+
+        try:
+            env = env_spec(call.params.get("env"))
+        except ValueError as why:
+            raise _refused(400, str(why)) from why
+        return self._chatted(call, self._chat_held(call), {"do": "move", "env": env})
 
     def chat_stop(self, call: Call) -> dict[str, Any]:
         """Stops a chat's open turn, leaving the chat between turns (Section 4.25.6)."""
@@ -722,6 +738,7 @@ class _Methods:
             "chat.say": self.chat_say,
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
+            "chat.move": self.chat_move,
             "chat.stop": self.chat_stop,
             "chat.delete": self.chat_delete,
         }

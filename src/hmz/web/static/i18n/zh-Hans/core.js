@@ -277,7 +277,6 @@ export default {
   'Rename': '重命名',
   'Unarchive': '取消归档',
   'Environment': '环境',
-  'Runs on': '运行于',
   'Nous': 'Nous',
   'Reading the nous…': '正在读取 Nous…',
   'New chat': '新建聊天',

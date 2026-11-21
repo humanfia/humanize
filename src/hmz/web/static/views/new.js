@@ -12,7 +12,7 @@
 
 import { call, given, hash } from '../api.js'
 import { covered, focusing, go, stays } from '../app.js'
-import { environmentChip } from '../chips/environment.js'
+import { daemonChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER } from '../desk.js'
 import { empty, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
@@ -54,7 +54,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'setup-rows' },
-      h('div', { class: 'setup-row', 'data-hmz': 'setup-daemon' }, h('span', { class: 'setup-name' }, t('Runs on')), environmentChip('/new', { up: false }).node),
+      h('div', { class: 'setup-row', 'data-hmz': 'setup-daemon' }, h('span', { class: 'setup-name' }, t('Daemon')), daemonChip('/new').node),
       h('div', { class: 'setup-row', 'data-hmz': 'setup-folder' }, h('span', { class: 'setup-name' }, t('Folder')), place.node),
     ),
     rooms,
