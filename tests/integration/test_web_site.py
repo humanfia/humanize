@@ -79,6 +79,9 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
         assert proxied.get("/here").status == 200
         assert proxied.get("/").status == 200
         assert proxied.get("/here", Origin="http://hmz.example").status == 200
+        # One that rewrites `Host` is not this server's own page to a browser that says
+        # only where its page came from (Section 4.4.6 of web.md).
+        assert proxied.get("/here", Origin="http://public.example").status == 403
 
         # Only this server's own page is admitted, as the browser says it.
         for came in ("same-site", "cross-site", "none"):

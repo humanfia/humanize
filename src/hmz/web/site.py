@@ -4,11 +4,14 @@ It listens on this machine's loopback alone -- IPv4's and, where there is one, I
 port -- and admits only a browser that came in through the address `hmz web` printed: that
 address carries a key, which the browser is handed back as a cookie, and `/here`, `/rpc` and
 `/dial` are refused without it. A loopback port is open to every account on a machine, where the
-daemon's socket is not; the key is what keeps the daemon this account's. What name the browser
-reached the server by is not asked, so a port forwarded or proxied on to it is answered: what is
-asked is that the connection came from this machine, and the key. A page from anywhere else
-cannot open a bridge either: the browser says where a request came from, and only this server's
-own page is admitted (Section 4.4 of web.md).
+daemon's socket is not; the key is what keeps the daemon this account's. The `Host` a request
+names is not checked, so a port forwarded or proxied on to it from this machine, under any name,
+is answered: what is asked is that the connection came from this machine, and the key. A page
+from anywhere else cannot open a bridge either: the browser says where a request came from, and
+only this server's own page is admitted -- `Sec-Fetch-Site: same-origin`, or, of a browser that
+sends none, an `Origin` over `http` that is the `Host` asked (Section 4.4 of web.md). So a proxy
+that serves the page over `https`, or that rewrites `Host`, has its `/rpc` and `/dial` refused
+403 in a browser that sends no `Sec-Fetch-Site` with them.
 
 The page's own files are served to anybody on this machine; everything else the page does, it
 does over JSON-RPC to a daemon (`hmz.web.bridge`).

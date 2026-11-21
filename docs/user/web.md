@@ -187,7 +187,7 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 
 ## Good to know
 
-- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
+- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. The forward must keep the address `http://` and the host and port the browser asked for: behind a proxy that serves the page over HTTPS or rewrites `Host`, the page loads but may be refused its connection to the daemon. For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
 - If the port passed to `--port` is taken, `hmz web` exits with `hmz: the web interface cannot be served:` and the reason. It also exits with a message if a daemon from an older, incompatible Humanize is running on this machine.
 - Scripts can read the address from standard output: `hmz web --no-open` prints a single line, `hmz web: <address>`. See [CLI](/reference/cli).
 - The browser tab title is `Humanize · ` followed by the machine's name.
