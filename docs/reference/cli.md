@@ -214,7 +214,7 @@ hmz chat --delete CHAT [--yes]
 
 | Option | Value | What it does |
 | --- | --- | --- |
-| `-a`, `--agent` | `CLI[@ACCOUNT]/MODEL[:EFFORT]` or `NOUS` | The agent, written as in [`hmz exec -a`](#agent-specs) without `ROLE=`. New chats default to the directory's remembered agent, or fail if none exists. Resumed chats keep their own. |
+| `-a`, `--agent` | `CLI[@ACCOUNT]/MODEL[:EFFORT]` or `NOUS` | The agent, written as in [`hmz exec -a`](#agent-specs) without `ROLE=`. New chats default to the directory's remembered agent, or fail if none exists. Resumed chats keep their own unless `-a` is given with `--resume`, which carries the chat on with that agent. |
 | `-e`, `--env` | `BACKEND[@RUNTIME][/DIRECTORY]` | Where the agent works. With `--resume`, moves the chat there. |
 | `--resume` | `CHAT` | Appends the message as the next turn of this chat. Incompatible with `--worktree`. |
 | `--worktree` | | Starts the chat in a new git worktree of this directory. |
