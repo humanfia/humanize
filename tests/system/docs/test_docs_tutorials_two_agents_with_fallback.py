@@ -201,7 +201,7 @@ def _codex(world: World, *, limited: bool = False) -> None:
         '        done(thread, status="failed", error={"message": LIMIT})\n'
         "        return\n" + was,
     )
-    at = world._bin / "codex"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself
+    at = world._bin / "codex"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself  # pyright: ignore[reportPrivateUsage]
     limit = _LIMIT if limited else ""
     at.write_text(f"#!{sys.executable}\n{_CODEX_HEAD}\nLIMIT = {limit!r}\n{body}\n")
     at.chmod(0o755)

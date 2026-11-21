@@ -19,7 +19,12 @@ from playwright.sync_api import expect
 from hmz.runtime.kept import Runs
 from tests.integration.doubles_tui import shows
 from tests.system.docs import shots
-from tests.system.docs.conftest import AGENT, MODEL, _heard, _roles
+from tests.system.docs.conftest import (
+    AGENT,
+    MODEL,
+    _heard,  # pyright: ignore[reportPrivateUsage]
+    _roles,  # pyright: ignore[reportPrivateUsage]
+)
 from tests.system.web.doubles_browser import go
 
 if TYPE_CHECKING:
@@ -145,13 +150,13 @@ def _started(world: World) -> str:
             agents=dict.fromkeys(_roles(session, "rlar", here), AGENT),
             idem=uuid.uuid4().hex,
         )
-        world._until(session, lambda: _heard(session, sub, "started") >= 1)  # noqa: SLF001
+        world._until(session, lambda: _heard(session, sub, "started") >= 1)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
         def listed() -> list[str]:
             runs = session.call("runs.list", workspace=here)["runs"]
             return [str(one["name"]) for one in runs if one["task"] == _TASK]
 
-        world._until(session, listed)  # noqa: SLF001
+        world._until(session, listed)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         name = listed()[0]
         session.call("epic.detach", sub=sub)
     return name

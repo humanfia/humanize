@@ -344,7 +344,7 @@ async def test_a_role_is_claimed_and_left_in_the_terminal(world: World) -> None:
 def _screen(app: object) -> str:
     from tests.integration.doubles_tui import screen
 
-    return screen(app)  # type: ignore[arg-type]
+    return screen(app)  # pyright: ignore[reportArgumentType]
 
 
 # -- from the command line ------------------------------------------------------------

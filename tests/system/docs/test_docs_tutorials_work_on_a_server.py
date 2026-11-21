@@ -240,7 +240,7 @@ def _chat(world: World, env: str, message: str) -> str:
             idem=uuid.uuid4().hex,
         )
         sub = session.call("epic.attach", workspace=here, slot=started["slot"])["sub"]
-        world._until(session, lambda: _heard(session, sub, "asked") >= 1)  # noqa: SLF001
+        world._until(session, lambda: _heard(session, sub, "asked") >= 1)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         session.call("epic.detach", sub=sub)
         return str(started["chat"])
 

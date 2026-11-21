@@ -61,7 +61,7 @@ sys.exit(2)
 
 def _kimi(world: World) -> None:
     """Installs the stand-in `kimi` beside the world's `claude`, and has the daemon ask it."""
-    at = world._bin / "kimi"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself
+    at = world._bin / "kimi"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself  # pyright: ignore[reportPrivateUsage]
     at.write_text(f"#!{sys.executable}\n{_KIMI}")
     at.chmod(0o755)
     world.call("nous.scan")

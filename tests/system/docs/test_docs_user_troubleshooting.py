@@ -126,7 +126,9 @@ def test_a_line_is_refused_before_anything_runs(world: World) -> None:
 
 
 async def test_the_terminal_says_no_agent_is_installed(world: World) -> None:
-    (world._bin / "claude").unlink()  # a machine with no coding agent
+    # A machine with no coding agent.
+    agent = world._bin / "claude"  # pyright: ignore[reportPrivateUsage]
+    agent.unlink()
     async with world.tui(size=(100, 20)) as (app, pilot):
         await pilot.pause(1.5)
         await typed(pilot, _TASK)

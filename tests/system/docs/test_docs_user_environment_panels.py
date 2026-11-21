@@ -132,7 +132,7 @@ def _own_names(monkeypatch: pytest.MonkeyPatch) -> None:
     file draws the later frame's icon through the earlier one's clip: a square. Here such a
     name is said after what it is inside, so that two things never share one.
     """
-    put = shots._Defs.put  # noqa: SLF001
+    put = shots._Defs.put  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
     def named(self: Any, tag: str, attributes: dict[str, str], inner: str = "") -> str:
         local = set(_LOCAL.findall(inner))
@@ -143,7 +143,7 @@ def _own_names(monkeypatch: pytest.MonkeyPatch) -> None:
                     inner = inner.replace(was, was.replace(name, f"{name}-{mark}"))
         return put(self, tag, attributes, inner)
 
-    monkeypatch.setattr(shots._Defs, "put", named)  # noqa: SLF001
+    monkeypatch.setattr(shots._Defs, "put", named)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
 
 def _typed(page: Page, command: str) -> None:

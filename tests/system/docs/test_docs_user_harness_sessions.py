@@ -30,7 +30,7 @@ from tests.system.web.doubles_browser import go
 
 if TYPE_CHECKING:
     import pytest
-    from playwright.sync_api import Page
+    from playwright.sync_api import Locator, Page
 
     from tests.system.docs.conftest import World
 
@@ -227,7 +227,7 @@ def _session(world: World, harness: str, ident: str) -> str:
     return f"/harness/{harness}/{ident}?workspace={workspace}"
 
 
-def _rows(page: Page) -> Any:
+def _rows(page: Page) -> Locator:
     return page.locator("[data-hmz=sidebar] [data-hmz=harness-session]")
 
 

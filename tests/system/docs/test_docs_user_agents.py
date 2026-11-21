@@ -66,7 +66,7 @@ def _codex(world: World) -> None:
     """Installs a stand-in `codex` beside the world's `claude`, and has the daemon ask it."""
     from tests.integration.doubles_agents import CODEX
 
-    at = world._bin / "codex"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself
+    at = world._bin / "codex"  # noqa: SLF001 -- the world's own `bin/`, which it keeps to itself  # pyright: ignore[reportPrivateUsage]
     at.write_text(f"#!{sys.executable}\n{_CODEX_HEAD}\n{CODEX}\n")
     at.chmod(0o755)
     world.call("nous.scan")
