@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 264" role="img">
+  <title>A chat's chip or a flow's role gives a permission; the fence holds the coding agent and every command it runs to it</title>
+  <rect width="760" height="264" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="48" width="168" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="108" y="76" text-anchor="middle">A chat</text>
+    <text x="108" y="96" text-anchor="middle" font-size="12" fill="#b3c3c8">you pick on the chip</text>
+
+    <rect x="24" y="152" width="168" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="108" y="180" text-anchor="middle">A flow</text>
+    <text x="108" y="200" text-anchor="middle" font-size="12" fill="#b3c3c8">its author sets each role</text>
+
+    <path d="M192 80L240 112" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M192 184L240 152" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <rect x="248" y="96" width="192" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="344" y="126" text-anchor="middle" font-weight="600">Permission</text>
+    <text x="344" y="148" text-anchor="middle" font-size="12" fill="#b3c3c8">preset · network · path rules</text>
+
+    <path d="M440 132L488 132" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <rect x="496" y="32" width="240" height="200" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="512" y="60" fill="#4fd8ea" font-weight="600">Fence</text>
+    <text x="720" y="60" text-anchor="end" font-size="12" fill="#b3c3c8">held from outside</text>
+
+    <rect x="512" y="80" width="208" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="616" y="108" text-anchor="middle">Coding agent CLI</text>
+    <text x="616" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">asks nobody first</text>
+
+    <rect x="512" y="160" width="208" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="616" y="189" text-anchor="middle">Every command it runs</text>
+  </g>
+</svg>

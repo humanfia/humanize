@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 248" role="img">
+  <title>Where settings are kept: App pages in this browser or app, Daemon pages in the settings.yaml of the daemon shown, a folder's Workspace settings with that folder</title>
+  <rect width="760" height="248" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <g fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5">
+      <rect x="24" y="24" width="224" height="80" rx="8"/>
+      <rect x="268" y="24" width="224" height="80" rx="8"/>
+      <rect x="512" y="24" width="224" height="80" rx="8"/>
+    </g>
+    <g font-size="14" font-weight="600" fill="#e8f0f2">
+      <text x="40" y="50">App</text>
+      <text x="284" y="50">Daemon</text>
+      <text x="528" y="50">Workspace settings</text>
+    </g>
+    <g font-size="12" fill="#b3c3c8">
+      <text x="40" y="72">Themes, Daemons,</text>
+      <text x="40" y="90">Notifications, Language</text>
+      <text x="284" y="72">General, Accounts, Nous,</text>
+      <text x="284" y="90">Runtimes, Backup, Usage</text>
+      <text x="528" y="72">Setup, Usage,</text>
+      <text x="528" y="90">Archived chats</text>
+    </g>
+    <g stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)">
+      <path d="M136 104 V150"/>
+      <path d="M380 104 V150"/>
+      <path d="M624 104 V150"/>
+    </g>
+    <g font-size="12" fill="#9aa9b0">
+      <text x="146" y="132">kept in</text>
+      <text x="390" y="132">kept in</text>
+      <text x="634" y="132">kept with</text>
+    </g>
+    <g fill="#12343b" stroke="#4fd8ea" stroke-width="1.5">
+      <rect x="24" y="152" width="224" height="72" rx="8"/>
+      <rect x="268" y="152" width="224" height="72" rx="8"/>
+      <rect x="512" y="152" width="224" height="72" rx="8"/>
+    </g>
+    <g font-size="14" fill="#e8f0f2">
+      <text x="40" y="182">This browser or app</text>
+      <text x="284" y="182">The daemon shown</text>
+      <text x="528" y="182">One folder of that daemon</text>
+    </g>
+    <g font-size="12" fill="#b3c3c8">
+      <text x="40" y="204">its own storage</text>
+      <text x="284" y="204" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">settings.yaml</text>
+      <text x="528" y="204">its set-up, chats and epics</text>
+    </g>
+  </g>
+</svg>

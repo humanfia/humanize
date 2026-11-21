@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 408" role="img">
+<title>Four frontends attach to one daemon; the daemon holds an epic, which is one run of a flow; each role of the flow is filled by a nous or by the person, and turns work in an environment on a runtime</title>
+<rect width="760" height="408" rx="12" fill="#172026"/>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<g text-anchor="middle">
+<rect x="24" y="24" width="160" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="104" y="49">Desktop</text>
+<rect x="208" y="24" width="160" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="288" y="49">Browser page</text>
+<rect x="392" y="24" width="160" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="472" y="49">Terminal</text>
+<rect x="576" y="24" width="160" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="656" y="49">Command line</text>
+</g>
+<g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+<path d="M104 64V102" marker-end="url(#a)"/>
+<path d="M288 64V102" marker-end="url(#a)"/>
+<path d="M472 64V102" marker-end="url(#a)"/>
+<path d="M656 64V102" marker-end="url(#a)"/>
+</g>
+<text x="116" y="88" font-size="12" fill="#9aa9b0">frontends</text>
+
+<rect x="24" y="104" width="712" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="380" y="129" text-anchor="middle">Daemon: one per machine and user</text>
+<path d="M256 144V174" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="268" y="164" font-size="12" fill="#9aa9b0">holds</text>
+
+<rect x="24" y="176" width="464" height="208" rx="8" fill="#0f161a" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="40" y="204" font-size="16" font-weight="600">Epic: one run of a flow</text>
+<text x="472" y="204" text-anchor="end" font-size="12" fill="#9aa9b0">from a flowverse</text>
+
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12">
+<rect x="40" y="220" width="104" height="36" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="92" y="242" text-anchor="middle">actor</text>
+<rect x="184" y="220" width="288" height="36" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="328" y="242" text-anchor="middle">claude/claude-opus-4-1:high</text>
+<rect x="40" y="268" width="104" height="36" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="92" y="290" text-anchor="middle">reviewer</text>
+<rect x="184" y="268" width="288" height="36" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="328" y="290" text-anchor="middle">codex@work/gpt-5:high</text>
+<rect x="40" y="316" width="104" height="36" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="92" y="338" text-anchor="middle">human</text>
+</g>
+<rect x="184" y="316" width="288" height="36" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="328" y="339" text-anchor="middle">Outworlder: you</text>
+<g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+<path d="M144 238H182" marker-end="url(#a)"/>
+<path d="M144 286H182" marker-end="url(#a)"/>
+<path d="M144 334H182" marker-end="url(#a)"/>
+</g>
+<text x="92" y="372" text-anchor="middle" font-size="12" fill="#9aa9b0">roles</text>
+<text x="328" y="372" text-anchor="middle" font-size="12" fill="#9aa9b0">nous = harness@account/model:effort</text>
+
+<path d="M488 238H526" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="632" y="194" text-anchor="middle" font-size="12" fill="#9aa9b0">turns work in</text>
+<rect x="528" y="204" width="208" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="632" y="232" text-anchor="middle">Environment</text>
+<text x="632" y="252" text-anchor="middle" font-size="12" fill="#b3c3c8">a directory</text>
+<path d="M632 268V310" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="644" y="294" font-size="12" fill="#9aa9b0">on</text>
+<rect x="528" y="312" width="208" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="632" y="340" text-anchor="middle">Runtime</text>
+<text x="632" y="360" text-anchor="middle" font-size="12" fill="#b3c3c8">its machine</text>
+</g>
+</svg>

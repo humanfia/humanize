@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img">
+  <title>From one workdir a flow derives a git worktree, a temporary copy and a scratch directory, and snapshots the workdir to rewind it later</title>
+  <rect width="760" height="320" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="40" width="208" height="64" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="128" y="68" text-anchor="middle" font-weight="600">The workdir</text>
+    <text x="128" y="88" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">~/shop</text>
+
+    <rect x="24" y="216" width="208" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="128" y="244" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">refs/hmz/snapshots/</text>
+    <text x="128" y="264" text-anchor="middle" font-size="12" fill="#a5d84a">git refs · kept</text>
+
+    <g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+      <path d="M112 104V214" marker-end="url(#a)"/>
+      <path d="M144 216V106" marker-end="url(#a)"/>
+      <path d="M232 72H390" marker-end="url(#a)"/>
+      <path d="M312 72V160H390" marker-end="url(#a)"/>
+      <path d="M312 160V248H390" marker-end="url(#a)"/>
+    </g>
+    <g font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="104" y="164" text-anchor="end">snapshot()</text>
+      <text x="152" y="164">rewind(ref)</text>
+    </g>
+
+    <g>
+      <rect x="392" y="40" width="344" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="408" y="66" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_worktree()</text>
+      <text x="408" y="88" font-size="12" fill="#b3c3c8">A git worktree at a ref · <tspan fill="#a5d84a">kept</tspan></text>
+
+      <rect x="392" y="128" width="344" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="408" y="154" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_temp_clone(id)</text>
+      <text x="408" y="176" font-size="12" fill="#b3c3c8">A copy of every file · <tspan fill="#e3b55a">removed when the flow ends</tspan></text>
+
+      <rect x="392" y="216" width="344" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="408" y="242" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_scratch(id)</text>
+      <text x="408" y="264" font-size="12" fill="#b3c3c8">An empty directory · <tspan fill="#e3b55a">removed when the flow ends</tspan></text>
+    </g>
+  </g>
+</svg>

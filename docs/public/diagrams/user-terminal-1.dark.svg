@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 408" role="img">
+<title>The order in which a line sent at the prompt is read: the first rule that matches decides what it becomes</title>
+<rect width="760" height="408" rx="12" fill="#172026"/>
+<defs><marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker></defs>
+<text x="24" y="44" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#e8f0f2">A sent line is read top down: the first match wins</text>
+<path d="M36 84V364" stroke="#435058" stroke-width="1.5" fill="none"/>
+<path d="M36 84H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="64" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="89" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">btw mode, and no <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">/</tspan> in front</text>
+<path d="M368 84H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="64" width="304" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="448" y="89" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">a side question</text>
+<path d="M36 140H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="120" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="145" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">/</tspan> and one of Humanize's commands</text>
+<path d="M368 140H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="120" width="304" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="448" y="145" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">that command runs</text>
+<path d="M36 196H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="176" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="201" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">in a chat, starts with <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$</tspan> <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">/</tspan> <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">!</tspan> or <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">@</tspan></text>
+<path d="M368 196H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="176" width="304" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="448" y="201" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">read as the chat's harness reads it</text>
+<path d="M36 252H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="232" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="257" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$flow</tspan> and a task</text>
+<path d="M368 252H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="232" width="304" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="448" y="257" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">the flow starts</text>
+<path d="M36 308H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="288" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="313" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">any other <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">/word</tspan></text>
+<path d="M368 308H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="288" width="304" height="40" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+<text x="448" y="313" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">refused: no such command</text>
+<path d="M36 364H55" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="56" y="344" width="312" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="72" y="369" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">anything else</text>
+<path d="M368 364H431" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="432" y="344" width="304" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="448" y="369" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">said to the agent</text>
+</svg>

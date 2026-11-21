@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 344" role="img">
+  <title>What is installed where: on macOS and Linux you install hmz and a coding agent CLI yourself; on Windows the app installs hmz in WSL.</title>
+  <rect width="760" height="344" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L8 4L0 8z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <text x="48" y="44" font-weight="600">macOS and Linux</text>
+    <text x="424" y="44" font-weight="600">Windows</text>
+
+    <rect x="408" y="136" width="312" height="168" rx="8" fill="none" stroke="#435058" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="700" y="158" font-size="12" fill="#9aa9b0" text-anchor="end">WSL</text>
+
+    <g stroke-width="1.5">
+      <rect x="48" y="64" width="280" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2"/>
+      <rect x="48" y="168" width="280" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2"/>
+      <rect x="48" y="240" width="280" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2"/>
+      <rect x="424" y="64" width="280" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2"/>
+      <rect x="424" y="168" width="280" height="48" rx="8" fill="#27351a" stroke="#a5d84a"/>
+      <rect x="424" y="240" width="280" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2"/>
+    </g>
+
+    <g text-anchor="middle">
+      <text x="188" y="93">Humanize Desktop · macOS only</text>
+      <text x="188" y="197" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz</text>
+      <text x="188" y="269">Coding agent CLI</text>
+      <text x="564" y="93">Humanize Desktop</text>
+      <text x="564" y="197" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz</text>
+      <text x="564" y="269">Coding agent CLI</text>
+    </g>
+
+    <g stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)">
+      <path d="M188 112V166"/>
+      <path d="M188 216V238"/>
+      <path d="M564 112V166"/>
+      <path d="M564 216V238"/>
+    </g>
+    <g font-size="12" fill="#9aa9b0">
+      <text x="200" y="134">reaches</text>
+      <text x="200" y="232">drives</text>
+      <text x="576" y="128">reaches</text>
+      <text x="576" y="232">drives</text>
+    </g>
+
+    <g font-size="12" fill="#b3c3c8">
+      <rect x="48" y="308" width="12" height="12" rx="3" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+      <text x="68" y="319">you install</text>
+      <rect x="160" y="308" width="12" height="12" rx="3" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+      <text x="180" y="319">the app installs</text>
+    </g>
+  </g>
+</svg>

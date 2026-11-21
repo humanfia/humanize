@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+  <title>An epic is exported as one .hmzepic archive with secrets redacted, and imported as an epic on any machine</title>
+  <rect width="760" height="280" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="104" width="152" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="100" y="136" text-anchor="middle" font-weight="600">Epic</text>
+    <text x="100" y="158" text-anchor="middle" font-size="12" fill="#9aa9b0">on your machine</text>
+
+    <line x1="176" y1="140" x2="294" y2="140" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="236" y="126" text-anchor="middle" fill="#ff94c2">Export</text>
+    <text x="236" y="164" text-anchor="middle" font-size="12" fill="#b3c3c8">secrets become</text>
+    <text x="236" y="182" text-anchor="middle" font-size="12" fill="#4fd8ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">[redacted]</text>
+
+    <rect x="296" y="40" width="224" height="200" rx="8" fill="#0f161a" stroke="#4fd8ea" stroke-width="1.5"/>
+    <path d="M296 80V48a8 8 0 0 1 8-8h208a8 8 0 0 1 8 8v32z" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="408" y="65" text-anchor="middle" fill="#4fd8ea">&lt;epic name&gt;.hmzepic</text>
+      <g font-size="12" fill="#e8f0f2">
+        <text x="312" y="108">manifest.json</text>
+        <text x="312" y="132">epic.jsonl</text>
+        <text x="312" y="156">sessions/&lt;session&gt;/…</text>
+        <text x="312" y="180">traces/…</text>
+      </g>
+    </g>
+    <text x="312" y="216" font-size="12" fill="#9aa9b0">flow state, profiles</text>
+
+    <line x1="520" y1="140" x2="614" y2="140" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="568" y="126" text-anchor="middle" fill="#ff94c2">Import</text>
+
+    <rect x="616" y="104" width="120" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="676" y="136" text-anchor="middle" font-weight="600">Epic</text>
+    <text x="676" y="158" text-anchor="middle" font-size="12" fill="#9aa9b0">on any machine</text>
+  </g>
+</svg>

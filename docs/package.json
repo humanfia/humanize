@@ -11,8 +11,10 @@
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
+    "diagrams": "node .vitepress/diagrams.mjs",
     "check:anchors": "node .vitepress/anchors.mjs",
     "check:pictures": "node .vitepress/pictures.mjs",
+    "check:words": "node .vitepress/words.mjs",
     "check:phone": "node .vitepress/phone.mjs"
   }
 }

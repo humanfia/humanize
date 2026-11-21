@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 272" role="img">
+  <title>A question goes from the flow through Humanize to you, and your answer comes back checked against the schema</title>
+  <rect width="760" height="272" rx="12" fill="#172026"/>
+  <style>
+    .s1 { animation: s1 8s infinite }
+    .s2 { animation: s2 8s infinite }
+    .s3 { animation: s3 8s infinite }
+    .s4 { animation: s4 8s infinite }
+    @keyframes s1 { 0%, 6% { opacity: 0 } 12%, 100% { opacity: 1 } }
+    @keyframes s2 { 0%, 22% { opacity: 0 } 28%, 100% { opacity: 1 } }
+    @keyframes s3 { 0%, 42% { opacity: 0 } 48%, 100% { opacity: 1 } }
+    @keyframes s4 { 0%, 60% { opacity: 0 } 66%, 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L8 4L0 8z" fill="#4fd8ea"/>
+    </marker>
+    <marker id="p" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L8 4L0 8z" fill="#ff94c2"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="56" width="176" height="104" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="112" y="96" text-anchor="middle" font-weight="600">Your flow</text>
+    <text x="112" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">reviewer.run(…)</text>
+
+    <rect x="292" y="56" width="176" height="104" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="380" y="96" text-anchor="middle" font-weight="600">Humanize</text>
+    <text x="380" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">checks the answer fits</text>
+
+    <rect x="560" y="56" width="176" height="104" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="648" y="96" text-anchor="middle" font-weight="600">You</text>
+    <text x="648" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">app, terminal or a face</text>
+
+    <g class="s1">
+      <line x1="204" y1="88" x2="288" y2="88" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+      <text x="246" y="76" text-anchor="middle" font-size="12" fill="#4fd8ea">question</text>
+    </g>
+    <g class="s2">
+      <line x1="472" y1="88" x2="556" y2="88" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+      <text x="514" y="76" text-anchor="middle" font-size="12" fill="#4fd8ea">form</text>
+    </g>
+    <g class="s3">
+      <line x1="556" y1="128" x2="472" y2="128" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+      <text x="514" y="148" text-anchor="middle" font-size="12" fill="#ff94c2">answer</text>
+    </g>
+    <g class="s4">
+      <line x1="288" y1="128" x2="204" y2="128" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+      <text x="246" y="148" text-anchor="middle" font-size="12" fill="#4fd8ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Review</text>
+    </g>
+
+    <rect x="24" y="192" width="712" height="56" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+    <text x="44" y="216" font-size="12" fill="#e3b55a" font-weight="600">Nobody there</text>
+    <text x="44" y="236" font-size="12" fill="#b3c3c8">The schema's defaults answer at once. A field without a default raises an error instead.</text>
+  </g>
+</svg>
