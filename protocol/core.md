@@ -1464,8 +1464,8 @@ pre-tool-use, notification, stop and session end.
 
 **4.9.1.2** On `litellm`, which reaches for no tool, the pre-tool-use hook MUST never fire.
 
-**4.9.1.3** The permission-request hook MUST be served by `claude`, `codex`, `kimi` and `grok`, and
-by no other harness.
+**4.9.1.3** The permission-request hook MUST be served by `claude`, `codex` and `kimi`, and by no
+other harness.
 
 **4.9.1.4** The subagent start and subagent stop hooks MUST be served by `claude`, `codex`,
 `cursor-agent` and `mcode`, and by no other harness.
