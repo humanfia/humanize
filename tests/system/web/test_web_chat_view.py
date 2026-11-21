@@ -964,20 +964,12 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         assert abs(chip["x"] + chip["width"] - popped["x"] - popped["width"]) <= 1
         page.keyboard.press("Escape")
 
-        # Nous: a harness and a model a row, then Effort and More, each one row that opens
-        # beside it.
+        # Nous: a row a level, each saying what is picked at it, and no list of every nous.
         model.click()
         menu = page.get_by_role("menu", name="Nous")
-        rows = menu.locator(
-            ".nous-list > [role=menuitem][data-cli=claude], .model-menu > .choice-sub"
-        )
+        rows = menu.locator(".model-menu > .choice.step")
         expect(rows).to_have_text(
-            [
-                "Claude Code - Haiku 4.5",
-                "Claude Code - Opus 4.1",
-                "EffortDefault",
-                "More",
-            ]
+            ["HarnessClaude Code", "ModelHaiku 4.5", "EffortDefault"]
         )
         assert set(rows.evaluate_all(_TALL)) == {28}
         chip, popped = (
@@ -985,31 +977,26 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
             _box(page, "[role=menu][aria-label=Nous]"),
         )
         assert 0 <= chip["y"] - popped["y"] - popped["height"] <= 6
+        assert popped["x"] >= 0
+        assert popped["x"] + popped["width"] <= width
+        expect(rows.first).to_be_focused()
+        # A level opens in the menu's own place, never beside it: one menu, as wide as it was,
+        # its foot where it stood.
+        menu.locator("[data-hmz=step-model]").click()
+        expect(page.locator("[role=menu]")).to_have_count(1)
+        level = _box(page, "[role=menu][aria-label=Nous]")
+        assert level["width"] == popped["width"]
+        assert 0 <= chip["y"] - level["y"] - level["height"] <= 6
+        expect(menu.locator(".nous-list > [role=menuitem]")).to_have_text(
+            ["Haiku 4.5", "Opus 4.1"]
+        )
+        expect(menu.locator("[data-hmz=pick-model-typed]")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_visible()
         expect(menu.locator("[data-value=claude-haiku-4-5]")).to_be_focused()
-        # One opened beside it takes the other's place: never two side by side.
-        menu.get_by_role("menuitem", name="Effort").click()
-        expect(page.locator("[data-hmz=pick-effort]")).to_be_visible()
-        # It ends no lower than the menu it came from: never on the chips, nor the box.
-        beside = _box(page, "[data-hmz=pick-effort]")
-        assert beside["y"] + beside["height"] <= popped["y"] + popped["height"] + 1
-        menu.get_by_role("menuitem", name="More").click()
-        expect(page.locator("[data-hmz=pick-effort]")).to_have_count(0)
-        more = page.locator("[data-hmz=pick-more]")
-        expect(more.locator("[data-hmz=pick-model-typed]")).to_be_visible()
-        expect(
-            more.locator(":scope > .choice-sub, :scope > [role=menuitem]")
-        ).to_have_text(["AccountLocal", "Refresh models"])
-        # A menu opened from More shuts alone, by the left arrow.
-        more.get_by_role("menuitem", name="Account").click()
-        expect(page.locator("[data-hmz=pick-account]")).to_be_visible()
+        # The left arrow goes back to the rows, on the row it came from; Escape closes it.
         page.keyboard.press("ArrowLeft")
-        expect(page.locator("[data-hmz=pick-account]")).to_have_count(0)
-        expect(more).to_be_visible()
-        # And so does More, by Escape: one press closes one menu, the topmost.
-        page.keyboard.press("Escape")
-        expect(more).to_have_count(0)
-        expect(menu).to_be_visible()
-        expect(menu.get_by_role("menuitem", name="More")).to_be_focused()
+        expect(menu.locator("[data-hmz=step-model]")).to_be_focused()
+        expect(menu.locator(".nous-list")).to_have_count(0)
         page.keyboard.press("Escape")
         expect(menu).to_have_count(0)
 

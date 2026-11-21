@@ -455,6 +455,12 @@ for terminals (Section 4.24.4.10).
 **3.9.8** A daemon MUST fetch the newest release of hmz as Section 13.3 of [CORE] states, and every
 flowverse's index once as it starts, without telling any client.
 
+**3.9.8.1** A daemon MUST, as it starts, begin a scan (Section 4.18.3.6) of every installed harness,
+as each account it runs as, that was never asked what it runs or was last asked more than 7 days
+ago. The scan MUST run apart from everything the daemon serves, asking one harness at a time: it
+MUST NOT delay the daemon's listening or the answer to any call, and a harness that does not answer
+MUST be left as it was. `HUMANIZE_SCAN` (Section 3.11.2.8.1 of [FILES]) MUST turn it off.
+
 ## 4. RPC Methods
 
 ### 4.1. Scope
@@ -1616,8 +1622,10 @@ refused 404 and a CLI that will not answer 502.
 **4.18.3.1** `nous.list` MUST answer `nous` (each `name`, `virtual`, `tries`, `policy`, `timeout`,
 `graph` and `then`, each graph `null` or `start` and `nodes`, each node `id`, `use`, `balance`,
 `among` (each `nous` and `weight`), `spread` and `on`), `policies`, `default`, `strategies`,
-`faults` (every fault class and `*`) and `concrete` (every concrete nous the daemon's accounts and
-installed harnesses run, without an effort).
+`faults` (every fault class and `*`), `concrete` (every concrete nous the daemon's accounts and
+installed harnesses run, without an effort) and `scanning` (whether a scan of Section 4.18.3.6 is
+going on). `concrete` MUST be answered from what each harness last said it runs, which the daemon
+keeps: `nous.list` MUST NOT ask a harness.
 
 **4.18.3.2** `nous.set` MUST take `name`, `tries` (default `0`), `policy` (default
 `exponential-jitter`), `timeout` (seconds, `0` for none), `graph` and `then`, each graph in a shape
@@ -1630,7 +1638,13 @@ installed harnesses run, without an effort).
 **4.18.3.4** `nous.clear` MUST take `name`, remove its nous, and answer as `nous.list` does; a nous
 with nothing written MUST be refused 404, and one another nous names 400.
 
-**4.18.3.5** `nous.set`, `nous.rename` and `nous.clear` MUST be writes.
+**4.18.3.5** `nous.set`, `nous.rename`, `nous.clear` and `nous.scan` MUST be writes.
+
+**4.18.3.6** `nous.scan` MUST ask every installed harness what it runs, as the daemon's machine's
+own sign-in and as each account made for it, keep each answer as `accounts.models` keeps it, and
+answer as `nous.list` does with `failed`: each `cli` and `account` that would not answer, and
+`why`. A harness that does not answer MUST NOT fail the call. One scan MUST go on at a time: a
+`nous.scan` called while one is going MUST wait for that one and answer what it found.
 
 #### 4.18.4. `runtimes.*`
 

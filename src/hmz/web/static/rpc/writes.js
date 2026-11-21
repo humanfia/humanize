@@ -9,7 +9,7 @@ export const WRITES = new Set([
   'workspaces.forget', 'flowverses.add', 'flowverses.fetch', 'flowverses.remove',
   'flowverses.install', 'flowverses.uninstall', 'settings.set', 'settings.forget',
   'accounts.create', 'accounts.correct', 'accounts.remove', 'accounts.models', 'accounts.copy',
-  'nous.set', 'nous.rename', 'nous.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
+  'nous.scan', 'nous.set', 'nous.rename', 'nous.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
   'easytier.set', 'easytier.remove', 'aichan.create', 'aichan.rename', 'aichan.forget', 'hosts.env.write',
   'hosts.env.exec', 'env.write', 'env.mkdir', 'env.rename', 'env.remove', 'env.git.stage',
   'env.git.unstage', 'env.git.discard', 'env.git.commit', 'env.git.rewind',

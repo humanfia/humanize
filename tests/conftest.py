@@ -67,6 +67,7 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     monkeypatch.setenv("HUMANIZE_RELEASES", "off")
+    monkeypatch.setenv("HUMANIZE_SCAN", "off")
     monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
     monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{tmp_path / 'no-github'}/.insteadOf")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://github.com/")
@@ -145,6 +146,7 @@ def _suite_places(_temporary: Path, tmp_path_factory: pytest.TempPathFactory) ->
         "HUMANIZE_SENTRY": "off",
         "HUMANIZE_PRICES": "off",
         "HUMANIZE_RELEASES": "off",
+        "HUMANIZE_SCAN": "off",
         "TMPDIR": str(between),
     }
     tempfile.tempdir = str(between)

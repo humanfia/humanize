@@ -331,7 +331,7 @@ is typed.
 #### 3.4.6. Empty lists
 
 **3.4.6.1** Where a list the page draws holds nothing yet and the page offers what puts something
-in it -- installing a flow, starting a chat or an epic, adding a backup target, a nous, a runtime
+in it -- installing a flow, starting a chat or an epic, adding a backup target, a runtime
 or an account -- the page MUST say that the list is empty in place of the list, and MUST offer
 there a button that opens what puts something in it.
 
@@ -699,10 +699,11 @@ files.
 **3.6.6.13** The box under a chat MUST say, on a chip in the row under it (Section 3.6.6.15), the
 harness, the model and the effort of the chat's agent, as Section 3.8.19 draws them. The chip MUST
 open a menu saying the agent's
-model, effort, harness and account, and offering a new chat in the chat's workspace. Where the
+harness, account, model and effort, a line each in that order as the levels of Section 3.8.19.1 are
+drawn, and offering a new chat in the chat's workspace. Where the
 chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
-the menu MUST offer the models known runnable as the agent's account, accepting a typed model, or
-the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
+the line of that level MUST open the models known runnable as the agent's account, accepting a
+typed model, or the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
 offer to change the agent of a chat that has begun any other way.
 
 **3.6.6.14** The row under the box of a chat (Section 3.6.6.15) MUST hold a permission chip that
@@ -1146,16 +1147,29 @@ box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going t
 
 **3.8.19** The form of a new chat MUST offer the assistant's agent as one chip under the box, at
 its right (Section 3.8.22), saying the harness, the model and the effort chosen -- `Default` where
-no effort is set -- each told from the next by the colour of its text. The chip MUST open a
-menu holding, under no heading: every nous the harnesses installed are known to run -- for each
-harness the models known runnable as the account it runs as -- each one row naming its harness and
-then its model, as `Codex - GPT-6.2 Sol`, with the one chosen marked, a harness with none known
-being one row that asks it, two of a harness that would read alike each saying after its model
-who routes it, and, over more than ten rows, a field that narrows them to what is typed in it;
-`Effort`, one row saying the effort chosen and opening the efforts the
-model chosen takes; and `More`, one row opening a typed model, the account the harness chosen runs
-as with a way to make one, and a way to ask that harness for its models again. What is picked MUST
+no effort is set -- each told from the next by the colour of its text; a virtual nous picked is
+said by its name. The chip MUST open the menu of Section 3.8.19.1. What is picked MUST
 come to what `-a` spells, as Section 3.8.10 states.
+
+**3.8.19.1** Wherever the page has a nous picked -- a new chat's agent, each role of a new epic
+(Section 3.8.8.1), Ai-chan's nous (Section 3.16.3), and the nous a node of a virtual nous names
+(Section 3.11.2.6) -- it MUST be picked from this one menu, which MUST NOT list every nous at once.
+The menu MUST hold, first and under the heading `Virtual`, every virtual nous of the daemon, each
+one row by its name, where there is any; and then, under the heading `Concrete` where a virtual
+nous is listed, one row for each of four levels in this order -- `Harness`, `Account`, `Model`,
+`Effort` -- each saying what is picked at it. A row MUST open, in the menu's place, the choices of
+its level alone with the one picked marked, under a row that says the level and goes back to the
+rows; the left arrow MUST go back as well. A level MUST offer only what the levels before it allow:
+`Harness`, the harnesses installed that can fill the role, one with no model known saying so and
+being asked as it is picked; `Account`, the accounts of the harness picked, with a way to make one;
+`Model`, the models known runnable as the account picked, two that would read alike each saying
+after it who routes it, with, over more than ten, a field that narrows them to what is typed in
+it, a typed model, and a way to ask the harness for its models again; `Effort`, the efforts the
+model picked takes, and `Default`. A level with one choice or none MUST have no row. Picking a
+harness MUST start from the account, the model and the effort last picked of that harness in this
+browser, where it still has them, and MUST open `Model`; picking an account MUST open `Model`;
+picking a model, an effort or a virtual nous MUST close the menu. Every row MUST be reachable and
+picked by the keyboard, and the menu MUST fit a window 320 CSS pixels wide.
 
 **3.8.20** The form of a new chat MUST hold the permission chip of Section 3.6.6.14 under the box,
 at its right after the chip of Section 3.8.19, on `Edit this folder` until the user picks another,
@@ -1352,11 +1366,32 @@ MUST NOT be run from the page.
 **3.11.2.5** The ways in through the local LiteLLM gateway MUST be grouped as the terminal interface
 groups them, with the command that adds the `litellm` extra where it is missing.
 
-**3.11.2.6** `Nous` MUST list every nous as Section 19.8.1 of [TUI] lists it, and MUST let the
-user make, change, rename and remove one -- its name, tries, wait policy and limit, a virtual nous's
-graph and every nous's `then` -- editing a graph's nodes, start node and edges as Section 19.8.3 of
-[TUI] states, and refusing as Section 19.8.4 of [TUI] refuses, as Section 4.11.4 of [CORE]
-specifies.
+**3.11.2.6** `Nous` MUST list every nous in two parts, `Virtual` and `Concrete`. `Virtual` MUST
+list each virtual nous by its name with its retries, its wait policy, its limit, and its graph and
+`then` as Section 19.8.1 of [TUI] shows them, and MUST say that there is none yet where there is
+none. `Concrete` MUST list every concrete nous `nous.list` answers as `concrete` and every one
+written down, a group a harness installed, each by its model and, where it names them, its account
+and its effort, with what is written of it; a harness with more than twelve, nothing written of
+any, MUST open folded, and over more than twelve in all a field MUST narrow them to what is typed
+in it. The page MUST NOT say that there is no nous where a harness is installed.
+
+**3.11.2.6.1** `Nous` MUST let the user make, change, rename and remove a virtual nous -- its name,
+tries, wait policy and limit, its graph and its `then` -- under `New virtual nous`, and change what
+is written of a concrete nous -- its tries, wait policy, limit and `then` -- and reset it. It MUST
+NOT offer to make a concrete nous: one is found by a scan. A graph's nodes, start node and edges
+MUST be edited as Section 19.8.3 of [TUI] states, the nous a node names picked from the menu of
+Section 3.8.19.1, and what Section 19.8.4 of [TUI] refuses MUST be refused, as Section 4.11.4 of
+[CORE] specifies.
+
+**3.11.2.6.2** `Nous` MUST offer `Scan`, which calls `nous.scan` (Section 4.18.3.6 of [DAEMON]),
+says that it is scanning until that answers, and then lists what was found and says each harness
+that would not answer and why. Over the list the page MUST say how many concrete nous of how many
+harnesses there are, and, while `nous.list` answers `scanning` true, that the daemon is scanning,
+reading the list again until it is not.
+
+**3.11.2.6.3** A choice of a wait policy, or of a balance node's strategy, MUST name each by a short
+name alone, and MUST say what the one chosen does in a line beside the control, in the page's
+language (Section 3.4.4).
 
 **3.11.2.7** `Runtimes` MUST list every runtime, and MUST let the user add one from its backend's
 fields, change it, check it, remove it after confirmation, and import hosts from the ssh config, as

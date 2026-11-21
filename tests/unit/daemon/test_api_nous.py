@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -131,3 +133,101 @@ def test_renaming_and_clearing() -> None:
     with pytest.raises(RpcError) as refused:
         nous.clear(hmz, "clever")
     assert refused.value.code == 404
+
+
+class _Accounts:
+    """Accounts that say what they are asked, each harness answering as it is told to."""
+
+    def __init__(self, fresh: tuple[str, ...] = ()) -> None:
+        self.asks: list[tuple[str, str]] = []
+        self.fresh = fresh
+        self.held = threading.Event()
+        self.held.set()
+
+    def all(self, cli: str = "") -> list[Any]:
+        return [SimpleNamespace(cli="claude", name="work")] if cli == "claude" else []
+
+    def models(self, cli: str, name: str = "") -> tuple[Any, ...]:
+        return ()
+
+    def stale(self, cli: str, name: str = "") -> bool:
+        return cli not in self.fresh
+
+    def ask(self, cli: str, name: str = "") -> tuple[Any, ...]:
+        self.held.wait(5)
+        self.asks.append((cli, name))
+        if cli == "codex":
+            raise OSError("codex is not signed in")
+        return ()
+
+
+def _scanned(accounts: _Accounts) -> Any:
+    return SimpleNamespace(
+        nous=_Book(),
+        accounts=accounts,
+        installed=lambda: {"claude": (), "codex": ()},
+    )
+
+
+def test_a_scan_asks_every_harness_as_every_account_and_says_who_would_not() -> None:
+    accounts = _Accounts()
+
+    said = nous.scan(_scanned(accounts))
+
+    assert sorted(accounts.asks) == [("claude", ""), ("claude", "work"), ("codex", "")]
+    assert said["failed"] == [
+        {"cli": "codex", "account": "", "why": "codex is not signed in"}
+    ]
+    assert said["scanning"] is False
+    assert said["concrete"] == []
+
+
+def test_a_scan_of_the_stale_alone_leaves_what_was_asked_lately() -> None:
+    accounts = _Accounts(fresh=("claude",))
+
+    assert nous.scan(_scanned(accounts), stale=True)["failed"] == [
+        {"cli": "codex", "account": "", "why": "codex is not signed in"}
+    ]
+    assert accounts.asks == [("codex", "")]
+
+
+def test_a_scan_asked_for_while_one_is_going_waits_for_it_and_asks_nobody() -> None:
+    accounts = _Accounts()
+    accounts.held.clear()
+    hmz = _scanned(accounts)
+    answers: list[dict[str, Any]] = []
+    first = threading.Thread(target=lambda: answers.append(nous.scan(hmz)))
+    first.start()
+    while not nous.listed(hmz)["scanning"]:
+        time.sleep(0.01)
+    second = threading.Thread(target=lambda: answers.append(nous.scan(hmz)))
+    second.start()
+    time.sleep(0.05)
+
+    accounts.held.set()
+    first.join(5)
+    second.join(5)
+
+    assert len(accounts.asks) == 3
+    assert [one["failed"] for one in answers] == [answers[0]["failed"]] * 2
+    assert nous.listed(hmz)["scanning"] is False
+
+
+def test_the_scan_a_daemon_starts_with_is_turned_off_by_its_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started: list[str] = []
+
+    def starts(thread: threading.Thread) -> None:
+        started.append(thread.name)
+
+    monkeypatch.setattr(threading.Thread, "start", starts)
+
+    for said in ("off", "0", "No", ""):
+        monkeypatch.setenv("HUMANIZE_SCAN", said)
+        nous.scans()
+    assert started == []
+
+    monkeypatch.delenv("HUMANIZE_SCAN")
+    nous.scans()
+    assert started == ["humanize-scan"]

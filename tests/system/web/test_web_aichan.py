@@ -271,12 +271,14 @@ def test_a_new_conversation_is_a_chat_with_her_nous_and_her_permission_under_its
         # Her permission starts read-only, on the scope the page shows: a folder's workspace.
         expect(permission).to_have_text("Read only · Workspace")
         expect(permission).to_have_attribute("data-permission", "read-only")
+        # Her nous is picked a level at a time, as a new chat's is.
         nous.click()
-        expect(
-            page.get_by_role("menu", name="Nous").locator(
-                "[data-value=claude-opus-4-1]"
-            )
-        ).to_be_visible()
+        picking = page.get_by_role("menu", name="Nous")
+        expect(picking.locator(".choice.step .choice-label")).to_have_text(
+            ["Harness", "Model", "Effort"]
+        )
+        picking.locator("[data-hmz=step-model]").click()
+        expect(picking.locator("[data-value=claude-opus-4-1]")).to_be_visible()
         page.keyboard.press("Escape")
 
         # Its menu: her two presets, as a chat's are named, and under them her scope.
@@ -637,6 +639,7 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
         chip = chat.locator("[data-hmz=pick-model]")
         expect(chip).to_have_attribute("data-value", "claude-haiku-4-5")
         chip.click()
+        page.get_by_role("menu", name="Nous").locator("[data-hmz=step-model]").click()
         page.get_by_role("menu", name="Nous").locator(
             "[data-value=claude-opus-4-1]"
         ).click()

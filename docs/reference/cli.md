@@ -1081,6 +1081,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, the daemon, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
+| `HUMANIZE_SCAN` | the daemon | `off`, `0`, `no`, `none`, empty | Off, the daemon does not ask its installed harnesses what they run as it starts. |
 | `HUMANIZE_EASYTIER` | the daemon, and every command that reaches a P2P daemon | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
 | `HUMANIZE_EASYTIER_NODES` | `hmz web` | a URL | The Uptime Kuma server whose status page `easytier` lists the community's shared EasyTier nodes. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |

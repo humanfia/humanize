@@ -968,6 +968,54 @@ code {
   width: 6em;
 }
 
+/* The two kinds of nous are two parts of one card, each under its own small heading. */
+.panel > h3.nous-part {
+  margin: var(--space-16) 0 var(--space-4);
+  font: 600 var(--text-md)/20px var(--sans);
+  color: var(--ink-2);
+}
+
+/* A harness and the nous found of it: its name, then how many, folded away where they are many. */
+.panel > details.nous-harness {
+  margin-top: var(--space-8);
+}
+
+.panel > details.nous-harness > .table-wrap {
+  margin-top: var(--space-4);
+}
+
+/* Every harness's table is ruled alike, so that what is said of one model stands under what is
+   said of the last harness's. */
+@container (min-width: 641px) {
+  details.nous-harness table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  details.nous-harness th:nth-child(2),
+  details.nous-harness th:nth-child(3) {
+    width: 24%;
+  }
+
+  details.nous-harness th:last-child {
+    width: 8.5rem;
+  }
+}
+
+.panel > input.nous-find {
+  width: min(100%, 20rem);
+  margin-top: var(--space-8);
+}
+
+/* What explains the way chosen in a select stands under its row, as long as it needs to be. */
+.hint.way-about {
+  margin: var(--space-4) 0 0;
+}
+
+.hint.way-about:empty {
+  display: none;
+}
+
 /* A box ticked beside what it says: said as words, not as a field's name. */
 .field > label.check {
   font: var(--text)/20px var(--sans);

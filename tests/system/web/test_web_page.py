@@ -222,9 +222,9 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         )
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
-        # The harnesses that can fill the role, a row a model each runs.
-        expect(menu.locator(".nous-list [data-cli=claude]")).to_have_text(
-            ["Claude Code - Haiku 4.5", "Claude Code - Opus 4.1"]
+        # A row a level, never a list of every nous: what is picked at each.
+        expect(menu.locator(".choice.step")).to_contain_text(
+            ["Claude Code", "Haiku 4.5", "Default"]
         )
         # Under the chip, its left edge on the chip's: never over the page's bar.
         chip_box, menu_box = chip.bounding_box(), menu.bounding_box()
@@ -232,11 +232,16 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         assert menu_box
         assert menu_box["y"] >= chip_box["y"] + chip_box["height"]
         assert abs(menu_box["x"] - chip_box["x"]) <= 1
+        # The models the harness picked runs, and no other's.
+        menu.locator("[data-hmz=step-model]").click()
+        expect(menu.locator(".nous-list [role=menuitem]")).to_have_text(
+            ["Haiku 4.5", "Opus 4.1"]
+        )
         menu.locator("[data-value=claude-opus-4-1]").click()
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
         chip.click()
-        menu.get_by_role("menuitem", name="Effort").click()
-        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
+        menu.locator("[data-hmz=step-effort]").click()
+        efforts = menu.locator("[role=menuitem][data-value]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
@@ -409,7 +414,7 @@ def test_a_model_no_cli_would_list_is_typed(
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
         expect(menu).to_contain_text("claude is not answering")
-        menu.get_by_role("menuitem", name="More").click()
+        menu.locator("[data-hmz=step-model]").click()
         typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
         typed.press("Enter")
@@ -754,29 +759,52 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         assert opened_at
         assert boxed["y"] < opened_at["y"] + opened_at["height"] <= chip_box["y"]
         assert chip_box["y"] - opened_at["y"] - opened_at["height"] <= 6
-        models = menu.locator(".nous-list > [role=menuitem][data-cli=claude]")
-        expect(models).to_have_count(2)
-        expect(models.nth(0)).to_have_class(re.compile("chosen"))
-        # One row a nous, its harness and then its model; as `-a` spells it where pointed at.
-        expect(models.nth(0)).to_have_text("Claude Code - Haiku 4.5")
-        expect(models.nth(0)).to_have_attribute("data-tip", "claude/claude-haiku-4-5")
-        # Every other harness here is in the same list, not under More.
-        expect(
-            menu.locator(".nous-list > [role=menuitem][data-cli=dsh]")
-        ).not_to_have_count(0)
-        expect(menu.locator(".popover-head")).to_have_count(0)
+        # A row a level, each saying what is picked at it: never a list of every nous. One
+        # account alone is no level, and no virtual nous is no heading.
+        levels = menu.locator(".choice.step")
+        expect(levels.locator(".choice-label")).to_have_text(
+            ["Harness", "Model", "Effort"]
+        )
+        expect(levels.locator(".choice-about")).to_have_text(
+            ["Claude Code", "Haiku 4.5", "Default"]
+        )
+        expect(menu.locator(".nous-list, .popover-head")).to_have_count(0)
         assert set(
-            models.evaluate_all(
+            levels.evaluate_all(
                 "all => all.map((one) => Math.round(one.getBoundingClientRect().height))"
             )
         ) == {28}
-        menu.locator("[data-value=claude-opus-4-1]").click()
+        # Every harness here is a choice of its own level, and no model of any stands there.
+        menu.locator("[data-hmz=step-harness]").click()
+        harnesses = menu.locator("[role=menuitem][data-cli]")
+        expect(harnesses.first).to_have_text("Claude Code")
+        expect(harnesses.first).to_have_class(re.compile("chosen"))
+        expect(menu.locator("[role=menuitem][data-cli=dsh]")).to_have_count(1)
+        # The way back is the level's own name, over its choices.
+        menu.locator("[data-hmz=step-back]").click()
+        expect(menu.locator("[data-hmz=step-harness]")).to_be_focused()
+        # The models of the harness picked alone; as `-a` spells one where it is pointed at.
+        menu.locator("[data-hmz=step-model]").click()
+        models = menu.locator(".nous-list > [role=menuitem]")
+        expect(models).to_have_text(["Haiku 4.5", "Opus 4.1"])
+        expect(models.nth(0)).to_have_class(re.compile("chosen"))
+        expect(models.nth(0)).to_be_focused()
+        expect(models.nth(0)).to_have_attribute("data-tip", "claude/claude-haiku-4-5")
+        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_enabled()
+        # The left arrow goes back as well, and the keys alone pick: down to Model, in, down
+        # to the next model, Enter.
+        page.keyboard.press("ArrowLeft")
+        expect(menu.locator("[data-hmz=step-model]")).to_be_focused()
+        page.keyboard.press("ArrowRight")
+        expect(models.nth(0)).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")
         expect(menu).to_have_count(0)
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
 
         chip.click()
-        menu.get_by_role("menuitem", name="Effort").click()
-        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
+        menu.locator("[data-hmz=step-effort]").click()
+        efforts = menu.locator("[role=menuitem][data-value]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
@@ -784,15 +812,16 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         expect(chip).to_have_text("Claude Code Opus 4.1 Max")
         expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
 
-        # The account it runs as is under More, one row of the same menu; the harness is not.
+        # A harness picked again starts from what was last picked of it, and its model is next.
         chip.click()
-        menu.get_by_role("menuitem", name="More").click()
-        expect(page.locator("[data-hmz=pick-more]")).to_be_visible()
-        expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
-        menu.get_by_role("menuitem", name="Account").click()
-        accounts = page.locator("[data-hmz=pick-account] [role=menuitem]")
-        expect(accounts).to_have_text(["Local", "Add account…"])
-        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_enabled()
+        menu.locator("[data-hmz=step-harness]").click()
+        menu.locator("[role=menuitem][data-cli=dsh]").click()
+        expect(menu.locator("[data-hmz=step-back]")).to_have_text("Model")
+        expect(chip).to_have_attribute("data-agent", re.compile(r"^dsh/"))
+        menu.locator("[data-hmz=step-back]").click()
+        menu.locator("[data-hmz=step-harness]").click()
+        menu.locator("[role=menuitem][data-cli=claude]").click()
+        expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
         # A model no CLI lists is typed, and Enter there sends nothing.
         typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
@@ -819,7 +848,7 @@ def test_a_chat_model_no_cli_would_list_is_typed_in_the_chip(
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
         expect(menu.locator(".hint")).to_contain_text("claude is not answering")
-        menu.get_by_role("menuitem", name="More").click()
+        menu.locator("[data-hmz=step-model]").click()
         menu.locator("[data-hmz=pick-model-typed]").fill("claude-sonnet-4-5")
         expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
         expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
@@ -832,6 +861,7 @@ def test_a_chat_says_its_model_on_the_chip_of_its_box(
         go(page, "/new/chat")
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
         chip.click()
+        page.locator(".model-menu [data-hmz=step-model]").click()
         page.locator(".model-menu [data-value=claude-opus-4-1]").click()
         page.locator("[data-hmz=composer-text]").fill("which model are you")
         page.locator("[data-hmz=composer-text]").press("Enter")
@@ -840,10 +870,15 @@ def test_a_chat_says_its_model_on_the_chip_of_its_box(
         expect(said).to_have_text("Claude Code Opus 4.1 Default")
         said.click()
         about = page.get_by_role("menu", name="Nous")
-        expect(about.locator("[data-value=claude-opus-4-1]")).to_have_class(
-            re.compile("chosen")
+        # The parts of its agent, a level a line in the order a new chat picks them.
+        expect(about.locator(".model-fact, .choice.step")).to_have_text(
+            [
+                "HarnessClaude Code",
+                "AccountLocal",
+                re.compile(r"^ModelOpus 4\.1$"),
+                re.compile(r"^EffortDefault$"),
+            ]
         )
-        expect(about.locator(".model-fact")).to_contain_text(["AccountLocal"])
         about.get_by_role("menuitem", name="New chat").click()
         expect(page).to_have_url(re.compile(r"#/new/chat\?workspace="))
 

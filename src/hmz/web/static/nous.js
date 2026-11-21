@@ -14,6 +14,60 @@ export function withEffort(spec, effort) {
   return effort && effort !== 'auto' ? `${spec.replace(/:auto$/, '')}:${effort}` : spec
 }
 
+/** Every way of waiting the daemon has built in, by its name: what the page calls it, and what it does. */
+const POLICIES = {
+  none: [t('No wait'), t('Tried again at once, with no wait at all.')],
+  constant: [t('Constant'), t('The same wait every time: 1s, 1s, 1s.')],
+  linear: [t('Linear'), t('One second longer each time: 1s, 2s, 3s.')],
+  exponential: [t('Exponential'), t('Twice as long each time: 1s, 2s, 4s, 8s.')],
+  'exponential-jitter': [t('Exponential with jitter'), t('Exponential, each wait anywhere up to it: for agents that fail at the same moment.')],
+  fibonacci: [t('Fibonacci'), t('The Fibonacci sequence: 1s, 1s, 2s, 3s, 5s.')],
+}
+
+/** Every way a balance node picks that the daemon has built in, likewise. */
+const STRATEGIES = {
+  shuffle: [t('Shuffle'), t('At random, each as often as its weight says.')],
+  'round-robin': [t('Round robin'), t('Each in turn, each as often as its weight says.')],
+  'least-busy': [t('Least busy'), t('The one taking the fewest turns right now.')],
+  latency: [t('Fastest'), t('The one whose turns have answered fastest lately.')],
+  usage: [t('Least used'), t('The one that has spent the fewest tokens in the last minute.')],
+  cost: [t('Cheapest'), t('The one whose model is cheapest per token.')],
+}
+
+/**
+ * A way of waiting, or of picking, as a select names it and as the line beside the select
+ * explains it, in the page's language: one the page does not know, as the daemon says it.
+ *
+ * @param {'policy' | 'strategy'} kind
+ * @param {{name: string, about?: string} | string} one As `nous.list` answers it, or its name alone.
+ * @returns {{name: string, about: string}}
+ */
+export function wayName(kind, one) {
+  const { name, about = '' } = typeof one === 'string' ? { name: one } : one
+  const known = (kind === 'policy' ? POLICIES : STRATEGIES)[name]
+  return known ? { name: known[0], about: known[1] } : { name, about }
+}
+
+/**
+ * Every concrete nous there is to list, a group a harness in the order given: each the daemon
+ * found by asking its harnesses, and each written down that it did not find -- one with an
+ * effort, or of a harness that is gone -- with what is written of it, or nothing.
+ *
+ * @param {{nous: {name: string, virtual: boolean}[], concrete: string[]}} data As `nous.list` answers.
+ * @param {string[]} [clis] The harnesses installed, which each have a group though nothing is found of them.
+ * @returns {{cli: string, rows: {name: string, written: object | null}[]}[]}
+ */
+export function found(data, clis = []) {
+  const written = new Map(data.nous.filter((one) => !one.virtual).map((one) => [one.name, one]))
+  const groups = new Map(clis.map((cli) => [cli, []]))
+  for (const name of [...new Set([...data.concrete, ...written.keys()])].sort()) {
+    const cli = name.split(/[@/]/)[0]
+    if (!groups.has(cli)) groups.set(cli, [])
+    groups.get(cli).push({ name, written: written.get(name) || null })
+  }
+  return [...groups].map(([cli, rows]) => ({ cli, rows }))
+}
+
 /** A graph's nodes, each once, in order from its start along its edges; those not reached last. */
 export function ordered(graph) {
   if (!graph || !graph.nodes) return []
