@@ -14,6 +14,35 @@ an SVG written here from the interface itself, so that it draws as the real thin
   moves when loaded with `<img src>`, with no script and nothing fetched, and stands still on
   one frame for a reader who asked for less motion.
 
+Light and dark
+==============
+
+Every picture is two files, written side by side from one run of its scene: `<name>.svg` is
+the interface drawn light and `<name>.dark.svg` the same interface, at the same instant,
+drawn dark -- the same size, the same frames, the same timing. The docs show whichever the
+reader's theme asks for. A scene calls nothing twice and says nothing of it:
+
+- a web page is taken as it draws where the system asks for light colours and again where
+  it asks for dark ones (`page.emulate_media`), and is left in the scheme the scene had it
+  in. From before the first to after the last its animations stand still, and so does what
+  it had waiting -- its timers, and word from its daemon (`GATE`, which `world.page()` opens
+  every page with) -- and afterwards the page is turned back and photographed once more:
+  if it is not as it began, both sides are taken again, and a page that changes under every
+  take fails its scene, so no pair is of two instants. Each side is held to its own
+  screenshot. The window drawn around it and the pointer over it are of the same side;
+- a terminal is one screen in two terminals: hmz draws in the terminal's own colours, so the
+  dark picture is of a terminal with a dark profile and the light one of a terminal with a
+  light profile -- a white window, dark ink, sixteen colours that read on white, its two
+  whites greys as such a profile has them (`_profiles`). The interface's screen is rendered
+  once and exported in each, and a command runs once;
+- where the colours are the scene's own subject the two files may be one picture: a page a
+  scene pins to Light or Dark in its settings draws that side whatever the system asks, and
+  a terminal interface started in a theme of Textual's (`TEXTUAL_THEME`) names every colour
+  itself.
+
+No scene opens the page dark to get a dark picture (`world.page(dark=True)` is what the
+system asks while the scene drives the page, and both sides are taken all the same).
+
 Writing a scene
 ===============
 
@@ -72,21 +101,23 @@ Never in CI, and never part of a plain `uv run pytest`: a browser is driven only
   another checkout named in `HUMANIZE_COGANCHOR`: the stand-in agents are fenced by it;
 - to run outside any sandbox of its caller's, since that fence is a sandbox of its own.
 
-A picture that does not draw as its screenshot fails saying where they differ. Set
-`HMZ_SHOTS_KEEP` to a directory to have both kept there, and look at them.
+A picture that does not draw as its screenshot fails saying which file it is and where they
+differ, and neither of its two files is written. Set `HMZ_SHOTS_KEEP` to a directory to
+have both kept there, and look at them.
 
 Names and sizes
 ===============
 
-A picture is written to `docs/public/shots/<name>.svg` and a page shows it as
-`![what it shows](/shots/<name>.svg)`. Name it `<page>-<what>` in lower case with dashes
+A picture is written to `docs/public/shots/<name>.svg`, with `<name>.dark.svg` beside it,
+and a page shows it as `![what it shows](/shots/<name>.svg)`: it names the light file, and
+the site shows the one of its theme. Name it `<page>-<what>` in lower case with dashes
 (`chat-new`, `desktop-splash-installing`), so that two pages never write one file. A still
 is held to `STILL` bytes (200 kB) and a reel to `REEL` (500 kB, the most the repository's
-commit hook lets any file be): crop to what the page is about (`clip=`), take fewer frames,
-or show less on screen. A still of a whole window is 80 to 180 kB; one of an epic's graph
-or of a long form is more, and where the whole window is what the page is about, say so
-with `most=shots.REEL`. A reel costs its first frame and then what changes: 15 frames of a
-page are some 160 kB, a terminal's less.
+commit hook lets any file be), each of its two files by itself: crop to what the page is
+about (`clip=`), take fewer frames, or show less on screen. A still of a whole window is
+80 to 180 kB; one of an epic's graph or of a long form is more, and where the whole window
+is what the page is about, say so with `most=shots.REEL`. A reel costs its first frame and
+then what changes: 15 frames of a page are some 160 kB, a terminal's less.
 
 Nothing private
 ===============
@@ -95,7 +126,8 @@ A picture shows nothing of the machine it was made on. `world` stages a person (
 machine (`studio`), a home and a project (`~/shop`) under a temporary directory, stand-in
 agents and stand-in flows; a scene adds only made-up names to it -- never a real account,
 key, path or project. Text is drawn as paths, so nothing can be searched for afterwards:
-look at each picture you write (open the SVG in a browser) before you leave it.
+look at each picture you write, both files of it (open the SVG in a browser), before you
+leave it.
 
 What it cannot do
 =================
@@ -105,6 +137,18 @@ What it cannot do
 - A page is printed from its top: scroll what is inside the page, never the document itself.
 - Nothing moves inside one frame: what moves to an end is waited for, and what moves for
   ever, as a spinner does, is held where it stands for the instant the frame is taken.
+- The dark picture of a page is of the page told, that instant, that the system is dark: a
+  page that draws something only as it loads, and never again when the system changes, keeps
+  it as it was.
+- What is held between a page's two sides is what was waiting when the first was taken. What
+  a page does without a timer or its socket -- a script drawing every frame, an answer to a
+  request it had sent -- is not held, only caught: the take is made again, and a page that
+  never stands still fails. A page opened without `GATE` (not by `world.page()`) holds
+  nothing, and is only caught.
+- A terminal's cursor blinks, and is in a picture or not as the frame fell; both sides are
+  of one screen, so in both or in neither.
+- A selection is not shown as one: a print leaves its ground out, so a frame is taken with
+  what is selected drawn as what is not.
 - What the browser can only print as pixels -- a canvas, as the trace's timeline is, a soft
   shadow, a picture -- is pixels in the SVG too, and what makes a picture large.
 - Dates and times are the real ones, of when the scene ran, in this machine's time zone,
@@ -137,17 +181,21 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 
     from playwright.sync_api import Browser, CDPSession, Locator, Page
+    from rich.console import Console
+    from rich.terminal_theme import TerminalTheme
     from rich.text import Text
     from textual.app import App
 
 __all__ = [
     "APP",
     "DESKTOP",
+    "GATE",
     "REEL",
     "SHOTS",
+    "SIDES",
     "STILL",
     "Reel",
     "cli",
@@ -159,10 +207,15 @@ __all__ = [
 #: Where the pictures are written: what the docs serve as `/shots/<name>.svg`.
 SHOTS = Path(__file__).resolve().parents[3] / "docs" / "public" / "shots"
 
-#: The most bytes a still may be.
+#: The two sides every picture is written on: light (False), then dark (True). The light one
+#: is `<name>.svg` and the dark one `<name>.dark.svg`, which the docs show by their theme.
+SIDES = (False, True)
+
+#: The most bytes a still may be, each of its two files.
 STILL = 200_000
 
-#: The most bytes a reel may be: what the commit hook (`check-added-large-files`) lets in.
+#: The most bytes a reel may be, each of its two files: what the commit hook
+#: (`check-added-large-files`) lets in.
 REEL = 500_000
 
 #: How large Humanize Desktop's window opens, which is what a picture of it is drawn at
@@ -194,6 +247,12 @@ _PX = 96 / 72
 #: share of a picture's pixels that may: text drawn as paths is smoothed a little otherwise.
 _FAR = 48
 _SHARE = 0.003
+
+#: The share that may in a terminal drawn light: a screen of dark letters on white, where a
+#: letter and its ground are the whole range of a pixel apart, and the little by which a
+#: letter's edge is smoothed otherwise as a path crosses `_FAR` all along it. Nothing that
+#: goes missing hides in it: that is still all of a square (`_PATCH`).
+_INK = 0.015
 
 #: And how much of any one square of it may, the square this many half pixels a side: a small
 #: thing gone missing -- an icon, a badge -- is a small share of a picture, and all of a square.
@@ -259,8 +318,19 @@ def _number(value: float, places: int) -> str:
 
 
 def _rounded(text: str, places: int) -> str:
-    """Every number in a path or a list, rounded."""
-    return _NUMBER.sub(lambda found: _number(float(found.group()), places), text)
+    """Every number in a path or a list, rounded.
+
+    A number may be parted from the one before it by nothing but its own sign or point
+    (`656-0.4`, `1.5.004`): where rounding takes that away, a space is put in its place, or
+    the two would be read as one (`6560`) and a letter drawn with a stray line off it.
+    """
+
+    def one(found: re.Match[str]) -> str:
+        said = _number(float(found.group()), places)
+        joined = found.start() and text[found.start() - 1] in "0123456789."
+        return f" {said}" if joined and said[0] not in "-." else said
+
+    return _NUMBER.sub(one, text)
 
 
 def _outline(path: str) -> str:
@@ -620,11 +690,13 @@ class _Frame:
       drawn: What is drawn, in the points it was printed in.
       at: The part of it shown, in CSS pixels of what was printed.
       png: The same part as the browser's own screenshot, which the drawing is held to.
+      share: The share of its pixels that may differ from that screenshot's.
     """
 
     drawn: list[ET.Element]
     at: _Box
     png: bytes
+    share: float = _SHARE
 
 
 class _Sharing:
@@ -696,57 +768,216 @@ def _document(
 
 
 def _take(
-    page: Page, defs: _Defs, at: _Box | None = None, *, clear: bool = False
-) -> _Frame:
-    """One frame of a page of Chromium's as it stands, or of one part of it.
+    page: Page,
+    defs: Mapping[bool, _Defs],
+    at: _Box | None = None,
+    *,
+    clear: bool = False,
+    sides: Sequence[bool] = SIDES,
+    share: float = _SHARE,
+    live: bool = True,
+) -> dict[bool, _Frame]:
+    """One frame of a page of Chromium's as it stands, or of one part of it, on each side.
 
-    The page's animations are held still while it is both photographed and printed, so that
-    the two are of one instant.
+    The page is taken as it draws where the system asks for light colours, and again where
+    it asks for dark ones, and the two are of one interface: from before the first until
+    after the last its animations stand still and, on a page opened with `GATE`, so does
+    what it had waiting -- a timer that was running, word from its daemon. Between the two
+    the page is told the other scheme, and waited for until it has redrawn in it, the
+    colours it fades between brought to their end; afterwards it is put back in the scheme
+    the scene left it in.
+
+    That they are of one interface is checked, not hoped: once both are taken the page is
+    turned back to the first scheme and photographed again, and where that is not the
+    photograph it began with -- something moved that nothing here holds -- both sides are
+    taken anew.
 
     Args:
       page: The page.
-      defs: What the picture it is a frame of names.
+      defs: What the picture it is a frame of names, on each side.
       at: The part of the page shown, in CSS pixels, or None for all of it.
       clear: Whether the page has no ground of its own, and is drawn on none.
+      sides: The sides taken: light (False), dark (True), or both.
+      share: The share of a frame's pixels that may differ from its screenshot's.
+      live: Whether the page may change by itself while it is taken, as an interface does
+        and a sheet of the pictures' own does not.
+
+    Returns:
+      The frame of each side.
+
+    Raises:
+      AssertionError: If the page changed under every one of `_AGAIN` takes of its sides.
     """
     size = page.viewport_size
     assert size is not None, "the page has no window"
     whole = _Box(0, 0, size["width"], size["height"])
     at = at or whole
     page.evaluate(_SETTLED)
+    was = _dark(page)
+    # As the scene left it first: nothing is turned for that one.
+    order = sorted(sides, key=lambda side: side != was)
+    checked = live and len(order) > 1
     chromium = page.context.new_cdp_session(page)
     _told(chromium, "Animation.enable")
     _told(chromium, "Animation.setPlaybackRate", {"playbackRate": 0})
+    _gate(page, shut=True)
+    taken: dict[bool, tuple[bytes, str]] = {}
     try:
-        page.emulate_media(media="screen")
-        page.evaluate(_HELD)
-        png = page.screenshot(
-            clip={"x": at.x, "y": at.y, "width": at.width, "height": at.height},
-            omit_background=clear,
-            caret="initial",
-        )
-        printed = _told(
-            chromium,
-            "Page.printToPDF",
-            {
-                "printBackground": True,
-                "paperWidth": whole.width / 96,
-                "paperHeight": whole.height / 96,
-                "marginTop": 0,
-                "marginBottom": 0,
-                "marginLeft": 0,
-                "marginRight": 0,
-                "preferCSSPageSize": False,
-            },
-        )
+        began = ended = b""
+        for _ in range(_AGAIN):
+            began = b""
+            for dark in order:
+                _turn(page, dark, media="screen")
+                page.evaluate(_HELD)
+                try:
+                    if checked and not began:
+                        began = _shot(page, at, clear, caret=False)
+                    taken[dark] = _both(page, chromium, whole, at, clear)
+                finally:
+                    page.evaluate(_LET_GO)
+            if not checked:
+                break
+            _turn(page, was, media="screen")
+            page.evaluate(_HELD)
+            try:
+                ended = _shot(page, at, clear, caret=False)
+            finally:
+                page.evaluate(_LET_GO)
+            if _same(began, ended):
+                break
+        else:
+            kept = "; set HMZ_SHOTS_KEEP to a directory to keep both and look"
+            if keep := os.environ.get("HMZ_SHOTS_KEEP"):
+                stem = Path(keep) / f"moved-{time.time_ns()}"
+                stem.parent.mkdir(parents=True, exist_ok=True)
+                stem.with_suffix(".began.png").write_bytes(began)
+                stem.with_suffix(".ended.png").write_bytes(ended)
+                kept = f"; the two are kept as {stem}.began.png and .ended.png"
+            raise AssertionError(
+                f"the page changed under each of {_AGAIN} takes of its light and its dark"
+                " side, so the two would not be pictures of one interface: its photograph"
+                " after the last is not its photograph before the first -- wait for what"
+                " is arriving before the frame is taken" + kept
+            )
     finally:
-        page.evaluate(_LET_GO)
+        _turn(page, was, media="null")
+        _gate(page, shut=False)
         _told(chromium, "Animation.setPlaybackRate", {"playbackRate": 1})
-        page.emulate_media(media="null")
         chromium.detach()
-    svg = _vectors(base64.b64decode(printed["data"]))
     keep = None if at == whole else at.scaled(1 / _PX)
-    return _Frame(_read(svg, defs, keep), at, png)
+    return {
+        dark: _Frame(
+            _read(_vectors(base64.b64decode(printed)), defs[dark], keep),
+            at,
+            png,
+            share,
+        )
+        for dark, (png, printed) in taken.items()
+    }
+
+
+#: How far one colour of a pixel may be from itself in two photographs of a page that did
+#: not change, and how many pixels may be further: a page turned dark and back is drawn
+#: again, and a hair of an edge falls a shade otherwise. A letter that changed is hundreds.
+_SHADE = 24
+_STRAY = 4
+
+
+def _same(one: bytes, other: bytes) -> bool:
+    """Whether two photographs are of a page that stood still between them."""
+    if one == other:
+        return True
+    import pymupdf
+
+    a: Any = pymupdf.Pixmap(one)
+    b: Any = pymupdf.Pixmap(other)
+    if (a.width, a.height, a.n) != (b.width, b.height, b.n):
+        return False
+    row = a.width * a.n
+    ours, theirs = cast("bytes", a.samples), cast("bytes", b.samples)
+    stray = 0
+    for at in range(0, len(ours), row):
+        mine, yours = ours[at : at + row], theirs[at : at + row]
+        if mine == yours:
+            continue
+        for x in range(0, row, a.n):
+            if any(
+                abs(mine[x + part] - yours[x + part]) > _SHADE for part in range(a.n)
+            ):
+                stray += 1
+                if stray > _STRAY:
+                    return False
+    return True
+
+
+def _gate(page: Page, *, shut: bool) -> None:
+    """Holds what every frame of a page has waiting, or lets it go: see `GATE`."""
+    for frame in page.frames:
+        # A frame that went as it was asked, or a page opened without the gate.
+        with contextlib.suppress(Exception):
+            frame.evaluate(
+                "(shut) => window.__hmzShotsGate && window.__hmzShotsGate(shut)", shut
+            )
+
+
+def _both(
+    page: Page, chromium: CDPSession, whole: _Box, at: _Box, clear: bool
+) -> tuple[bytes, str]:
+    """A page's screenshot, and the page as printed just after: a PDF, in base 64."""
+    png = _shot(page, at, clear)
+    printed = _told(
+        chromium,
+        "Page.printToPDF",
+        {
+            "printBackground": True,
+            "paperWidth": whole.width / 96,
+            "paperHeight": whole.height / 96,
+            "marginTop": 0,
+            "marginBottom": 0,
+            "marginLeft": 0,
+            "marginRight": 0,
+            "preferCSSPageSize": False,
+        },
+    )
+    return png, printed["data"]
+
+
+def _shot(page: Page, at: _Box, clear: bool, *, caret: bool = True) -> bytes:
+    """The browser's own screenshot of one part of a page.
+
+    With the caret of a box being typed in, as a frame shows it, or without: the caret
+    blinks by the browser's clock, which nothing holds, and two photographs that are held
+    to each other are taken without it.
+    """
+    return page.screenshot(
+        clip={"x": at.x, "y": at.y, "width": at.width, "height": at.height},
+        omit_background=clear,
+        caret="initial" if caret else "hide",
+    )
+
+
+def _dark(page: Page) -> bool:
+    """Whether the system a page is on asks for dark colours, as the page is told it does."""
+    return bool(page.evaluate("matchMedia('(prefers-color-scheme: dark)').matches"))
+
+
+def _turn(page: Page, dark: bool, *, media: Literal["screen", "null"]) -> None:
+    """Tells a page which colours the system asks for, and waits until it draws in them.
+
+    A page that follows the system redraws: its stylesheet at once, and what a script of
+    its own paints -- a canvas, an editor, a frame inside it -- a moment after. What fades
+    from one colour to the other is brought to its end, since the page's clock is held.
+    """
+    turned = _dark(page) != dark
+    page.emulate_media(media=media, color_scheme="dark" if dark else "light")
+    if not turned:
+        return
+    for _ in range(2):
+        page.evaluate(_REDRAWN)
+        for frame in page.frames:
+            with contextlib.suppress(Exception):
+                frame.evaluate(_FADED)
+    page.evaluate("new Promise((done) => requestAnimationFrame(() => done(true)))")
 
 
 def _told(
@@ -817,10 +1048,89 @@ _SETTLED = """async () => {
   await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
 }"""
 
+#: Waits for a page told another colour scheme to have redrawn in it: for the scripts that
+#: listen for the change, the shortest of which answer a moment later, and two frames.
+_REDRAWN = """async () => {
+  await new Promise((done) => setTimeout(done, 90))
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+}"""
+
+#: Brings every colour a document is fading to another to the end of its fade: the page's
+#: clock is held while a frame is taken, and a fade begun then would stand at its start.
+_FADED = """() => {
+  for (const one of document.getAnimations())
+    if (one instanceof CSSTransition) one.finish()
+}"""
+
+#: How many times the two sides of a frame are taken before the scene fails: each time the
+#: page is found to have changed between its first photograph and its last.
+_AGAIN = 4
+
+#: Run in a page before any script of its own (`world.page()` does), this lets `_take` hold
+#: what the page has waiting while its two sides are taken, so that both are of one instant:
+#: a timer set before the hold -- a tip about to come up, a count of seconds, a poll -- does
+#: not fire until it ends, and what the daemon says over the page's socket is not heard
+#: until then, in the order it came. A timer set during the hold runs as ever: it is the
+#: page answering the change of scheme. Nothing is changed while nothing is held.
+GATE = """(() => {
+  if (window.__hmzShotsGate) return
+  let hold = 0
+  let holds = 0
+  const waiting = new Map()
+  const mail = []
+  for (const name of ['setTimeout', 'setInterval']) {
+    const native = window[name]
+    window[name] = function (callback, ...rest) {
+      if (typeof callback !== 'function') return native.call(this, callback, ...rest)
+      const born = hold
+      const id = native.call(this, function (...given) {
+        if (!hold || hold === born) return callback.apply(this, given)
+        waiting.set(id, () => callback.apply(this, given))
+      }, ...rest)
+      return id
+    }
+  }
+  for (const name of ['clearTimeout', 'clearInterval']) {
+    const native = window[name]
+    window[name] = function (id) {
+      waiting.delete(id)
+      return native.call(this, id)
+    }
+  }
+  const Socket = window.WebSocket
+  if (Socket)
+    window.WebSocket = class extends Socket {
+      constructor(...given) {
+        super(...given)
+        super.addEventListener('message', (event) => {
+          if (!hold) return
+          event.stopImmediatePropagation()
+          mail.push([this, event])
+        })
+      }
+    }
+  window.__hmzShotsGate = (shut) => {
+    hold = shut ? ++holds : 0
+    if (shut) return
+    const late = [...waiting.values()]
+    waiting.clear()
+    for (const run of late) run()
+    for (const [socket, { data, origin, lastEventId }] of mail.splice(0))
+      socket.dispatchEvent(new MessageEvent('message', { data, origin, lastEventId }))
+  }
+})()"""
+
 #: Holds everything that scrolls to the height it has, and lets it go again. Printed, a page
 #: is laid out anew as paper, and what scrolls inside a column that shares its height out may
-#: be given the height of all it holds, pushing what stands under it off the sheet.
+#: be given the height of all it holds, pushing what stands under it off the sheet. And shows
+#: what is selected as what is not, for as long: a print leaves a selection's ground out, and
+#: on a dark page that ground is far from what is under it.
 _HELD = """() => {
+  const plain = document.createElement('style')
+  plain.textContent =
+    '*::selection { background-color: transparent !important; color: currentColor !important }'
+  document.head.appendChild(plain)
+  window.__hmzShotsPlain = plain
   window.__hmzShotsHeld = [...document.querySelectorAll('*')].flatMap((one) => {
     if (!/auto|scroll/.test(getComputedStyle(one).overflowY)) return []
     if (one.scrollHeight <= one.clientHeight + 1) return []
@@ -834,6 +1144,8 @@ _LET_GO = """() => {
   for (const [one, was] of window.__hmzShotsHeld || [])
     for (const [name, value] of was) one.style[name] = value
   delete window.__hmzShotsHeld
+  if (window.__hmzShotsPlain) window.__hmzShotsPlain.remove()
+  delete window.__hmzShotsPlain
 }"""
 
 _COMPARE = """async ([drawn, shot, far, tile]) => {
@@ -879,12 +1191,14 @@ def _address(data: bytes, kind: str) -> str:
     return f"data:{kind};base64,{base64.b64encode(data).decode()}"
 
 
-def _faithful(browser: Browser, svg: str, png: bytes, what: str) -> None:
+def _faithful(
+    browser: Browser, svg: str, png: bytes, what: str, share: float = _SHARE
+) -> None:
     """Fails unless an SVG rasterizes, in the browser, to the screenshot it was made beside.
 
     Raises:
-      AssertionError: If more than `_SHARE` of its pixels are further than `_FAR` from the
-        screenshot's.
+      AssertionError: If more than `share` of its pixels are further than `_FAR` from the
+        screenshot's, or more than `_PATCH` of any one square of it.
     """
     page = browser.new_page()
     try:
@@ -900,7 +1214,7 @@ def _faithful(browser: Browser, svg: str, png: bytes, what: str) -> None:
     finally:
         page.close()
     assert sizes[:2] == sizes[2:], f"{what} is {sizes[:2]}, its screenshot {sizes[2:]}"
-    if differing <= of * _SHARE and worst <= _TILE * _TILE * _PATCH:
+    if differing <= of * share and worst <= _TILE * _TILE * _PATCH:
         return
     kept = ""
     if keep := os.environ.get("HMZ_SHOTS_KEEP"):
@@ -977,10 +1291,23 @@ class _Sheet:
     dark: bool = False
     clear: bool = False
     ready: str = ""
+    share: float = _SHARE
 
 
-def _draw(sheet: _Sheet, defs: _Defs) -> _Frame:
-    """One frame of a sheet, drawn in the pictures' own browser."""
+def _draw(sheet: _Sheet, defs: Mapping[bool, _Defs]) -> dict[bool, _Frame]:
+    """One frame of a sheet on each side: as it draws for a light system, and for a dark."""
+    return _drawn({dark: dataclasses.replace(sheet, dark=dark) for dark in defs}, defs)
+
+
+def _drawn(
+    sheets: Mapping[bool, _Sheet], defs: Mapping[bool, _Defs]
+) -> dict[bool, _Frame]:
+    """One frame of each side's sheet."""
+    return {dark: _sided(sheet, defs[dark]) for dark, sheet in sheets.items()}
+
+
+def _sided(sheet: _Sheet, defs: _Defs) -> _Frame:
+    """One frame of a sheet, drawn in the pictures' own browser in the sheet's own scheme."""
 
     def job(browser: Browser) -> _Frame:
         context = browser.new_context(
@@ -1001,7 +1328,14 @@ def _draw(sheet: _Sheet, defs: _Defs) -> _Frame:
             page.evaluate("document.fonts.ready.then(() => true)")
             if sheet.ready:
                 page.wait_for_selector(sheet.ready)
-            return _take(page, defs, clear=sheet.clear)
+            return _take(
+                page,
+                {sheet.dark: defs},
+                clear=sheet.clear,
+                sides=[sheet.dark],
+                share=sheet.share,
+                live=False,
+            )[sheet.dark]
         finally:
             context.close()
 
@@ -1116,13 +1450,20 @@ def _dress(
     )
 
 
-#: The pointer: an arrow with its tip at the point it is moved to.
-_POINTER = (
-    '<path d="M0 0v17.2l4.4-4.1 3.1 7.1 2.9-1.3-3.1-6.9h6z" fill="#000" fill-opacity=".2"'
-    ' transform="translate(1 1.6)"/>'
-    '<path d="M0 0v17.2l4.4-4.1 3.1 7.1 2.9-1.3-3.1-6.9h6z" fill="#111" stroke="#fff"'
-    ' stroke-width="1.3" stroke-linejoin="round"/>'
-)
+def _pointer(dark: bool) -> str:
+    """The pointer: an arrow with its tip at the point it is moved to.
+
+    Black edged in white on a light picture, as macOS draws it, and white edged in black on
+    a dark one, where a black arrow is lost.
+    """
+    fill, edge, shade = ("#f4f6f7", "#0b0d0f", ".5") if dark else ("#111", "#fff", ".2")
+    return (
+        '<path d="M0 0v17.2l4.4-4.1 3.1 7.1 2.9-1.3-3.1-6.9h6z" fill="#000"'
+        f' fill-opacity="{shade}" transform="translate(1 1.6)"/>'
+        f'<path d="M0 0v17.2l4.4-4.1 3.1 7.1 2.9-1.3-3.1-6.9h6z" fill="{fill}"'
+        f' stroke="{edge}" stroke-width="1.3" stroke-linejoin="round"/>'
+    )
+
 
 #: What a key is written as on its cap, where not as it is named.
 _KEYS = {
@@ -1154,22 +1495,28 @@ _KEYS = {
 #: How tall the strip under a reel is, where any frame of it says a key or a caption.
 _STRIP = 52
 
+#: The strip is drawn on the docs page's own paper, light or dark: its ink is that page's.
 _STRIP_STYLE = """
 html, body { margin: 0; background: transparent }
 body { -webkit-font-smoothing: antialiased; height: 100vh; display: flex;
   align-items: center; justify-content: center; gap: 8px;
   font: 500 15px/1 -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-  color: #6b7780 }
+  color: #5d6a72 }
 kbd { font: 600 13px/1 ui-monospace, Menlo, monospace; color: #3b454c; background: #f3f5f6;
   border: 1px solid #c9d0d5; border-bottom-width: 2.5px; border-radius: 6px;
   padding: 6px 8px 5px; min-width: 10px; text-align: center }
 kbd.typed { font-weight: 500 }
 span.plus { color: #9aa4ab; margin: 0 -3px }
 span.said { margin-left: 6px }
+@media (prefers-color-scheme: dark) {
+  body { color: #9aa9b0 }
+  kbd { color: #dbe5e8; background: #1b252b; border-color: #3a4850 }
+  span.plus { color: #6f7d85 }
+}
 """
 
 
-def _strip(keys: str, caption: str, width: int, defs: _Defs) -> _Frame:
+def _strip(keys: str, caption: str, width: int, defs: _Defs, *, dark: bool) -> _Frame:
     """The strip under a frame: the keys pressed for it, as caps, and what it is told as.
 
     Args:
@@ -1178,6 +1525,7 @@ def _strip(keys: str, caption: str, width: int, defs: _Defs) -> _Frame:
       caption: What is said after them, or "".
       width: How wide the frame over it is.
       defs: What the reel names.
+      dark: Whether it is the dark picture's.
     """
     said: list[str] = []
     for chord in keys.split():
@@ -1196,7 +1544,7 @@ def _strip(keys: str, caption: str, width: int, defs: _Defs) -> _Frame:
         f'<!doctype html><meta charset="utf-8"><style>{_STRIP_STYLE}</style>'
         + "".join(said)
     )
-    return _draw(_Sheet(width, _STRIP, content, clear=True), defs)
+    return _sided(_Sheet(width, _STRIP, content, clear=True, dark=dark), defs)
 
 
 # --------------------------------------------------------------------------------------
@@ -1204,7 +1552,7 @@ def _strip(keys: str, caption: str, width: int, defs: _Defs) -> _Frame:
 # --------------------------------------------------------------------------------------
 
 
-def _terminal(svg: str) -> _Sheet:
+def _terminal(svg: str, dark: bool) -> _Sheet:
     """A terminal window as Rich draws one, as a sheet to draw: in a font of this machine.
 
     Rich names a font to be fetched, which a picture may not: the window is drawn in a
@@ -1212,6 +1560,14 @@ def _terminal(svg: str) -> _Sheet:
     """
     svg = re.sub(r"@font-face\s*\{[^}]*\}", "", svg)
     svg = svg.replace("font-family: Fira Code, monospace", f"font-family: {_MONO}")
+    # A cell's ground is a rectangle that ends where the next begins, and between two that
+    # meet at a fraction of a pixel the window shows through as a hair: each is drawn a
+    # little over its edge, in its own colour.
+    svg = re.sub(
+        r'<rect fill="([^"]+)"([^>]*) shape-rendering="crispEdges"/>',
+        r'<rect fill="\1" stroke="\1" stroke-width=".6"\2/>',
+        svg,
+    )
     found = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg)
     assert found, "not a terminal as Rich draws one"
     width, height = (math.ceil(float(one)) for one in found.groups())
@@ -1221,15 +1577,81 @@ def _terminal(svg: str) -> _Sheet:
         "-webkit-font-smoothing:antialiased}"
         f"</style>{svg}"
     )
-    return _Sheet(width, height, content, clear=True)
+    return _Sheet(
+        width, height, content, clear=True, dark=dark, share=_SHARE if dark else _INK
+    )
 
 
-def _screen(lines: Sequence[Text], columns: int, title: str) -> str:
-    """Lines of a terminal, drawn by Rich in the window it draws the interface's screen in."""
+def _profiles() -> dict[bool, TerminalTheme]:
+    """The colours of the terminal a screen is drawn in, on each side.
+
+    hmz draws in the terminal's own colours -- its ground, its ink and the sixteen it names
+    -- so what a screen looks like is a matter of the terminal's profile. The dark picture
+    is of a terminal with a dark profile, the one Rich draws an exported screen in; the light
+    one is the same screen in a terminal with a light profile: a white window, dark ink, and
+    sixteen colours that can be read on white. Its `white` and `bright white` are greys, as
+    light profiles have them: pale enough to be written on a coloured ground, and dark enough
+    that a ground of them -- the cursor, a bar of the timeline -- is seen on the window's
+    white, where a white one is lost.
+    """
+    from rich.terminal_theme import SVG_EXPORT_THEME, TerminalTheme
+
+    light = TerminalTheme(
+        (255, 255, 255),
+        (31, 35, 40),
+        [
+            (31, 35, 40),
+            (196, 32, 48),
+            (26, 127, 55),
+            (148, 100, 0),
+            (9, 105, 218),
+            (130, 80, 223),
+            (17, 120, 130),
+            (175, 184, 193),
+        ],
+        [
+            (106, 115, 125),
+            (164, 14, 38),
+            (17, 99, 41),
+            (122, 78, 0),
+            (5, 80, 174),
+            (102, 57, 186),
+            (12, 96, 105),
+            (208, 215, 222),
+        ],
+    )
+    return {False: light, True: SVG_EXPORT_THEME}
+
+
+def _windows(console: Console, title: str, *, own: bool = False) -> dict[bool, str]:
+    """What a console recorded, as the terminal window Rich draws, on each side.
+
+    Args:
+      console: The console, which recorded what was printed on it.
+      title: What the window is titled.
+      own: Whether what it recorded names every colour itself, as an interface in a theme
+        of its own does: nothing of it is the terminal's, and both sides are one picture, the
+        dark window.
+    """
+    said: dict[bool, str] = {}
+    for dark, profile in _profiles().items():
+        svg = console.export_svg(
+            title=title, theme=_profiles()[True] if own else profile, clear=False
+        )
+        if not (dark or own):
+            # The window's edge, which Rich draws for a dark one: a light line on white.
+            svg = svg.replace("rgba(255,255,255,0.35)", "rgba(20,26,31,0.22)")
+        said[dark] = svg
+    return said
+
+
+def _console(columns: int, rows: int | None = None) -> Console:
+    """A console that records what is printed on it, as Textual makes one to export a screen."""
     from rich.console import Console
 
-    console = Console(
+    return Console(
         width=columns,
+        height=rows,
         file=io.StringIO(),
         force_terminal=True,
         color_system="truecolor",
@@ -1237,9 +1659,41 @@ def _screen(lines: Sequence[Text], columns: int, title: str) -> str:
         legacy_windows=False,
         safe_box=False,
     )
+
+
+def _screen(lines: Sequence[Text], columns: int, title: str) -> dict[bool, _Sheet]:
+    """Lines of a terminal, drawn by Rich in the window it draws the interface's screen in."""
+    console = _console(columns)
     for line in lines:
         console.print(line, no_wrap=True, overflow="crop", highlight=False)
-    return console.export_svg(title=title)
+    return {
+        dark: _terminal(svg, dark) for dark, svg in _windows(console, title).items()
+    }
+
+
+def _interface(app: App[Any]) -> dict[bool, _Sheet]:
+    """The terminal interface's screen as it stands, in a terminal of each side.
+
+    What `App.export_screenshot` does, but for the terminal's profile, which that leaves to
+    Rich: the screen is rendered once, and exported in the dark profile and in the light one.
+    An app started in a theme of Textual's names every colour itself, and is one picture.
+    """
+    running = cast("Any", app)
+    width, height = app.size
+    console = _console(width, height)
+    console.print(
+        running.screen._compositor.render_update(  # noqa: SLF001 -- as export_screenshot
+            full=True,
+            screen_stack=running._background_screens,  # noqa: SLF001
+            simplify=False,
+        )
+    )
+    return {
+        dark: _terminal(svg, dark)
+        for dark, svg in _windows(
+            console, app.title, own=not app.current_theme.ansi
+        ).items()
+    }
 
 
 #: The colours a terminal names, as Rich names them.
@@ -1308,14 +1762,13 @@ class _Ran:
                 ]
                 for x in range(shows[-1] + 1 if shows else 0):
                     cell = row[x]
-                    fore, back = _colour(cell.fg), _colour(cell.bg)
-                    if cell.reverse:
-                        fore, back = back or "black", fore or "white"
                     line.append(
                         cell.data,
                         Style(
-                            color=fore,
-                            bgcolor=back,
+                            color=_colour(cell.fg),
+                            bgcolor=_colour(cell.bg),
+                            # The terminal's ink and ground change places, whichever they are.
+                            reverse=cell.reverse or None,
                             bold=cell.bold or None,
                             italic=cell.italics or None,
                             underline=cell.underscore or None,
@@ -1399,60 +1852,88 @@ def _prompt(typed: str, columns: int, *, caret: bool = False) -> list[Text]:
 # --------------------------------------------------------------------------------------
 
 
-def _save(name: str, svg: str, most: int) -> Path:
-    """Writes a picture where the docs serve it from, held to its size."""
+def _file(name: str, dark: bool) -> str:
+    """What one side of a picture is called: `<name>.svg` light, `<name>.dark.svg` dark."""
+    return f"{name}.dark.svg" if dark else f"{name}.svg"
+
+
+def _put(name: str, written: Mapping[bool, str], most: int) -> Path:
+    """Writes a picture's two sides where the docs serve them from, each held to its size.
+
+    Neither is written unless both may be: a picture is never left with one side of an
+    earlier run beside one of this.
+
+    Returns:
+      The light file.
+    """
     assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name), (
         f"a picture is named in lower case with dashes, as `chat-new`: not {name!r}"
     )
-    assert len(svg.encode()) <= most, (
-        f"{name}.svg is {len(svg.encode()):,} bytes, over the {most:,} a picture of its kind"
-        " may be: crop it, show less on screen, or take fewer frames"
-    )
+    assert set(written) == set(SIDES), "a picture is written on both sides"
+    for dark, svg in written.items():
+        assert len(svg.encode()) <= most, (
+            f"{_file(name, dark)} is {len(svg.encode()):,} bytes, over the {most:,} a"
+            " picture of its kind may be: crop it, show less on screen, or take fewer"
+            " frames"
+        )
     SHOTS.mkdir(parents=True, exist_ok=True)
-    at = SHOTS / f"{name}.svg"
-    at.write_text(svg + "\n", encoding="utf-8")
-    return at
+    for dark, svg in written.items():
+        (SHOTS / _file(name, dark)).write_text(svg + "\n", encoding="utf-8")
+    return SHOTS / _file(name, False)
+
+
+def _pair() -> dict[bool, _Defs]:
+    """What a picture names, on each of its sides: the two files share nothing."""
+    return {dark: _Defs() for dark in SIDES}
 
 
 def _still(
     name: str,
-    frame: _Frame,
-    defs: _Defs,
+    frames: Mapping[bool, _Frame],
+    defs: Mapping[bool, _Defs],
     *,
     window: Window | None = None,
-    dark: bool = False,
     address: str = "",
     pointer: tuple[float, float] | None = None,
     most: int = STILL,
 ) -> Path:
-    """Writes one frame as a picture, once it is held to its screenshot as it is written."""
-    sharing = _Sharing(defs, [frame])
-    box = frame.at
-    bare = sharing.frame(frame)
-    plain = _document(box.width, box.height, defs.written(bare), bare)
-    _studio.does(lambda browser: _faithful(browser, plain, frame.png, f"{name}.svg"))
-    dressed = _dress(window, box.width, box.height, dark=dark, address=address)
-    body = bare
-    if window is not None:
-        placed = sharing.frame(frame, dressed.x, dressed.y)
-        body = f"{dressed.under}<g{dressed.cut}>{placed}</g>{dressed.over}"
-    if pointer is not None:
-        x = pointer[0] - box.x + dressed.x
-        y = pointer[1] - box.y + dressed.y
-        body += (
-            f'<g transform="translate({_number(x, 1)} {_number(y, 1)})">{_POINTER}</g>'
+    """Writes one frame as a picture, light and dark, each held to its own screenshot.
+
+    Neither file is written unless both are faithful and of a size.
+
+    Returns:
+      The light file.
+    """
+    written: dict[bool, str] = {}
+    for dark, frame in frames.items():
+        sharing = _Sharing(defs[dark], [frame])
+        box = frame.at
+        bare = sharing.frame(frame)
+        plain = _document(box.width, box.height, defs[dark].written(bare), bare)
+        _studio.does(
+            lambda browser, plain=plain, frame=frame, dark=dark: _faithful(
+                browser, plain, frame.png, _file(name, dark), frame.share
+            )
         )
-    return _save(
-        name,
-        _document(
-            dressed.width, dressed.height, dressed.defs + defs.written(body), body
-        ),
-        most,
-    )
-
-
-def _dark(page: Page) -> bool:
-    return bool(page.evaluate("matchMedia('(prefers-color-scheme: dark)').matches"))
+        dressed = _dress(window, box.width, box.height, dark=dark, address=address)
+        body = bare
+        if window is not None:
+            placed = sharing.frame(frame, dressed.x, dressed.y)
+            body = f"{dressed.under}<g{dressed.cut}>{placed}</g>{dressed.over}"
+        if pointer is not None:
+            x = pointer[0] - box.x + dressed.x
+            y = pointer[1] - box.y + dressed.y
+            body += (
+                f'<g transform="translate({_number(x, 1)} {_number(y, 1)})">'
+                f"{_pointer(dark)}</g>"
+            )
+        written[dark] = _document(
+            dressed.width,
+            dressed.height,
+            dressed.defs + defs[dark].written(body),
+            body,
+        )
+    return _put(name, written, most)
 
 
 def web(
@@ -1468,8 +1949,10 @@ def web(
 ) -> Path:
     """Writes a still of the web page as it stands: `docs/public/shots/<name>.svg`.
 
-    The page is Chromium's, as `world.page()` opens it. Wait for what the picture is of
-    before taking it (`expect(...)`): the page is drawn as it is at that instant.
+    And `<name>.dark.svg` beside it. The page is Chromium's, as `world.page()` opens it.
+    Wait for what the picture is of before taking it (`expect(...)`): the page is drawn as
+    it is at that instant, once as it draws where the system is light and once where it is
+    dark, and is left as it was.
 
     Args:
       page: The page.
@@ -1486,21 +1969,20 @@ def web(
       most: The most bytes it may be.
 
     Returns:
-      The file written.
+      The light file written.
 
     Raises:
-      AssertionError: If the picture does not rasterize to the page's screenshot, is named
-        badly or is too large.
+      AssertionError: If either picture does not rasterize to the page's screenshot, is
+        named badly or is too large.
     """
     assert window is None or clip is None, "a window is drawn around the whole page"
-    defs = _Defs()
-    frame = _take(page, defs, _where(page, clip, pad) if clip is not None else None)
+    defs = _pair()
+    frames = _take(page, defs, _where(page, clip, pad) if clip is not None else None)
     return _still(
         name,
-        frame,
+        frames,
         defs,
         window=window,
-        dark=_dark(page),
         address=address,
         pointer=_point(page, pointer) if pointer is not None else None,
         most=most,
@@ -1510,8 +1992,11 @@ def web(
 def tui(app: App[Any], name: str, *, most: int = STILL) -> Path:
     """Writes a still of the terminal interface's screen: `docs/public/shots/<name>.svg`.
 
-    The screen is the running app's own (`App.export_screenshot`), in the terminal window
-    Rich draws, titled as the app is. Call it inside `async with world.tui() as (app,
+    The screen is the running app's own, as `App.export_screenshot` renders it, in the
+    terminal window Rich draws, titled as the app is: in a terminal with a light profile for
+    the light picture and a dark one for the dark, since the interface draws in the
+    terminal's colours (an app started in a theme of Textual's is one picture, twice). Call
+    it inside `async with world.tui() as (app,
     pilot):`, after `await pilot.pause()` has let the screen settle.
 
     Args:
@@ -1520,12 +2005,10 @@ def tui(app: App[Any], name: str, *, most: int = STILL) -> Path:
       most: The most bytes it may be.
 
     Returns:
-      The file written.
+      The light file written.
     """
-    defs = _Defs()
-    return _still(
-        name, _draw(_terminal(app.export_screenshot()), defs), defs, most=most
-    )
+    defs = _pair()
+    return _still(name, _drawn(_interface(app), defs), defs, most=most)
 
 
 def cli(
@@ -1541,9 +2024,10 @@ def cli(
 ) -> Path:
     """Runs a command in a real terminal and writes a still of what it printed.
 
-    It runs under the environment as the test has it -- the staged home, daemon and agents
-    of `world` -- in the working directory, with colours as a terminal gets them. `hmz` is
-    this checkout's.
+    The command runs once, and what it printed is drawn twice: in a terminal with a light
+    profile and in one with a dark profile. It runs under the environment as the test has it
+    -- the staged home, daemon and agents of `world` -- in the working directory, with
+    colours as a terminal gets them. `hmz` is this checkout's.
 
     Args:
       argv: The command, as typed: `["hmz", "--help"]`.
@@ -1556,16 +2040,14 @@ def cli(
       most: The most bytes it may be.
 
     Returns:
-      The file written.
+      The light file written.
     """
     ran = _run(argv, cwd, columns, 200, patience)
     screens = [lines for _, lines in ran.screens()]
     lines = _prompt(shlex.join(argv), columns) if typed else []
     lines += screens[-1] if screens else []
-    defs = _Defs()
-    return _still(
-        name, _draw(_terminal(_screen(lines, columns, title)), defs), defs, most=most
-    )
+    defs = _pair()
+    return _still(name, _drawn(_screen(lines, columns, title), defs), defs, most=most)
 
 
 def _status(state: str, detail: Any) -> str:
@@ -1578,15 +2060,19 @@ def _status(state: str, detail: Any) -> str:
     )
 
 
-def _splash(state: str, detail: Any, dark: bool) -> _Sheet:
-    return _Sheet(
-        *DESKTOP,
-        address=_SPLASH.as_uri(),
-        init=_status(state, detail),
-        agent=APP,
-        dark=dark,
-        ready=f"main[data-state={state}]",
-    )
+def _splash(state: str, detail: Any, dark: bool) -> dict[bool, _Sheet]:
+    """The splash in one state, on each side: both dark where the scene asks for dark."""
+    return {
+        side: _Sheet(
+            *DESKTOP,
+            address=_SPLASH.as_uri(),
+            init=_status(state, detail),
+            agent=APP,
+            dark=dark or side,
+            ready=f"main[data-state={state}]",
+        )
+        for side in SIDES
+    }
 
 
 def splash(
@@ -1614,16 +2100,18 @@ def splash(
       state: The state.
       detail: What the app says with it.
       name: The picture's name.
-      dark: Whether the system asks for dark colours.
+      dark: Whether both pictures are of a system that asks for dark colours: where the
+        dark splash itself is what the page is about. Left alone, the light picture is of a
+        light system and the dark one of a dark.
       window: The window drawn around it: the app's, unless None.
       most: The most bytes it may be.
 
     Returns:
-      The file written.
+      The light file written.
     """
-    defs = _Defs()
-    frame = _draw(_splash(state, detail, dark), defs)
-    return _still(name, frame, defs, window=window, dark=dark, most=most)
+    defs = _pair()
+    frames = _drawn(_splash(state, detail, dark), defs)
+    return _still(name, frames, defs, window=window, most=most)
 
 
 # --------------------------------------------------------------------------------------
@@ -1633,9 +2121,9 @@ def splash(
 
 @dataclasses.dataclass
 class _Shown:
-    """One frame of a reel, and how it is shown."""
+    """One frame of a reel, on each of its sides, and how it is shown."""
 
-    frame: _Frame
+    frame: dict[bool, _Frame]
     hold: float
     pointer: tuple[float, float] | None = None
     click: bool = False
@@ -1670,6 +2158,9 @@ class Reel:
     reader who asked for reduced motion the reel stands still on its last frame, or on the
     one taken with `poster=True`.
 
+    A reel is two files, as a still is: `<name>.svg` of the light interface and
+    `<name>.dark.svg` of the dark one, frame for frame and beat for beat, from one run.
+
     Args:
       name: The picture's name: `<docs page>-<what>`, lower case with dashes.
       clip: For a reel of the web page, the one part of it shown in every frame -- a locator
@@ -1700,10 +2191,9 @@ class Reel:
         self._fade = fade
         self._address = address
         self._most = most
-        self._defs = _Defs()
+        self._defs = _pair()
         self._shown: list[_Shown] = []
         self._at: _Box | None = None
-        self._dark = False
 
     # -- frames -------------------------------------------------------------------------
 
@@ -1734,7 +2224,6 @@ class Reel:
         """
         if self._clip is not None and self._at is None:
             self._at = _where(page, self._clip, self._pad)
-        self._dark = _dark(page)
         self._add(
             _take(page, self._defs, self._at),
             hold,
@@ -1799,7 +2288,7 @@ class Reel:
           cut: Whether it replaces the last at once, with no fade: as typing does.
         """
         self._add(
-            _draw(_terminal(app.export_screenshot()), self._defs),
+            _drawn(_interface(app), self._defs),
             hold,
             keys=keys,
             caption=caption,
@@ -1873,7 +2362,7 @@ class Reel:
         for at, (lines, stood) in enumerate(steps):
             padded = [*lines, *(Text() for _ in range(rows - len(lines)))][-rows:]
             self._add(
-                _draw(_terminal(_screen(padded, columns, title)), self._defs),
+                _drawn(_screen(padded, columns, title), self._defs),
                 stood,
                 cut=True,
                 poster=at == len(steps) - 1,
@@ -1893,63 +2382,70 @@ class Reel:
 
         Give the reel `window="desktop"` to draw the app's window around them.
         """
-        self._dark = dark
         self._add(
-            _draw(_splash(state, detail, dark), self._defs),
+            _drawn(_splash(state, detail, dark), self._defs),
             hold,
             caption=caption,
             poster=poster,
         )
 
-    def _add(self, frame: _Frame, hold: float, **how: Any) -> None:
-        if self._shown:
-            first = self._shown[0].frame.at
-            assert (frame.at.width, frame.at.height) == (first.width, first.height), (
-                f"every frame of a reel is one size: {frame.at} after {first}"
+    def _add(self, frame: dict[bool, _Frame], hold: float, **how: Any) -> None:
+        first = (self._shown[0].frame if self._shown else frame)[False].at
+        for one in frame.values():
+            assert (one.at.width, one.at.height) == (first.width, first.height), (
+                f"every frame of a reel is one size: {one.at} after {first}"
             )
         self._shown.append(_Shown(frame, hold, **how))
 
     # -- the file -----------------------------------------------------------------------
 
     def save(self) -> Path:
-        """Writes the reel: `docs/public/shots/<name>.svg`.
+        """Writes the reel: `docs/public/shots/<name>.svg` and `<name>.dark.svg`.
 
-        Every frame is first held to its screenshot, as it is written in the file.
+        Every frame is first held to its screenshot, as it is written in its file, and
+        neither file is written unless both are faithful and of a size.
 
         Returns:
-          The file written.
+          The light file written.
 
         Raises:
           AssertionError: If a frame does not rasterize to its screenshot, or the reel is
             named badly or is too large.
         """
         assert self._shown, "a reel is made of frames"
+        return _put(
+            self.name, {dark: self._written(dark) for dark in SIDES}, self._most
+        )
+
+    def _written(self, dark: bool) -> str:
+        """One side of the reel, as its file says it."""
         shown = self._shown
-        size = shown[0].frame.at
+        mine = self._defs[dark]
+        size = shown[0].frame[dark].at
         strips: dict[tuple[str, str], _Frame] = {
             (one.keys, one.caption): _strip(
-                one.keys, one.caption, int(size.width), self._defs
+                one.keys, one.caption, int(size.width), mine, dark=dark
             )
             for one in shown
             if one.keys or one.caption
         }
         sharing = _Sharing(
-            self._defs, [one.frame for one in shown] + list(strips.values())
+            mine, [one.frame[dark] for one in shown] + list(strips.values())
         )
         dressed = _dress(
             self._window,
             size.width,
             size.height,
-            dark=self._dark,
+            dark=dark,
             address=self._address,
         )
-        placed = [sharing.frame(one.frame, dressed.x, dressed.y) for one in shown]
+        placed = [sharing.frame(one.frame[dark], dressed.x, dressed.y) for one in shown]
         under = dressed.height - (_SHADOW[2] - 8 if self._window else 0)
         told = {
             key: sharing.frame(strip, dressed.x, under) for key, strip in strips.items()
         }
-        defs = self._defs.written("".join(placed) + "".join(told.values()))
-        self._check(shown, sharing, defs)
+        defs = mine.written("".join(placed) + "".join(told.values()))
+        self._check(dark, sharing, defs)
 
         total = sum(one.hold for one in shown)
         starts = [sum(one.hold for one in shown[:at]) for at in range(len(shown))]
@@ -2002,7 +2498,7 @@ class Reel:
             )
             if at == poster:
                 still.append(f"#s{at}{{opacity:1}}")
-        body.append(self._pointed(shown, starts, total, dressed, size, style, moving))
+        body.append(self._pointed(dark, starts, total, dressed, size, style, moving))
         height = dressed.height + (_STRIP if strips else 0)
         if strips and self._window:
             height -= _SHADOW[2] - 8
@@ -2014,30 +2510,30 @@ class Reel:
             + "".join(still)
             + "}"
         )
-        return _save(
-            self.name,
-            _document(dressed.width, height, dressed.defs + defs, "".join(body), sheet),
-            self._most,
+        return _document(
+            dressed.width, height, dressed.defs + defs, "".join(body), sheet
         )
 
-    def _check(self, shown: Sequence[_Shown], sharing: _Sharing, defs: str) -> None:
-        """Holds each frame, as the file says it, to its screenshot."""
+    def _check(self, dark: bool, sharing: _Sharing, defs: str) -> None:
+        """Holds each frame of one side, as its file says it, to its screenshot."""
 
         def job(browser: Browser) -> None:
-            for at, one in enumerate(shown):
-                box = one.frame.at
+            for at, one in enumerate(self._shown):
+                frame = one.frame[dark]
+                box = frame.at
                 _faithful(
                     browser,
-                    _document(box.width, box.height, defs, sharing.frame(one.frame)),
-                    one.frame.png,
-                    f"frame {at + 1} of {self.name}.svg",
+                    _document(box.width, box.height, defs, sharing.frame(frame)),
+                    frame.png,
+                    f"frame {at + 1} of {_file(self.name, dark)}",
+                    frame.share,
                 )
 
         _studio.does(job)
 
     def _pointed(
         self,
-        shown: Sequence[_Shown],
+        dark: bool,
         starts: Sequence[float],
         total: float,
         dressed: _Dressed,
@@ -2046,6 +2542,7 @@ class Reel:
         moving: list[str],
     ) -> str:
         """The pointer, gliding to where each frame points, and a ring where it clicks."""
+        shown = self._shown
         if not any(one.pointer for one in shown):
             return ""
 
@@ -2100,4 +2597,4 @@ class Reel:
             f"#p{{transform:translate({_number(began[0], 1)}px,{_number(began[1], 1)}px)}}"
         )
         moving.append(f"#p{{animation:p {_number(total, 2)}s linear infinite}}")
-        return "".join(rings) + f'<g id="p">{_POINTER}</g>'
+        return "".join(rings) + f'<g id="p">{_pointer(dark)}</g>'

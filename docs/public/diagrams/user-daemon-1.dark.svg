@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 328" role="img">
+<title>Every interface on a machine is a client of one daemon, which keeps one host process per workspace, chat or command-line run</title>
+<rect width="760" height="328" rx="12" fill="#172026"/>
+<defs><marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker></defs>
+<text x="24" y="48" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#9aa9b0">What you open</text>
+<text x="296" y="48" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#9aa9b0">Started on demand</text>
+<text x="536" y="48" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#9aa9b0">Holds the runs</text>
+<rect x="24" y="64" width="200" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="89" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">Humanize Desktop</text>
+<path d="M224 84L294 148" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="24" y="112" width="200" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="137" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8f0f2">hmz web</text>
+<path d="M224 132L294 168" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="24" y="160" width="200" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="185" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8f0f2">hmz</text>
+<path d="M224 180L294 188" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="24" y="208" width="200" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="233" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8f0f2">hmz exec, hmz chat</text>
+<path d="M224 228L294 208" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="24" y="256" width="200" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="281" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">a Python program</text>
+<path d="M224 276L294 228" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="296" y="120" width="168" height="136" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="316" y="176" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e8f0f2">The daemon</text>
+<text x="316" y="198" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#b3c3c8">one per machine</text>
+<text x="316" y="214" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#b3c3c8">and user</text>
+<path d="M464 160L534 116" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="536" y="88" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="552" y="112" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e8f0f2">Host</text>
+<text x="552" y="130" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#b3c3c8">the workspace ~/shop</text>
+<path d="M464 188L534 188" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="536" y="160" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="552" y="184" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e8f0f2">Host</text>
+<text x="552" y="202" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#b3c3c8">one chat</text>
+<path d="M464 216L534 260" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="536" y="232" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="552" y="256" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e8f0f2">Host</text>
+<text x="552" y="274" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#b3c3c8">one hmz exec run</text>
+</svg>

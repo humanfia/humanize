@@ -72,7 +72,7 @@ changed:
 | `desktop/` | in `desktop/src-tauri`: the same three; then in `desktop/`: `pnpm install` and `pnpm tauri build --debug --bundles app,dmg` (`--bundles nsis` on Windows) |
 | `src/hmz/web/static/` | `node --test 'tests/unit/web/js/*.test.mjs'`, and the files of `tests/system/web/` that cover it |
 | `src/hmz/web/vendor/` | in it: `pnpm install && pnpm build`, and commit what it wrote to `src/hmz/web/static/vendor/` |
-| `docs/` | in it: `pnpm check:pictures && pnpm build && pnpm check:anchors && pnpm check:phone` |
+| `docs/` | in it: `pnpm check:pictures && pnpm check:words && pnpm build && pnpm check:anchors && pnpm check:phone` |
 | packaging or `README.md` | `uv build --no-sources && uvx twine check --strict dist/*` |
 | a path a system test covers | that one file, such as `uv run pytest tests/system/test_flows_ralph.py` |
 
@@ -196,7 +196,7 @@ run everything.
   what it changed, and push.
 - `gh pr checks --watch` follows a run, and `gh run view --log-failed` prints what failed. In
   a `tests` log each package and topic is a group of its own, `unit tui` or `integration core`.
-- `build-docs.yml` builds the site on a change to `docs/`, runs both `check:` scripts, and
+- `build-docs.yml` builds the site on a change to `docs/`, runs its `check:` scripts, and
   deploys it from `main`. `cache.yml` saves the caches `ci.yml` restores. Neither reports to
   `ci-ok`.
 
@@ -210,7 +210,8 @@ pnpm install
 pnpm dev             # the site, reloading as you write
 pnpm build           # fails on a dead internal link
 pnpm check:anchors   # after a build: fails on a dead #fragment
-pnpm check:pictures  # every picture is an SVG; no video, no cast
+pnpm check:pictures  # every picture is an SVG, light and dark; no video, no cast
+pnpm check:words     # the home page's banner is the repository's description; its words keep to their rules
 pnpm check:phone     # after a build: fails on a page that scrolls sideways on a phone
 ```
 
@@ -243,10 +244,17 @@ Each section answers one kind of question. A page that answers two is two pages.
 
 - **No video and no recorded cast.** Every picture is an SVG file, still or animated, shown
   with `![what it shows](/path.svg)`.
+- **Every picture is two files**, side by side: `<name>.svg` for the light page and
+  `<name>.dark.svg` for the dark one, the same size and the same frames. A page names the
+  light file; the site shows the one that fits the theme the reader chose.
 - **A picture of an interface is never drawn by hand.** It is captured from the real
-  interface by a scene under `tests/system/docs/`, which writes it to
-  `docs/public/shots/<name>.svg`. Commit the SVG with the scene that made it.
-- **A concept diagram is a hand-written SVG** in `docs/public/diagrams/`.
+  interface by a scene under `tests/system/docs/`, which writes both files to
+  `docs/public/shots/` from one run: the page as it draws light and as it draws dark, a
+  terminal in a light profile and in a dark one. Commit both with the scene that made them.
+- **A concept diagram is a hand-written SVG** in `docs/public/diagrams/`, drawn light with
+  the diagrams' palette. Its dark twin is written from it, colour by colour: run
+  `pnpm diagrams` in `docs/` after you edit one, and commit both. A colour outside the
+  palette (`docs/.vitepress/diagrams.mjs`) is an error.
 - **Nothing private.** A picture shows no real account, machine, path or name: only what the
   scene's made-up world holds.
 
@@ -269,8 +277,8 @@ uv run pytest tests/system/docs/test_docs_<page>.py
 ```
 
 Name a picture `<page>-<what>`, lower case with dashes, such as `chat-new`. A still is held to
-200 kB and a reel to 500 kB, the most the commit hook lets a file be: crop it, or take fewer
-frames. The docstrings of `shots.py` and of `conftest.py` beside it have the whole API and
+200 kB and a reel to 500 kB, the most the commit hook lets a file be, each of its two files by
+itself: crop it, or take fewer frames. The docstrings of `shots.py` and of `conftest.py` beside it have the whole API and
 what `world` can stage.
 
 ## Releasing

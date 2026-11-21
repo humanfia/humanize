@@ -1,4 +1,4 @@
-// The page at the site's root is the product page (components/product/, which index.md imports
+// The page at the site's root is the project's page (home/, which index.md imports
 // itself). Everything else is VitePress's default theme: four sections of Markdown whose pictures
 // are SVG files under public/ -- the real interface, captured (tests/system/docs/), and diagrams.
 import type { Theme } from 'vitepress'

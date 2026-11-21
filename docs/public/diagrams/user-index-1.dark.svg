@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 328" role="img">
+  <title>Four interfaces talk to one daemon, and the daemon runs the coding agents</title>
+  <rect width="760" height="328" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="32" y="32" width="216" height="56" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="52" y="56">Humanize Desktop</text>
+    <text x="52" y="76" font-size="12" fill="#b3c3c8">the app</text>
+
+    <rect x="32" y="104" width="216" height="56" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="52" y="128">The browser page</text>
+    <text x="52" y="148" font-size="12" fill="#ff94c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz web</text>
+
+    <rect x="32" y="176" width="216" height="56" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="52" y="200">The terminal interface</text>
+    <text x="52" y="220" font-size="12" fill="#ff94c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz</text>
+
+    <rect x="32" y="248" width="216" height="56" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="52" y="272">The command line</text>
+    <text x="52" y="292" font-size="12" fill="#ff94c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz exec</text>
+
+    <path d="M248 60 C 296 60, 296 150, 342 150" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M248 132 C 296 132, 296 162, 342 162" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M248 204 C 296 204, 296 174, 342 174" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M248 276 C 296 276, 296 186, 342 186" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <rect x="344" y="128" width="152" height="80" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="420" y="164" text-anchor="middle">The daemon</text>
+    <text x="420" y="184" text-anchor="middle" font-size="12" fill="#b3c3c8">runs chats and epics</text>
+
+    <path d="M496 168 L 558 168" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <rect x="560" y="128" width="168" height="80" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="644" y="164" text-anchor="middle" fill="#4fd8ea">Coding agents</text>
+    <text x="644" y="184" text-anchor="middle" font-size="12" fill="#b3c3c8">working in your folders</text>
+  </g>
+</svg>

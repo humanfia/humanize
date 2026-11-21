@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 352" role="img">
+<title>One task goes to three git worktrees at once; a check runs in each; the smallest change that passed is put in the project and every worktree is removed.</title>
+<rect width="760" height="352" rx="12" fill="#172026"/>
+<style>
+.s1{animation:a1 9s infinite}.s2{animation:a2 9s infinite}.s3{animation:a3 9s infinite}.s4{animation:a4 9s infinite}
+@keyframes a1{0%,4%{opacity:0}10%,95%{opacity:1}100%{opacity:0}}
+@keyframes a2{0%,16%{opacity:0}22%,95%{opacity:1}100%{opacity:0}}
+@keyframes a3{0%,40%{opacity:0}46%,95%{opacity:1}100%{opacity:0}}
+@keyframes a4{0%,62%{opacity:0}68%,95%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<defs>
+<marker id="g" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" fill="#435058"/></marker>
+<marker id="c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4fd8ea"/></marker>
+<marker id="k" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" fill="#a5d84a"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+<text x="24" y="44" font-size="16" font-weight="600" fill="#e8f0f2">One task, three worktrees, one change kept</text>
+
+<rect x="24" y="136" width="152" height="72" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="100" y="166" font-size="14" fill="#e8f0f2" text-anchor="middle">Your project</text>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" x="100" y="188" font-size="12" fill="#b3c3c8" text-anchor="middle">~/shop</text>
+
+<g class="s1">
+<path d="M176 160L294 102" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)"/>
+<path d="M176 172L294 172" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)"/>
+<path d="M176 184L294 242" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)"/>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" x="24" y="108" font-size="12" fill="#4fd8ea">derive_worktree()</text>
+<text x="24" y="124" font-size="12" fill="#9aa9b0">one per attempt</text>
+</g>
+
+<g class="s2">
+<text x="296" y="64" font-size="12" fill="#9aa9b0">three turns at once</text>
+<rect x="296" y="72" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="312" y="96" font-size="14" fill="#e8f0f2">Attempt 1</text>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" x="312" y="114" font-size="12" fill="#b3c3c8">worktree · session 1</text>
+<rect x="296" y="144" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="312" y="168" font-size="14" fill="#e8f0f2">Attempt 2</text>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" x="312" y="186" font-size="12" fill="#b3c3c8">worktree · session 2</text>
+<rect x="296" y="216" width="200" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="312" y="240" font-size="14" fill="#e8f0f2">Attempt 3</text>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" x="312" y="258" font-size="12" fill="#b3c3c8">worktree · session 3</text>
+</g>
+
+<g class="s3">
+<text x="552" y="64" font-size="12" fill="#9aa9b0">the check, in each</text>
+<path d="M496 100L550 100" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#g)"/>
+<path d="M496 172L550 172" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#g)"/>
+<path d="M496 244L550 244" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#g)"/>
+<rect x="552" y="80" width="184" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="644" y="105" font-size="14" fill="#b3c3c8" text-anchor="middle">passed · 42 lines</text>
+<rect x="552" y="152" width="184" height="40" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+<text x="644" y="177" font-size="14" fill="#e3b55a" text-anchor="middle">failed</text>
+<rect x="552" y="224" width="184" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="644" y="249" font-size="14" fill="#e8f0f2" text-anchor="middle">passed · 8 lines</text>
+</g>
+
+<g class="s4">
+<path d="M644 264L644 304L100 304L100 210" fill="none" stroke="#a5d84a" stroke-width="1.5" marker-end="url(#k)"/>
+<text x="400" y="296" font-size="12" fill="#a5d84a" text-anchor="middle">the smallest change that passed is kept</text>
+<text x="400" y="324" font-size="12" fill="#9aa9b0" text-anchor="middle">then every worktree is removed</text>
+</g>
+</g>
+</svg>

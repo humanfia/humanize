@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 216" role="img">
+<title>Humanize Desktop starts the Humanize CLI, which runs a coding agent CLI, which edits your project; on Windows the last three live in WSL</title>
+<rect width="760" height="216" rx="12" fill="#172026"/>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<text x="24" y="44" font-size="16" font-weight="600">Where each part runs</text>
+
+<rect x="232" y="64" width="504" height="128" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="484" y="176" text-anchor="middle" font-size="12" fill="#e3b55a">On Windows: inside WSL, where the app installs hmz for you</text>
+
+<rect x="24" y="80" width="152" height="64" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="100" y="108" text-anchor="middle">Humanize Desktop</text>
+<text x="100" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">the window</text>
+
+<path d="M176 112H242" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="204" y="100" text-anchor="middle" font-size="12" fill="#9aa9b0">starts</text>
+
+<rect x="244" y="80" width="128" height="64" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="308" y="108" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz</text>
+<text x="308" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">Humanize CLI</text>
+
+<path d="M372 112H418" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="396" y="100" text-anchor="middle" font-size="12" fill="#9aa9b0">runs</text>
+
+<rect x="420" y="80" width="128" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="484" y="108" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude</text>
+<text x="484" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">coding agent CLI</text>
+
+<path d="M548 112H594" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="572" y="100" text-anchor="middle" font-size="12" fill="#9aa9b0">edits</text>
+
+<rect x="596" y="80" width="128" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="660" y="108" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">~/shop</text>
+<text x="660" y="128" text-anchor="middle" font-size="12" fill="#b3c3c8">your project</text>
+</g>
+</svg>

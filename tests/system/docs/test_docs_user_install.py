@@ -71,7 +71,9 @@ def released(monkeypatch: pytest.MonkeyPatch) -> str:
     return _RELEASE
 
 
-def _launch(defs: shots._Defs, state: str, detail: Any) -> shots._Frame:
+def _launch(
+    defs: dict[bool, shots._Defs], state: str, detail: Any
+) -> dict[bool, shots._Frame]:
     """One frame of the app's launch window on Windows, in one state (see `shots.splash`)."""
     return shots._draw(
         shots._Sheet(
@@ -85,7 +87,9 @@ def _launch(defs: shots._Defs, state: str, detail: Any) -> shots._Frame:
     )
 
 
-def _updating(defs: shots._Defs, title: str, percent: int | None) -> shots._Frame:
+def _updating(
+    defs: dict[bool, shots._Defs], title: str, percent: int | None
+) -> dict[bool, shots._Frame]:
     """One frame of the update's window, told what the app tells it (`update.js`)."""
     said = json.dumps({"title": title, "percent": percent})
     return shots._draw(
@@ -132,7 +136,7 @@ def test_the_first_launch_on_windows_installs_the_cli() -> None:
 
 
 def test_an_update_waits_for_running_epics() -> None:
-    defs = shots._Defs()
+    defs = shots._pair()
     shots._still(f"{_PAGE}-update-waiting", _launch(defs, "waiting", "0.9.1"), defs)
 
 

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img">
+  <title>An environment is a machine and a directory: this computer and the folder itself, a new git worktree of the folder, or a directory on a saved runtime.</title>
+  <rect width="760" height="296" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="24" y="46" font-size="16" font-weight="600" fill="#e8f0f2">An environment is a machine and a directory</text>
+
+    <rect x="24" y="136" width="152" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="40" y="163" font-size="14" fill="#e8f0f2">A chat</text>
+    <text x="40" y="183" font-size="12" fill="#b3c3c8">or an epic role</text>
+
+    <g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+      <path d="M176 168 H208"/>
+      <path d="M208 100 V236"/>
+      <path d="M208 100 H238" marker-end="url(#a)"/>
+      <path d="M208 168 H238" marker-end="url(#a)"/>
+      <path d="M208 236 H238" marker-end="url(#a)"/>
+    </g>
+
+    <rect x="240" y="72" width="496" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="256" y="96" font-size="14" fill="#e8f0f2">This computer</text>
+    <text x="256" y="115" font-size="12" fill="#b3c3c8">the folder itself</text>
+
+    <rect x="240" y="140" width="496" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="256" y="164" font-size="14" fill="#e8f0f2">New worktree</text>
+    <text x="256" y="183" font-size="12" fill="#b3c3c8">a git worktree of the folder, for a chat</text>
+
+    <rect x="240" y="208" width="496" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="256" y="232" font-size="14" fill="#e8f0f2">A saved runtime</text>
+    <text x="256" y="251" font-size="12" fill="#b3c3c8">a directory on a server or in a container</text>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9aa9b0" text-anchor="end">
+    <text x="720" y="105">local/~/shop</text>
+    <text x="720" y="173">--worktree</text>
+    <text x="720" y="241">ssh@gpu-box/~/shop</text>
+  </g>
+</svg>

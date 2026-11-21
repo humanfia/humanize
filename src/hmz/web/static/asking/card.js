@@ -306,11 +306,11 @@ function textAnswer(where, one, settle) {
   }
 }
 
-/** The page's look, as the tokens a face is drawn in. */
+/** The page's look now, as the tokens a face is drawn in: asked again whenever the look changes. */
 function themeTokens() {
   const style = getComputedStyle(document.documentElement)
   const tokens = Object.fromEntries(TOKENS.map((name) => [`--${name}`, style.getPropertyValue(`--${name}`).trim()]))
-  return { ...tokens, scheme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+  return { ...tokens, '--scheme': document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
 }
 
 /**
@@ -357,7 +357,7 @@ function faced(where, one, context, answer, sending, settle) {
             return { ok: false, errors: errors.length ? errors : [{ path: [], message: error.message || String(error) }] }
           }
         },
-        theme: themeTokens(),
+        theme: themeTokens,
         plain: (on) => showPlain(on),
         shown,
         where,

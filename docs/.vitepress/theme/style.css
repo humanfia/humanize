@@ -705,8 +705,11 @@
 
 /* ---------------------------------------------------------------------------------------
    Pictures. Every picture in the documentation is an SVG file: the real interface, captured
-   (public/shots/, made by tests/system/docs/), or a diagram (public/diagrams/). Each carries its
-   own paper, so it is framed the same on the light page and the dark one. */
+   (public/shots/, made by tests/system/docs/), or a diagram (public/diagrams/). Each is two
+   files, `<name>.svg` drawn light and `<name>.dark.svg` drawn dark, and a page that names the
+   first is given both (the image rule in config.mts): exactly one is shown, the one of the
+   theme the reader chose, on a paper of that theme. The other has no box, and being lazy is
+   never fetched. */
 .vp-doc img[src*='/shots/'],
 .vp-doc img[src*='/diagrams/'] {
   display: block;
@@ -716,6 +719,16 @@
   border: 1px solid var(--vp-c-divider);
   border-radius: 10px;
   background: #f4f8f9;
+}
+.vp-doc img.hmz-pic-dark {
+  display: none;
+  background: #172026;
+}
+.dark .vp-doc img.hmz-pic-light {
+  display: none;
+}
+.dark .vp-doc img.hmz-pic-dark {
+  display: block;
 }
 /* The line under a picture that says what it shows: an emphasised paragraph right after it. */
 .vp-doc p:has(> img[src*='/shots/']) + p > em:only-child,

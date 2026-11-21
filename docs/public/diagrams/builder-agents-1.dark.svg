@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img">
+  <title>A role type is checked against the agent given for it, and the flow is handed an agent granted exactly what the type declares; derive narrows it further</title>
+  <rect width="760" height="296" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="40" width="176" height="88" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="112" y="66" text-anchor="middle" font-weight="600">Role type</text>
+    <text x="112" y="90" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Coder(Agent,</text>
+    <text x="112" y="108" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">GoalCommandAgentMixin)</text>
+
+    <rect x="292" y="40" width="176" height="88" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="380" y="66" text-anchor="middle" font-weight="600">Agent given</text>
+    <text x="380" y="98" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-a coder=claude/…</text>
+
+    <rect x="560" y="40" width="176" height="88" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="648" y="66" text-anchor="middle" font-weight="600">Agent in the flow</text>
+    <text x="648" y="98" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">agents["coder"]</text>
+
+    <rect x="560" y="200" width="176" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="648" y="230" text-anchor="middle" font-weight="600">Narrower agent</text>
+    <text x="648" y="252" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">coder.derive(…)</text>
+
+    <g stroke="#9aa9b0" stroke-width="1.5" fill="none">
+      <line x1="204" y1="96" x2="286" y2="96" marker-end="url(#a)"/>
+      <line x1="472" y1="96" x2="554" y2="96" marker-end="url(#a)"/>
+      <line x1="648" y1="132" x2="648" y2="194" marker-end="url(#a)"/>
+    </g>
+    <g font-size="12" fill="#9aa9b0" text-anchor="middle">
+      <text x="246" y="66">serves every</text>
+      <text x="246" y="82">mixin?</text>
+      <text x="514" y="66">granted what</text>
+      <text x="514" y="82">it declares</text>
+    </g>
+    <text x="636" y="168" font-size="12" fill="#9aa9b0" text-anchor="end">narrows, never widens</text>
+    <text x="24" y="236" font-size="12" fill="#b3c3c8">A harness that lacks a mixin is refused before the run.</text>
+  </g>
+</svg>

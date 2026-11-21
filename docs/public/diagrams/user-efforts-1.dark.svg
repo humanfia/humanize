@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 272" role="img">
+  <title>The same effort at two widths: max runs a turn as one agent, swarmmax runs it as a lead agent with subagents</title>
+  <rect width="760" height="272" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <text x="24" y="44" font-size="16" font-weight="600">One effort, two widths</text>
+
+    <text x="40" y="88" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#ff94c2">kimi/kimi-code/k3:max</text>
+    <rect x="40" y="104" width="88" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="84" y="129" text-anchor="middle">Turn</text>
+    <line x1="128" y1="124" x2="166" y2="124" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="168" y="104" width="160" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="248" y="129" text-anchor="middle">One agent at max</text>
+    <text x="40" y="208" font-size="12" fill="#b3c3c8">The effort is the same on both sides.</text>
+    <text x="40" y="228" font-size="12" fill="#b3c3c8">Swarm changes how many agents work the turn.</text>
+
+    <line x1="368" y1="72" x2="368" y2="240" stroke="#435058" stroke-width="1.5"/>
+
+    <text x="400" y="88" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#ff94c2">kimi/kimi-code/k3:swarmmax</text>
+    <rect x="400" y="104" width="88" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="444" y="129" text-anchor="middle">Turn</text>
+    <line x1="488" y1="124" x2="526" y2="124" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="528" y="104" width="208" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="632" y="129" text-anchor="middle">Lead agent at max</text>
+    <line x1="600" y1="144" x2="470" y2="190" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="632" y1="144" x2="580" y2="190" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="664" y1="144" x2="686" y2="190" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="416" y="192" width="96" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="464" y="217" text-anchor="middle">Subagent</text>
+    <rect x="528" y="192" width="96" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="576" y="217" text-anchor="middle">Subagent</text>
+    <rect x="640" y="192" width="96" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="688" y="217" text-anchor="middle">Subagent</text>
+  </g>
+</svg>

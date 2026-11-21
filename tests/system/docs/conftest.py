@@ -2,8 +2,9 @@
 
 Never in CI, and no real agent runs here: like `tests/system/web`, every agent is a stand-in
 and nothing is fetched. Run a file by naming it: `uv run pytest
-tests/system/docs/test_docs_<page>.py`. `shots.py` beside this says how a picture is taken;
-this says what there is to take one of.
+tests/system/docs/test_docs_<page>.py`. `shots.py` beside this says how a picture is taken
+-- every one twice, light and dark, from the one run of a scene -- and this says what there is
+to take one of.
 
 A scene asks for `world`, and has:
 
@@ -470,7 +471,9 @@ class World:
             its pictures with `window="desktop"`.
           width: How wide the window is, in CSS pixels; under 860 the page is a phone's.
           height: How tall it is: 820 where not said, which is the app's.
-          dark: Whether the system asks for dark colours.
+          dark: Whether the system asks for dark colours while the scene drives the page.
+            No scene needs it for its pictures: `shots` takes every one both light and dark,
+            whichever the page is opened in.
           locale: The language the browser asks for.
           wire: A `Wire` (`tests.system.web.doubles_browser`) to carry the page's calls of
             the daemon, where a scene must answer one itself: what no stand-in can stage.
@@ -485,10 +488,17 @@ class World:
             dark=dark,
             locale=locale,
             user_agent=shots.APP if desktop else None,
+            # What lets a picture's light and dark side be taken at one instant.
+            init=shots.GATE,
             routed=wire.routes if wire else None,
         ) as page:
             # Its sidebar has read what the project holds: no picture is of it loading.
             page.get_by_text(PROJECT, exact=True).first.wait_for()
+            # Nor of its composer still asking which models there are, where it is told.
+            with contextlib.suppress(Exception):
+                page.get_by_text("Asking…", exact=True).first.wait_for(
+                    state="hidden", timeout=3000
+                )
             yield page
 
     @contextlib.asynccontextmanager
@@ -691,11 +701,21 @@ class World:
                 and said["message"].get("how") == "failed"
             ]
             assert not failed or failing, f"the epic failed: {failed}"
-            name = next(
-                str(one["name"])
-                for one in session.call("runs.list", workspace=here)["runs"]
-                if one["task"] == task
-            )
+            # An epic that has only just started is not always listed yet: asked until it is.
+            deadline = time.monotonic() + PATIENCE
+            while True:
+                listed = [
+                    str(one["name"])
+                    for one in session.call("runs.list", workspace=here)["runs"]
+                    if one["task"] == task
+                ]
+                if listed:
+                    name = listed[0]
+                    break
+                assert time.monotonic() < deadline, (
+                    "the epic started and was never listed"
+                )
+                time.sleep(0.2)
             session.call("epic.detach", sub=sub)
         return name
 

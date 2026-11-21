@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Another device pairs with the daemon: you carry a pairing code over, the device checks the daemon's key over TLS, and once paired it may call the daemon's methods</title>
+  <rect width="760" height="280" rx="12" fill="#172026"/>
+  <style>
+    .s1 { animation: s1 9s infinite } .s2 { animation: s2 9s infinite } .s3 { animation: s3 9s infinite }
+    @keyframes s1 { 0% { opacity: 0 } 6% { opacity: 1 } 100% { opacity: 1 } }
+    @keyframes s2 { 0%, 28% { opacity: 0 } 34% { opacity: 1 } 100% { opacity: 1 } }
+    @keyframes s3 { 0%, 56% { opacity: 0 } 62% { opacity: 1 } 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ff94c2"/></marker>
+    <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4fd8ea"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#a5d84a"/></marker>
+  </defs>
+  <rect x="24" y="32" width="184" height="216" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+  <text x="40" y="64" font-size="14" font-weight="600" fill="#e8f0f2">Another device</text>
+  <text x="40" y="84" font-size="12" fill="#b3c3c8">browser, phone, laptop</text>
+  <rect x="552" y="32" width="184" height="216" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+  <text x="568" y="64" font-size="14" font-weight="600" fill="#e8f0f2">Daemon</text>
+  <text x="568" y="84" font-size="12" fill="#b3c3c8">on your machine</text>
+  <g class="s1">
+    <text x="380" y="108" font-size="14" fill="#ff94c2" text-anchor="middle">1. You carry a pairing code over</text>
+    <line x1="550" y1="120" x2="212" y2="120" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+  </g>
+  <g class="s2">
+    <text x="380" y="156" font-size="14" fill="#4fd8ea" text-anchor="middle">2. TLS, held to the daemon's key</text>
+    <line x1="210" y1="168" x2="548" y2="168" stroke="#4fd8ea" stroke-width="1.5" marker-start="url(#c)" marker-end="url(#c)"/>
+  </g>
+  <g class="s3">
+    <text x="380" y="204" font-size="14" fill="#a5d84a" text-anchor="middle">3. Paired: the daemon's methods</text>
+    <line x1="210" y1="216" x2="548" y2="216" stroke="#a5d84a" stroke-width="1.5" marker-end="url(#g)"/>
+    <text x="380" y="238" font-size="12" fill="#9aa9b0" text-anchor="middle">until then: say hello, claim a code, list methods</text>
+  </g>
+</svg>

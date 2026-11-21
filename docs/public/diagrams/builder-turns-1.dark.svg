@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+<title>One session takes several turns: spawn opens it, each run is one turn that names its environment, and the session is closed when the flow call ends</title>
+<rect width="760" height="280" rx="12" fill="#172026"/>
+<style>
+.s{animation:s1 9s infinite both}
+.s2{animation-name:s2}.s3{animation-name:s3}.s4{animation-name:s4}.s5{animation-name:s5}
+@keyframes s1{0%,4%{opacity:0}10%,100%{opacity:1}}
+@keyframes s2{0%,20%{opacity:0}26%,100%{opacity:1}}
+@keyframes s3{0%,36%{opacity:0}42%,100%{opacity:1}}
+@keyframes s4{0%,52%{opacity:0}58%,100%{opacity:1}}
+@keyframes s5{0%,68%{opacity:0}74%,100%{opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+<marker id="p" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#ff94c2"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<g>
+<text x="80" y="44" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">spawn()</text>
+<path d="M80 54V94" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+<rect x="24" y="96" width="592" height="72" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="40" y="128">Session</text>
+<text x="40" y="148" font-size="12" fill="#b3c3c8">one conversation</text>
+</g>
+<g class="s s2">
+<text x="232" y="44" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">run()</text>
+<path d="M232 54V110" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+<rect x="176" y="112" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="232" y="137" text-anchor="middle">turn 1</text>
+<path d="M232 152V206" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="176" y="208" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="232" y="232" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">workspace</text>
+<text x="40" y="232" font-size="12" fill="#9aa9b0">env, named per turn</text>
+</g>
+<g class="s s3">
+<text x="368" y="44" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">run()</text>
+<path d="M368 54V110" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+<rect x="312" y="112" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="368" y="137" text-anchor="middle">turn 2</text>
+<path d="M368 152V206" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="312" y="208" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="368" y="232" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">workspace</text>
+</g>
+<g class="s s4">
+<text x="504" y="44" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">run()</text>
+<path d="M504 54V110" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+<rect x="448" y="112" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="504" y="137" text-anchor="middle">turn 3</text>
+<path d="M504 152V206" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="448" y="208" width="112" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="504" y="232" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">a worktree</text>
+</g>
+<g class="s s5">
+<path d="M616 132H654" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="656" y="108" width="80" height="48" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="696" y="137" text-anchor="middle">closed</text>
+<text x="736" y="184" text-anchor="end" font-size="12" fill="#9aa9b0">when the flow</text>
+<text x="736" y="200" text-anchor="end" font-size="12" fill="#9aa9b0">call ends</text>
+</g>
+</g>
+</svg>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+  <title>A device races its routes to another machine's daemon in order; the first to connect wins.</title>
+  <rect width="760" height="280" rx="12" fill="#172026"/>
+  <style>
+    .r { stroke-dasharray: 328; stroke-dashoffset: 0; animation: draw 8s linear infinite; }
+    .r2 { animation-name: draw2; }
+    .r3 { animation-name: draw3; }
+    .win { animation: win 8s linear infinite; }
+    .lose { animation: lose 8s linear infinite; }
+    @keyframes draw { 0% { stroke-dashoffset: 328 } 12%, 100% { stroke-dashoffset: 0 } }
+    @keyframes draw2 { 0%, 12% { stroke-dashoffset: 328 } 24%, 100% { stroke-dashoffset: 0 } }
+    @keyframes draw3 { 0%, 24% { stroke-dashoffset: 328 } 36%, 100% { stroke-dashoffset: 0 } }
+    @keyframes win { 0%, 40% { opacity: 0 } 48%, 100% { opacity: 1 } }
+    @keyframes lose { 0%, 40% { opacity: 1 } 48%, 100% { opacity: 0.35 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#435058"/>
+    </marker>
+    <marker id="b" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#4fd8ea"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="24" y="44" font-size="16" font-weight="600" fill="#e8f0f2">Routes are raced in order</text>
+
+    <rect x="24" y="72" width="184" height="144" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="116" y="136" font-size="14" text-anchor="middle" fill="#e8f0f2">Your device</text>
+    <text x="116" y="160" font-size="12" text-anchor="middle" fill="#b3c3c8">app, browser or terminal</text>
+
+    <rect x="552" y="72" width="184" height="144" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="644" y="136" font-size="14" text-anchor="middle" fill="#e8f0f2">Other machine</text>
+    <text x="644" y="160" font-size="12" text-anchor="middle" fill="#b3c3c8">its daemon</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b3c3c8">
+      <text x="232" y="92">1  stdio:ssh://devbox</text>
+      <text x="232" y="140" fill="#4fd8ea">2  tcp://devbox:41817</text>
+      <text x="232" y="188">3  easytier:home</text>
+    </g>
+    <g class="lose">
+      <path class="r" d="M216 104 H544" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#a)"/>
+      <path class="r r3" d="M216 200 H544" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#a)"/>
+    </g>
+    <path class="r r2" d="M216 152 H544" fill="none" stroke="#435058" stroke-width="1.5" marker-end="url(#a)"/>
+    <g class="win">
+      <path d="M216 152 H544" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#b)"/>
+      <text x="536" y="140" font-size="12" text-anchor="end" fill="#4fd8ea">first to connect wins</text>
+    </g>
+
+    <text x="24" y="252" font-size="12" fill="#9aa9b0">Each route starts 0.25 s after the one before it. The rest are closed.</text>
+  </g>
+</svg>
