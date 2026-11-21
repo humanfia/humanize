@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" role="img">
+  <title>Each environment role is declared with mixins, filled by Humanize or by whoever runs the flow, and handed to the flow with only the methods its mixins grant</title>
+  <rect width="760" height="304" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <g font-size="12" fill="#5d6a72">
+      <text x="24" y="44">Role you declare</text>
+      <text x="296" y="44">Filled by</text>
+      <text x="536" y="44">What the flow may call</text>
+    </g>
+
+    <rect x="24" y="56" width="232" height="80" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="40" y="84" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">workspace</text>
+    <text x="40" y="108" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">LocalEnv, BashEnvMixin</text>
+
+    <rect x="296" y="56" width="200" height="80" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="312" y="84" font-weight="600">Humanize</text>
+    <text x="312" y="108" font-size="12" fill="#435058">the folder the run started in</text>
+
+    <rect x="536" y="56" width="200" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <g font-size="12" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="552" y="84">exec(argv)</text>
+      <text x="552" y="108">exec(script)</text>
+    </g>
+
+    <rect x="24" y="160" width="232" height="80" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="40" y="188" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">reports</text>
+    <text x="40" y="212" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Env, FilesEnvMixin</text>
+
+    <rect x="296" y="160" width="200" height="80" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+    <text x="312" y="188" font-weight="600">Whoever runs the flow</text>
+    <text x="312" y="212" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-e reports=…</text>
+
+    <rect x="536" y="160" width="200" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <g font-size="12" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="552" y="188">read(path)</text>
+      <text x="552" y="212">write(path, data)</text>
+    </g>
+
+    <g stroke="#5d6a72" stroke-width="1.5" fill="none">
+      <line x1="260" y1="96" x2="290" y2="96" marker-end="url(#a)"/>
+      <line x1="500" y1="96" x2="530" y2="96" marker-end="url(#a)"/>
+      <line x1="260" y1="200" x2="290" y2="200" marker-end="url(#a)"/>
+      <line x1="500" y1="200" x2="530" y2="200" marker-end="url(#a)"/>
+    </g>
+
+    <text x="24" y="276" font-size="12" fill="#435058">Every role also has <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_subdir</tspan>. Any other call raises <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">CapabilityNotGranted</tspan>.</text>
+  </g>
+</svg>

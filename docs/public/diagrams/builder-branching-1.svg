@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+  <title>One session reads the code once; two forks carry that reading on, and each takes its first turn in a worktree of its own</title>
+  <rect width="760" height="280" rx="12" fill="#f4f8f9"/>
+  <style>
+    .fork { animation: fork 8s infinite; }
+    .turn { animation: turn 8s infinite; }
+    @keyframes fork { 0%, 18% { opacity: 0 } 28%, 100% { opacity: 1 } }
+    @keyframes turn { 0%, 46% { opacity: 0 } 56%, 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#0b7080"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <rect x="32" y="104" width="184" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="48" y="134" font-size="14" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">base</text>
+    <text x="48" y="158" font-size="12" fill="#435058">reads the code once</text>
+
+    <g class="fork">
+      <path d="M216 140 C260 140 256 76 300 76" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#a)"/>
+      <path d="M216 140 C260 140 256 204 300 204" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#a)"/>
+      <rect x="304" y="40" width="184" height="72" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+      <text x="320" y="70" font-size="14" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">fork(base)</text>
+      <text x="320" y="94" font-size="12" fill="#435058">carries the reading</text>
+      <rect x="304" y="168" width="184" height="72" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+      <text x="320" y="198" font-size="14" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">fork(base)</text>
+      <text x="320" y="222" font-size="12" fill="#435058">carries the reading</text>
+    </g>
+
+    <g class="turn">
+      <path d="M488 76 L580 76" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#a)"/>
+      <path d="M488 204 L580 204" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#a)"/>
+      <text x="534" y="66" font-size="12" fill="#5d6a72" text-anchor="middle">first turn</text>
+      <text x="534" y="194" font-size="12" fill="#5d6a72" text-anchor="middle">first turn</text>
+      <rect x="584" y="40" width="152" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+      <text x="600" y="70" font-size="14" fill="#141a1f">Worktree 1</text>
+      <text x="600" y="94" font-size="12" fill="#435058">a percentage off</text>
+      <rect x="584" y="168" width="152" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+      <text x="600" y="198" font-size="14" fill="#141a1f">Worktree 2</text>
+      <text x="600" y="222" font-size="12" fill="#435058">a fixed amount off</text>
+    </g>
+  </g>
+</svg>

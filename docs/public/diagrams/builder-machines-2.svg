@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 312" role="img">
+  <title>Two ways to anchor: connect keeps the agent on this machine and sends its file operations and commands to the target; drive runs the agent installed on the target and carries only its streams</title>
+  <rect width="760" height="312" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#0b7080"/>
+    </marker>
+    <marker id="b" viewBox="0 0 8 8" refX="1" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M8 0 L0 4 L8 8 Z" fill="#0b7080"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="232" y="40" font-size="12" fill="#5d6a72">This machine</text>
+    <text x="536" y="40" font-size="12" fill="#5d6a72">Target</text>
+
+    <text x="24" y="100" font-size="14" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">connect()</text>
+    <rect x="232" y="56" width="200" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="248" y="90" font-size="14" fill="#141a1f">Agent CLI</text>
+    <text x="248" y="114" font-size="12" fill="#435058">credentials stay here</text>
+    <path d="M432 96 L530 96" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="482" y="84" font-size="12" fill="#5d6a72" text-anchor="middle">files, commands</text>
+    <rect x="536" y="56" width="200" height="80" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="552" y="102" font-size="14" fill="#141a1f">Workspace</text>
+
+    <path d="M24 164 L736 164" fill="none" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+    <text x="24" y="236" font-size="14" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">drive()</text>
+    <rect x="232" y="192" width="200" height="80" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="248" y="238" font-size="14" fill="#141a1f">Your program</text>
+    <path d="M438 232 L530 232" fill="none" stroke="#0b7080" stroke-width="1.5" marker-start="url(#b)" marker-end="url(#a)"/>
+    <text x="484" y="220" font-size="12" fill="#5d6a72" text-anchor="middle">streams only</text>
+    <rect x="536" y="192" width="200" height="80" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="552" y="226" font-size="14" fill="#141a1f">Agent CLI</text>
+    <text x="552" y="250" font-size="12" fill="#435058">beside the workspace</text>
+  </g>
+</svg>

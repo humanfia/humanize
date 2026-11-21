@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>You talk to Ai-chan; every tool she calls goes to the daemon, which checks it against her scope and preset before it reaches the daemon, a workspace or an epic</title>
+  <rect width="760" height="296" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <rect x="24" y="112" width="80" height="72" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+  <text x="64" y="153" font-size="14" font-weight="600" fill="#b83a72" text-anchor="middle">You</text>
+  <line x1="104" y1="148" x2="150" y2="148" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="152" y="104" width="160" height="88" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+  <text x="168" y="134" font-size="14" font-weight="600" fill="#0b7080">Ai-chan</text>
+  <text x="168" y="156" font-size="12" fill="#435058">a nous, fenced into</text>
+  <text x="168" y="174" font-size="12" fill="#435058">a scratch directory</text>
+  <line x1="312" y1="148" x2="382" y2="148" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="347" y="136" font-size="12" fill="#435058" text-anchor="middle">tool call</text>
+  <rect x="384" y="104" width="152" height="88" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+  <text x="400" y="134" font-size="14" font-weight="600" fill="#141a1f">Daemon</text>
+  <text x="400" y="156" font-size="12" fill="#435058">checks scope</text>
+  <text x="400" y="174" font-size="12" fill="#435058">and preset</text>
+  <line x1="536" y1="148" x2="574" y2="148" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+  <path d="M460 192V232H232V194" fill="none" stroke="#80590c" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/>
+  <text x="346" y="254" font-size="12" fill="#80590c" text-anchor="middle">out of reach: refused, and she is told why</text>
+  <rect x="576" y="40" width="160" height="216" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+  <text x="592" y="66" font-size="12" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">daemon</text>
+  <rect x="592" y="80" width="128" height="160" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+  <text x="608" y="106" font-size="12" fill="#141a1f" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">workspace</text>
+  <rect x="608" y="120" width="96" height="104" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+  <text x="624" y="146" font-size="12" fill="#0b7080" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">epic</text>
+</svg>

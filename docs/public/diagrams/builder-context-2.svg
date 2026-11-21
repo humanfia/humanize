@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 216" role="img">
+  <title>When an epic is stopped: the turn is interrupted, the flow gets CancelledError at its await, its finally blocks run, then Humanize closes sessions and removes temporary directories</title>
+  <rect width="760" height="216" rx="12" fill="#f4f8f9"/>
+  <style>
+    .s { animation: 8s infinite both; }
+    .s1 { animation-name: k1 } .s2 { animation-name: k2 } .s3 { animation-name: k3 } .s4 { animation-name: k4 } .s5 { animation-name: k5 }
+    @keyframes k1 { 0% { opacity: .2 } 4%, 100% { opacity: 1 } }
+    @keyframes k2 { 0%, 14% { opacity: .2 } 18%, 100% { opacity: 1 } }
+    @keyframes k3 { 0%, 28% { opacity: .2 } 32%, 100% { opacity: 1 } }
+    @keyframes k4 { 0%, 42% { opacity: .2 } 46%, 100% { opacity: 1 } }
+    @keyframes k5 { 0%, 56% { opacity: .2 } 60%, 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">
+    <text x="32" y="44" font-size="16" font-weight="600" fill="#141a1f" text-anchor="start">When an epic is stopped</text>
+
+    <g class="s s1">
+      <rect x="32" y="72" width="120" height="64" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+      <text x="92" y="100" font-size="14" font-weight="600" fill="#b83a72">Stop</text>
+      <text x="92" y="120" font-size="12" fill="#435058">from outside</text>
+    </g>
+    <g class="s s2">
+      <line x1="154" y1="104" x2="172" y2="104" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+      <rect x="176" y="72" width="120" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+      <text x="236" y="100" font-size="14" fill="#141a1f">Turns</text>
+      <text x="236" y="120" font-size="12" fill="#435058">interrupted</text>
+    </g>
+    <g class="s s3">
+      <line x1="298" y1="104" x2="316" y2="104" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+      <rect x="320" y="72" width="120" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+      <text x="380" y="100" font-size="12" fill="#0b7080" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">CancelledError</text>
+      <text x="380" y="120" font-size="12" fill="#435058">at the await</text>
+    </g>
+    <g class="s s4">
+      <line x1="442" y1="104" x2="460" y2="104" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+      <rect x="464" y="72" width="120" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+      <text x="524" y="100" font-size="14" fill="#0b7080" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">finally</text>
+      <text x="524" y="120" font-size="12" fill="#435058">blocks run</text>
+    </g>
+    <g class="s s5">
+      <line x1="586" y1="104" x2="604" y2="104" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+      <rect x="608" y="72" width="120" height="64" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+      <text x="668" y="100" font-size="14" font-weight="600" fill="#5a8f00">Cleanup</text>
+      <text x="668" y="120" font-size="12" fill="#435058">by Humanize</text>
+    </g>
+
+    <g font-size="12" fill="#5d6a72">
+      <path d="M320 152 H584" stroke="#0b7080" stroke-width="1.5" fill="none"/>
+      <text x="452" y="174" fill="#0b7080">your flow</text>
+      <path d="M608 152 H728" stroke="#5a8f00" stroke-width="1.5" fill="none"/>
+      <text x="668" y="174" fill="#5a8f00">sessions closed,</text>
+      <text x="668" y="190" fill="#5a8f00">copies removed</text>
+    </g>
+  </g>
+</svg>

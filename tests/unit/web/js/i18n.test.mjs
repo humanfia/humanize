@@ -27,7 +27,7 @@ const SAME = new Set(['Humanize', 'Ai-chan', 'Exomyth', 'EasyTier', 'OK'])
 
 /**
  * The words of the product that have a Chinese word of their own (the glossary of
- * docs/contributing/architecture.md), which a Chinese text therefore never says in Latin script.
+ * ARCHITECTURE.md), which a Chinese text therefore never says in Latin script.
  * A command's own spelling, as `/flow`, is lower case and is not one of them.
  */
 const GLOSSED = /(?<![A-Za-z/-])(?:Daemon|Nous|Harness|Epic|Flow|Flowverse|Agent|Worktree|Runtime|Workspace|Environment|Env)s?(?![A-Za-z-])/

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 288" role="img">
+  <title>Two machines push their epics to one git repository, each epic under machine, workspace and epic name</title>
+  <rect width="760" height="288" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#435058">
+    <rect x="24" y="56" width="184" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="40" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#0b7080">studio</text>
+    <text x="40" y="108">Runs epics in ~/shop</text>
+    <rect x="24" y="176" width="184" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="40" y="206" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#0b7080">gpu-box</text>
+    <text x="40" y="228">Runs epics in /srv/shop</text>
+
+    <path d="M208 92H336" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="248" y="82" fill="#5d6a72">git push</text>
+    <path d="M208 212H336" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="248" y="202" fill="#5d6a72">git push</text>
+
+    <rect x="344" y="24" width="392" height="240" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="360" y="52" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">git@github.com:you/epics.git</text>
+    <text x="360" y="72" fill="#5d6a72">Branch main, one commit per backup</text>
+    <path d="M360 84H720" stroke="#b3c3c8" stroke-width="1.5"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="360" y="108" fill="#0b7080">studio/</text>
+      <text x="376" y="128">-home-alex-shop/</text>
+      <text x="392" y="148" fill="#141a1f">20261012T091500.123Z-1a2b3c/</text>
+      <text x="408" y="168" fill="#5d6a72">epic.jsonl  manifest.json  sessions/</text>
+      <text x="360" y="200" fill="#0b7080">gpu-box/</text>
+      <text x="376" y="220">-srv-shop/</text>
+      <text x="392" y="240" fill="#141a1f">20261012T101500.456Z-4d5e6f/</text>
+    </g>
+    <text x="720" y="108" text-anchor="end" fill="#5d6a72">machine</text>
+    <text x="720" y="128" text-anchor="end" fill="#5d6a72">workspace</text>
+    <text x="720" y="148" text-anchor="end" fill="#5d6a72">epic</text>
+  </g>
+</svg>

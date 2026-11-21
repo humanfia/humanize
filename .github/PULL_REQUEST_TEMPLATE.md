@@ -15,6 +15,6 @@ CONTRIBUTING.md has the rest: https://github.com/humanfia/humanize/blob/main/CON
 ## Checklist
 
 - [ ] The title is a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/), with `!` if it breaks something.
-- [ ] New and changed tests are in the right tier: `tests/unit/`, `tests/integration/` or `tests/system/` ([where a test goes](https://humanfia.ai/humanize/contributing/#where-a-test-goes)).
+- [ ] New and changed tests are in the right tier: `tests/unit/`, `tests/integration/` or `tests/system/` ([where a test goes](https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md#where-a-test-goes)).
 - [ ] The docs say what the code now does, and the code matches `protocol/`. A protocol document changed only where an issue asked for it.
 - [ ] `uv run pre-commit run --all-files` and `uv run pytest` pass.
