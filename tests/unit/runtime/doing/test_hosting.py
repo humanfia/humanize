@@ -247,6 +247,22 @@ class FakeChat:
     def permits(self, permission: str) -> None:
         self.permission = permission
 
+    #: What it is carried on with, as `-a` spells it, once it is given another.
+    agent: str = "claude/opus:high"
+
+    @property
+    def spec(self) -> Any:
+        return SimpleNamespace(agent=self.agent)
+
+    def runs(self, agent: str) -> None:
+        from hmz.runtime.chatting import KeptAs
+
+        if not agent.startswith("claude/"):
+            raise KeptAs("a chat keeps its harness")
+        if agent == "claude/":
+            raise ValueError("claude/ names no model")
+        self.agent = agent
+
     def natives(self) -> list[Native]:
         return list(self.catalog)
 
@@ -2323,6 +2339,22 @@ def test_a_chat_is_started_with_and_set_to_a_permission(
         "an Ai-chan conversation keeps its permission",
         409,
     )
+
+
+def test_a_chat_is_carried_on_with_another_model_as_the_daemon_asks_its_host(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+
+    assert host.chatted({"do": "agent", "agent": "claude/haiku:low"}) == {"ok": True}
+    assert chat.chat.agent == "claude/haiku:low"
+    # What a chat keeps is refused as a conflict, and what is no agent as a bad request.
+    kept = host.chatted({"do": "agent", "agent": "codex/gpt-5"})
+    assert (kept["why"], kept["code"]) == ("a chat keeps its harness", 409)
+    bad = host.chatted({"do": "agent", "agent": "claude/"})
+    assert (bad["why"], bad["code"]) == ("claude/ names no model", 400)
+    assert chat.chat.agent == "claude/haiku:low"
 
 
 def test_a_command_run_for_a_chat_is_told_to_every_frontend(

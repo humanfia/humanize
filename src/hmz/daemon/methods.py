@@ -551,6 +551,29 @@ class _Methods:
             self._let_go(name)
         return self._families["chat.delete"](call)
 
+    def chat_agent(self, call: Call) -> dict[str, Any]:
+        """Carries a chat on with another model or effort, held or not (Section 4.25.7.7).
+
+        Asked of the host that holds it, which takes it up ahead of the chat's next turn;
+        written in its record here where none does, one caller at a time with those who
+        carry it on.
+        """
+        from hmz.daemon.api import chats
+
+        name = str(call.params.get("chat"))
+        with self._carried:
+            carrying = self._carrying[name]
+        with carrying:
+            holding = self._holding(name)
+            if holding is None:
+                return self._families["chat.agent"](call)
+            agent = str(call.params.get("agent") or "")
+            self._chatted(call, holding[0], {"do": "agent", "agent": agent})
+            ran = chats.CHATS.named(name)
+            return chats.row(
+                ran, chats.hosted().get(name), going=chats.CHATS.going(ran)
+            )
+
     def _chat_started(
         self,
         call: Call,
@@ -754,6 +777,7 @@ class _Methods:
             "chat.move": self.chat_move,
             "chat.stop": self.chat_stop,
             "chat.delete": self.chat_delete,
+            "chat.agent": self.chat_agent,
         }
 
 

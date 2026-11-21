@@ -1770,7 +1770,8 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
   present only for a fork.
 
 **6.12.6** `hmz` MUST write the event `set` into the chat record each time the preference of the
-**chat** is overridden, its agent is changed (Section 8.9.5 of [CORE]), its permission is set
+**chat** is overridden, its agent is changed (Section 8.3.18 and Section 8.9.5 of [CORE]), its
+permission is set
 (Section 8.3.10 of [CORE]), it is moved to another env (Section 8.3.16 of [CORE]), its title is
 changed or it is archived or put back (Section 8.10 of [CORE]), with the key `prefer` (string),
 `agents` (as `began` gives it), `permission` (string, `read-only`, `workspace-write` or

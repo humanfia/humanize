@@ -3500,6 +3500,30 @@ said (Section 8.7.4) MAY be moved, and MUST then record the move once something 
 **8.3.17** Section 8.3.15 and Section 8.3.16 MUST NOT apply to an Ai-chan conversation, which
 works where it was made.
 
+**8.3.18** A chat MAY be given another model, another effort, or both at any time, whether or not a
+host holds it (`chat.agent` in Section 4 of [DAEMON]): an agent of the harness the chat is had with,
+as the account it runs as. hmz MUST refuse, saying why and that a new chat is started for it, an
+agent of another harness, an agent that runs as another account, and, where the model or the effort
+differs, a chat whose harness cannot carry a conversation on (Section 6.8) or is told no model and no
+effort, which every ACP harness is; the refusal MUST name that harness, and a chat refused MUST be
+left as it was. The agent given MUST be recorded in the chat's record at once, a chat carried on
+with nothing said (Section 8.7.4) included, MUST be the chat's agent from then on, under the name
+its sessions are recorded by, and MUST NOT be remembered as Section 8.3.8 states.
+
+**8.3.19** An agent so given MUST leave a turn that is open as it is and MUST hold from the chat's
+next turn. Ahead of that turn, where the catalogue of the chat's conversation holds as `call` each of
+`/model` and `/effort` that the change needs and the effort given is not the harness's default, the
+chat MUST have them change the conversation (Section 8.9.5), closing nothing; otherwise, and where
+they do not leave the conversation at the model and the effort given, the chat MUST close its
+conversation and carry it on in one its harness opens as the same account at that model and effort,
+as Section 8.7.5 states for a chat carried on. Where no conversation can be opened so that carries
+the chat's conversation on, the chat MUST NOT start a new one for it: it MUST say so in the
+conversation with the reason, MUST record the agent it had again, and MUST go on with that one. A
+chat no host holds MUST be carried on with the agent its record gives (Section 8.7).
+
+**8.3.20** Section 8.3.18 and Section 8.3.19 MUST NOT apply to an Ai-chan conversation, whose nous
+is that of Section 14.3.1 and never changes.
+
 ### 8.4. Turns
 
 **8.4.1** The task of a chat MUST be the first message of its conversation.

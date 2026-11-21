@@ -234,12 +234,13 @@ def test_the_model_is_changed_from_the_chip(world: World) -> None:
         expect(opus).to_be_visible()
         reel.web(page, hold=1.6, pointer=opus, click=True, caption="its models")
         opus.click()
-        expect(log).to_contain_text("/model")
+        # Said on the chip at once, and nothing said to the chat for it.
         expect(
             page.get_by_role("button", name=re.compile("Nous: .*Opus"))
         ).to_be_visible()
+        expect(log).not_to_contain_text("/model")
         expect(page.get_by_role("button", name="Send")).to_be_visible()
-        reel.web(page, hold=4, poster=True, caption="said as /model")
+        reel.web(page, hold=4, poster=True, caption="from its next turn")
         reel.save()
 
 

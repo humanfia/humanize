@@ -126,6 +126,7 @@ def test_every_method_that_names_a_chat_is_served() -> None:
             "list",
             "get",
             "rename",
+            "agent",
             "fork",
             "archive",
             "unarchive",
@@ -579,6 +580,7 @@ def test_an_ai_chan_conversation_is_read_by_chat_get_and_nothing_else(
     assert _call("chat.get", chat="hers")["task"] == "what is going on?"
     for method, more in (
         ("chat.rename", {"title": "mine"}),
+        ("chat.agent", {"agent": "claude@work/haiku"}),
         ("chat.fork", {}),
         ("chat.archive", {}),
         ("chat.unarchive", {}),
@@ -634,6 +636,71 @@ def test_a_chat_is_renamed_to_a_title_that_says_something(
         404,
         "There is no chat none.",
     )
+
+
+def test_a_chat_no_host_holds_is_written_as_carried_on_with_another_model(
+    held: _Chats, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hmz.runtime.chatting
+    import hmz.runtime.epic
+    from hmz.runtime.epic import Drove
+
+    now = Drove("assistant", "claude", "opus", "high", "work", "NeiKos496")
+    ran = _ran("c1", agents=(now,))
+    held.held = [ran]
+    written: list[tuple[Any, ...]] = []
+    asked: list[tuple[Drove, str]] = []
+
+    def note(at: Path, event: str, **said: Any) -> None:
+        written.append((at, event, said))
+
+    def carried_as(had: Drove, agent: str) -> Drove:
+        asked.append((had, agent))
+        if agent.startswith("codex/"):
+            raise hmz.runtime.chatting.KeptAs("a chat keeps its harness")
+        if "/" not in agent:
+            raise ValueError(f"{agent} is not an agent")
+        model, _, effort = agent.partition("/")[2].partition(":")
+        return had._replace(model=model, effort=effort)
+
+    monkeypatch.setattr(hmz.runtime.epic, "note", note)
+    monkeypatch.setattr(hmz.runtime.chatting, "carried_as", carried_as)
+
+    said = _call("chat.agent", chat="c1", agent="claude@work/haiku:low")
+
+    # Its record says so, under the name its sessions are written down by; nothing else.
+    assert asked == [(now, "claude@work/haiku:low")]
+    assert written == [
+        (
+            ran.at,
+            "set",
+            {"agents": [now._replace(model="haiku", effort="low")._asdict()]},
+        )
+    ]
+    assert set(said) == ROW
+    # What it runs already writes nothing.
+    _call("chat.agent", chat="c1", agent="claude@work/opus:high")
+    assert len(written) == 1
+    # What a chat keeps is a conflict, what is no agent a bad request, and neither is written.
+    assert _refused("chat.agent", chat="c1", agent="codex/gpt-5") == (
+        409,
+        "a chat keeps its harness",
+    )
+    assert _refused("chat.agent", chat="c1", agent="nope") == (
+        400,
+        "nope is not an agent",
+    )
+    # Not under a process that is no host, nor of a chat that names none.
+    held.goes.add("c1")
+    assert _refused("chat.agent", chat="c1", agent="claude@work/haiku") == (
+        409,
+        "Chat c1 has a turn open; change its model once it is done.",
+    )
+    assert _refused("chat.agent", chat="none", agent="claude/haiku") == (
+        404,
+        "There is no chat none.",
+    )
+    assert len(written) == 1
 
 
 def test_a_chat_is_archived_and_unarchived_once_each(

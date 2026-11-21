@@ -29,7 +29,7 @@ const served = daemon({
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { readBackends } = await import('../../../../src/hmz/web/static/pickers.js')
-const { modelChip } = await import('../../../../src/hmz/web/static/chips/model.js')
+const { modelChip, modelFact } = await import('../../../../src/hmz/web/static/chips/model.js')
 const { usageChip } = await import('../../../../src/hmz/web/static/chips/usage.js')
 const { chain, dismiss } = await import('../../../../src/hmz/web/static/layers.js')
 const { menu: menuOf, submenu } = await import('../../../../src/hmz/web/static/shell.js')
@@ -447,6 +447,98 @@ test('a role no harness installed here can fill says so in its menu', async () =
   } finally {
     dismiss('route')
     made.leave()
+    row.remove()
+  }
+})
+
+test('a chat begun keeps its harness and its account, and is carried on with the model and the effort picked of them', async () => {
+  await readBackends('/w')
+  let agent = 'litellm/azure_ai/claude-opus-2:auto'
+  const asked = []
+  const refused = []
+  let answer = () => {}
+  const made = modelFact({
+    of: () => agent,
+    fresh: () => '#/new/chat',
+    set: (to) => {
+      asked.push(to)
+      return new Promise((done, failed) => (answer = (why) => (why ? failed(new Error(why)) : done())))
+    },
+    failed: (error) => refused.push(error.message),
+  })
+  const row = under(made.node)
+  const button = made.node.querySelector('[data-hmz=chat-model]')
+  const valued = (menu) => menu.querySelectorAll('[role=menuitem]').filter((one) => 'value' in one.dataset)
+  try {
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    await until(() => menu.querySelector('[data-hmz=step-model]'))
+    // Said and not picked: the harness that had it and the account it ran as.
+    // Nor an effort, of a model that takes none.
+    assert.deepEqual(menu.querySelectorAll('.model-fact').map((one) => one.textContent), ['HarnessLiteLLM', 'AccountLocal', 'EffortDefault'])
+    assert.deepEqual(levelsOf(menu), [['Model', 'Opus 2 (azure_ai)']])
+    into(menu, 'model')
+    // The models of its own harness and account alone, the one it runs first.
+    assert.equal(nousOf(menu).length, 12)
+    assert.equal(nousOf(menu)[0].textContent, 'Opus 2 (azure_ai)')
+    nousOf(menu).find((one) => one.textContent === 'Opus 1 (vertex_ai)').click()
+    // Said at once, and asked of the daemon as the same harness and account at that model.
+    assert.equal(button.textContent, 'LiteLLM Opus 1 Default')
+    assert.deepEqual(asked, ['litellm/vertex_ai/claude-opus-1'])
+    // The chat read again says what it now runs.
+    agent = 'litellm/vertex_ai/claude-opus-1:auto'
+    answer()
+    made.again()
+    assert.equal(button.dataset.agent, agent)
+
+    // Its effort is picked of those the model takes, with none of them besides.
+    button.click()
+    const efforts = made.node.querySelector('[role=menu]')
+    into(efforts, 'effort')
+    assert.deepEqual(valued(efforts).map((one) => one.textContent), ['Default', 'Low', 'High'])
+    valued(efforts)[2].click()
+    assert.equal(button.textContent, 'LiteLLM Opus 1 High')
+    assert.deepEqual(asked.slice(1), ['litellm/vertex_ai/claude-opus-1:high'])
+    // Refused, it says what the chat runs again, and why is told.
+    answer('litellm cannot carry a conversation on')
+    await until(() => refused.length)
+    assert.deepEqual(refused, ['litellm cannot carry a conversation on'])
+    assert.equal(button.textContent, 'LiteLLM Opus 1 Default')
+
+    // An effort the model picked does not take is not carried to it; a model typed is asked as typed.
+    agent = 'litellm/vertex_ai/claude-opus-1:high'
+    made.again()
+    button.click()
+    const typed = made.node.querySelector('[role=menu]')
+    into(typed, 'model')
+    nousOf(typed).find((one) => one.textContent === 'Opus 3 (azure_ai)').click()
+    assert.equal(asked.at(-1), 'litellm/azure_ai/claude-opus-3')
+    answer('no')
+    await until(() => refused.length === 2)
+    button.click()
+    const other = made.node.querySelector('[role=menu]')
+    into(other, 'model')
+    const field = other.querySelector('[data-hmz=chat-model-typed]')
+    field.value = 'my/own-model'
+    pressed(field, 'Enter')
+    assert.equal(asked.at(-1), 'litellm/my/own-model')
+  } finally {
+    dismiss('route')
+    row.remove()
+  }
+})
+
+test('a chat begun with nothing to carry it on by says its parts and picks none', async () => {
+  await readBackends('/w')
+  const made = modelFact({ of: () => 'claude/claude-haiku-4-5:auto', fresh: () => '#/new/chat' })
+  const row = under(made.node)
+  try {
+    made.node.querySelector('[data-hmz=chat-model]').click()
+    const menu = made.node.querySelector('[role=menu]')
+    assert.deepEqual(menu.querySelectorAll('.model-fact').map((one) => one.textContent), ['HarnessClaude Code', 'AccountLocal', 'ModelHaiku 4.5', 'EffortDefault'])
+    assert.deepEqual(levelsOf(menu), [])
+  } finally {
+    dismiss('route')
     row.remove()
   }
 })
