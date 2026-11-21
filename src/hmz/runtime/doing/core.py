@@ -395,6 +395,7 @@ class Holding(Hmz):
         role: Role | None = None,
         permission: str | None = None,
         worktree: bool = False,
+        env: str = "",
     ) -> Chatting:
         """A chat in this workspace, in this process, set up and ready to be had.
 
@@ -416,6 +417,8 @@ class Holding(Hmz):
             on had, and `workspace-write` for a new one.
           worktree: Whether a new chat's assistant works in a new git worktree of this
             workspace.
+          env: The env its assistant works in, as `-e` spells one after `<role>=`, or ""
+            for this workspace, and for a chat carried on where it worked.
 
         Returns:
           The chat, held as a run is. Nothing has started: `run()` has it, here.
@@ -432,5 +435,6 @@ class Holding(Hmz):
             role=role,
             permission=permission,
             worktree=worktree,
+            env=env,
         )
         return Chatting(Chat(spec, person=person))

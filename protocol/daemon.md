@@ -581,7 +581,8 @@ whole path, not <workspace>.`, and one naming no directory 404, `There is no dir
 except where a method states the workspace need not exist or that it reads an epic of a workspace
 since removed. A method that names a host by `workspace` and `slot` and MUST NOT start one -- those
 of Section 4.6 but `hosts.open`, of Section 4.23, `btw.list`, `btw.leave`, `chat.say`,
-`chat.commands`, `chat.set` and `chat.stop` -- MUST NOT refuse a `workspace` for naming no
+`chat.commands`, `chat.set`, `chat.move` and `chat.stop` -- MUST NOT refuse a `workspace` for
+naming no
 directory: it MUST answer as it does for the host that holds it, or for none. Nor MUST
 `epic.attach` refuse one where a host of that `workspace` and `slot` is held already.
 
@@ -1536,6 +1537,15 @@ and MUST answer `at` (spelled from `~` where under the home directory), `whole`,
 `""` at the root), `entries` (each `name`, `dir`, directories first, at most 500) and `more` (how
 many were left out); a directory that cannot be read MUST be refused 404.
 
+**4.17.7.1.1** With `env` -- a runtime as `-e` writes one, with no directory: `ssh@<name>`,
+`docker`, `apple-container@<name>` -- `paths.list` MUST list the directory `at` of that runtime's
+machine, `~` being the home directory there, and MUST answer as it does for this machine, `at` and
+`whole` both the absolute path. For an ssh runtime it MUST ask the host; for a runtime with no
+name, whose directories are this machine's, it MUST answer as with no `env`; for any other it MUST
+be refused 409, `The directories of <env> cannot be listed from here; write the path.` An `env`
+that names no runtime MUST be refused 400 as `-e` refuses it, and a host that cannot be reached
+409, saying why.
+
 **4.17.7.2** `paths.complete` MUST take `typed` and answer `paths`: at most 50 directories the text
 typed could become, sorted, spelled as typed, each ending in `/`, names starting with `.` only where
 a `.` was typed.
@@ -2265,7 +2275,8 @@ the role of the session, while a session working in that env has a turn open.
 one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
 required; not empty but with `resume`), `resume` (the name of a chat of the workspace, `null`), `prefer` (`native`,
 `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`),
-`worktree` (boolean, `false`) and `remember` (boolean, `false`), and MUST be a write.
+`worktree` (boolean, `false`), `env` (an env as `-e` writes one after `<role>=`, or `null`) and
+`remember` (boolean, `false`), and MUST be a write.
 
 **4.25.1.2** `chat.start` MUST start the host of that slot as `epic.attach` does (Section 4.7.1.2),
 without attaching to it, MUST start a chat there (Section 8 of [CORE]) with `agent` as its assistant
@@ -2313,6 +2324,13 @@ MUST instead first end the chat there as an empty `chat.say` does and start it a
 had held it. Where a host holds that chat and something has been said to it, `chat.start` with a
 `task` that is not empty MUST be refused 400 with `<resume> is going on already`. Calls with one
 `resume` made at once MUST be answered as though made one after another.
+
+**4.25.1.10** With `env`, `chat.start` MUST start the chat in that env (Section 8.3.15 of [CORE]),
+in a new worktree made there where `worktree` is `true` too; with `resume`, it MUST carry the chat
+on in that env, which is a move (Section 8.3.16 of [CORE]) -- made on the host that holds the chat
+with nothing said, where one does, before `task` is said there. It MUST be refused 400, in the
+words `-e` is refused with, for an `env` that is not one, and as Section 8.3.7 of [CORE] states
+for one that cannot be reached or that the agent cannot be put in, no chat being recorded.
 
 #### 4.25.2. `chat.say`
 
@@ -2376,7 +2394,9 @@ MUST answer `chats` (chat rows, newest begun first), `total`, `offset` and `limi
 
 **4.25.5.2** A chat row MUST hold `id` (the chat's name), `title` (Section 8.10.1 of [CORE], cut at
 240 characters), `workspace`, `workdir` (where its assistant works: the workspace, or the worktree
-of Section 8.3.13 of [CORE]), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
+of Section 8.3.13 of [CORE], or the directory of the env it was started in or moved to), `env`
+(the env its assistant works in, as `-e` writes one after `<role>=`: `local/<workdir>` for a
+directory of this machine, Section 8.3.15 of [CORE]), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
 (when its record was last written), `state`, `slot` (the slot of the host holding it, `""` for
 none), `asking` (the questions its assistant asked mid-turn and waits on, each `<run>:<question>`),
 `permission` (Section 8.3.9 of [CORE]), `archived` (boolean) and `spent` (as an epic row's, Section
@@ -2489,6 +2509,25 @@ chat's name. It MUST be refused 409 with `A session of <harness> cannot be conti
 for a harness whose sessions are not continuable (Section 4.25.8.3), and 409, saying why, for an
 `agent` of another harness, for a session that gives no model where `agent` is absent, and where
 the session's files cannot be copied.
+
+#### 4.25.9. `chat.move`
+
+**4.25.9.1** `chat.move` MUST take `workspace`, `slot` and `env` (an env as `-e` writes one after
+`<role>=`, required), MUST be a write, MUST move the chat that host holds to that env as Section
+8.3.16 of [CORE] states, and MUST be answered with `env`, where the chat works from then on,
+written likewise.
+
+**4.25.9.2** `chat.move` MUST be answered only once the env has been reached and the chat's
+assistant settled for it. It MUST be refused 400, in the words `-e` is refused with, for an `env`
+that is not one; 409 with `a turn is open; move the chat once it is done` while the chat is not
+between turns; 409 with `The chat stays where it was: <reason>` for an env that cannot be reached
+or made, or that the assistant's harness cannot be put in; 409 with `<env> did not answer, so the
+chat stays where it was` where the env has not answered within 120 seconds; 409 with `an Ai-chan
+conversation works where it was made` on a host of hers; and as `chat.say` is for a slot no host
+holds or a chat that has folded (Section 4.25.2.4). A move refused MUST leave the chat as it was.
+
+**4.25.9.3** Once a chat is moved, the host MUST list the chat's env anew (Section 4.24), and the
+panes of the chat MUST be those of the env it works in.
 
 ## 5. Security Considerations
 

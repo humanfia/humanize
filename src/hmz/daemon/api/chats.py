@@ -92,11 +92,18 @@ def row(
     """
     assistant = ran.agents[-1] if ran.agents else None
     workspace = runs.resolved(ran.workspace)
+    workdir = ran.workdir or workspace
+    env = ran.env or f"local/{workdir.lstrip('/')}"
+    if ran.env:
+        # The directory there, as `-e` writes one: absolute, or from `~`.
+        at = ran.env.partition("/")[2]
+        workdir = at if at.startswith("~") else f"/{at}"
     return {
         "id": ran.name,
         "title": ran.title[:_TITLE],
         "workspace": workspace,
-        "workdir": ran.workdir or workspace,
+        "workdir": workdir,
+        "env": env,
         "agent": assistant.spec if assistant else "",
         "model": assistant.model if assistant else "",
         "began": ran.began,

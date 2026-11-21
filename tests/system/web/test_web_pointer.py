@@ -342,7 +342,7 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         # A new epic keeps the daemon and the folder a control each, one by the other.
         go(page, "/new")
         folders = page.locator("[data-hmz=workspace-picker]")
-        where = page.locator("[data-hmz=environment]")
+        where = page.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")
         folders.click()
         expect(page.get_by_role("menu", name="Folders")).to_be_visible()
         assert _popups(page) == ["Folders"]

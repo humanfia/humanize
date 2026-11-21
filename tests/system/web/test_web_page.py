@@ -499,27 +499,32 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             assert (inside[0]["y"], inside[0]["height"]) == (715, 28)
             assert (under["y"], under["height"]) == (760, 24)
 
-        # Under the box: where it runs at the left, how at the right, each 24px high.
+        # Under the box: what it is of and where it works at the left, how at the right,
+        # each 24px high.
         chips = view.locator("[data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
+            "folder",
             "environment",
             "pick-model",
             "permission",
             "new-usage",
         ]
-        # At the left the one chip, and nothing else: no folder control, no box to tick.
+        # At the left the two chips, and nothing else: no daemon, no box to tick.
         expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
-            1
+            2
         )
         expect(view.locator("[data-hmz=workspace-picker]")).to_have_count(0)
-        for at in range(4):
+        expect(
+            view.locator("[data-hmz=composer-under] [data-hmz=daemon]")
+        ).to_have_count(0)
+        for at in range(5):
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
         # Set in from the box's edges, as a chat app's are, on a phone too: the first
         # starts a hair right of the Add button.
         inset = 12
-        first = _at(page, "[data-hmz=environment]")
+        first = _at(page, "[data-hmz=start] [data-hmz=folder]")
         assert first["x"] == boxed["x"] + inset
         assert first["x"] == inside[0]["x"] + 3
         # The row ends, as a chat app's does, with the ring that says what was used: as
@@ -540,37 +545,46 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
                 ".scrollWidth <= document.querySelector('[data-hmz=start]"
                 " [data-hmz=composer-under]').clientWidth"
             )
-        # Environment is where it runs: the daemon the page shows, then the folder.
-        expect(view.locator("[data-hmz=environment]")).to_have_text(
-            f"Local · {project.name}"
-        )
+        # Folder is what the chat is of: the folder picked, and nothing of a daemon.
+        folder_chip = view.locator("[data-hmz=start] [data-hmz=folder]")
+        expect(folder_chip).to_have_text(project.name)
         # Said, to whoever cannot see it, with what it picks.
-        expect(view.locator("[data-hmz=environment]")).to_have_attribute(
-            "aria-label", f"Environment: Local, {project.name}"
-        )
-
-        # One menu holds both, each under its heading, and then the worktree.
-        view.locator("[data-hmz=environment]").click()
-        offered = page.get_by_role("menu", name="Environment")
-        expect(offered.locator(".popover-head")).to_have_text(["Runs on", "Folder"])
-        expect(offered.locator("[data-daemon]")).to_have_text([re.compile("Local")])
-        expect(offered.locator("[data-daemon=local]")).to_have_class(
-            re.compile("chosen")
-        )
-        rows = offered.locator("[role=menuitem], [role=menuitemcheckbox]")
-        expect(rows.nth(1)).to_have_text("New environment")
-        # The folder: the ones there are, then opening one, then none; then Worktree.
-        expect(offered.locator("[data-folder].chosen")).to_have_text(project.name)
-        expect(rows.nth(-3)).to_contain_text("Open folder…")
-        expect(rows.nth(-2)).to_contain_text("No folder")
-        expect(rows.nth(-1)).to_have_text("Worktree")
-        # Of the two in force, it opens on the folder.
-        expect(offered.locator("[data-folder].chosen")).to_be_focused()
+        expect(folder_chip).to_have_attribute("aria-label", f"Folder: {project.name}")
+        folder_chip.click()
+        folders = page.get_by_role("menu", name="Folder")
+        expect(folders.locator("[data-daemon]")).to_have_count(0)
+        rows = folders.get_by_role("menuitem")
+        # The ones there are, then opening one, then none.
+        expect(folders.locator("[data-folder].chosen")).to_have_text(project.name)
+        expect(rows.nth(-2)).to_contain_text("Open folder…")
+        expect(rows.nth(-1)).to_contain_text("No folder")
+        expect(folders.locator("[data-folder].chosen")).to_be_focused()
         # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
-        assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
-        assert _at(page, "[role=menu] [data-hmz=new-worktree]")["height"] == 28
+        assert _at(page, "[role=menu] [data-folder].chosen")["height"] == 28
+        page.keyboard.press("Escape")
+
+        # Environment is where the chat works: this computer until another is picked,
+        # said in one line over the places, and never a daemon.
+        where = view.locator("[data-hmz=start] [data-hmz=environment]")
+        expect(where).to_have_text("This computer")
+        expect(where).to_have_attribute("aria-label", "Environment: This computer")
+        where.click()
+        offered = page.get_by_role("menu", name="Environment")
+        expect(offered.locator("[data-hmz=environment-about]")).to_have_text(
+            "Where this chat\u2019s commands run and its files live."
+        )
+        expect(offered.locator("[data-daemon]")).to_have_count(0)
+        places = offered.get_by_role("menuitemradio")
+        expect(places.locator(".choice-label")).to_have_text(
+            ["This computer", "New worktree"]
+        )
+        expect(offered.locator("[data-env=local]")).to_have_attribute(
+            "aria-checked", "true"
+        )
+        expect(offered.get_by_role("menuitem")).to_have_text(["Add runtime…"])
         # Over the chip, its lower edge by the chip's upper edge.
-        chip_box, menu_box = _at(page, "[data-hmz=environment]"), offered.bounding_box()
+        chip_box = _at(page, "[data-hmz=start] [data-hmz=environment]")
+        menu_box = offered.bounding_box()
         assert menu_box
         assert menu_box["y"] + menu_box["height"] <= chip_box["y"]
         page.keyboard.press("Escape")
@@ -675,28 +689,28 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
-        # Environment first: the daemon it runs on, then the folder, a row each, the
+        # Environment first: the daemon that serves it, then the folder, a row each, the
         # names in one column and what each picks in the next.
         first = view.locator("[data-hmz=options] > *").first
         expect(first).to_have_attribute("data-hmz", "setup-environment")
         expect(first.locator("h3")).to_have_text("Environment")
         expect(first.locator(".setup-row > .setup-name")).to_have_text(
-            ["Runs on", "Folder"]
+            ["Daemon", "Folder"]
         )
-        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=environment]")
+        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=daemon]")
         folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
         assert runs["x"] == folder["x"]
         assert folder["y"] >= runs["y"] + runs["height"]
         assert (runs["height"], folder["height"]) == (24, 24)
-        expect(
-            view.locator("[data-hmz=setup-daemon] [data-hmz=environment]")
-        ).to_have_text("Local")
+        expect(view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")).to_have_text(
+            "Local"
+        )
         expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
         # Their menus open under them.
-        view.locator("[data-hmz=setup-daemon] [data-hmz=environment]").click()
-        daemons = page.get_by_role("menu", name="Environment")
+        view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]").click()
+        daemons = page.get_by_role("menu", name="Daemon")
         expect(daemons.get_by_role("menuitem")).to_have_text(
-            [re.compile("Local"), "New environment"]
+            [re.compile("Local"), "Add daemon…"]
         )
         box = daemons.bounding_box()
         assert box

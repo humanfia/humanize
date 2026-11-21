@@ -6815,6 +6815,13 @@
           "schema": {
             "type": "boolean"
           }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": "string"
+          },
+          "description": "The runtime whose machine the directory is on, as -e spells one with no directory; this machine where absent."
         }
       ],
       "result": {
@@ -9202,6 +9209,16 @@
           }
         },
         {
+          "name": "env",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]. Where the chat's assistant works; with resume, where the chat is carried on."
+        },
+        {
           "name": "remember",
           "schema": {
             "type": "boolean"
@@ -9531,6 +9548,90 @@
         "name": "set",
         "schema": {
           "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.move",
+      "summary": "Move a chat to another env, between turns.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]."
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "move",
+        "schema": {
+          "type": "object",
+          "required": [
+            "env"
+          ],
+          "properties": {
+            "env": {
+              "type": "string"
+            }
+          }
         }
       },
       "errors": [
@@ -11097,6 +11198,7 @@
           "title",
           "workspace",
           "workdir",
+          "env",
           "agent",
           "model",
           "began",
@@ -11119,6 +11221,9 @@
             "type": "string"
           },
           "workdir": {
+            "type": "string"
+          },
+          "env": {
             "type": "string"
           },
           "agent": {

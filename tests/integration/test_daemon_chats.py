@@ -28,7 +28,7 @@ from hmz.daemon import where
 from hmz.daemon.link import dialed, reached
 from hmz.rpc import RpcError
 from hmz.runtime import Hmz, backing
-from hmz.runtime.chatting import STOPPED
+from hmz.runtime.chatting import STOPPED, TURN_OPEN
 from hmz.runtime.epic import (
     CHATTED,
     JOURNAL,
@@ -66,6 +66,7 @@ ROW = {
     "title",
     "workspace",
     "workdir",
+    "env",
     "agent",
     "model",
     "began",
@@ -424,6 +425,7 @@ def test_a_chat_is_written_down_as_a_chat_and_is_no_epic(
         "title": "hello there",
         "workspace": str(project.resolve()),
         "workdir": str(project.resolve()),
+        "env": _spelled(project),
         "agent": f"{AGENT}:high",
         "model": MODEL,
         "began": began["at"],
@@ -1051,6 +1053,115 @@ def test_a_chat_started_in_a_worktree_works_there_and_returns_there(
     assert not _directory_or_none(name)
     assert (worktree / "landed.txt").is_file()
     assert str(worktree.resolve()) in _git(project, "worktree", "list", "--porcelain")
+
+
+def _spelled(at: Path) -> str:
+    """A directory of this machine as `-e` spells the env that is it."""
+    return f"local/{str(at.resolve()).lstrip('/')}"
+
+
+def test_a_chat_is_moved_to_another_env_between_turns_and_goes_on_there(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    link, heard, slot, name = _chat(project, "hello there")
+    host = {"workspace": str(project), "slot": slot}
+    try:
+        # Until it is moved it works in its workspace, which its record says nothing of.
+        row = _row(user, name)
+        assert (row["env"], row["workdir"]) == (
+            _spelled(project),
+            str(project.resolve()),
+        )
+        assert "env" not in _events(_directory(name))[0]
+
+        # What is no env is refused as -e refuses it; one that cannot take the chat leaves
+        # it where it was, saying why.
+        code, why = _refused(user, "chat.move", **host, env="nowhere/else")
+        assert code == 400
+        assert "nowhere" in why
+        code, why = _refused(
+            user, "chat.move", **host, env=_spelled(tmp_path / "missing")
+        )
+        assert code == 409
+        assert why.startswith("The chat stays where it was: ")
+        assert _row(user, name)["env"] == _spelled(project)
+
+        # Not while its turn is open.
+        link.chat_say(SLOW)
+        assert until(lambda: _row(user, name)["state"] == "turn")
+        assert _refused(user, "chat.move", **host, env=_spelled(other)) == (
+            409,
+            TURN_OPEN,
+        )
+        link.chat_stop()
+        assert until(lambda: _row(user, name)["state"] == "going")
+
+        moved = user.call("chat.move", {**host, "env": _spelled(other)}, timeout=60)
+        assert moved == {"env": _spelled(other)}
+        row = _row(user, name)
+        # The chat is its workspace's still; its assistant works where it was moved to.
+        assert (row["workspace"], row["env"], row["workdir"]) == (
+            str(project.resolve()),
+            _spelled(other),
+            str(other.resolve()),
+        )
+        assert _events(_directory(name))[-1]["env"] == _spelled(other)
+
+        link.chat_say("and here?")
+        assert until(
+            lambda: any(
+                one.get("mode") == "listen"
+                and str(one.get("text") or "").endswith("did: and here?")
+                for one in heard.of("asked")
+            )
+        )
+        assert Path(started(tmp_path)[-1]["cwd"]).resolve() == other.resolve()
+        assert (other / "landed.txt").read_text() == "and here?\n"
+        assert (project / "landed.txt").read_text() == "hello there\n"
+        assert heard.of("ended") == []
+    finally:
+        link.close()
+
+
+def test_a_chat_carried_on_goes_on_where_it_was_moved_and_moves_as_it_is_carried_on(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    there, back = tmp_path / "there", tmp_path / "back"
+    there.mkdir()
+    back.mkdir()
+    # Started in an env, as one moved there would be.
+    link, _, _, name = _chat(project, "hello there", env=_spelled(there))
+    assert _events(_directory(name))[0]["env"] == _spelled(there)
+    assert (there / "landed.txt").read_text() == "hello there\n"
+    assert not (project / "landed.txt").exists()
+    _ended(link, user, name)
+
+    again, _, _, carried = _chat(project, "and then?", agent="", resume=name)
+    assert carried == name
+    assert (there / "landed.txt").read_text() == "hello there\nand then?\n"
+    _ended(again, user, name)
+
+    # Carried on with another env, it works there from then on.
+    code, _ = _refused(
+        user, "chat.start", workspace=str(project), task="x", resume=name, env="?"
+    )
+    assert code == 400
+    moved, _, _, _ = _chat(
+        project, "and back?", agent="", resume=name, env=_spelled(back)
+    )
+    assert (back / "landed.txt").read_text() == "and back?\n"
+    assert _row(user, name)["env"] == _spelled(back)
+    assert [one["env"] for one in _events(_directory(name)) if "env" in one] == [
+        _spelled(there),
+        _spelled(back),
+    ]
+    _ended(moved, user, name)
+
+    # A fork stands where the chat stands.
+    fork = user.call("chat.fork", {"chat": name}, timeout=30)["chat"]
+    assert _row(user, fork)["env"] == _spelled(back)
 
 
 def _directory_or_none(name: str) -> Path | None:

@@ -312,8 +312,8 @@ settings or from this chat. Picking the other sets this chat's own
 
 The pane beside a chat has **Details** in place of **Epic** -- its usage, its first
 message, where it works, and under **About this chat** its ID, where it is saved, its
-folder, **Works in** where it works in [a worktree](/user/chat#worktree) rather than in its
-folder, when it started, its nous, options, limits and sessions -- and **Side questions**
+folder, **Works in** where it works in [a worktree](/user/chat#worktree) or [another
+environment](/user/chat#moving) rather than in its folder, when it started, its nous, options, limits and sessions -- and **Side questions**
 in place of **Aside**, which works the same.
 
 #### Managing a chat {#managing-a-chat}
@@ -429,17 +429,38 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 A new chat and a new epic of a flow are two forms, each opened from the sidebar, in one
 frame: a plain heading at the top, and the box you type into docked at the foot of the page.
-Both say where they run as an **Environment**: the [daemon](#daemons) and, on it, the folder.
+Two things say where they run, and the page keeps them apart:
 
-A new chat keeps it under the box, at its left, on one quiet chip that reads the daemon and
-then the folder, as `Local · project`. Its menu has both. **Runs on** lists **Local** and every
-remote daemon, and picks another as the daemon bar at the foot of the sidebar does; **New
-environment** opens the daemons' settings. **Folder** lists the directories: pick another by its
-name -- point at one for its whole path -- **Open folder…**, or **No folder**. The last row is
-**Worktree**.
+| | Is | Picked |
+| --- | --- | --- |
+| **Daemon** | *which* hmz serves the page: a machine running hmz that you are connected to. Its chats and epics are the ones the sidebar lists | at the foot of the sidebar, the [daemon bar](#daemons); on a new epic also in the row **Daemon** |
+| <span id="environment"></span>**Environment** | *where* one chat works: where its commands run and its files live | under that chat's box, on the **Environment** chip |
+
+A new chat keeps two quiet chips under the box, at its left. **Folder** is what the chat is of:
+its menu lists the directories -- pick another by its name, point at one for its whole path --
+then **Open folder…** and **No folder**. **Environment** is where it works, and reads **This
+computer** until you pick another. Its menu says so in one line -- *Where this chat's commands run
+and its files live* -- and offers:
+
+- **This computer**: in the folder itself, on the daemon's machine.
+- **New worktree**: a [git worktree](/user/chat#worktree) of the folder, so the folder is left as
+  it is.
+- **Runtimes**: every [runtime](/user/settings#runtimes) saved on that daemon -- an SSH host, a container,
+  a cluster -- each with its kind and the directory it was saved with. One saved with no directory
+  asks for one first.
+- **Choose directory…**, in a runtime: the directory there, picked as a folder is here -- write
+  it, or browse that machine's directories. A machine whose directories cannot be listed says so,
+  and takes the path as written.
+- **Add runtime…** opens the runtimes' settings.
+
+The same chip stays under the box once the chat has begun, and **moves** the chat: pick another
+place between turns and the chat [goes on there](/user/chat#moving), in the same conversation
+where its CLI can carry one over. While a turn is open the places are greyed and the menu says
+why; a place that cannot take the chat leaves it where it was, with the daemon's reason. A chat
+that is resting moves as its next message carries it on.
 
 A new epic has nothing under its box. **Environment** is the first part of what it is set up
-with, in the middle of the page: a row **Runs on** with the daemon, a row **Folder** with the
+with, in the middle of the page: a row **Daemon** with the daemon, a row **Folder** with the
 directory, each picked from its own chip, and under them a row for each environment the flow
 asks you to place.
 
@@ -451,10 +472,10 @@ is deleted while it is picked -- or named by an address you kept -- stays picked
 machine. Pick another folder.** Nothing is started there; put the directory back and the form
 reads it again by itself.
 
-A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from **Environment**; the
+A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from **Folder**; the
 nous -- a harness and a model -- from the chip under the box at its right; and type the first
-message. Tick **Worktree**, the last row of **Environment**'s menu, to start it in [a git worktree of its
-own](/user/chat#worktree): it cannot be ticked with **No folder**, nor in a directory that is in
+message. Pick **New worktree** in **Environment**'s menu to start it in [a git worktree of its
+own](/user/chat#worktree): it cannot be picked with **No folder**, nor in a directory that is in
 no git repository, and says which where you point at it. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
 flow, budget or params to set. **+** in the box offers **Add files**, which types `@` and
 completes the folder's files -- with **No folder** picked there are none to name, and it says
@@ -522,7 +543,7 @@ epic then shows in the sidebar under that directory. Type the
 task and press <kbd>Enter</kbd>. What the flow is set up with is in the middle of the page, under what the
 flow is for, always in sight -- nothing opens or hides it -- as that directory last started it:
 
-- **Environment.** **Runs on** and **Folder**, as above; then, per environment role, the
+- **Environment.** **Daemon** and **Folder**, as above; then, per environment role, the
   **Backend**, the **Runtime** of it (or **Add runtime…**, or for ssh **Other host…**), and the
   **Directory**, completed as you type on this machine. A directory left blank is the folder
   picked, which the field says while it is empty.

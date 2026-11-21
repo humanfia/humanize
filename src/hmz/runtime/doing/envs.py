@@ -16,14 +16,15 @@ import os
 import posixpath
 import re
 import time
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from hmz.runtime.flowing.environing import MachineEnvDriver
     from hmz.runtime.flowing.spi import EnvDriver
 
-__all__ = ["NO_FLOW", "EnvRefusal", "answered", "carried", "listed"]
+__all__ = ["NO_FLOW", "EnvRefusal", "answered", "browsed", "carried", "listed"]
 
 #: How a host with no epic going refuses each of them.
 NO_FLOW = "no flow is running, so no env is open"
@@ -67,6 +68,65 @@ class EnvRefusal(Exception):  # noqa: N818 -- a refusal, said as the protocol sa
         super().__init__(why)
         self.code = code
         self.why = why
+
+
+def browsed(env: str, at: str) -> tuple[str, list[tuple[str, bool]]] | None:
+    """What one directory of a runtime's machine holds, for somebody choosing a directory there.
+
+    Asked of no run: the runtime is opened for this alone and let go of. Only a machine whose
+    directories are not this machine's is asked -- the host of an ssh runtime.
+
+    Args:
+      env: The runtime, as `-e` spells one with no directory: `ssh@<name>`, `docker`,
+        `apple-container@<name>` and so on; `local` or "" for this machine.
+      at: The directory there, absolute or from `~`; "" for the home directory.
+
+    Returns:
+      The directory, absolute, and each entry by name and whether it is a directory -- a
+      link among them, where it leads being the machine's to say; or None where the
+      directory is this machine's: this machine itself, and a runtime with no name.
+
+    Raises:
+      EnvRefusal: 400 for what names no runtime, in the words `-e` refuses it with; 404
+        for a directory that is not there; 409 for a runtime whose directories cannot be
+        listed from here, and for a host that cannot be reached.
+    """
+    from hmz.flows import EnvBackendKind, EnvFileNotFound, FlowException
+    from hmz.runtime.flowing import open_env
+    from hmz.runtime.flowing.specs import SpecError, parse_envs
+
+    said = at or "~"
+    try:
+        (spec,) = parse_envs([f"workspace={env or 'local'}/{said.lstrip('/')}"])
+    except SpecError as why:
+        raise EnvRefusal(400, str(why)) from why
+    if spec.backend is EnvBackendKind.LOCAL:
+        return None
+    if spec.backend is not EnvBackendKind.SSH:
+        if spec.provider:
+            raise EnvRefusal(
+                409,
+                f"The directories of {env} cannot be listed from here; write the path.",
+            )
+        # A container here is handed a directory of this machine.
+        return None
+
+    async def asked() -> tuple[str, list[tuple[str, bool]]]:
+        # Every driver `open_env` makes lists a directory and says where it is.
+        driver = cast("MachineEnvDriver", open_env(spec))
+        try:
+            whole = await driver.absolute(".")
+            found = await driver.list(".")
+        finally:
+            await driver.close()
+        return whole, [(one.name, one.kind in ("dir", "link")) for one in found]
+
+    try:
+        return asyncio.run(asked())
+    except EnvFileNotFound as why:
+        raise EnvRefusal(404, f"{said} cannot be read: {why}") from why
+    except FlowException as why:
+        raise EnvRefusal(409, str(why)) from why
 
 
 def _can(driver: EnvDriver) -> list[str]:

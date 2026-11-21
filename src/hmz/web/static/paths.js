@@ -17,8 +17,12 @@ import { follow } from './shell.js'
  * @param {string} [made.id]
  * @param {(path: string) => void} [made.changed] Told the path whenever it changes.
  * @param {string} [made.from] Whose paths: '' for the daemon the page is on, else its name.
+ * @param {() => string} [made.env] The runtime whose machine the path is on, as `-e` spells one
+ *   with no directory, read each time a directory is listed: '' for the daemon's own machine.
+ *   A path there is listed where that machine can be (`paths.list` with `env`), and is not
+ *   completed as it is typed.
  */
-export function pathPicker({ value = '', files = false, label, placeholder = files ? '~/file' : '~/folder', id, changed = () => {}, from = '' }) {
+export function pathPicker({ value = '', files = false, label, placeholder = files ? '~/file' : '~/folder', id, changed = () => {}, from = '', env = () => '' }) {
   const list = `paths-${Math.random().toString(36).slice(2, 8)}`
   const input = h('input', { type: 'text', value, placeholder, 'aria-label': label, id, list, autocomplete: 'off', spellcheck: 'false', 'data-hmz': 'path-input' })
   const offered = h('datalist', { id: list })
@@ -39,6 +43,8 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     changed(input.value.trim())
     clearTimeout(typed)
     typed = setTimeout(async () => {
+      // Another machine's directories are browsed for, never completed.
+      if (env()) return fill(offered)
       try {
         const { paths } = await call('paths.complete', { typed: input.value }, { on: from || undefined })
         fill(offered, paths.map((one) => h('option', { value: one })))
@@ -58,10 +64,12 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     else draw(h('p', { class: 'loading', role: 'status' }, t('Reading…')))
     let read
     try {
-      read = await call('paths.list', { at: dir, files, hidden }, { on: from || undefined })
+      const there = env()
+      read = await call('paths.list', { at: dir, files, hidden, ...(there ? { env: there } : {}) }, { on: from || undefined })
     } catch (error) {
       if (mine !== asked) return
-      if (dir !== '~') return show('~')
+      // A machine that cannot be listed says so, rather than being asked again for its home.
+      if (dir !== '~' && (!env() || error.status === 404)) return show('~')
       panel.removeAttribute('aria-busy')
       draw(h('p', { class: 'error' }, error.message))
       return

@@ -386,12 +386,18 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert under["y"] >= boxed["y"] + boxed["height"]
         chips = page.locator("[data-hmz=say] [data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
+            "environment",
             "chat-model",
             "permission",
             "chat-usage",
         ]
-        expect(chips.first).to_have_text("Claude Code Haiku 4.5 Default")
-        for hook in ("chat-model", "permission", "chat-usage"):
+        # Where it works, at the left; how it runs, at the right.
+        expect(chips.first).to_have_text("This computer")
+        expect(chips.first).to_have_attribute(
+            "aria-label", "Environment: This computer"
+        )
+        expect(chips.nth(1)).to_have_text("Claude Code Haiku 4.5 Default")
+        for hook in ("environment", "chat-model", "permission", "chat-usage"):
             assert _box(page, f"[data-hmz=say] [data-hmz={hook}]")["height"] == 24
         # Usage is a ring 24px square while the chat has spent nothing to say, the last
         # of the row and set in from the box's edge.
@@ -907,7 +913,8 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
             "all => all.map((one) => (one.matches('button, a') ? one :"
             " one.querySelector('button')).getAttribute('aria-label'))"
         ) == [
-            "Environment: Local, project",
+            "Folder: project",
+            "Environment: This computer",
             "Nous: Claude Code Haiku 4.5 Default",
             "Permissions: Edit this folder",
             "Usage",

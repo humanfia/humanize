@@ -812,7 +812,21 @@ A refusal MUST be said in the dialog in the daemon's own sentence, and the dialo
 another dialog included.
 
 **3.6.6.27** `Details` MUST say where a chat's assistant works (`workdir`), beside the chat's
-workspace, where the two differ (Section 8.3.13 of [CORE]).
+workspace, where the two differ (Section 8.3.13 and Section 8.3.15 of [CORE]), and, where its env
+is a runtime, the runtime before the directory.
+
+**3.6.6.28** The row under the box of a chat MUST hold, at its left, one chip, `Environment`,
+which says where the chat's assistant works (`env` of its row, Section 4.25.5.2 of [DAEMON]) as
+Section 3.8.22.2 states, and opens the menu of Section 3.8.22.3 with no `New worktree` and with
+`Choose directory…` whatever the env. Picking a place there MUST move the chat: a chat a host
+holds MUST be moved at once (`chat.move`, Section 4.25.9 of [DAEMON]), and the chip MUST then say
+where it works as the daemon answers it; a chat no host holds MUST be carried on there by the next
+message said in it (`env` of `chat.start`), the chip saying meanwhile where it is to go. A refusal
+MUST be said in the daemon's own sentence -- in the form of Section 3.8.22.4 where the directory
+was picked there, and in a toast otherwise -- and MUST leave the chip as it was. While a turn of
+the chat is open, every place of the menu MUST be drawn as switched off, MUST pick nothing, and the
+line over them MUST say `A turn is open. Move the chat once it is done.` The page MUST NOT offer
+the daemon on this row or in this menu.
 
 #### 3.6.7. An epic written down
 
@@ -1090,7 +1104,7 @@ alone, and starting MUST be refused saying that a flow is installed first.
 **3.8.5** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
 **3.8.6** The form MUST show, in the middle of the page, what the flow is set up with, as that
-workspace last started it: `Environment` first, holding `Runs on`, `Folder` (Section 3.8.2.1) and
+workspace last started it: `Environment` first, holding `Daemon`, `Folder` (Section 3.8.2.1) and
 for each environment role an environment; then for each agent role an agent, the parameters, the
 budget, the backup targets, `Profile flow` and `Profile environment`. All of it MUST be in sight
 without a control being pressed: the form MUST NOT hold a control named `Options`, or any other
@@ -1181,28 +1195,51 @@ pixels high holding the heading `New chat` at its left; the box of Section 3.6.6
 foot of the page, in the column a conversation is read in; and between them nothing but the list
 of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle of the page.
 
-**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, one chip,
-`Environment`, and nothing else, and at its right the chips of Section 3.8.19 and
-Section 3.8.20 and then `Usage`, drawn as the chip of Section 3.6.6.17 is, which MUST open the
-popup of Section 3.6.6.17.1 with no chat's figures: what the workspace picked has used -- every
-workspace's where none is picked -- and the link to `Usage` (Section 3.11.2.12). `Environment`
-MUST name the daemon the page shows and then the workspace picked, as `Local · project`, and
-`No folder` where none is; it is the control of Section 3.8.2 on this form, and what Section
-3.8.2.3 has that control say MUST be said on it. It MUST open one menu holding, in this order:
-under the heading `Runs on`, Local and every remote daemon this browser keeps, with the one shown
-marked, and `New environment`, which opens the daemons' settings (Section 3.13); under the heading
-`Folder`, the workspaces the daemon shown serves whose directories are there, each one row named
-by the last part of its path and saying its path where it is pointed at, with the one picked
-marked, and after them `Open folder…` and `No folder`; and `Worktree` (Section 3.8.22.1). Picking
-another daemon MUST switch the page to it (Section 3.4.2.4), on the same form. The menu MUST open
-with the focus on the workspace picked.
+**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, two chips and
+nothing else -- `Folder`, what the chat is of, and then `Environment`, where it works -- and at its
+right the chips of Section 3.8.19 and Section 3.8.20 and then `Usage`, drawn as the chip of
+Section 3.6.6.17 is, which MUST open the popup of Section 3.6.6.17.1 with no chat's figures: what
+the workspace picked has used -- every workspace's where none is picked -- and the link to `Usage`
+(Section 3.11.2.12). `Folder` MUST name the workspace picked, and `No folder` where none is; it is
+the control of Section 3.8.2 on this form, and what Section 3.8.2.3 has that control say MUST be
+said on it. It MUST open a menu, under no heading, of the workspaces the daemon shown serves whose
+directories are there, each one row named by the last part of its path and saying its path where
+it is pointed at, with the one picked marked, and after them `Open folder…` and `No folder`; the
+menu MUST open with the focus on the workspace picked. Neither chip, and neither menu, MUST name
+or offer a daemon: which hmz serves the page is the whole page's, picked at the foot of the
+sidebar (Section 3.4.2.4).
 
-**3.8.22.1** `Worktree` MUST be a row of that menu that is ticked, clear until the user ticks it,
-and ticking it MUST NOT close the menu; ticked, the chat MUST be started with `worktree` `true`
-(Section 4.25.1.8 of [DAEMON]). It MUST be drawn as switched off, clear, and say why where it is
-pointed at, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked
-nor in any directory over it; where that cannot be told it MUST stay on offer, and a refusal of
-the start MUST be said as any other is (Section 3.4.4.9).
+**3.8.22.1** `New worktree` MUST be one of the places of the menu of `Environment` (Section
+3.8.22.3), after `This computer`; picked, the chat MUST be started with `worktree` `true` (Section
+4.25.1.8 of [DAEMON]). It MUST be drawn as switched off, MUST pick nothing, and MUST say why where
+it is pointed at, under `No folder` and where `paths.list` finds `.git` neither in the workspace
+picked nor in any directory over it; where that cannot be told it MUST stay on offer, and a
+refusal of the start MUST be said as any other is (Section 3.4.4.9).
+
+**3.8.22.2** `Environment` MUST say where the chat works, by an icon and a name: `This computer`
+for the workspace itself on the daemon's machine, and for another directory of that machine with
+the last part of its path after it, as `This computer · other`; `New worktree`; and for a runtime
+its name and then the last part of the directory there, as `gpu-box · repo`. The icon MUST tell
+this computer, a worktree, an ssh host, a container and a cluster apart. It MUST be named, to
+assistive technology, `Environment:` and then what it says.
+
+**3.8.22.3** The menu of `Environment` MUST hold, in this order: one line that is no choice, `Where
+this chat’s commands run and its files live.`; the places, of which exactly one is marked --
+`This computer`, saying the folder it works in, `New worktree` where the form offers one, and,
+under the heading `Runtimes`, every runtime saved on the daemon shown (`runtimes.list`), each named
+by its name and saying its kind (`SSH host`, `Docker container`, `Docker swarm`, `Apple container`,
+`Slurm cluster`) and its directory; `Choose directory…`, wherever the place picked is a runtime;
+and `Add runtime…`, which opens the runtimes' settings (Section 3.13). Picking a runtime saved
+with a directory MUST pick it there; one saved with none MUST open the form of Section 3.8.22.4
+first. The chat MUST be started with `env` naming the runtime and the directory picked (Section
+4.25.1.10 of [DAEMON]), and with no `env` on this computer.
+
+**3.8.22.4** `Choose directory…` MUST open, in place of the menu, a form headed `Directory on
+<runtime>` -- `Directory on this computer` for this machine -- holding the control a folder is
+opened by (Section 3.8.2): a field the directory is written in, and beside it a button that
+browses that machine's directories (`paths.list` with `env`, Section 4.17.7.1.1 of [DAEMON]), with
+`Use this directory` and `Cancel`. A machine whose directories cannot be listed MUST say so in the
+browser in the daemon's own sentence, and the directory MUST still be taken as written.
 
 **3.8.23** The form of a new chat MUST list, in the middle of the page, in a list named `Next
 steps` under no heading, each chat marked `asking` (Section 3.5.10) among the 200 newest chats of
@@ -1218,11 +1255,15 @@ flow is for and, under it, what it is set up with (Section 3.8.6) in the middle 
 the box of Section 3.8.5 docked at the foot, holding only the `Add` button of Section 3.6.6.16,
 what is typed and the button that sends. The row under that box MUST hold nothing, neither at its
 left nor at its right. `Environment` MUST be the first part of what the flow is set up with, shown
-whatever flow is picked and where none is: a row `Runs on`, a chip that names the daemon the page
-shows and opens the menu Section 3.8.22 puts under `Runs on`; a row `Folder`, the control of
+whatever flow is picked and where none is: a row `Daemon`, a chip that names the daemon the page
+shows and opens a menu of one line that is no choice, `Which hmz serves this page: a machine
+running hmz that you are connected to.`, then Local and every remote daemon this browser keeps,
+with the one shown marked, and `Add daemon…`, which opens the daemons' settings (Section 3.13);
+picking another daemon MUST switch the page to it (Section 3.4.2.4), on the same form; a row
+`Folder`, the control of
 Section 3.8.2.1; and then a row for each environment role of the flow picked, named by the role,
 whose directory on this machine, while none is typed, MUST say the workspace picked, where such a
-role left blank works. The menus of `Runs on` and of `Folder` MUST open under their controls.
+role left blank works. The menus of `Daemon` and of `Folder` MUST open under their controls.
 
 ### 3.9. Flows
 

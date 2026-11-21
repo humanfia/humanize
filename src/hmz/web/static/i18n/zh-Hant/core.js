@@ -276,7 +276,6 @@ export default {
   'Rename': '重新命名',
   'Unarchive': '取消封存',
   'Environment': '環境',
-  'Runs on': '執行於',
   'Nous': 'Nous',
   'Reading the nous…': '正在讀取 Nous…',
   'New chat': '新增聊天',
