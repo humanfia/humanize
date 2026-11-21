@@ -29,7 +29,7 @@ in a browser does.
   and says Local cannot be reached until you [install it](/user/installation#cli). On Windows,
   Local is the daemon in WSL, and the app installs `hmz` there: see [On Windows](#windows).
 - **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
-  and P2P daemons -- are reached from the app itself: ssh with your ssh config, WSL's
+  and EasyTier daemons -- are reached from the app itself: ssh with your ssh config, WSL's
   [on Windows](#windows), and every route but ssh and Local inside mutual TLS, as the app's own
   device, paired as a browser is.
 - **It uses your login shell's environment**, so `hmz` and the coding agent CLIs are found as a

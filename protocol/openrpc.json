@@ -8326,7 +8326,7 @@
     },
     {
       "name": "easytier.nodes",
-      "summary": "The community's shared EasyTier nodes.",
+      "summary": "The shared EasyTier nodes to offer.",
       "paramStructure": "by-name",
       "params": [],
       "result": {

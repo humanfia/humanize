@@ -267,8 +267,9 @@ export function parsePairing(code) {
 /**
  * Adds a daemon from a pairing code (Section 4.5.7 of protocol/wire.md): reaches it over the
  * code's routes pinning the code's id, claims the code as `device`, and keeps the daemon as
- * `name` only once the claim succeeds. A P2P daemon's is claimed over `first`, its `easytier:`
- * route as this machine names it, in place of the code's own (Section 3.13.6 of protocol/web.md).
+ * `name` only once the claim succeeds. Where `first` is given -- an address typed, or an EasyTier
+ * daemon's `easytier:` route as this machine names it -- it is tried first, in place of the code's
+ * routes of its kind (Section 3.13.4 and 3.13.6 of protocol/web.md).
  * It is reached with `ice`, the STUN and TURN servers it is then kept with (Section 3.13.21).
  *
  * @param {ReturnType<typeof registry>} store

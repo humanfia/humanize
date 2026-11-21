@@ -604,7 +604,7 @@ daemon:
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; a directory that was deleted is marked `(missing)` in the list, and can still be forgotten; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
-| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** and **Pair a device** once it is up, and a remote daemon's own **WebRTC servers** |
+| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** once it is up, and a remote daemon's own **WebRTC servers** |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 | **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
 
@@ -739,10 +739,10 @@ Start `hmz web` in a project, which opens on **New chat**:
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
 holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
 WSL, as with Humanize Desktop on Windows, the WSL distribution, its host shown as `Debian (WSL)`. Every other
-is a remote daemon, of one of three kinds: **SSH**, an ssh host reached the way `ssh` reaches
-it, with your keys and your ssh config; **P2P**, a machine reached [over EasyTier](#over-easytier)
-with a secret you both know; or **Paired**, a machine whose daemon made a pairing code you
-claimed here.
+is a remote daemon, named by what it is reached over: **SSH**, an ssh host reached the way `ssh`
+reaches it, with your keys and your ssh config; **EasyTier**, a machine reached
+[over EasyTier](#over-easytier) with a secret you both know; or **TCP**, **WebSocket**, **Relay**
+or **WebRTC**, a machine whose daemon made a pairing code you claimed here.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
 flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.
@@ -765,32 +765,31 @@ A daemon is in one of these states:
 | --- | --- |
 | `not connected` | Not connected to yet. |
 | `connecting` | A route is being opened: `ssh` reaching the host, EasyTier joining the network, a relay joining, TLS and hello. |
-| `installing` | The host has no `hmz`, or another version, and it is being installed (see [What happens on connect](#on-connect)); or, for a P2P daemon, `Downloading EasyTier <version>` here. |
+| `installing` | The host has no `hmz`, or another version, and it is being installed (see [What happens on connect](#on-connect)); or, for an EasyTier daemon, `Downloading EasyTier <version>` here. |
 | `up` | Reached: its epics are on the page. The bar says `N live` while epics are going on it, and `idle` while none is. |
 | `failed` | It could not be reached; the menu says why, and **Connect** tries again. |
 
 ### Adding one {#adding-a-daemon}
 
-**Settings → Daemons** lists Local and every remote daemon, each with its kind -- and mode, as
-`SSH · SSH Config`, `SSH · Custom` or `P2P · EasyTier` -- what reaches it, and its state.
-**New daemon** asks you to pick a kind, **Code**, **SSH** or **P2P**, and a mode under it; then
-the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
-cannot be taken -- and how to reach it. Beside the form, the page says what the kind you picked
-is and what the other machine needs for it, and each field says under it what it is for:
+**Settings → Daemons** lists Local and every remote daemon, each with what it is reached over,
+what reaches it, and its state. **New daemon** offers, side by side, what a daemon can be reached
+over: **SSH**, **EasyTier**, **TCP**, **WebSocket**, **Relay** and **WebRTC**; then asks the
+**name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and cannot be
+taken -- and how to reach it. Beside the form, the page says what the one you picked is and what
+the other machine needs for it, and each field says under it what it is for:
 
-| Kind | Mode | What you give |
-| --- | --- | --- |
-| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. **Advanced** holds the [STUN and TURN servers](#webrtc-servers) to claim it with, and opens by itself for a code that is reached over WebRTC. |
-| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name. Nothing here writes to the config. It is resolved through your config every time, so editing the config edits the daemon. |
-| **SSH** | **Custom** | The host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept by the page, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. For a new daemon, also that machine's pairing code: it is claimed at once over EasyTier, and the daemon is kept, held to that machine's id, only once the claim succeeds. |
+| Over | What you give |
+| --- | --- |
+| **SSH** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name, and it is resolved through your config every time. Or **Custom** in that list: the host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). Nothing here writes to the config. |
+| **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the shared nodes listed -- the EasyTier community's, each with whether it is up and how much of the last 24 hours it was, where its status page can be read, and the public nodes EasyTier's documentation names -- or type your own in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. For a new daemon, also that machine's pairing code: it is claimed at once over EasyTier, and the daemon is kept, held to that machine's id, only once the claim succeeds. |
+| **TCP**, **WebSocket**, **Relay**, **WebRTC** | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair`, and, if you like, an **Address** of that kind -- `tcp://host:port`, `wss://…`, `relay:wss://…` or `webrtc:wss://…` -- tried before the routes the code carries. It is claimed at once, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. **WebRTC** also asks the [STUN and TURN servers](#webrtc-servers) to claim it with. |
 
-**SSH** and **P2P** are offered only where the page can open their routes: in a browser,
-through `hmz web`; in [Humanize Desktop](/user/desktop), through the app.
+Each is offered only where the page can open its routes: in a browser, through `hmz web`; in
+[Humanize Desktop](/user/desktop), through the app.
 
 Edit a daemon, connect to it to check it, or remove it, which asks first. Editing opens the form
-in the daemon's own kind and mode, with every route it is reached by, in the order they are
-tried, to add to, take from or reorder; a P2P daemon's secret is never shown again, and leaving
+on what the daemon is reached over, with every route it is reached by, in the order they are
+tried, to add to, take from or reorder; an EasyTier daemon's secret is never shown again, and leaving
 it empty keeps it. Removing one forgets how to reach it, and nothing on the host: its epics,
 its `hmz` and its pairing of this machine stay there.
 A daemon removed can be added again from a new pairing code: this machine is not
@@ -804,10 +803,9 @@ browser, Humanize Desktop, and `hmz` in a terminal each keep their own.
 
 A daemon's **devices** are the browsers and machines paired with it: the ones that may reach
 it. They are the other way round from **New daemon**, which is about the machines this page
-reaches. Under each daemon's line in the list, once it is up, **Devices** has **Pair a
-device**, which makes a one-time pairing code for another machine or browser to claim -- under
-**New daemon → Code** there -- shown with when it expires, and a button that copies it; and
-the devices paired with that daemon, each with when it was last seen. **Revoke** one, asked
+reaches. Under each daemon's line in the list, once it is up, **Devices** lists the devices
+paired with that daemon, each with when it was last seen. The page only reaches daemons, and
+makes no pairing code: run `hmz daemon pair` on the daemon's machine for one. **Revoke** one, asked
 first, and it can reach that daemon no more. A daemon that is not up says so there instead:
 **Connect** to it first.
 
@@ -824,7 +822,7 @@ unless one of its routes is a `webrtc:` route. Write one server a line -- its UR
 -- and **Save**. A credential is shown as `••••` from then on, and is kept where you leave it
 so, also where you edit the URLs of its line; a `••••` written where no credential is kept is
 refused, and you write the credential again. They are used for that daemon's `webrtc:` routes only; a daemon reached another way never
-uses them. For a new **Code** daemon they are asked under **Advanced**, before the code is
+uses them. For a new **WebRTC** daemon they are asked in the form, before the code is
 claimed.
 
 They are this browser's side. The daemon's own side is the
@@ -860,7 +858,7 @@ over `ssh` has the id it answered pinned, and one that later answers as another 
   and every `ssh` and EasyTier it started; the epics there keep going, held by that host's
   daemon. See [Leaving it running](/user/leaving).
 
-### Over EasyTier (P2P) {#over-easytier}
+### Over EasyTier {#over-easytier}
 
 Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it out -- its
 daemon can listen on an EasyTier network instead. On that machine, give its `~/.hmz/settings.yaml`
@@ -875,22 +873,22 @@ easytier:
 listen: ["easytier:home"]
 ```
 
-and make a pairing code there, `hmz daemon pair`. Then, on your own machine, add a **P2P** ›
+and make a pairing code there, `hmz daemon pair`. Then, on your own machine, add an
 **EasyTier** daemon with the same secret, at least one of the same nodes, and that pairing code:
 it writes the EasyTier entry of the name you give here, which the route `easytier:<name>` opens
 with; in [Humanize Desktop](/user/desktop), it writes it to the app as well, which opens the route
 itself. A route over EasyTier is held to the daemon's id, which only pairing gives, so the form
 claims the code at once over that route -- then over the code's other routes, if it carries any
--- and keeps the daemon only once the claim succeeds, saying why otherwise. A P2P daemon kept
+-- and keeps the daemon only once the claim succeeds, saying why otherwise. An EasyTier daemon kept
 without an id by an earlier release fails with `easytier:home needs the id of the daemon it
 reaches.`: remove it and add it again with a pairing code.
 
 - <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
   of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,
-  `ws`, `wss`, `quic`, `wg`). The form lists the nodes EasyTier's community shares, as the
-  status page EasyTier's own apps read says, each with whether it is up and how much of the last
-  day it was; check those you want and type any others. Where that list cannot be read from
-  your network, the form says so and takes typed nodes alone. The two ends reach each other
+  `ws`, `wss`, `quic`, `wg`). The form lists the public nodes EasyTier's documentation names,
+  and, where the status page EasyTier's own apps read can be reached, the nodes its community
+  shares, each with whether it is up and how much of the last day it was; check those you want
+  and type any others. The two ends reach each other
   directly where they can, and are relayed by the node where they cannot; a node never learns
   the secret. [`HUMANIZE_EASYTIER_NODES`](/reference/environment#humanize-easytier-nodes) reads
   the list from another status page.
@@ -1068,7 +1066,7 @@ says `idle` or how many are `live` again once it has.
 without asking for anything -- a password or a host key to accept cannot be answered from the
 page -- then press **Connect**.
 
-### A P2P daemon says `failed`
+### An EasyTier daemon says `failed`
 
 EasyTier could not be downloaded here, or that machine's daemon could not be reached on its
 network. Check that its `listen` names `easytier:<name>` with the very same secret, that both

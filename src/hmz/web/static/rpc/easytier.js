@@ -1,4 +1,4 @@
-// Where the EasyTier entry of a P2P daemon is written: Local's settings, which `hmz web` opens
+// Where the EasyTier entry of an EasyTier daemon is written: Local's settings, which `hmz web` opens
 // an `easytier:` route with (Section 3.13.6 and Section 4.8.7 of protocol/web.md), and, in the
 // desktop application, the app's own entries too, which its pipes open the route with (Section
 // 3.12.6 of protocol/desktop.md). Neither hands a secret back.

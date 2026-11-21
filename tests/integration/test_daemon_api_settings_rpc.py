@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 from hmz import home
+from hmz.coganchor import easytier as tier
 from hmz.daemon.api import accounts, easytier, nous, runtimes, settings
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, document, hello
 from tests.integration.doubles_easytier import kuma
@@ -281,6 +282,10 @@ def test_nous_and_runtimes_are_written_into_the_settings_file(
     assert _call(client, "runtimes.remove", backend="ssh", name="gpu")["runtimes"] == []
     _refused(client, 404, "runtimes.remove", backend="ssh", name="gpu")
 
+    known = [one.url for one in tier.KNOWN]
     with kuma({"publicGroupList": []}, {}, monkeypatch):
-        assert _call(client, "easytier.nodes") == {"nodes": []}
-    assert "could not be read" in _refused(client, 503, "easytier.nodes")
+        assert [one["url"] for one in _call(client, "easytier.nodes")["nodes"]] == known
+    # A status page that cannot be read leaves the nodes known, how each stands unknown.
+    unread = _call(client, "easytier.nodes")["nodes"]
+    assert [one["url"] for one in unread] == known
+    assert {one["up"] for one in unread} == {None}
