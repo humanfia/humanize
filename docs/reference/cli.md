@@ -248,12 +248,13 @@ Signals detach the command without stopping the turn; the chat continues in the 
 Serve the browser interface for all workspaces until stopped, on `127.0.0.1` and, where the machine has it, on `::1` at the same port, and on nothing else. Prints `hmz web: http://127.0.0.1:<port>/?key=<key>` on stdout.
 
 ```text
-hmz web [--port PORT] [--no-open] [--attached]
+hmz web [--port PORT] [--origin ORIGIN] [--no-open] [--attached]
 ```
 
 | Option | Value | What it does |
 | --- | --- | --- |
 | `--port` | `0` to `65535` | The loopback port. `0` picks any free port. Defaults to the last port `hmz web` used, or any free port if there is none or it is taken. |
+| `--origin` | `http://HOST[:PORT]` or `https://HOST[:PORT]` | The public origin of a reverse proxy that rewrites `Host`. The page's requests are accepted from it too. Any other value is a usage error. See [The browser page](/user/web#behind-a-reverse-proxy). |
 | `--no-open` | | Prints the address without opening a browser. |
 | `--attached` | | Stops when standard input closes. |
 

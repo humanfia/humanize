@@ -2019,8 +2019,11 @@ hmz web printed to let this browser in.`
 
 **4.4.6** An admitted request MUST be refused 403, `Use this server's own page to make this
 request.`, where it carries `Sec-Fetch-Site` with a value other than `same-origin`, or carries no
-`Sec-Fetch-Site` and an `Origin` whose scheme is not `http` or whose host and port differ from its
-`Host`.
+`Sec-Fetch-Site` and an `Origin` that is neither of the following: an origin whose scheme is `http`
+or `https` and whose host and port are those of its `Host`, a port absent from either being the
+default port of the scheme of the `Origin`, 80 for `http` and 443 for `https`; the origin given to
+`--origin` (Section 8.1.3 of [CLI]), compared by scheme, host and port likewise. The server MUST
+NOT read the origin or the host of a request from any other header.
 
 **4.4.7** A request whose method is not `GET` MUST be refused 405, `Only the page's own files are
 here.`
@@ -2165,7 +2168,10 @@ requirement.
   A page without the cookie shows no view (Section 3.3.3).
 - **Origin checks.** A WebSocket or a request from another site is refused: the server admits only
   what the browser states comes from the server's own page (Section 4.4.6), which keeps another
-  site from opening `/rpc` with the cookie the browser holds. Every answer forbids framing and
+  site from opening `/rpc` with the cookie the browser holds. A reverse proxy on this machine that
+  serves the page over HTTPS is admitted as the page's own where it preserves `Host`; one that
+  rewrites `Host` is admitted only for the one origin the user names with `--origin`, and no
+  forwarding header is trusted, since any process on this machine can send one. Every answer forbids framing and
   content sniffing, and the page's HTML carries a content security policy that admits only the
   server's own scripts, styles and connections, and inline styles, which the editor and the terminal
   need and which run no script (Section 4.5.1 and Section 4.5.5); those libraries are the page's own

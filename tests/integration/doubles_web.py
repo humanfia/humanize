@@ -35,9 +35,13 @@ PATIENCE = 30.0
 
 
 @contextlib.contextmanager
-def served() -> Generator[Site]:
-    """The web interface, answering on a thread of its own until the block ends."""
-    with listening() as site:
+def served(origin: str = "") -> Generator[Site]:
+    """The web interface, answering on a thread of its own until the block ends.
+
+    Args:
+      origin: The origin a proxy that rewrites `Host` serves its page at, or "" for none.
+    """
+    with listening(origin=origin) as site:
         threading.Thread(
             target=site.serve_forever,
             kwargs={"poll_interval": 0.05},

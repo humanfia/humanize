@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     from .site import Site
 
-__all__ = ["kept_port", "listening", "serve"]
+__all__ = ["is_origin", "kept_port", "listening", "serve"]
 
 #: The page a browser is opened on, which goes on to the address: the key is in a file only
 #: this account can read rather than on the command line of the browser, which every account
@@ -61,6 +61,20 @@ def kept_port() -> int:
     return int(said)
 
 
+def is_origin(said: str) -> bool:
+    """Whether a text is an origin a page can be served at, as `--origin` takes one.
+
+    Args:
+      said: The text.
+
+    Returns:
+      True for `<scheme>://<host>[:<port>]` over `http` or `https` with nothing after it.
+    """
+    from .site import _origin  # pyright: ignore[reportPrivateUsage]
+
+    return _origin(said) is not None
+
+
 def _keeps(port: int) -> None:
     """Writes the port listened on, by atomic replacement, where it has changed."""
     if kept_port() == port:
@@ -74,7 +88,7 @@ def _keeps(port: int) -> None:
 
 
 @contextlib.contextmanager
-def listening(*, port: int = 0) -> Generator[Site]:
+def listening(*, port: int = 0, origin: str = "") -> Generator[Site]:
     """The web interface, listening on this machine's loopback for as long as the block runs.
 
     This machine's daemon is reached first, started where none runs. Listening is not
@@ -83,6 +97,7 @@ def listening(*, port: int = 0) -> Generator[Site]:
 
     Args:
       port: The port to listen on, or 0 for any free one.
+      origin: The origin a proxy that rewrites `Host` serves the page at, or "" for none.
 
     Yields:
       The server.
@@ -90,11 +105,12 @@ def listening(*, port: int = 0) -> Generator[Site]:
     Raises:
       hmz.daemon.Older: If this machine's daemon is one of an older Humanize.
       OSError: If the daemon cannot be reached, or the port cannot be listened on.
+      ValueError: If the origin is not one.
     """
     from .site import Site
 
     _reaches()
-    site = Site(port)
+    site = Site(port, origin)
     try:
         yield site
     finally:
@@ -142,6 +158,7 @@ def _held_back() -> Generator[None]:
 def serve(
     *,
     port: int | None = None,
+    origin: str = "",
     shown: Callable[[str], object] = print,
     opened: Callable[[str], object] | None = None,
 ) -> None:
@@ -150,6 +167,8 @@ def serve(
     Args:
       port: The port to listen on, 0 for any free one, or None for the one the last `hmz web`
         of this home listened on -- any free one where that cannot be listened on.
+      origin: The origin a proxy that rewrites `Host` serves the page at, as
+        `<scheme>://<host>[:<port>]`, or "" for none (Section 4.4.6 of web.md).
       shown: What the address is said through, once the server is listening. The address
         carries the key a browser is let in with.
       opened: What opens that address in a browser, or None to leave that to whoever reads it.
@@ -157,18 +176,19 @@ def serve(
     Raises:
       hmz.daemon.Older: If this machine's daemon is one of an older Humanize.
       OSError: If the daemon cannot be reached, or the port cannot be listened on.
+      ValueError: If the origin is not one.
     """
     from .site import Site
 
     _reaches()
     if port is None:
         try:
-            site = Site(kept_port())
+            site = Site(kept_port(), origin)
         except OSError:
             # The port kept is taken now: any free one (Section 8.1.2 of cli.md).
-            site = Site(0)
+            site = Site(0, origin)
     else:
-        site = Site(port)
+        site = Site(port, origin)
     with contextlib.ExitStack() as made:
         made.callback(site.server_close)
         _keeps(site.port)

@@ -185,9 +185,20 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 
 `hmz web` reuses the same port each time so your browser keeps this state. Clearing site data in the browser resets these preferences without affecting your chats, epics, or daemon settings. A browser that cannot store anything works the same and forgets them.
 
+## Behind a reverse proxy
+
+`hmz web` can sit behind an HTTP or HTTPS reverse proxy such as nginx or Caddy. The proxy must run on the same machine, or reach `hmz web` through a port forwarded to that machine's loopback, because `hmz web` answers loopback connections only. It must also pass WebSocket upgrades for `/rpc` and `/dial`.
+
+- **The proxy keeps `Host`.** Nothing else is needed. The page's requests are accepted when the browser's `Origin` is `http` or `https` and names the same host and port as `Host`; a missing port counts as 443 for `https` and 80 for `http`. In nginx this is `proxy_set_header Host $http_host;`. Caddy keeps `Host` by default.
+- **The proxy rewrites `Host`.** Tell `hmz web` the public origin: `hmz web --origin https://hmz.example.com`. Requests whose `Origin` is exactly that origin are accepted too. Without `--origin` the page loads but its connection to the daemon is refused with 403.
+
+Open the printed address with the proxy's origin in place of `http://127.0.0.1:<port>`, keeping `/?key=<key>`, for example `https://hmz.example.com/?key=<key>`. The key lets that browser in under that name.
+
+A request from any other site is still refused, and `hmz web` never reads `X-Forwarded-Host`, `X-Forwarded-Proto` or `Forwarded`. Anyone who can reach the proxy and has the key acts as you on this machine, so put the proxy's own sign-in in front of it when it is reachable from a network.
+
 ## Good to know
 
-- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. The forward must keep the address `http://` and the host and port the browser asked for: behind a proxy that serves the page over HTTPS or rewrites `Host`, the page loads but may be refused its connection to the daemon. For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
+- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. To serve it under a name of your own over HTTPS, see [Behind a reverse proxy](#behind-a-reverse-proxy). For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
 - If the port passed to `--port` is taken, `hmz web` exits with `hmz: the web interface cannot be served:` and the reason. It also exits with a message if a daemon from an older, incompatible Humanize is running on this machine.
 - Scripts can read the address from standard output: `hmz web --no-open` prints a single line, `hmz web: <address>`. See [CLI](/reference/cli).
 - The browser tab title is `Humanize · ` followed by the machine's name.
