@@ -245,6 +245,11 @@ variable is set and non-empty, and the directory `.hmz` in the user's home direc
 **2.3.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
 
+**2.3.6.1** A **folderless workspace** is a workspace hmz made for one epic or one chat that was
+started in no directory of the user's (Section 4.7.1.3 of [DAEMON]). It is a workspace as any
+other, save that a frontend MUST NOT show it as a folder: it MUST show every epic and chat of every
+folderless workspace together, as those of no folder.
+
 **2.3.7** A distribution of the Windows Subsystem for Linux (WSL) is a machine apart from the
 Windows that runs it.
 
@@ -3707,7 +3712,8 @@ workspace MUST be listable apart (`chat.list` with `archived`), and an archived 
 back among the others by `chat.unarchive`.
 
 **8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
-included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be
+included, and nothing else but the directory of its folderless workspace (Section 2.3.6.1) where no
+other chat and no epic is of it: no epic directory, and no worktree the chat worked in. It MUST be
 refused while a turn of the chat is open or a process that is no host holds it; a host that holds
 it between turns MUST be ended first, as an empty next message ends it. What is deleted MUST NOT
 be recoverable through hmz.

@@ -13,7 +13,7 @@ const served = daemon({ methods: { 'workspaces.list': () => listed } })
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { chain, dismiss, opened } = await import('../../../../src/hmz/web/static/layers.js')
-const { firstOf, firstWorkspace, goneSaid, lostSaid, missing, unplaced, workspacePicker, workspaces } = await import('../../../../src/hmz/web/static/places.js')
+const { firstOf, firstWorkspace, folderOf, goneSaid, lostSaid, missing, unplaced, workspacePicker, workspaces } = await import('../../../../src/hmz/web/static/places.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -231,7 +231,7 @@ test('Environment names the daemon and the folder on one chip, whose menu holds 
     button.click()
     const menu = made.node.querySelector('[role=menu]')
     assert.deepEqual(menu.querySelectorAll('.popover-head').map((one) => one.textContent), ['Runs on', 'Folder'])
-    assert.deepEqual(items(), ['Local', 'New environment', 'app', 'lib', 'Open folder…', 'No folder', 'Worktree'])
+    assert.deepEqual(items(), ['Local', 'New environment', 'No folder', 'app', 'lib', 'Open folder…', 'Worktree'])
     // Two choices are in force; the keys are on the folder.
     assert.equal(document.activeElement.textContent, 'app')
     assert.equal(document.activeElement.dataset.folder, '/w/app')
@@ -364,4 +364,11 @@ test('a hosted picker says the folder not read yet as the button does, never as 
     made.leave()
     made.holder.remove()
   }
+})
+
+test('the folder of an epic or a chat is named by the last part of its path, and No folder of a folderless one', () => {
+  assert.equal(folderOf({ workspace: '/w/app' }), 'app')
+  assert.equal(folderOf({ workspace: '/w/app', folderless: false }), 'app')
+  // Never by the directory made for it.
+  assert.equal(folderOf({ workspace: '/tmp/humanize-501/nofolder/tmpab12', folderless: true }), 'No folder')
 })

@@ -279,6 +279,8 @@ def test_an_epic_row_is_of_a_flow_and_says_how_it_went(
     said = runs.row(ran, held=True)
 
     assert (said["kind"], said["flow"], said["how"]) == ("flow", flow, ending)
+    # Somebody's folder, as every directory hmz did not make for it is.
+    assert said["folderless"] is False
     # Where a chat is in its turn is its chat row's to say (`chat.list`), never an epic's.
     assert "turn" not in said
 

@@ -10564,6 +10564,7 @@
         "required": [
           "name",
           "workspace",
+          "folderless",
           "kind",
           "flow",
           "task",
@@ -10583,6 +10584,9 @@
         "properties": {
           "name": {},
           "workspace": {},
+          "folderless": {
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "flow"
@@ -11001,6 +11005,7 @@
           "id",
           "title",
           "workspace",
+          "folderless",
           "workdir",
           "agent",
           "model",
@@ -11022,6 +11027,9 @@
           },
           "workspace": {
             "type": "string"
+          },
+          "folderless": {
+            "type": "boolean"
           },
           "workdir": {
             "type": "string"

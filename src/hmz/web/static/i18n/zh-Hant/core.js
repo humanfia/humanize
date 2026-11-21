@@ -129,7 +129,7 @@ export default {
   'The folder {name} is no longer on this machine.': '資料夾 {name} 已不在這台機器上。',
   'The folder {name} is no longer on this machine. Pick another folder.': '資料夾 {name} 已不在這台機器上。請另選一個資料夾。',
   'No folder': '無資料夾',
-  'A new directory of its own, in the temporary directory': '在暫存目錄中新建的專屬目錄',
+  'A temporary directory of its own, made as it starts': '開始時自動新建的專屬暫存目錄',
   'Files': '檔案',
   'Folder': '資料夾',
   '{name} (missing)': '{name}（已遺失）',

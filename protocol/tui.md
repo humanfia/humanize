@@ -1201,6 +1201,9 @@ epic of kind `chat`.
 over a session to it (Section 3.8 of [DAEMON]) in the background, and MUST say why where it cannot
 be reached.
 
+**17.3.1.1** A row of that list whose workspace is folderless (the `folderless` of its row, Section
+4.16.2 and Section 4.25.5.2 of [DAEMON]) MUST say `no folder` in place of its workspace.
+
 **17.3.2** `enter`, `m` or a click on such an epic MUST offer `follow` for one a host there holds,
 `export` for one not going, `upload`, `copy name`, `copy task` and `copy workspace`.
 

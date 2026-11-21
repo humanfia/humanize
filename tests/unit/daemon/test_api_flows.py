@@ -411,3 +411,36 @@ def test_a_subscription_not_open_is_unknown() -> None:
         notices.METHODS["notices.unsubscribe"](_call(sub="notices-0"))
     assert unknown.value.code == Code.UNKNOWN_SUBSCRIPTION
     assert unknown.value.message == "There is no subscription notices-0."
+
+
+def _made_for_none(at: str | Path) -> bool:
+    """Whether a path is folderless, for a test that keeps such directories under its own."""
+    return Path(at).parent.name == "nofolder"
+
+
+def test_a_folderless_workspace_is_never_listed_and_is_made_again_where_it_went(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.daemon import where
+
+    mine, made = tmp_path / "mine", tmp_path / "nofolder" / "tmp1"
+    mine.mkdir()
+    made.mkdir(parents=True)
+    monkeypatch.setattr(where, "folderless", _made_for_none)
+    epics = [
+        SimpleNamespace(workspace=str(made), began="2026-02-01"),
+        SimpleNamespace(workspace=str(mine), began="2026-01-01"),
+    ]
+
+    # Section 4.17.5.6: whatever ran or goes in it, or wrote it down.
+    rows = workspaces.listed("", epics, [str(made.resolve())], [str(made.resolve())])
+    assert [one["path"] for one in rows] == [str(mine.resolve())]
+
+    # Section 4.5.2: the machine cleans its temporary directory, and it is made again.
+    gone = tmp_path / "nofolder" / "tmp2"
+    assert workspaces.place(str(gone)) == gone.resolve()
+    assert gone.is_dir()
+    assert not any(gone.iterdir())
+    with pytest.raises(RpcError) as missing:
+        workspaces.place(str(tmp_path / "gone"))
+    assert missing.value.code == Code.NOT_FOUND

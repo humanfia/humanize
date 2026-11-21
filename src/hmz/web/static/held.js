@@ -118,7 +118,8 @@ export function hearing(where, fn) {
 async function starts(workspace, slot, { scratch = false, ...said }) {
   const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot, replay: false }, () => {})
   try {
-    const started = await call('epic.start', { ...said, remember: true, sub: sub.sub })
+    // A directory made for this epic alone is set up by nothing again: nothing is written down of it.
+    const started = await call('epic.start', { ...said, remember: !scratch, sub: sub.sub })
     // Followed a moment longer, as the view gone to next follows it.
     follow({ workspace: started.workspace, slot: started.slot }, () => {})()
     return started

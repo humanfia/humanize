@@ -13303,7 +13303,10 @@ class RemoteEpics(Sheet[Doing]):
                         f"{_when(str(one.get('began', '')))}{_DOT}{_named(one)}",
                         _DOT.join(
                             [
-                                _homed(str(one.get("workspace") or "")),
+                                # Made for it alone, and nobody's folder (Section 17.3.1.1).
+                                "no folder"
+                                if one.get("folderless")
+                                else _homed(str(one.get("workspace") or "")),
                                 _asked_for(str(one.get("task") or "")) or "no task",
                                 # A chat is one conversation, and says no count of them.
                                 *(

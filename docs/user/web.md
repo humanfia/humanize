@@ -103,7 +103,7 @@ A heading is always there to hold it: with nothing to show, a group says **Nothi
 
 | Choice | What it does |
 | --- | --- |
-| **Group by** | **Folder** (as it starts): a heading per directory, and **No folder** last for what has none. **Date**: **Today**, **Yesterday**, **Last 7 days**, **Last 30 days**, **Older**. **None**: one list. By date or as one list, the directories stand last under **Folders**, a row each: click one for a new chat there, and right-click it, or press **More options**, for what a directory's heading offers |
+| **Group by** | **Folder** (as it starts): a heading per directory, and **No folder** last for every chat and epic started in none, together -- never a heading per temporary directory. **Date**: **Today**, **Yesterday**, **Last 7 days**, **Last 30 days**, **Older**. **None**: one list. By date or as one list, the directories stand last under **Folders**, a row each: click one for a new chat there, and right-click it, or press **More options**, for what a directory's heading offers |
 | **Sort by** | **Last updated** (as it starts): an epic going first, then by when each ended -- a chat by when it was last said to or answered, whether or not the daemon holds it now. **Created**: by when each began |
 | **Show** | **Chats** and **Epics**, each on or off: off, the list leaves them out |
 | **Reset to defaults** | By folder, last updated first, chats and epics both |
@@ -434,8 +434,8 @@ Both say where they run as an **Environment**: the [daemon](#daemons) and, on it
 A new chat keeps it under the box, at its left, on one quiet chip that reads the daemon and
 then the folder, as `Local · project`. Its menu has both. **Runs on** lists **Local** and every
 remote daemon, and picks another as the daemon bar at the foot of the sidebar does; **New
-environment** opens the daemons' settings. **Folder** lists the directories: pick another by its
-name -- point at one for its whole path -- **Open folder…**, or **No folder**. The last row is
+environment** opens the daemons' settings. **Folder** starts with **No folder** and then lists the directories: pick another by its
+name -- point at one for its whole path -- or **Open folder…**. The last row is
 **Worktree**.
 
 A new epic has nothing under its box. **Environment** is the first part of what it is set up
@@ -505,9 +505,11 @@ A chat is not among the flows. Where no flow is installed -- Humanize ships none
 of the page says so, and **Open Flows** there, as in the flow's menu, goes to
 **Flows**, on its flowverses, to install one; until then nothing starts. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
-folder** works in none of yours: each epic started so gets a new directory of its own in the
-temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
-epic then shows in the sidebar under that directory. Type the
+folder**, the first choice, works in none of yours: each epic or chat started so gets a temporary
+directory of its own, made as it starts, and an epic is set up as the directory `hmz web` started
+in is, with nothing remembered of it. All of them show in the sidebar together, under **No
+folder**; the directory is kept as long as its epic or chat is, and goes with a chat that is
+deleted. Type the
 task and press <kbd>Enter</kbd>. What the flow is set up with is in the middle of the page, under what the
 flow is for, always in sight -- nothing opens or hides it -- as that directory last started it:
 

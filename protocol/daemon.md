@@ -489,6 +489,11 @@ Out of scope:
 **4.2.5** **Workspace path**: a workspace directory as an absolute path with every symbolic link
 followed. Two spellings of one directory are one workspace path.
 
+**4.2.5.1** **Folderless**: a workspace path is folderless (Section 2.3.6.1 of [CORE]) where it is
+a directory of `<mdir>/nofolder/` (Section 7.7.8 of [FILES]), or a directory `hmz-` followed by
+eight of `a` to `z`, `0` to `9` and `_` in the system's temporary directory, as an earlier hmz
+made one.
+
 **4.2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host,
 `chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat, `ai:` followed by
 1 to 32 lowercase hexadecimal digits for the host of one Ai-chan conversation, or `exec:` followed by
@@ -577,7 +582,9 @@ since removed. A method that names a host by `workspace` and `slot` and MUST NOT
 of Section 4.6 but `hosts.open`, of Section 4.23, `btw.list`, `btw.leave`, `chat.say`,
 `chat.commands`, `chat.set` and `chat.stop` -- MUST NOT refuse a `workspace` for naming no
 directory: it MUST answer as it does for the host that holds it, or for none. Nor MUST
-`epic.attach` refuse one where a host of that `workspace` and `slot` is held already.
+`epic.attach` refuse one where a host of that `workspace` and `slot` is held already. A folderless
+`workspace` naming no directory MUST NOT be refused 404: the daemon MUST make its directory again,
+empty, with mode `0700`.
 
 **4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
 `chat:` or `exec:` alone where Section 4.7.1.2 or Section 4.25.1.1 permits it, MUST be refused 400,
@@ -669,8 +676,9 @@ client id), `workspace` and `slot`.
 **4.7.1.2** `epic.attach` MUST start the workspace's own host where none is; with `slot` `chat:` or
 `exec:` alone it MUST make a new slot of that kind, start its host and attach to it.
 
-**4.7.1.3** `epic.attach` with `scratch` `true` MUST, in place of `workspace`, make a new directory
-for the epic alone in the system's temporary directory, and attach to its own host.
+**4.7.1.3** `epic.attach` with `scratch` `true` MUST, in place of `workspace`, make a new
+folderless workspace, `<mdir>/nofolder/<random>/` (Section 7.7.8 of [FILES]), for one epic or one
+chat alone, and attach to the host of `slot` there.
 
 **4.7.1.4** `epic.attach` naming a chat or exec slot whose host has gone MUST be refused 409, `This
 chat has folded away.` for a chat and `This epic has ended.` for an exec slot; one naming an `ai:`
@@ -1335,7 +1343,8 @@ place it among the chats, and answer its name; `backups.epics` MUST answer it wi
 
 #### 4.16.2. Epic rows
 
-**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow`), `flow`, `task` (its first line,
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `folderless` (whether that workspace is
+folderless, Section 4.2.5.1), `kind` (`flow`), `flow`, `task` (its first line,
 cut at 240 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going,
 `unfinished` where its process went before it ended), `agents` (`[{name, role, runs}]`), `sessions`
 (a count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (that host's),
@@ -1501,6 +1510,9 @@ and answer as `workspaces.list` does.
 **4.17.5.5** `workspaces.list` MUST answer as though no Ai-chan conversation, kept or forgotten, had
 an epic, and no `ai:` slot a host (Section 14.7.4 of [CORE]): neither counted in `epics`, `last` or
 `running`, nor a reason to list a directory.
+
+**4.17.5.6** `workspaces.list` MUST NOT list a folderless workspace (Section 4.2.5.1), whatever ran
+or goes in it.
 
 #### 4.17.6. `flowverses.*`
 
@@ -2356,7 +2368,8 @@ first message or the name), `offset` (default `0`) and `limit` (default `50`, at
 MUST answer `chats` (chat rows, newest begun first), `total`, `offset` and `limit`.
 
 **4.25.5.2** A chat row MUST hold `id` (the chat's name), `title` (Section 8.10.1 of [CORE], cut at
-240 characters), `workspace`, `workdir` (where its assistant works: the workspace, or the worktree
+240 characters), `workspace`, `folderless` (whether that workspace is folderless, Section 4.2.5.1),
+`workdir` (where its assistant works: the workspace, or the worktree
 of Section 8.3.13 of [CORE]), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
 (when its record was last written), `state`, `slot` (the slot of the host holding it, `""` for
 none), `asking` (the questions its assistant asked mid-turn and waits on, each `<run>:<question>`),
@@ -2415,7 +2428,8 @@ the chat's directory.
 started with), MUST back the chat up as `runs.backup` backs up an epic (Section 4.16.5), and MUST be
 answered and refused as `runs.backup` is.
 
-**4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]) and MUST be
+**4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]), and with it
+the directory of the chat's folderless workspace as Section 7.7.8 of [FILES] states, and MUST be
 answered `{}`. Where a host holds the chat between turns, the daemon MUST first end the chat there
 as an empty `chat.say` does (Section 4.25.2). It MUST be refused 409 with `Chat <name> has a turn
 open; delete it once it is done.` while the chat's turn is open or a process that is no host

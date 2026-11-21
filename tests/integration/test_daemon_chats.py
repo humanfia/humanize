@@ -16,6 +16,7 @@ RPC.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -65,6 +66,7 @@ ROW = {
     "id",
     "title",
     "workspace",
+    "folderless",
     "workdir",
     "agent",
     "model",
@@ -990,6 +992,106 @@ def test_a_chat_is_deleted_with_what_it_kept_and_never_while_its_turn_is_open(
     assert [one["name"] for one in user.call("runs.list", {}, timeout=30)["runs"]] == [
         ran.path.name
     ]
+
+
+def test_a_chat_started_in_no_folder_works_in_a_directory_kept_as_long_as_it_is(
+    project: Path, user: Peer
+) -> None:
+    # Section 2.3.6.1 of core.md, Section 4.7.1.3 of daemon.md, Section 7.7.8 of files.md.
+    def listed() -> list[str]:
+        return [
+            one["path"]
+            for one in user.call("workspaces.list", {}, timeout=30)["workspaces"]
+        ]
+
+    # The stand-in's own home, which nothing makes for an assistant held to no permission.
+    (project.parent / "claude").mkdir(exist_ok=True)
+    # Started as a frontend starts one: a host of its own in a directory made for it.
+    made = user.call(
+        "epic.attach", {"scratch": True, "slot": "chat:", "replay": False}, timeout=60
+    )
+    at, host = Path(made["workspace"]), {"workspace": made["workspace"]}
+    assert at.parent == where.at().resolve() / "nofolder"
+    assert at.is_dir()
+    started = user.call(
+        "chat.start",
+        {
+            **host,
+            "slot": made["slot"],
+            "agent": AGENT,
+            "task": "hello",
+            # Where it works is what is tested, not what holds it there.
+            "permission": "danger-full-access",
+        },
+        timeout=60,
+    )
+    name, host["slot"] = started["chat"], started["slot"]
+    user.call("epic.detach", {"sub": made["sub"]}, timeout=30)
+    assert until(lambda: _row(user, name)["state"] == "going")
+
+    # Told apart from a chat of somebody's folder by its row, and no folder to offer.
+    with Epic("ralph", "a run", project):
+        pass
+    row = _row(user, name)
+    assert (row["workspace"], row["folderless"], row["workdir"]) == (
+        str(at),
+        True,
+        str(at),
+    )
+    (epic,) = user.call("runs.list", {}, timeout=30)["runs"]
+    assert (epic["workspace"], epic["folderless"]) == (str(project.resolve()), False)
+    assert listed() == [str(project.resolve())]
+
+    # Kept while the chat is, whether or not a host stands in it.
+    (at / "notes.md").write_text("kept")
+    user.call("chat.say", {**host, "text": ""}, timeout=30)
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert until(lambda: daemon.running(at, slot=host["slot"]) is None)
+    assert (at / "notes.md").read_text() == "kept"
+
+    # Cleaned away by the machine, it is made again for the chat carried on.
+    shutil.rmtree(at)
+    carried = user.call(
+        "chat.start",
+        {"workspace": str(at), "task": "more", "resume": name},
+        timeout=60,
+    )
+    assert carried["chat"] == name
+    assert at.is_dir()
+    assert until(lambda: _row(user, name)["state"] == "going")
+    (at / "notes.md").write_text("again")
+    user.call(
+        "chat.say",
+        {"workspace": str(at), "slot": carried["slot"], "text": ""},
+        timeout=30,
+    )
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert (at / "notes.md").read_text() == "again"
+
+    # And it goes with the chat deleted: at once, or as the host still standing in it goes.
+    assert user.call("chat.delete", {"chat": name}, timeout=30) == {}
+    for held in user.call("hosts.list", {}, timeout=30)["held"]:
+        user.call(
+            "hosts.stop",
+            {"workspace": held["workspace"], "slot": held["slot"]},
+            timeout=30,
+        )
+    assert until(lambda: not at.exists())
+    assert listed() == [str(project.resolve())]
+
+
+def test_a_directory_made_for_no_folder_goes_where_nothing_was_started_in_it(
+    project: Path, user: Peer
+) -> None:
+    del project
+    made = user.call("epic.attach", {"scratch": True, "replay": False}, timeout=60)
+    at = Path(made["workspace"])
+    assert (at.is_dir(), made["slot"]) == (True, "")
+    assert where.folderless(at)
+
+    user.call("hosts.stop", {"workspace": str(at)}, timeout=30)
+
+    assert until(lambda: not at.exists())
 
 
 # ------------------------------------------------------------- where a chat works

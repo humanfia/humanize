@@ -554,10 +554,10 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         )
         rows = offered.locator("[role=menuitem], [role=menuitemcheckbox]")
         expect(rows.nth(1)).to_have_text("New environment")
-        # The folder: the ones there are, then opening one, then none; then Worktree.
+        # The folder: none, then the ones there are, then opening one; then Worktree.
         expect(offered.locator("[data-folder].chosen")).to_have_text(project.name)
-        expect(rows.nth(-3)).to_contain_text("Open folder…")
-        expect(rows.nth(-2)).to_contain_text("No folder")
+        expect(rows.nth(2)).to_contain_text("No folder")
+        expect(rows.nth(-2)).to_contain_text("Open folder…")
         expect(rows.nth(-1)).to_have_text("Worktree")
         # Of the two in force, it opens on the folder.
         expect(offered.locator("[data-folder].chosen")).to_be_focused()
@@ -699,8 +699,8 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         page.keyboard.press("Escape")
         view.locator("[data-hmz=workspace-picker]").click()
         folders = page.get_by_role("menu", name="Folders")
-        expect(folders.get_by_role("menuitem").nth(-2)).to_contain_text("Open folder…")
-        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(0)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("Open folder…")
         box = folders.bounding_box()
         assert box
         assert box["y"] >= folder["y"] + folder["height"]

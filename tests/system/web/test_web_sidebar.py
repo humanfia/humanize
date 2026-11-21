@@ -696,7 +696,8 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
         page.get_by_role("menuitemcheckbox", name="Chats").click()
         page.keyboard.press("Escape")
         fresh.click()
-        expect(page).to_have_url(re.compile(r"#/new/chat$"))
+        # In no folder, as the heading it stands under says.
+        expect(page).to_have_url(re.compile(r"#/new/chat\?scratch=1$"))
 
 
 def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(

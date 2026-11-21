@@ -129,6 +129,16 @@ test('by folder, the rows of no folder stand last, under No folder', () => {
   assert.ok(groups.at(-1).key)
 })
 
+test('what was started in no folder stands together under No folder, whatever directory each got', () => {
+  const made = (name, at) => run(name, `/tmp/humanize-501/nofolder/${name}`, at, { folderless: true })
+  const runs = [made('tmp1', '2026-10-13T10:00:00Z'), run('a', '/w', '2026-10-12T10:00:00Z'), made('tmp2', '2026-10-11T10:00:00Z'), run('nowhere', '', '2026-10-10T10:00:00Z')]
+  const groups = arranged({ workspaces: [{ path: '/w' }], runs, view: DEFAULTS, now: NOW })
+  // One group, the last, and never a folder named for a directory made for one of them.
+  assert.deepEqual(names(groups), [['/w', ['a']], [NO_FOLDER, ['tmp1', 'tmp2', 'nowhere']]])
+  // Nor a row of Folders, where the list is grouped otherwise.
+  assert.deepEqual(folders(arranged({ workspaces: [{ path: '/w' }], runs, view: { ...DEFAULTS, group: 'date' }, now: NOW })), [[':folders', 'Folders', [{ path: '/w', count: 1 }]]])
+})
+
 test('grouped by nothing, the rows are one group, even an empty one', () => {
   const runs = [run('a', '/w', '2026-10-13T10:00:00Z'), run('b', '/v', '2026-10-12T10:00:00Z')]
   assert.deepEqual(names(arranged({ runs, view: { ...DEFAULTS, group: 'none' }, now: NOW })), [['All', ['a', 'b']]])

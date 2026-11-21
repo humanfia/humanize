@@ -129,7 +129,7 @@ export default {
   'The folder {name} is no longer on this machine.': '文件夹 {name} 已不在这台机器上。',
   'The folder {name} is no longer on this machine. Pick another folder.': '文件夹 {name} 已不在这台机器上。请另选一个文件夹。',
   'No folder': '无文件夹',
-  'A new directory of its own, in the temporary directory': '在临时目录中新建的专属目录',
+  'A temporary directory of its own, made as it starts': '开始时自动新建的专属临时目录',
   'Files': '文件',
   'Folder': '文件夹',
   '{name} (missing)': '{name}（已丢失）',
