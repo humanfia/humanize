@@ -116,7 +116,7 @@ workspace of every conversation of the scope `daemon`.
 
 | Property | Value |
 | --- | --- |
-| Writer | a daemon listening on `easytier:<name>`, and every client reaching a P2P daemon, when `easytier-core` is not there yet: the official GitHub release for this OS and architecture (macOS arm64 and x86_64, Linux x86_64 and aarch64, Windows x86_64), checked against the SHA-256 Humanize pins |
+| Writer | a daemon listening on `easytier:<name>`, and every client reaching an EasyTier daemon, when `easytier-core` is not there yet: the official GitHub release for this OS and architecture (macOS arm64 and x86_64, Linux x86_64 and aarch64, Windows x86_64), checked against the SHA-256 Humanize pins |
 | Read | every later start; [`HUMANIZE_EASYTIER`](/reference/environment#humanize-easytier) names one to use instead |
 | Safe to delete | while nothing uses EasyTier; downloaded again when next needed |
 

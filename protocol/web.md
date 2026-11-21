@@ -1494,38 +1494,40 @@ together MUST be kept, from the first time the page is opened, for each remote d
 **3.13.3** The name of a remote daemon MUST start with a letter or a digit and MUST consist of
 letters, digits, `.`, `_` and `-`.
 
-**3.13.4** The `New daemon` form MUST offer three kinds: `Code`, `SSH` and `P2P`. `Code` MUST ask a
-name and a pairing code, MUST claim the code at once over its routes as Section 4.5.7 of [WIRE]
-states, and MUST keep the daemon only where the claim succeeds, saying why otherwise. Beside the
-form, the page MUST say in a few sentences what the kind chosen is and what the other machine
-needs for it, and under `SSH` what the mode chosen is.
+**3.13.4** The `New daemon` form MUST offer, side by side and with nothing under them, the
+carriers a daemon is reached over: `SSH`, `EasyTier`, `TCP`, `WebSocket`, `Relay` and `WebRTC`.
+`TCP`, `WebSocket`, `Relay` and `WebRTC` MUST ask a name, a pairing code and, optionally, an
+address of that carrier's kind of route; MUST refuse an address of another kind; MUST claim the code
+at once as Section 4.5.7 of [WIRE] states, over the address first, where given, and then the code's
+routes not of its kind, or over the code's routes alone; and MUST keep the daemon only where the
+claim succeeds, saying why otherwise. Beside the form, the page MUST say in a few sentences what
+the carrier chosen is and what the other machine needs for it.
 
-**3.13.5** `SSH` MUST offer two modes: `SSH Config`, which offers only a dropdown of the hosts of
-Local's ssh config (`runtimes.hosts`, Section 4.18.4.4 of [DAEMON]) not yet added and writes the
-daemon with the route `stdio:ssh://<Host>`; and `Custom`, which asks its name, host, user, port,
-identity file, proxy jump and ssh options, as an ssh runtime is set up, and writes them as one
-`stdio:ssh` route. `Custom` MUST let the user import a host of the ssh config into its fields,
-filling them from what the ssh config resolves for that host. The page MUST NOT write to the ssh
-config.
+**3.13.5** `SSH` MUST offer a dropdown of the hosts of Local's ssh config (`runtimes.hosts`,
+Section 4.18.4.4 of [DAEMON]) not yet added, which writes the daemon with the route
+`stdio:ssh://<Host>`, and in it `Custom`, which asks its host, user, port, identity file, proxy
+jump and ssh options, as an ssh runtime is set up, and writes them as one `stdio:ssh` route. The
+page MUST NOT write to the ssh config.
 
-**3.13.6** `P2P` MUST offer `EasyTier` alone, and MUST ask its name, its secret, the secret masked,
-and its nodes: the community's shared nodes (Section 3.8.5.8 of [DAEMON]), each with its name,
-whether it is up and its uptime, to be checked, and nodes the user types; where that list cannot be
-read, the form MUST say so with the reason and take typed nodes alone. It MUST write the EasyTier
+**3.13.6** `EasyTier` MUST ask its name, its secret, the secret masked, and its nodes: the shared
+nodes of Section 3.8.5.8 of [DAEMON], each with its name and, where known, whether it is up and its
+uptime, to be checked, and nodes the user types; where that list cannot be read, the form MUST say
+so with the reason and take typed nodes alone. It MUST write the EasyTier
 entry of that name to Local (`easytier.set`, Section 4.18.5 of [DAEMON]) and keep the daemon with
 the route `easytier:<name>`. For a new daemon it MUST also ask a pairing code, MUST refuse one that
-is not a pairing code before it writes the entry, and MUST claim it at once as `Code` does (Section
-3.13.4), over `easytier:<name>` and then the code's routes that are not `easytier:` routes, keeping
+is not a pairing code before it writes the entry, and MUST claim it at once as Section 3.13.4 does,
+over `easytier:<name>` and then the code's routes that are not `easytier:` routes, keeping
 the daemon with the code's id and those routes, and only where the claim succeeds.
 
 **3.13.7** A secret shorter than 16 bytes in UTF-8 MUST be refused with `A secret must be at least
 16 bytes.`, and a form in which no node is checked or typed with `An EasyTier daemon needs at least
 one node.`
 
-**3.13.8** Editing a daemon MUST open the form in the kind and mode the daemon is in, and the page
+**3.13.8** Editing a daemon MUST open the form on the carrier of its first route, `TCP` for a route
+of no carrier the form offers, and the page
 MUST let the user edit the routes of any remote daemon, and their order.
 
-**3.13.9** The page MUST NOT be given a secret once written; editing a P2P daemon with its secret
+**3.13.9** The page MUST NOT be given a secret once written; editing an EasyTier daemon with its secret
 left empty MUST keep the secret written.
 
 **3.13.10** Removing a remote daemon MUST ask for confirmation, and MUST forget only how to reach
@@ -1554,17 +1556,16 @@ reach it; the menu MUST offer `Connect` on a remote daemon that failed and `Mana
 **3.13.17** A remote daemon that is not `up` MUST be said to be unavailable where the page asks it
 something, with its state.
 
-**3.13.18** Wherever the page names a remote daemon's kind, it MUST say `SSH`, `P2P` or `Paired`
-(Section 3.2.6 of [DAEMON]).
+**3.13.18** Wherever the page names a remote daemon's kind, it MUST name the kind of its first
+route as Section 3.2.6 of [DAEMON] does.
 
-**3.13.19** The page MUST offer `SSH` and `P2P` only where its pipe provider can open their routes
+**3.13.19** The page MUST offer a carrier only where one of its pipe providers can open its routes
 (Section 4.9).
 
 **3.13.20** `Settings` › `Daemons` MUST offer, with each daemon that is `up` and where that daemon
-is listed, `Pair a device`, which makes a pairing code (`pair.create`, Section 4.14.2 of [DAEMON])
-and shows it with when it expires, offering to copy it; and `Devices`, which lists the devices
-paired with that daemon and revokes one after confirmation (`devices.*`, Section 4.14.3 of
-[DAEMON]). The page MUST say what a daemon's devices are, and, of a daemon that is not `up`, that
+is listed, `Devices`, which lists the devices paired with that daemon and revokes one after
+confirmation (`devices.*`, Section 4.14.3 of [DAEMON]); the page is a client of its daemons, and
+MUST NOT make a pairing code. The page MUST say what a daemon's devices are, and, of a daemon that is not `up`, that
 its devices are shown once it is reached.
 
 **3.13.21** `Settings` › `Daemons` MUST let the user set, with each remote daemon and where that
@@ -1572,9 +1573,8 @@ daemon is listed, that daemon's own STUN and TURN servers, each the URLs of one 
 TURN server, its username and credential, as Section 3.4.9.1 of [FILES] writes one; the page MUST
 refuse what is not a STUN or TURN server, MUST NOT show a credential once written, and MUST keep a
 credential left as it is shown. The page MUST open a daemon's `webrtc:` routes with that daemon's
-servers alone, and with none where it has none (Section 4.7.8 of [WIRE]). For a new `Code` daemon
-the form MUST ask them under `Advanced`, folded away until the pairing code written has a
-`webrtc:` route, and MUST claim the code with them.
+servers alone, and with none where it has none (Section 4.7.8 of [WIRE]). For a new `WebRTC` daemon
+the form MUST ask them, and MUST claim the code with them.
 
 ### 3.14. Release notice
 

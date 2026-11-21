@@ -121,8 +121,9 @@ the frontend, and **newer** when it speaks a protocol of a later one (Section 6.
 
 **3.2.6** A **remote daemon** is the daemon of another machine, reached from this machine over a
 route of [WIRE]. A remote daemon whose first route is `stdio:ssh` is an **SSH daemon**, one whose
-first route is `easytier:` a **P2P daemon**, and any other a **paired daemon**, as the frontends
-that switch between daemons name them.
+first route is `easytier:` an **EasyTier daemon**, and any other a **paired daemon**; the frontends
+that switch between daemons name each by the kind of its first route: `SSH`, `EasyTier`, `TCP`,
+`WebSocket`, `Relay` or `WebRTC`.
 
 **3.2.7** **Local** is the daemon of this machine, as the frontends that switch between daemons name
 it.
@@ -399,7 +400,7 @@ answers, and then open mutual TLS over it as Section 4.4 of [WIRE] states.
 
 **3.8.5.6** hmz MUST download the official release of EasyTier of the version it pins, for this
 machine's system and architecture, into its home, MUST check it against the SHA-256 it pins, and
-MUST reuse it once there; a P2P daemon MUST be `installing` while it downloads, saying `Downloading
+MUST reuse it once there; an EasyTier daemon MUST be `installing` while it downloads, saying `Downloading
 EasyTier <version>`, and `failed` with the reason where the download or the check fails.
 `HUMANIZE_EASYTIER` naming an existing binary MUST be used in its place.
 
@@ -411,8 +412,9 @@ with `An EasyTier daemon needs at least one node.`
 
 **3.8.5.8** hmz MUST offer the shared nodes of EasyTier's community, as the status page EasyTier's
 own apps read lists them, each with its URL, its name, its version, whether it is up and its uptime
-over the last 24 hours; a list that cannot be read MUST be said to be unreadable with the reason,
-and nodes the user types MUST be taken all the same.
+over the last 24 hours, and after them the public nodes EasyTier's documentation names that the
+page does not list, how each stands unknown; where the page cannot be read, those public nodes
+MUST be offered alone. Nodes the user types MUST be taken all the same.
 
 **3.8.5.9** Removing a daemon's `easytier:` listener MUST stop its EasyTier, and MUST NOT stop any
 epic it holds.
@@ -1669,10 +1671,9 @@ shorter than 16 bytes and an entry without nodes MUST be refused 400 with the se
 `easytier.list` does; an unknown name MUST be refused 404 and one a listener names 409, `<name> is
 listened on.`
 
-**4.18.5.4** `easytier.nodes` MUST answer `nodes`, the community's shared EasyTier nodes (Section
+**4.18.5.4** `easytier.nodes` MUST answer `nodes`, the shared EasyTier nodes to offer (Section
 3.8.5.8), each `url`, `name`, `version`, `up` (boolean, or `null` where unknown) and `uptime` (from
-0 to 1 over 24 hours, or `null` where unknown); a list that cannot be read MUST be refused 503, `The
-community nodes could not be read: <why>`.
+0 to 1 over 24 hours, or `null` where unknown).
 
 **4.18.5.5** An answer of the daemon MUST NOT hold an EasyTier secret.
 

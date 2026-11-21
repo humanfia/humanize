@@ -6,6 +6,7 @@
 
 import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
 import { fromBase64, toBase64 } from './rpc/pipe.js'
+import { routeKind } from './rpc/routes.js'
 import { t } from './i18n.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
@@ -167,15 +168,16 @@ export async function known() {
 
 /** A remote daemon's kind, as the page names it (Section 3.13.18 of protocol/web.md). */
 export function kindOf(entry) {
-  const first = entry.routes[0] || ''
-  if (first.startsWith('stdio:ssh')) return 'SSH'
-  if (first.startsWith('easytier:')) return 'P2P'
-  return t('Paired')
+  const kind = routeKind(entry.routes[0] || '')
+  return CARRIERS[kind] || kind || ''
 }
+
+/** What each kind of route a remote daemon is first reached over is called. */
+const CARRIERS = { 'stdio:ssh': 'SSH', easytier: 'EasyTier', tcp: 'TCP', ws: 'WebSocket', relay: 'Relay', webrtc: 'WebRTC' }
 
 /**
  * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
- * the machine the page is served from is called; a P2P daemon over `first`, its `easytier:` route
+ * the machine the page is served from is called, over `first` before the code's own routes
  * (Section 3.13.6); reached with, and then kept with, `ice`, its STUN and TURN servers (Section
  * 3.13.21).
  */

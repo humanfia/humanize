@@ -1,22 +1,21 @@
 // The daemons the page can show, as this browser keeps them: Local, this machine's own, which is
-// always there, and every remote daemon kept beside it -- each with its kind and how far reaching
-// it has got. A new one is of a kind: Code, a pairing code claimed at once; SSH › SSH Config, a
-// Host of the ssh config picked; SSH › Custom, written a part at a time as a runtime's SSH host
-// is, or filled from the ssh config; or P2P › EasyTier, a secret, the shared nodes its network
-// meets on and a pairing code claimed over it. Beside the form, what the kind chosen is and what
-// the other machine needs for it. One is reached again, changed, or taken away, asked first.
-// Under each daemon's line is what is its own: once it is up, a pairing code made for another
-// device and the devices paired with it; and, for a remote one, the STUN and TURN servers its
+// always there, and every remote daemon kept beside it -- each with how it is reached and how far
+// reaching it has got. A new one is reached over one of the carriers beneath it, all side by side:
+// SSH, a Host of the ssh config or one written a part at a time; EasyTier, a secret and the shared
+// nodes its network meets on; or TCP, WebSocket, Relay and WebRTC, a pairing code the other machine
+// made, claimed at once. Beside the form, what the one chosen is and what the other machine needs
+// for it. One is reached again, changed, or taken away, asked first. Under each daemon's line is
+// what is its own: the devices paired with it; and, for a remote one, the STUN and TURN servers its
 // `webrtc:` routes are opened with (Section 3.13.20 and 3.13.21 of protocol/web.md).
 
-import { call, daemons, forget, hello, kindOf as kindNamed, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
+import { call, daemons, forget, hello, kindOf, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
 import { confirming } from '../../confirm.js'
 import { acting, ago, fill, h, icon, iconButton, problem } from '../../dom.js'
-import { locale, pieces, t } from '../../i18n.js'
+import { pieces, t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
 import { easytier } from '../../rpc/easytier.js'
 import { parsePairing } from '../../rpc/index.js'
-import { copy } from '../../ui.js'
+import { routeKind } from '../../rpc/routes.js'
 
 /** How far reaching each state has got, by a glyph, so nothing is said by colour alone. */
 const STATES = {
@@ -30,38 +29,47 @@ const STATES = {
 /** How far reaching has got, as the page says it. */
 const SAID = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('idle@@link') }
 
-/** The kinds a daemon is of, as the page names them. */
-const KINDS = { code: t('Code@@pairing'), ssh: 'SSH', p2p: 'P2P' }
+/**
+ * The carriers a daemon is reached over, side by side as the form offers them: what each is
+ * called, the kind of route it writes, and a route of that kind, as the page's pipe providers are
+ * asked whether they open it.
+ */
+const CARRIERS = {
+  ssh: ['SSH', 'stdio:ssh', 'stdio:ssh://host'],
+  easytier: ['EasyTier', 'easytier', 'easytier:name'],
+  tcp: ['TCP', 'tcp', 'tcp://host:1'],
+  ws: ['WebSocket', 'ws', 'wss://host'],
+  relay: ['Relay', 'relay', 'relay:wss://host'],
+  webrtc: ['WebRTC', 'webrtc', 'webrtc:wss://host'],
+}
 
-/** How a daemon is reached: its kind, and the mode's name under it. */
-const MODES = { code: ['code', t('Code@@pairing')], config: ['ssh', t('SSH Config')], stored: ['ssh', t('Custom')], easytier: ['p2p', 'EasyTier'] }
+/** An address of each carrier a pairing code is claimed over, as one is typed. */
+const ADDRESSES = { tcp: 'tcp://host:port', ws: 'wss://host/path', relay: 'relay:wss://…', webrtc: 'webrtc:wss://…' }
+
+/** What a carrier claimed by a pairing code needs of the other machine, said beside the form. */
+const CODE_NEEDS = () =>
+  pieces('The other machine makes a one-time pairing code: run {command} there and paste it here within 10 minutes; it works once. Its daemon has to listen where this one can reach it.', {
+    command: h('code', { class: 'mono' }, 'hmz daemon pair'),
+  })
 
 /**
- * What each kind is and what the other machine needs for it, said beside the form: what it is
+ * What each carrier is and what the other machine needs for it, said beside the form: what it is
  * called, then a paragraph each.
  */
 const ABOUT = {
-  code: () => [
-    t('Pair with a code'),
-    pieces('The other machine makes a one-time pairing code: run {command} there, or press Pair a device on a page that already reaches it. Paste the code here within 10 minutes; it works once.', {
-      command: h('code', { class: 'mono' }, 'hmz daemon pair'),
-    }),
-    t('Its daemon has to listen somewhere this one can reach: a port, a relay or WebRTC.'),
-  ],
   ssh: () => [
     t('Reach over SSH'),
     t('Reaches a machine the way ssh does, with your own keys and SSH config. Nothing has to run there first: hmz is started over the connection, and installed where it is missing. You are never asked for a password.'),
+    t('Pick a Host of ~/.ssh/config, resolved through your config every time; or Custom, to write the host a part at a time.'),
   ],
-  p2p: () => [
-    t('Peer to peer'),
+  easytier: () => [
+    t('Reach over EasyTier'),
     t('Both machines join one private EasyTier network, so they reach each other behind NAT, with no open port and no ssh. Give both the same secret and at least one node in common, and the first time that machine’s pairing code.'),
   ],
-}
-
-/** What a mode under a kind is, said under what its kind is. */
-const MODE_ABOUT = {
-  config: () => t('SSH Config: pick a Host of ~/.ssh/config. It is resolved through your config every time, so editing the config edits the daemon.'),
-  stored: () => t('Custom: write the host a part at a time, or import one from your SSH config. This page keeps what you write, and the config is not read again.'),
+  tcp: () => [t('Reach over TCP'), t('A port the other daemon listens on, reached straight.'), CODE_NEEDS()],
+  ws: () => [t('Reach over WebSocket'), t('A WebSocket the other daemon listens on, or one in front of it.'), CODE_NEEDS()],
+  relay: () => [t('Reach over a relay'), t('A relay both daemons reach, for a machine with no open port.'), CODE_NEEDS()],
+  webrtc: () => [t('Reach over WebRTC'), t('A direct path found through a signalling server, with STUN and TURN where the network needs them.'), CODE_NEEDS()],
 }
 
 /** What the STUN and TURN servers of a daemon are for, and how they are written. */
@@ -74,13 +82,10 @@ const ICE = /^(stun|stuns|turn|turns):\S+$/
 /** What stands for a credential kept: it is never shown again. */
 const MASKED = '••••'
 
-/** A route of each kind but Code, as the page's pipe providers are asked whether they open it. */
-const OPENED = { ssh: 'stdio:ssh://host', p2p: 'easytier:name' }
-
-/** The fewest bytes, in UTF-8, a P2P daemon's secret may be. */
+/** The fewest bytes, in UTF-8, an EasyTier daemon's secret may be. */
 const SECRET = 16
 
-/** The EasyTier entries a P2P daemon's route is opened with: Local's, and the desktop application's. */
+/** The EasyTier entries an EasyTier daemon's route is opened with: Local's, and the desktop application's. */
 const networks = easytier((method, params) => call(method, params, { on: 'local' }))
 
 /** A shared EasyTier node, as one is typed: a protocol, a host and a port. */
@@ -109,7 +114,7 @@ export function draw(holder) {
     drawListing()
   }
 
-  // A daemon's state, drawn again where it changes; one that is up offers pairing.
+  // A daemon's state, drawn again where it changes; one that is up lists its devices.
   const unwatch = onState((name, now) => {
     if (gone) return
     if (states.has(name)) fill(states.get(name), shownState(now))
@@ -133,7 +138,7 @@ export function draw(holder) {
     const rows = entries.map((one) => {
       const local = one.name === 'local'
       states.set(one.name, h('td', {}, shownState(stateOf(one.name))))
-      // What is under its line stays as it is drawn while its entry does: a code just made, a list half typed.
+      // What is under its line stays as it is drawn while its entry does: a list half typed.
       const own = under.get(one.name)?.key === keyOf(one) ? under.get(one.name) : drawOwn(one)
       kept.set(one.name, own)
       drawDevices(own)
@@ -179,7 +184,7 @@ export function draw(holder) {
       h(
         'p',
         { class: 'dim', 'data-hmz': 'daemons-about' },
-        t('Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it. Pair a device makes a one-time code to enter under New daemon › Code on the other device.'),
+        t('Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it.'),
       ),
       entries.length > 1 ? null : h('p', { class: 'dim', 'data-hmz': 'daemons-none' }, t('Only Local so far. Add another machine under New daemon.')),
       h('div', { class: 'table-wrap' }, h('table', { class: 'daemons-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('Name')), h('th', {}, t('Kind')), h('th', {}, t('Address')), h('th', {}, t('State')), h('th', {}, ''))), h('tbody', {}, rows))),
@@ -194,152 +199,127 @@ export function draw(holder) {
 
   function drawWriting() {
     const was = editing || { name: '', id: '', routes: [] }
-    const mode = editing ? modeOf(editing) : 'code'
+    const carrier = editing ? carrierOf(editing) : Object.keys(CARRIERS).find(opens) || 'ssh'
     const fields = parsed(was.routes[0] || '')
     let made = () => ({})
     let hosts = null
-    // The hosts of Local's ssh config, read once a mode asks for them.
+    // The hosts of Local's ssh config, read once a carrier asks for them.
     const offered = () => (hosts ||= call('runtimes.hosts', {}, { on: 'local' }).then((said) => said.hosts || []))
     const name = text('daemon-name', was.name, 'gpu-box', { required: true })
     const kinds = h('div', { class: 'segmented', role: 'group', 'aria-label': t('Kind'), 'data-hmz': 'daemon-kind' })
-    const modes = h('div', { class: 'segmented', role: 'group', 'aria-label': t('Mode'), 'data-hmz': 'daemon-mode' })
     const body = h('div', { class: 'grid' })
     const about = h('aside', { class: 'daemon-about', 'data-hmz': 'daemon-about', 'aria-live': 'polite' })
-    // Every route of a paired daemon, or those after the one its kind writes, in the order tried.
-    const more = routeList(mode === 'code' ? was.routes : was.routes.slice(1), 'daemon-routes')
+    // The routes after the one its carrier writes, in the order tried; every route of one claimed by a code.
+    const claimed = (one) => !['ssh', 'easytier'].includes(one)
+    const more = routeList(claimed(carrier) ? was.routes : was.routes.slice(1), 'daemon-routes')
     const routes = h('div', { class: 'grid' })
     const pressed = (label, on, act) => h('button', { type: 'button', 'aria-pressed': String(on), onclick: act }, label)
-    // SSH and P2P only where a pipe provider here opens their routes.
-    const opens = (kind) => !OPENED[kind] || providers.some((one) => one.opens(OPENED[kind]))
     const pick = (chosen) => {
-      const kind = MODES[chosen][0]
       fill(
         kinds,
-        Object.entries(KINDS)
-          .filter(([key]) => opens(key) && (!editing || key === kind))
-          .map(([key, label]) => pressed(label, key === kind, () => key !== kind && pick({ code: 'code', ssh: 'config', p2p: 'easytier' }[key]))),
+        Object.entries(CARRIERS)
+          .filter(([key]) => opens(key) && (!editing || key === chosen))
+          .map(([key, [label]]) => pressed(label, key === chosen, () => key !== chosen && pick(key))),
       )
-      fill(
-        modes,
-        kind === 'code'
-          ? []
-          : Object.entries(MODES)
-              .filter(([, [of]]) => of === kind)
-              .map(([key, [, label]]) => pressed(label, key === chosen, () => pick(key))),
-      )
-      made = { code: drawCode, config: drawConfig, stored: drawStored, easytier: drawEasyTier }[chosen]()
+      made = { ssh: drawSsh, easytier: drawEasyTier }[chosen]?.() ?? drawCode(chosen)
       fill(
         routes,
-        editing ? part(chosen === 'code' ? t('Routes') : t('More routes'), 'daemon-routes', more.node, true, t('Tried in this order, each as tcp://host:port, relay:wss://…, webrtc:wss://… or another route.')) : null,
+        editing ? part(claimed(chosen) ? t('Routes') : t('More routes'), 'daemon-routes', more.node, true, t('Tried in this order, each as tcp://host:port, relay:wss://…, webrtc:wss://… or another route.')) : null,
       )
-      // One paired already has no code to paste: what is said is what is left to change.
-      const [title, ...said] = editing && kind === 'code' ? [t('Paired with a code'), t('Paired with a one-time code that machine made, and held to that machine’s id since. What is left to change is what this page calls it and the routes it is reached by.')] : ABOUT[kind]()
-      fill(about, h('h3', {}, title), said.map((one) => h('p', {}, one)), MODE_ABOUT[chosen] ? h('p', {}, MODE_ABOUT[chosen]()) : null)
+      const [title, ...said] = ABOUT[chosen]()
+      fill(about, h('h3', {}, title), said.map((one) => h('p', {}, one)))
     }
 
-    /** Code: a pairing code, claimed at once over its routes; kept only once claimed. */
-    function drawCode() {
+    /** TCP, WebSocket, Relay or WebRTC: a pairing code, claimed at once over its routes, the address typed first; kept only once claimed. */
+    function drawCode(chosen) {
       if (editing) {
         fill(body)
         return () => ({ routes: more.read() })
       }
       const code = h('input', { type: 'password', id: 'daemon-code', autocomplete: 'off', spellcheck: 'false', placeholder: 'hmz-pair:…' })
-      // Its servers are asked before it is claimed: a code whose routes are WebRTC's may need them to be.
-      const servers = iceBox('daemon-ice', [])
-      const advanced = h('details', { class: 'fold field wide', 'data-hmz': 'daemon-advanced' }, h('summary', {}, t('Advanced')), part(t('STUN and TURN'), 'daemon-ice', servers, true, ICE_ABOUT()))
-      // Opened by a code that is reached over WebRTC, which is where they matter.
-      code.addEventListener('input', () => {
-        try {
-          if (parsePairing(code.value).routes.some((route) => route.startsWith('webrtc:'))) advanced.open = true
-        } catch {
-          // Not a code yet.
-        }
-      })
-      fill(body, part(t('Pairing code'), 'daemon-code', code, true, CODE_ABOUT()), advanced)
-      return () => ({ code: code.value.trim(), ice: readIce(servers.value) })
-    }
-
-    /** SSH › SSH Config: a host of the ssh config, picked, and reached as ssh resolves it. */
-    function drawConfig() {
-      const taken = new Set(entries.flatMap((one) => one.routes))
-      const own = mode === 'config' ? [fields.host] : []
-      const options = (list, first) => [h('option', { value: '' }, first), list.map((one) => h('option', { value: one, selected: one === fields.host && mode === 'config' }, one))]
-      const alias = h('select', { id: 'daemon-alias' }, options(own, t('Reading SSH config…')))
-      const said = h('div')
-      offered().then(
-        (found) => {
-          // Those not added yet, and an edited daemon's own.
-          const list = [...own, ...found.map((one) => one.alias).filter((one) => !own.includes(one) && !taken.has(sshRoute({ host: one })))]
-          fill(alias, options(list, list.length ? t('Pick a host') : t('Every host is added already')))
-        },
-        (error) => (fill(alias, options(own, '')), fill(said, problem(error))),
+      const address = text('daemon-address', '', ADDRESSES[chosen])
+      // Its servers are asked before it is claimed: one reached over WebRTC may need them to be.
+      const servers = chosen === 'webrtc' ? iceBox('daemon-ice', []) : null
+      fill(
+        body,
+        part(t('Pairing code'), 'daemon-code', code, true, CODE_ABOUT()),
+        part(t('Address'), 'daemon-address', address, true, t('Left empty, the routes the code carries are tried.')),
+        servers ? part(t('STUN and TURN'), 'daemon-ice', servers, true, ICE_ABOUT()) : null,
       )
-      alias.addEventListener('change', () => {
-        if (alias.value && !name.value.trim()) name.value = alias.value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[._-]+/, '')
-      })
-      fill(body, part(t('Host'), 'daemon-alias', h('div', {}, alias, said), false, t('Hosts come from ~/.ssh/config.')))
       return () => {
-        if (!alias.value) throw new Error(t('Pick a host of your SSH config.'))
-        return { route: sshRoute({ host: alias.value }) }
+        const route = address.value.trim()
+        if (route && routeKind(route) !== CARRIERS[chosen][1]) throw new Error(t('Say the address as {example}.', { example: ADDRESSES[chosen] }))
+        return { code: code.value.trim(), ...(route ? { route } : {}), ice: servers ? readIce(servers.value) : [] }
       }
     }
 
-    /** SSH › Custom: a part at a time, or filled from what the ssh config says of a host. */
-    function drawStored() {
-      const stored = mode === 'stored' ? fields : {}
+    /** SSH: a Host of the ssh config, reached as ssh resolves it; or Custom, written a part at a time. */
+    function drawSsh() {
+      const taken = new Set(entries.flatMap((one) => one.routes))
+      const aliased = editing && /^stdio:ssh:\/\/[^@:?]+$/.test(was.routes[0] || '')
+      const custom = editing && !aliased
+      const own = aliased ? [fields.host] : []
+      const options = (list, first) => [
+        h('option', { value: '' }, first),
+        list.map((one) => h('option', { value: one, selected: aliased && one === fields.host }, one)),
+        h('option', { value: CUSTOM, selected: custom }, t('Custom')),
+      ]
+      const alias = h('select', { id: 'daemon-alias' }, options(own, t('Reading SSH config…')))
+      const said = h('div')
+      const stored = custom ? fields : {}
       const host = text('daemon-host', stored.host, 'box.example')
       const user = text('daemon-user', stored.user, 'me')
       const port = h('input', { type: 'number', id: 'daemon-port', min: '1', max: '65535', step: '1', value: stored.port ? String(stored.port) : '', placeholder: '22' })
       const key = pathPicker({ value: stored.identity || '', files: true, label: t('Identity file'), id: 'daemon-identity', placeholder: '~/.ssh/id_ed25519', from: 'local' })
       const jump = text('daemon-jump', stored.jump, 'user@jump')
-      const options = pairs(stored.options || [], 'daemon-options')
-      const from = h('select', { id: 'daemon-import' }, h('option', { value: '' }, t('Reading SSH config…')))
-      const said = h('div')
-      let list = []
-      offered().then(
-        (found) => {
-          list = found
-          fill(from, h('option', { value: '' }, list.length ? t('Pick a host') : t('No host to import')), list.map((one) => h('option', { value: one.alias }, one.alias)))
-        },
-        (error) => (fill(from, h('option', { value: '' }, '')), fill(said, problem(error))),
-      )
-      const importing = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'daemon-import' }, t('Import'))
-      importing.addEventListener('click', () => {
-        const one = list.find((each) => each.alias === from.value)
-        if (!one) return
-        host.value = one.host || ''
-        user.value = one.user || ''
-        port.value = one.port ? String(one.port) : ''
-        key.node.querySelector('input').value = (one.identity_files || [])[0] || ''
-        jump.value = one.proxy_jump || ''
-        if (!name.value.trim()) name.value = one.alias.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[._-]+/, '')
-      })
-      fill(
-        body,
-        part(t('Import from SSH config'), 'daemon-import', h('div', {}, h('div', { class: 'row' }, from, importing), said), true, t('Hosts come from ~/.ssh/config.')),
+      const extra = pairs(stored.options || [], 'daemon-options')
+      const written = h(
+        'div',
+        { class: 'grid wide', 'data-hmz': 'daemon-custom' },
         part(t('Host'), 'daemon-host', host),
         part(t('User'), 'daemon-user', user),
         part(t('Port'), 'daemon-port', port),
         part(t('Identity file'), 'daemon-identity', key.node),
         part(t('Proxy jump'), 'daemon-jump', jump),
-        part(t('SSH options'), 'daemon-options', options.node, true),
+        part(t('SSH options'), 'daemon-options', extra.node, true),
       )
+      const shown = () => (written.hidden = alias.value !== CUSTOM)
+      offered().then(
+        (found) => {
+          // Those not added yet, and an edited daemon's own.
+          const list = [...own, ...found.map((one) => one.alias).filter((one) => !own.includes(one) && !taken.has(sshRoute({ host: one })))]
+          const chosen = alias.value
+          fill(alias, options(list, t('Pick a host')))
+          alias.value = chosen
+        },
+        (error) => fill(said, problem(error)),
+      )
+      alias.addEventListener('change', () => {
+        shown()
+        if (alias.value && alias.value !== CUSTOM && !name.value.trim()) name.value = alias.value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[._-]+/, '')
+      })
+      shown()
+      fill(body, part(t('Host'), 'daemon-alias', h('div', {}, alias, said), true, t('Hosts come from ~/.ssh/config.')), written)
       return () => {
+        if (alias.value !== CUSTOM) {
+          if (!alias.value) throw new Error(t('Pick a host of your SSH config.'))
+          return { route: sshRoute({ host: alias.value }) }
+        }
         if (!host.value.trim()) throw new Error(t('Say the host.'))
-        return { route: sshRoute({ host: host.value.trim(), user: user.value.trim(), port: port.value, identity: key.value(), jump: jump.value.trim(), options: options.read() }) }
+        return { route: sshRoute({ host: host.value.trim(), user: user.value.trim(), port: port.value, identity: key.value(), jump: jump.value.trim(), options: extra.read() }) }
       }
     }
 
-    /** P2P › EasyTier: the secret, never shown again, and the shared nodes its network meets on. */
+    /** EasyTier: the secret, never shown again, and the shared nodes its network meets on. */
     function drawEasyTier() {
-      const keeps = mode === 'easytier'
+      const keeps = carrier === 'easytier' && Boolean(editing)
       const secret = h('input', { type: 'password', id: 'daemon-secret', autocomplete: 'new-password', placeholder: keeps ? t('Left empty, kept as it is') : t('At least 16 bytes') })
-      const community = h('div', { class: 'list-rows', 'data-hmz': 'daemon-community' })
+      const listed = h('div', { class: 'list-rows', 'data-hmz': 'daemon-community' })
       const own = h('div', { class: 'list-rows', 'data-hmz': 'daemon-own-nodes' })
-      const said = h('div', { class: 'loading', role: 'status' }, t('Reading the community nodes…'))
+      const said = h('div', { class: 'loading', role: 'status' }, t('Reading the shared nodes…'))
       const typed = text('daemon-node', '', 'tcp://node.example:11010')
       const wrong = h('div')
-      const boxes = () => [...community.querySelectorAll('input'), ...own.querySelectorAll('input')]
+      const boxes = () => [...listed.querySelectorAll('input'), ...own.querySelectorAll('input')]
       const node = (holder, url, ...more) => holder.append(h('label', { class: 'check', 'data-node': url }, h('input', { type: 'checkbox', value: url }), h('span', { class: 'mono' }, url), more))
       const tick = (url) => {
         const box = boxes().find((one) => one.value === url)
@@ -362,15 +342,15 @@ export function draw(holder) {
         (answer) => {
           said.remove()
           for (const one of answer.nodes || []) {
-            // A node it already meets on, typed before, is the community's own.
+            // A node it already meets on, typed before, is the list's own.
             const there = boxes().find((box) => box.value === one.url)
             there?.closest('label').remove()
             node(
-              community,
+              listed,
               one.url,
-              h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? t('up@@node') : t('down')),
+              typeof one.up === 'boolean' ? h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? t('up@@node') : t('down')) : null,
               one.name ? h('span', { class: 'dim' }, one.name) : null,
-              one.uptime === undefined || one.uptime === '' ? null : h('span', { class: 'dim' }, t('{uptime} up in 24h', { uptime: typeof one.uptime === 'number' ? `${one.uptime}%` : one.uptime })),
+              typeof one.uptime === 'number' ? h('span', { class: 'dim' }, t('{uptime} up in 24h', { uptime: `${Math.round(one.uptime * 1000) / 10}%` })) : null,
             )
             if (there?.checked) tick(one.url)
           }
@@ -396,9 +376,9 @@ export function draw(holder) {
         part(
           t('Nodes'),
           'daemon-node',
-          h('div', { class: 'list-editor', 'data-hmz': 'daemon-nodes' }, said, community, own, h('div', { class: 'list-row' }, typed, h('button', { class: 'btn small quiet', type: 'button', onclick: add }, icon('plus'), t('Add node'))), wrong),
+          h('div', { class: 'list-editor', 'data-hmz': 'daemon-nodes' }, said, listed, own, h('div', { class: 'list-row' }, typed, h('button', { class: 'btn small quiet', type: 'button', onclick: add }, icon('plus'), t('Add node'))), wrong),
           true,
-          t('Where the two machines meet: tick at least one the other machine uses too.'),
+          t('Where the two machines meet: tick at least one the other machine uses too, or add your own.'),
         ),
       )
       return () => {
@@ -418,7 +398,7 @@ export function draw(holder) {
       const called = name.value.trim()
       if (said.easytier) {
         // A secret written is never read back: one renamed is written anew under its name.
-        if (editing && editing.name !== called && !said.easytier.secret) throw new Error(t('Say the secret again to rename a P2P daemon.'))
+        if (editing && editing.name !== called && !said.easytier.secret) throw new Error(t('Say the secret again to rename an EasyTier daemon.'))
         // The entry of that name is what its route opens with: Local's through `hmz web`
         // (Section 4.8.7 of protocol/web.md), the app's in the desktop application (Section
         // 3.12.6 of protocol/desktop.md); the page is never handed the secret again.
@@ -453,7 +433,7 @@ export function draw(holder) {
         h(
           'form',
           { class: 'form', onsubmit: (event) => event.preventDefault() },
-          h('div', { class: 'row' }, kinds, modes),
+          h('div', { class: 'row' }, kinds),
           h('div', { class: 'grid' }, part(t('Name'), 'daemon-name', name, false, t('What this page calls it: letters, digits, ., _ and -.'))),
           body,
           routes,
@@ -467,7 +447,7 @@ export function draw(holder) {
         about,
       ),
     )
-    pick(mode)
+    pick(carrier)
   }
 
   /**
@@ -513,15 +493,14 @@ export function draw(holder) {
     return own
   }
 
-  /** A daemon's devices: once it is up, a pairing code for another device, and the devices paired with it. */
+  /** A daemon's devices: once it is up, the devices paired with it, each revoked after confirmation. */
   function drawDevices(own) {
     const on = own.name
     const up = stateOf(on).state === 'up'
     if (own.up === up) return
     own.up = up
     const heading = h('h3', {}, t('Devices'))
-    if (!up) return fill(own.devices, heading, h('p', { class: 'dim', 'data-hmz': 'devices-none' }, t('Not reached. Connect to it to pair a device and to see the devices paired with it.')))
-    const code = h('div', { 'aria-live': 'polite', 'data-hmz': 'pairing-code' })
+    if (!up) return fill(own.devices, heading, h('p', { class: 'dim', 'data-hmz': 'devices-none' }, t('Not reached. Connect to it to see the devices paired with it.')))
     // A line is held for them while they are read, so that what is under it moves the least.
     const devices = h('div', { 'data-hmz': 'devices' }, h('p', { class: 'loading', role: 'status' }, t('Reading the devices…')))
     const list = () =>
@@ -551,34 +530,12 @@ export function draw(holder) {
                     ),
                   ),
                 )
-              : h('p', { class: 'dim' }, t('No device paired yet. Pair a device makes a code to enter on the other device.')),
+              : h('p', { class: 'dim' }, t('No device paired yet.')),
           ),
         (error) => fill(devices, problem(error)),
       )
     list()
-    fill(
-      own.devices,
-      heading,
-      h(
-        'div',
-        { class: 'row' },
-        acting(
-          t('Pair a device'),
-          async () => {
-            const made = await call('pair.create', {}, { on })
-            fill(
-              code,
-              h('code', { class: 'mono pairing-code' }, made.code),
-              h('span', { class: 'dim' }, t('Expires {time}', { time: new Date(made.expires * 1000).toLocaleTimeString(locale()) })),
-              iconButton('copy', t('Copy code'), { class: 'small', onclick: () => copy(made.code, t('Code copied')) }),
-            )
-          },
-          { kind: 'btn small', busy: t('Making…') },
-        ),
-      ),
-      code,
-      devices,
-    )
+    fill(own.devices, heading, devices)
   }
 
   read()
@@ -641,18 +598,18 @@ function sshRoute({ host, user = '', port = '', identity = '', jump = '', option
   return `stdio:ssh://${user ? `${encodeURIComponent(user)}@` : ''}${host.startsWith('[') ? host : encodeURIComponent(host)}${port ? `:${port}` : ''}${params.length ? `?${params.join('&')}` : ''}`
 }
 
-/** The mode a daemon is in, by its first route: EasyTier; a Host of the ssh config alone; ssh written down; or paired. */
-function modeOf(one) {
-  const first = one.routes[0] || ''
-  if (first.startsWith('easytier:')) return 'easytier'
-  if (!first.startsWith('stdio:ssh:')) return 'code'
-  return /^stdio:ssh:\/\/[^@:?]+$/.test(first) ? 'config' : 'stored'
+/** What stands in the SSH host dropdown for a host written a part at a time. */
+const CUSTOM = '\u0000custom'
+
+/** Whether a pipe provider here opens a carrier's routes. */
+function opens(carrier) {
+  return providers.some((one) => one.opens(CARRIERS[carrier][2]))
 }
 
-/** A daemon's kind and mode, as the listing says them. */
-function kindOf(one) {
-  const mode = modeOf(one)
-  return mode === 'code' ? kindNamed(one) : `${kindNamed(one)} · ${MODES[mode][1]}`
+/** The carrier a daemon is reached over, by its first route; TCP for a route of another kind. */
+function carrierOf(one) {
+  const kind = routeKind(one.routes[0] || '')
+  return Object.keys(CARRIERS).find((key) => CARRIERS[key][1] === kind) || 'tcp'
 }
 
 function text(id, value, placeholder, extra = {}) {
