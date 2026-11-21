@@ -390,7 +390,8 @@ class _Gated:
         pass
 
     def call(self, method: str, *_args: Any, **_kwargs: Any) -> object:
-        if method != "runs.list":
+        # The list is read by both: its epics and, beside them, its chats.
+        if method not in {"runs.list", "chat.list"}:
             self.gate(method).wait(PATIENCE)
         return {
             "workspaces.list": {"here": "", "workspaces": [{"path": "/w"}]},
