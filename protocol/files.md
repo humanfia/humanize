@@ -1426,7 +1426,8 @@ the keys:
   differs from `envs`;
 - `params`: object, the parameters given to the **flow**;
 - `budget`: object with the keys `duration` (number of seconds or `null`), `cost` (number of US
-  dollars, or the string `"Infinity"` for none), `output_tokens` (integer or `null`) and `graceful`
+  dollars, the string `"Infinity"` for an unlimited budget, or `null` where none is set),
+  `output_tokens` (integer or `null`) and `graceful`
   (boolean, or object with the boolean keys `duration`, `cost` and `output_tokens`);
 - `profile_flow`: the value `true`; present only where the Python of the **flow** is profiled;
 - `profile_environment`: the value `true`; present only where the processes of the **epic** are
