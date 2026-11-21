@@ -236,7 +236,7 @@ def test_archived_chats_are_kept_in_the_folders_settings(world: World) -> None:
     # And one of no folder, which no folder picked lists as its own.
     world.call("chat.archive", chat=_of_no_folder(world, _REGEX))
     with world.page(desktop=True) as page:
-        go(page, "/settings/archived")
+        go(page, f"/workspace/archived?workspace={world.workspace}")
         listed = page.locator("[data-hmz=archived-chat]")
         expect(listed).to_have_count(3)
         expect(listed.first.get_by_role("button", name="Unarchive")).to_be_visible()

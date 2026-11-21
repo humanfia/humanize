@@ -2,7 +2,6 @@
 
 export default {
   // views/new.js
-  'Connected to': '目前連線',
   'Describe the task': '描述任務',
   'Resume epic': '繼續史詩',
   'Open Flows': '前往流程頁',

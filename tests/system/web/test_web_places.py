@@ -383,13 +383,16 @@ def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
                 page.locator("[data-hmz=composer-under] [data-hmz=workspace-picker]")
             ).to_have_count(0)
         else:
-            # In the middle of the page, over the box, under where it runs: nothing of
-            # where it runs is under the box.
-            runs = page.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")
-            before = runs.bounding_box()
-            assert before is not None
+            # In the middle of the page, over the box, the first row of what the flow is
+            # set up with: nothing of where it works is under the box, and no daemon is
+            # named or offered on the form.
             assert under["y"] + under["height"] <= box["y"]
-            assert under["y"] >= before["y"] + before["height"]
+            expect(
+                page.locator("[data-hmz=options] .setup-row").first
+            ).to_have_attribute("data-hmz", "setup-folder")
+            expect(page.locator("[data-hmz=new-epic] [data-hmz=daemon]")).to_have_count(
+                0
+            )
             expect(
                 page.locator("[data-hmz=composer-under] :is(button, input)")
             ).to_have_count(0)

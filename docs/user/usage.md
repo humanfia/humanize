@@ -30,7 +30,7 @@ Click the ring at the end of the row under a chat's box. The popup shows:
 
 - **This chat**: **Spent**, **Tokens**, **Time**, and each token kind with its share while the chat runs. Once the chat rests, it shows **Spent**, **Output tokens**, and **Time working**.
 - The folder: what all chats and epics in it spent **Today (UTC)** and over the **Last 7 days**.
-- **Usage settings**, which opens that folder's [Usage page](#view-the-usage-pages).
+- **Usage settings**, which opens that folder's [Usage page](#view-the-usage-pages), in its Workspace settings.
 
 ![The Usage popup: what this chat spent, then what the folder shop spent today and over the last 7 days, and the Usage settings link](/shots/user-usage-popup.svg)
 
@@ -46,14 +46,14 @@ Open an epic and check the **Epic** tab in the side panel. **Figures** shows tim
 
 ### View the Usage pages
 
-Settings has two **Usage** pages with the same layout.
+There are two **Usage** pages with the same layout.
 
 | Page | What it counts | Opens from |
 | --- | --- | --- |
-| **Usage** under **Daemon** | Every chat and epic the selected daemon ran, across all folders or none. | **Usage** in the daemon bar menu at the foot of the sidebar, or **Usage settings** in the Usage popup when no folder is selected. |
-| **Usage** under **Workspace** | One folder, selected in the **Workspace** list at the top of the page. | **Usage** in a folder's menu, or **Usage settings** in the Usage popup of a chat in a folder. |
+| **Usage** in Settings, under **Daemon** | Every chat and epic the daemon shown ran, across all folders or none. | **Usage** in the daemon bar menu at the foot of the sidebar, or **Usage settings** in the Usage popup when no folder is selected. |
+| **Usage** in a folder's [Workspace settings](/user/settings#workspace-settings) | That one folder, named at the top of the dialog. | **Usage** in a folder's menu, **Workspace settings** in its **Group and sort** menu, or **Usage settings** in the Usage popup of a chat in a folder. |
 
-![The Usage page under Workspace in the Settings of Humanize Desktop: the Workspace list set to shop, the Range buttons, tiles for spent, output tokens, agent time and ended, and a bar chart of cost by day](/shots/user-usage-page.svg)
+![The Usage page in the Workspace settings of the folder shop in Humanize Desktop: the folder named at the top, the Range buttons, tiles for spent, output tokens, agent time and ended, and a bar chart of cost by day](/shots/user-usage-page.svg)
 
 | Part | What it shows |
 | --- | --- |

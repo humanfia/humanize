@@ -6170,33 +6170,58 @@ input[aria-invalid='true'] {
   margin-top: 0;
 }
 
-/* Which daemon the pages under `Daemon` read and write: said over the page, on a line of its
-   own. */
-.settings-daemon {
+/* Whose a page is -- the daemon the pages under `Daemon` read and write, the folder a
+   workspace's settings are of -- said over the page on a line of its own, with nothing to
+   press: a daemon is picked at the foot of the sidebar and under `Daemons`, a folder by the
+   heading its settings were opened from. */
+.settings-of {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  padding: var(--space-8) var(--space-24);
+  min-height: var(--control-h);
+  padding: var(--space-6) var(--space-24);
   border-bottom: var(--border);
+  font: var(--text-md)/20px var(--sans);
 }
 
-.settings-daemon .label {
+.settings-of > .icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.settings-of .label {
   font: 500 var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
-.settings-daemon select {
-  min-width: 0;
-  max-width: min(100%, 320px);
+.settings-of b {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
-/* Which folder the pages under `Workspace` are of, under the daemon it is a folder of: its name
-   picked, its whole path said after it, and that it is gone where it is. */
-.settings-workspace[hidden] {
-  display: none;
+/* A workspace's settings: Settings' own frame, smaller, as it holds three pages of one folder. */
+body:has(> .overlay > .dialog-workspace) {
+  --dialog-wide: 860px;
+  --dialog-high: 640px;
 }
 
+.dialog-workspace > .loading {
+  margin: var(--space-24);
+}
+
+/* The daemon shown, said beside its name. */
+.daemon-named {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* A folder's whole path, after its name, and that it is gone where it is. */
 .settings-path {
   flex: 1;
   min-width: 0;
@@ -6313,8 +6338,8 @@ input[aria-invalid='true'] {
     padding-left: var(--gutter);
   }
 
-  .settings-daemon {
-    padding: var(--space-8) var(--gutter);
+  .settings-of {
+    padding: var(--space-6) var(--gutter);
   }
 
   .settings-body {

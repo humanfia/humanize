@@ -8,7 +8,8 @@
 // what is its own: the devices paired with it; and, for a remote one, the STUN and TURN servers its
 // `webrtc:` routes are opened with (Section 3.13.20 and 3.13.21 of protocol/web.md).
 
-import { call, daemons, forget, hello, kindOf, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
+import { call, daemon, daemons, forget, hello, kindOf, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
+import { onto } from '../../app.js'
 import { confirming } from '../../confirm.js'
 import { acting, ago, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pieces, t } from '../../i18n.js'
@@ -137,6 +138,9 @@ export function draw(holder) {
     const kept = new Map()
     const rows = entries.map((one) => {
       const local = one.name === 'local'
+      // The daemon the whole page shows is said on its line; any other is switched to from its own.
+      const shown = one.name === daemon()
+      const use = shown ? null : h('button', { class: 'btn small', type: 'button', 'data-hmz': 'daemon-use', onclick: () => onto(one.name) }, t('Switch'))
       states.set(one.name, h('td', {}, shownState(stateOf(one.name))))
       // What is under its line stays as it is drawn while its entry does: a list half typed.
       const own = under.get(one.name)?.key === keyOf(one) ? under.get(one.name) : drawOwn(one)
@@ -145,7 +149,7 @@ export function draw(holder) {
       const line = h(
         'tr',
         { 'data-hmz': 'daemon', 'data-name': one.name },
-        h('td', {}, h('b', {}, local ? t('Local') : one.name)),
+        h('td', {}, h('span', { class: 'daemon-named' }, h('b', {}, local ? t('Local') : one.name), shown ? h('span', { class: 'chip', 'data-hmz': 'daemon-current' }, t('Current')) : null)),
         h('td', { 'data-hmz': 'daemon-via' }, local ? '' : kindOf(one)),
         local ? where : h('td', { class: 'mono' }, reached(one)),
         states.get(one.name),
@@ -153,10 +157,11 @@ export function draw(holder) {
           'td',
           {},
           local
-            ? connect('local')
+            ? h('div', { class: 'row' }, use, connect('local'))
             : h(
                 'div',
                 { class: 'row' },
+                use,
                 connect(one.name),
                 h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, t('Edit')),
                 confirming({
@@ -184,7 +189,7 @@ export function draw(holder) {
       h(
         'p',
         { class: 'dim', 'data-hmz': 'daemons-about' },
-        t('Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it.'),
+        t('Every machine this page reaches. The page shows one of them at a time: switch to another here, or from the menu at the foot of the sidebar. Under each are its devices: the browsers and machines paired with it, which may reach it.'),
       ),
       entries.length > 1 ? null : h('p', { class: 'dim', 'data-hmz': 'daemons-none' }, t('Only Local so far. Add another machine under New daemon.')),
       h('div', { class: 'table-wrap' }, h('table', { class: 'daemons-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('Name')), h('th', {}, t('Kind')), h('th', {}, t('Address')), h('th', {}, t('State')), h('th', {}, ''))), h('tbody', {}, rows))),

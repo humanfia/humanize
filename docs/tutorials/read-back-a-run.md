@@ -59,7 +59,7 @@ The epic's right panel shows its own cost. To view total spending across runs:
 
 *The model in this picture has no list price, so nothing is charted.*
 
-To see one folder's spending, open **Usage** under **Workspace** instead and pick the folder in the **Workspace** select.
+To see one folder's spending, right-click the folder's heading in the sidebar and choose **Usage**: it opens that folder's Workspace settings on its Usage page.
 
 ## 5. Export the epic
 

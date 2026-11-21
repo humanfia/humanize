@@ -269,8 +269,11 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             ).to_have_count(0)
             page.keyboard.press("Escape")
 
-            # The workspace's settings list it among the archived, and put it back.
+            # The workspace's settings list it among the archived, and put it back: the
+            # address it had in Settings opens them, on the folder offered first.
             go(page, "/settings/archived")
+            expect(page.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+            assert "#/workspace/archived" in page.url
             archived = page.locator("[data-hmz=archived-chats]")
             expect(page.locator(".settings-head h3")).to_have_text("Archived chats")
             listed = archived.locator("[data-hmz=archived-chat]")
@@ -282,7 +285,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             expect(archived).to_contain_text("No archived chats.")
             assert not _call(page, "chat.get", {"chat": fork})["archived"]
             page.keyboard.press("Escape")
-            expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
+            expect(page.locator("[data-hmz=dialog-workspace]")).to_have_count(0)
             expect(unarchive).to_have_count(0)
             expect(_rows(page)).to_have_count(2)
 
@@ -318,7 +321,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             _call(page, "chat.archive", {"chat": name})
             if width < 860:
                 page.keyboard.press("Escape")
-            go(page, "/settings/archived")
+            go(page, f"/workspace/archived?workspace={project}")
             expect(listed).to_have_count(1)
             listed.locator("[data-hmz=archived-delete]").click()
             expect(dialog.locator("[data-hmz=delete-title]")).to_have_text(
@@ -327,12 +330,12 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             # Escape closes it alone: the settings it was opened over stand again.
             page.keyboard.press("Escape")
             expect(dialog).to_have_count(0)
-            expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
+            expect(page.locator("[data-hmz=dialog-workspace]")).to_be_visible()
             expect(listed).to_have_count(1)
             listed.locator("[data-hmz=archived-delete]").click()
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog).to_have_count(0)
-            expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
+            expect(page.locator("[data-hmz=dialog-workspace]")).to_be_visible()
             expect(archived).to_contain_text("No archived chats.")
             assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
@@ -636,9 +639,9 @@ def test_an_archived_chat_of_no_folder_is_listed_put_back_and_deleted_in_setting
         _bar_menu(page).get_by_role("menuitem", name="Archive", exact=True).click()
         expect(_rows(page)).to_have_count(0)
 
-        # Whichever folder is picked, it stands under `No folder`, the folder's own list
-        # saying nothing of an empty one beside it.
-        go(page, "/settings/archived")
+        # Whichever folder the settings are of, it stands under `No folder`, the folder's
+        # own list saying nothing of an empty one beside it.
+        go(page, f"/workspace/archived?workspace={project}")
         archived = page.locator("[data-hmz=archived-chats]")
         nowhere = archived.locator("[data-hmz=archived-nowhere]")
         expect(nowhere.locator("h4")).to_have_text("No folder")
@@ -653,8 +656,13 @@ def test_an_archived_chat_of_no_folder_is_listed_put_back_and_deleted_in_setting
 
         # Archived again, it is deleted from there, its directory with it.
         _call(page, "chat.archive", {"chat": name})
+        # The settings of `No folder` itself, opened from its heading, hold it alone, under
+        # no heading: the dialog says whose it is.
         go(page, "/settings/general")
-        go(page, "/settings/archived")
+        go(page, "/workspace/archived?scratch=1")
+        expect(page.locator("[data-hmz=workspace-name]")).to_have_text("No folder")
+        expect(page.locator(".settings-nav a")).to_have_text(["Archived chats"])
+        expect(nowhere.locator("h4")).to_have_count(0)
         expect(listed).to_have_count(1)
         listed.locator("[data-hmz=archived-delete]").click()
         page.locator("[data-hmz=dialog-delete] [data-hmz=delete-confirm]").click()

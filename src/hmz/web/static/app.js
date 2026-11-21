@@ -6,7 +6,7 @@
 // them. An address names the daemon it is of first, `#/@<name>/<view>…`, or names none and is of
 // Local.
 
-import { daemon, hash, hello, started } from './api.js'
+import { daemon, hash, hashOn, hello, movedTo, started } from './api.js'
 import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { pieces, t } from './i18n.js'
@@ -33,6 +33,7 @@ const DIALOGS = {
   search: () => import('./views/search.js'),
   download: () => import('./views/download.js'),
   settings: () => import('./views/settings.js'),
+  workspace: () => import('./views/workspace.js'),
   delete: () => import('./views/chatdelete.js'),
 }
 
@@ -98,6 +99,19 @@ export function where() {
 /** Goes to another view of the page, on the daemon it is on. */
 export function go(path) {
   location.hash = hash(path)
+}
+
+/**
+ * Switches the page to another daemon from the dialog open, which stays open on it: that
+ * daemon's new chat takes the dialog's step in the history and the dialog opens a step past
+ * it, so that closing it leads to that daemon's page and never back to the daemon left.
+ */
+export function onto(name) {
+  const dialog = `/${where().parts.map(encodeURIComponent).join('/')}`
+  history.replaceState(null, '', hashOn(name, '/new/chat'))
+  over = 0
+  last = ''
+  location.hash = hashOn(name, dialog)
 }
 
 /** Puts the query of the view the page is on in the address, without a step in its history. */
@@ -222,6 +236,10 @@ async function routing(mine) {
   const { parts, query } = where()
   // An epic's log of every session is no more: its old address opens the epic, in its place.
   if (parts[0] === 'epics' && parts[2] === 'logs' && !parts[3]) return location.replace(location.hash.replace(/\/logs\/?(?=$|\?)/, ''))
+  // An address written before a folder's settings left Settings, or one that picks a daemon for
+  // itself alone, opens what it is now.
+  const moved = movedTo(parts, query)
+  if (moved) return location.replace(moved)
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
     if (!shown) await view(mine, ['new', 'chat'], new URLSearchParams(), '/new/chat')

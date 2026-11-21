@@ -181,10 +181,6 @@ export default {
   '{name} (not installed)': '{name}（未安装）',
   'None installed': '均未安装',
   // chips/environment.js
-  'Which hmz serves this page': '为此页面提供服务的 hmz',
-  'Which hmz serves this page: a machine running hmz that you are connected to.': '由哪个 hmz 为此页面服务：你所连接的、运行着 hmz 的那台机器。',
-  'The hmz on this computer': '这台电脑上的 hmz',
-  'Add daemon…': '添加守护进程…',
   'The folder this chat is of': '此聊天所属的文件夹',
   'SSH host': 'SSH 主机',
   'Docker container': 'Docker 容器',

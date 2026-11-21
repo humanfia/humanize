@@ -1,9 +1,8 @@
-// Two choices that are easily taken for one another, each drawn by its own control here so that
-// neither is: the daemon, and the environment.
+// Two things that are easily taken for one another: the daemon, and the environment.
 //
 // A daemon is WHICH hmz serves the page: a machine running hmz that the browser is connected
 // to. It is the whole page's -- the sidebar lists that daemon's chats -- so it is picked at the
-// foot of the sidebar, and on the form of a new epic in a row named `Daemon` (`daemonChip`).
+// foot of the sidebar and in the daemons' settings, and nowhere else: no control here picks it.
 //
 // An environment is WHERE one chat works: where its commands run and its files live -- the
 // folder itself on the daemon's machine, a new worktree of it, or a runtime saved there (an SSH
@@ -13,66 +12,13 @@
 // chosen as a folder is on this computer: written, or browsed for where that machine's
 // directories can be listed (Sections 3.8.22 and 3.6.6.28 of protocol/web.md).
 
-import { call, daemon, hash, known, kindOf, stateOf, toDaemon } from '../api.js'
+import { call, hash } from '../api.js'
 import { chipNamed } from '../desk.js'
 import { fill, h, icon } from '../dom.js'
 import { t } from '../i18n.js'
 import { closed, opened } from '../layers.js'
 import { pathPicker } from '../paths.js'
 import { choice, dragged, follow, menu, section } from '../shell.js'
-
-/** What a daemon is called on the page. */
-const named = (name) => (name === 'local' ? t('Local') : name)
-
-/**
- * The daemon the page is of, and every other this browser keeps: picking one switches the page
- * to it, on the same view.
- *
- * @param {string} path The view the page is switched to on another daemon: the form it is on.
- * @param {{up?: boolean}} [made] Whether the menu opens over the chip or under it.
- * @returns {{node: HTMLElement}}
- */
-export function daemonChip(path, { up = false } = {}) {
-  const button = h(
-    'button',
-    { class: 'chip-btn desk-chip daemon-chip', type: 'button', 'aria-label': chipNamed(t('Daemon'), named(daemon())), 'data-hmz': 'daemon', 'data-tip': t('Which hmz serves this page') },
-    icon('server'),
-    h('span', { class: 'chip-value' }, named(daemon())),
-    icon('down'),
-  )
-  let daemons = [{ name: 'local', routes: [] }]
-  const read = () =>
-    known().then(
-      (listed) => (daemons = listed),
-      () => {},
-    )
-  menu(
-    button,
-    (close) => [
-      h('p', { class: 'popover-lede', 'data-hmz': 'daemon-about' }, t('Which hmz serves this page: a machine running hmz that you are connected to.')),
-      daemons.map((one) => {
-        const item = choice({
-          label: named(one.name),
-          // Local is this computer, in one row; a remote one says how it is reached, under its name.
-          about: one.name === 'local' ? '' : [kindOf(one), stateOf(one.name).state].filter(Boolean).join(' · '),
-          chosen: one.name === daemon(),
-          act: () => one.name !== daemon() && toDaemon(one.name, path),
-          close,
-        })
-        item.dataset.daemon = one.name
-        if (one.name === 'local') item.dataset.tip = t('The hmz on this computer')
-        return item
-      }),
-      h('hr'),
-      choice({ label: t('Add daemon…'), glyph: 'plus', href: hash('/settings/daemons'), close }),
-    ],
-    { up, label: t('Daemon') },
-  )
-  // Read before the menu is drawn: the daemons kept now, as another tab may have added one.
-  button.addEventListener('pointerdown', read)
-  read()
-  return { node: h('div', { class: 'menu-holder' }, button) }
-}
 
 /**
  * The folder a new chat is of, on a chip of its own beside where it works: the folders of the

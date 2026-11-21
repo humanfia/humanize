@@ -1,14 +1,14 @@
 // The Usage chip that ends the row under a chat's box, as a chat app keeps a ring there: the
 // ring alone, with no figure beside it, and a popup of its own by the chip saying everything --
 // what this chat has used, what its workspace has used today and over the last 7 days, and the
-// way to the Usage page of Settings (Sections 3.6.6.17 and 3.8.22 of protocol/web.md). The form
+// way to the Usage page of that workspace's settings (Sections 3.6.6.17 and 3.8.22 of protocol/web.md). The form
 // of a new chat keeps the same chip with no chat's figures.
 
 import { call, given, hash } from '../api.js'
 import { usedLately } from '../desk.js'
 import { fill, h, problem } from '../dom.js'
 import { t } from '../i18n.js'
-import { nameOf } from '../places.js'
+import { nameOf, workspaceAt } from '../places.js'
 import { choice, menu } from '../shell.js'
 import { glyph } from '../views/chatbar.js'
 
@@ -57,7 +57,7 @@ export function usageChip({ hmz, tip, chat = null, workspace }) {
         (error) => draw(problem(error)),
       )
       // A link among figures, not a choice of a menu.
-      const settings = choice({ label: t('Usage settings'), glyph: 'chart', href: hash(folder ? `/settings/workspace-usage?workspace=${encodeURIComponent(folder)}` : '/settings/usage'), close })
+      const settings = choice({ label: t('Usage settings'), glyph: 'chart', href: hash(folder ? workspaceAt(folder, 'usage') : '/settings/usage'), close })
       settings.removeAttribute('role')
       settings.dataset.hmz = 'usage-settings'
       mine = chat ? h('div', { class: 'usage-mine' }) : null

@@ -270,12 +270,22 @@ def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        for one in ("general", "runtimes", "workspace", "usage", "workspace-usage"):
+        for one in ("general", "runtimes", "usage"):
             go(page, f"/settings/{one}")
             expect(page.locator(f"[data-hmz=settings-{one}]")).to_be_visible()
             wide = page.evaluate("document.querySelector('.dialog').scrollWidth")
             assert wide <= 390, f"{one} is {wide} wide"
             assert re.match(r"\d", str(wide))
+        # And so do a folder's own settings, which fill the window as Settings does.
+        for one in ("setup", "usage", "archived"):
+            go(page, f"/workspace/{one}?workspace={project}")
+            expect(page.locator(f"[data-hmz=workspace-{one}]")).to_be_visible()
+            wide = page.evaluate("document.querySelector('.dialog').scrollWidth")
+            assert wide <= 390, f"{one} is {wide} wide"
+            box = page.locator("[data-hmz=workspace-of]").bounding_box()
+            assert box
+            assert box["x"] >= 0
+            assert box["x"] + box["width"] <= 390
 
 
 def _whole(page: Page, popup: Locator) -> None:
@@ -341,10 +351,10 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
 ) -> None:
     """Opening one popup closes the others; a press outside, Escape or leaving closes it."""
     with served() as site, opened(site, engine=engine, width=1296, height=792) as page:
-        # A new epic keeps the daemon and the folder a control each, one by the other.
+        # A new epic keeps the flow and the folder a control each.
         go(page, "/new")
         folders = page.locator("[data-hmz=workspace-picker]")
-        where = page.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")
+        where = page.locator("[data-hmz=flow-picker]")
         folders.click()
         expect(page.get_by_role("menu", name="Folders")).to_be_visible()
         assert _popups(page) == ["Folders"]
