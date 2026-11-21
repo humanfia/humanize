@@ -9,6 +9,7 @@ import { chatsChanged } from '../chat-actions.js'
 import { DELETING } from '../chats.js'
 import { fill, h, headline, problem } from '../dom.js'
 import { t } from '../i18n.js'
+import { logKey, logs } from '../logged.js'
 import { dragged } from '../shell.js'
 
 export function mount(root, { parts, query }) {
@@ -55,6 +56,8 @@ export function mount(root, { parts, query }) {
       doing.textContent = t('Delete')
       return
     }
+    // Nothing of it is kept to draw it by again.
+    logs.drop(logKey('chat', id, on.on))
     chatsChanged()
     // Closed meanwhile, there is no dialog left to close.
     if (gone) return

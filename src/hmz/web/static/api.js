@@ -212,14 +212,31 @@ function refused(error, name) {
  *
  * @param {string} method
  * @param {object} [params]
- * @param {{on?: string, timeout?: number}} [options] `on` the daemon, the one shown by default.
+ * @param {{on?: string, timeout?: number, behind?: boolean}} [options] `on` the daemon, the one
+ *   shown by default; `behind`, for what is read ahead of being asked for.
  */
-export async function call(method, params = {}, { on = daemon(), timeout } = {}) {
+export async function call(method, params = {}, { on = daemon(), timeout, behind = false } = {}) {
+  if (!behind) asking += 1
   try {
     return await (await client(on)).call(method, params, { timeout })
   } catch (error) {
     throw refused(error, on)
+  } finally {
+    if (!behind) asking -= 1
   }
+}
+
+/** How many calls are being asked in front: those not asked `behind` whatever the page shows. */
+let asking = 0
+
+/** Whether nothing is being asked in front, so that what is read ahead competes with nothing. */
+export function unasked() {
+  return asking === 0
+}
+
+/** The id a daemon answered by (`session.hello`), or '' until it is up. */
+export function idOf(name = daemon()) {
+  return clients.get(name)?.hello?.daemon_id || ''
 }
 
 /**

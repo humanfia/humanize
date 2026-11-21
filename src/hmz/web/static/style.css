@@ -2205,6 +2205,19 @@ p + .panel {
   margin: var(--space-24) 0;
 }
 
+/* What says a conversation is being read is drawn only once the reading has taken a while, so
+   that one read at once never flashes it (Section 3.6.12.5 of protocol/web.md). It is no motion:
+   it stands whatever is asked of motion. */
+.late {
+  animation: late 0s linear 300ms backwards !important;
+}
+
+@keyframes late {
+  from {
+    visibility: hidden;
+  }
+}
+
 /* A panel with nothing in it yet -- its part of a page still being read -- is not drawn. */
 .panel:empty {
   display: none;

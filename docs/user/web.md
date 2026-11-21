@@ -58,6 +58,8 @@ The page has four parts:
 
 Every view and dialog has its own URL hash after the `#`. Bookmark it, reopen it, or step through your history with the browser's back and forward buttons.
 
+A chat, an epic, or an Ai-chan conversation you have opened before appears at once when you open it again: the page draws what it last showed, at the place you had scrolled to, then checks with the daemon in the background. Lines said since are added under the ones already there; nothing reloads, the view does not jump, and what you were typing stays in the box. The page also reads the few most recent conversations in the sidebar ahead of time while it is idle, so the first click on one is instant too. Only a conversation the page has never seen shows `Opening…` or `Reading its logs…`, and only if reading takes longer than about a third of a second. The page keeps up to 40 conversations (24 MB) this way and drops the ones you opened longest ago. Whether a chat is running, what it is waiting on, and its **Stop** button always come from the daemon, and a conversation deleted elsewhere is gone here too.
+
 | Address | Opens |
 | --- | --- |
 | `#/new/chat` | A new chat (also the default when no view is in the address) |
@@ -182,6 +184,7 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 - Theme and language (see [Themes and language](/user/themes)).
 - Notification settings (see [Notifications](/user/notifications)).
 - Other daemons you added (see [Connect to other machines](/user/daemons)).
+- What it last showed of your recent chats, epics, and Ai-chan conversations, so that reopening one is instant.
 
 `hmz web` reuses the same port each time so your browser keeps this state. Clearing site data in the browser resets these preferences without affecting your chats, epics, or daemon settings. A browser that cannot store anything works the same and forgets them.
 

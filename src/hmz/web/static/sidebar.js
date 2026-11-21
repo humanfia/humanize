@@ -10,6 +10,7 @@
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { t } from './i18n.js'
+import { warm } from './logged.js'
 import { harnessName } from './names.js'
 import { pick } from './importing.js'
 import { chain } from './layers.js'
@@ -258,6 +259,8 @@ export function mountSidebar(root, context, where) {
       }
       if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : t('Loading…')))
       else draw()
+      // The latest of them are read ahead, behind everything else, to open at once.
+      if (data && !waiting.size) warm(data.runs)
     }
     const stops = [poll('chat.list', { limit }, 4000, heard('chats')), poll('runs.list', { limit }, 4000, heard('runs'))]
     stop = () => stops.forEach((one) => one())

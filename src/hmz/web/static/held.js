@@ -213,7 +213,9 @@ export function shownTo(where, session) {
 }
 
 function following(workspace, slot) {
-  const state = { workspace, slot, connected: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
+  // `caught`: whether the host has told everything it kept (`live`, Section 4.9.1.1 of
+  // protocol/daemon.md), so that what it holds is whole and no longer being told again.
+  const state = { workspace, slot, connected: false, caught: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
   const listeners = new Set()
   let weights = []
   let weight = 0
@@ -275,8 +277,9 @@ function following(workspace, slot) {
         weights = []
         weight = 0
       }
-      Object.assign(state, { me: message.client, connected: true, gone: '' })
-    } else if (type === 'live') state.connected = true
+      // What it kept is told next, and is all told once it says `live`.
+      Object.assign(state, { me: message.client, connected: true, gone: '', caught: false })
+    } else if (type === 'live') Object.assign(state, { connected: true, caught: true })
     else if (typeof message.seq === 'number') {
       // Context beside a question, an image's above all, weighs what it is written as.
       const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME

@@ -106,3 +106,19 @@ test('a turn read off a trace opens on the prompt as a session, and on its perso
   const [mine] = saidTraced({ ...session, chat: true })
   assert.deepEqual([mine.getAttribute('class'), mine.querySelector('.body').textContent], ['said you', 'hello'])
 })
+
+test('a trace read again names each line by what it is drawn from, so that only what is new is made', async () => {
+  const { tracedLines } = await import('../../../../src/hmz/web/static/transcript.js')
+  const { merged } = await import('../../../../src/hmz/web/static/logs.js')
+  const turn = { category: 'turn', start: 1, seconds: 2, name: 'turn', args: { prompt: 'hello' } }
+  const answer = { category: 'message', start: 2, name: 'message', args: { text: 'hi' } }
+  const more = { category: 'message', start: 3, name: 'message', args: { text: 'and more' } }
+  const was = tracedLines({ key: 'claude:s1', label: 'Ada/1', chat: true, actions: [turn, answer] })
+  const next = tracedLines({ key: 'claude:s1', label: 'Ada/1', chat: true, actions: [turn, answer, more] })
+  // Added to, every line it had is the line it was; the same lines are drawn as before.
+  assert.deepEqual(merged(was.map((one) => one.key), next.map((one) => one.key)), { from: [0, 1, -1], dropped: [] })
+  assert.deepEqual(next.map((one) => one.make().textContent), saidTraced({ key: 'claude:s1', label: 'Ada/1', chat: true, actions: [turn, answer, more] }).map((one) => one.textContent))
+  // A line whose words changed is another line, and no other is.
+  const changed = tracedLines({ key: 'claude:s1', label: 'Ada/1', chat: true, actions: [turn, { ...answer, args: { text: 'hi there' } }, more] })
+  assert.deepEqual(merged(next.map((one) => one.key), changed.map((one) => one.key)), { from: [0, -1, 2], dropped: [1] })
+})

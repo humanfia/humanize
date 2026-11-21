@@ -15,19 +15,26 @@
 // says a line to it; beside it, a panel of what it is and was -- its figures, its budget, how it
 // was set up, the flows it called -- with its board, its people and the side questions asked
 // beside it.
+//
+// One opened before is drawn at once as the page last saw it (logs.js; Section 3.6.12 of
+// protocol/web.md), with nothing said of its being read: the daemon is asked behind it, and what
+// it answers is drawn over what was kept in place -- the lines it had stay the lines they were,
+// what is new is added, and how it stands, what it waits on and what its box does are only ever
+// the daemon's word.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { settle } from '../asking/card.js'
-import { call, exported, given, hash, refresh } from '../api.js'
+import { call, daemon, exported, given, hash, idOf, refresh } from '../api.js'
 import { go, renamed } from '../app.js'
 import { confirming } from '../confirm.js'
-import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
+import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, patched, problem, secondsOf, when } from '../dom.js'
 import { agentLabel } from '../chips/agent.js'
 import { envSaid, environmentChip } from '../chips/environment.js'
 import { modelFact } from '../chips/model.js'
 import { PANES, paneOf, standing as standingSaid, stoppable, thousands, toggled, usageRows } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { pieces, t } from '../i18n.js'
+import { fronted, logKey, logs } from '../logged.js'
 import { chatPermission } from '../chips/permission.js'
 import { usageChip } from '../chips/usage.js'
 import { harnessName, modelName } from '../names.js'
@@ -36,12 +43,12 @@ import { lostSaid, unplaced } from '../places.js'
 import { composer as composed } from '../composer.js'
 import { archiving, retitling } from '../chat-actions.js'
 import { pathOf, worksIn } from '../chats.js'
-import { chatting as isChat, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
+import { chatting as isChat, going as runOf, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, choice, dragged, keep, kept, menu, section as heading, sidePanel, submenu, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn, toast } from '../ui.js'
-import { saidTraced, sayer, walked } from '../transcript.js'
+import { saidTraced, sayer, tracedLines, walked } from '../transcript.js'
 import { completions, pathItems, pathParts, preferSaid, RESERVED, route, typing } from '../natives.js'
 import { barButton, paneButtons } from './chatbar.js'
 import { panelsOf, usedLine } from './envs/tree.js'
@@ -58,6 +65,16 @@ export function mount(root, { parts, query }) {
   /** Which host the epic going is looked for on, for an epic not named. */
   const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '' }
   let mode = modeOf(parts)
+  /** The daemon it is of, which leaving for another daemon's does not change. */
+  const on = daemon()
+  /** What it is kept by, once it is named; and what was kept of it as it is opened, if anything. */
+  let keptKey = name ? logKey(parts[0] === 'chats' ? 'chat' : 'epic', name, on) : ''
+  let had = keptKey ? logs.open(keptKey, { of: idOf(on) }) : null
+  fronted(keptKey)
+  /** Whether what was kept was held against what the daemon says it is of. */
+  let checked = false
+  /** Whether the view was left: what is still being read draws nothing. */
+  let left = false
   /** The buttons of the panes beside a chat, once its bar is drawn. */
   let panes = null
   // A chat's bar says which pane is open, each time its panel opens or shuts.
@@ -106,7 +123,12 @@ export function mount(root, { parts, query }) {
   /** The cards of questions no longer waiting, each folded into what became of it until dismissed. */
   const settling = []
   let seen = null
-  let traced = null
+  /** What its logs said: as kept, until read -- once, behind what is drawn -- of the daemon. */
+  let traced = had ? had.traced || null : null
+  let tracedText = ''
+  /** Whether the daemon was asked for it since the view opened, and how often it then differed. */
+  let traceFresh = false
+  let traceStamp = 0
   let tracing = false
   let traceError = null
   let tab = 'epic'
@@ -128,7 +150,7 @@ export function mount(root, { parts, query }) {
         // Its bar stands before anything is read of it, and where nothing could be: with the
         // sidebar's button and Ai-chan's, as every view's.
         region('head', ['reading'], () => fill(head, bar()))
-        region('main', ['reading', String(error)], () => fill(main, h('div', { class: 'view-pad' }, error ? problem(error) : h('p', { class: 'loading', role: 'status' }, t('Opening…')))))
+        region('main', ['reading', String(error)], () => fill(main, h('div', { class: 'view-pad' }, error ? problem(error) : h('p', { class: 'loading late', role: 'status' }, t('Opening…')))))
       } else {
         const starting = held && held.standing.run && held.standing.run.state === 'running'
         // A chat's host is on a slot of its own, which says it is one before it is written down.
@@ -158,12 +180,16 @@ export function mount(root, { parts, query }) {
     if (!name) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
+      keptKey = logKey(isChat(detail) ? 'chat' : 'epic', name, on)
+      fronted(keptKey)
       renamed(pathOf(detail))
       stop()
       stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told, { chat: isChat(detail) })
       return
     }
     const run = going && going.started ? going : null
+    // What is said in it is drawn as it was kept until its host says it again.
+    const said = run || keptRun(detail)
     const chat = isChat(detail)
     if (!say) {
       say = saying(here)
@@ -172,7 +198,7 @@ export function mount(root, { parts, query }) {
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
     // Its address is the chat's alone: a chat has no session to name in it.
-    const conversation = chat && ((run && run.records.find((one) => one.type === 'opened' && !one.person)) || sessionsOf(detail).at(-1))
+    const conversation = chat && ((said && said.records.find((one) => one.type === 'opened' && !one.person)) || sessionsOf(detail).at(-1))
     if (conversation && mode.session !== conversation.key) mode = { session: conversation.key, focus: '', log: '' }
     const model = run ? live(held, run, detail) : written(detail, traced)
     const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
@@ -187,7 +213,7 @@ export function mount(root, { parts, query }) {
     view.classList.toggle('chat-view', chat)
     if (chat) followCatalogue(detail, run)
     drawHead(detail, run, chat)
-    if (chat || reading(mode)) drawThread(detail, run)
+    if (chat || reading(mode)) drawThread(detail, said)
     else drawGraph(detail, run, model)
     drawDock(detail, run)
     drawPanel(detail, run, model, chat ? '' : mode.focus || agentOfSession, chat)
@@ -388,35 +414,53 @@ export function mount(root, { parts, query }) {
     // An ended epic's turns are read off its logs once, in either shape: its list and its panel
     // say them as the graph does.
     const asking = !run && !traced
+    // Read once of the daemon each time it is opened, behind what was kept of it.
+    const unread = !run && !traceFresh
     if (shape === 'list') {
       region('agent-list', [model.agents.map(({ name, role, working, status, spec, sessions, tokens }) => [name, role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
-      if (asking && !tracing && !traceError) readTrace()
+      if (unread && !tracing && !traceError) readTrace()
       return
     }
     region('graph-note', [asking, tracing, String(traceError)], () => {
       main.querySelector('.graph-note')?.remove()
       if (!asking) return
-      if (!traceError) return void main.append(h('div', { class: 'graph-note', role: 'status' }, h('span', {}, t('Reading handovers and turns from the epic’s logs…'))))
+      if (!traceError) return void main.append(h('div', { class: 'graph-note late', role: 'status' }, h('span', {}, t('Reading handovers and turns from the epic’s logs…'))))
       const reading = h('button', { class: 'btn small', type: 'button' }, t('Read turns'))
       reading.addEventListener('click', readTrace)
       main.append(h('div', { class: 'graph-note', role: 'status' }, problem(traceError), reading))
     })
     drawn_.draw(model, mode.focus, detail.name)
-    if (asking && !tracing && !traceError) readTrace()
+    if (unread && !tracing && !traceError) readTrace()
   }
 
+  /**
+   * Reads what its logs said, of the daemon. Where something was kept of them it is read behind
+   * what is drawn, with nothing said of it, and drawn over it only where it differs.
+   */
   async function readTrace() {
     tracing = true
     traceError = null
-    draw()
+    if (!traced) draw()
+    let read = null
     try {
       // What a chat said is read with the chat itself; an epic's, off its logs.
-      traced = isChat(seen.detail) ? (await call('chat.get', { chat: name, trace: true })).trace : (await call('runs.trace', { name })).sessions
+      read = isChat(seen.detail) ? (await call('chat.get', { chat: name, trace: true }, { on })).trace : (await call('runs.trace', { name }, { on })).sessions
     } catch (error) {
       traceError = error
     }
     tracing = false
-    draw()
+    if (read) {
+      const text = JSON.stringify(read)
+      tracedText ||= traced ? JSON.stringify(traced) : ''
+      if (text !== tracedText) {
+        traced = read
+        tracedText = text
+        traceStamp += 1
+      }
+      traceFresh = true
+      remember()
+    }
+    if (!left) draw()
   }
 
   // ------------------------------------------------------------------ one session's thread
@@ -426,6 +470,10 @@ export function mount(root, { parts, query }) {
   let saidBy = null
   let saidUpTo = -1
   let saidFor = ''
+  /** The lines drawn of a thread read off its logs, each by what it is drawn from. */
+  let lines = []
+  /** The thread whose scroll was put where it was left, or at its end: put there once. */
+  let placedFor = null
 
   /** Whether the agents are drawn as a graph or as a list, as this browser last chose. */
   let shape = kept('hmz-shape', 'graph') === 'list' ? 'list' : 'graph'
@@ -440,6 +488,42 @@ export function mount(root, { parts, query }) {
     return persons.has(mode.log) ? `person:${mode.log}` : `agent:${mode.log}`
   }
 
+  /** The run its host last told, as it was kept, read once. */
+  let keptAs = undefined
+
+  /**
+   * The run a host last told of it, as the page kept it: what its thread is drawn from, and
+   * nothing else, from the moment it is opened until the host that holds it has told what it
+   * holds -- never going, and of no host. None where no host holds it now, or the one that does
+   * has answered or gone.
+   */
+  function keptRun(detail) {
+    const host = held()
+    if (!had || !had.live || !detail.held || (host && (host.caught || host.gone))) return null
+    if (keptAs === undefined) {
+      const run = runOf({ standing: {}, records: had.live.records })
+      keptAs = run ? { ...run, number: had.live.number, state: 'idle', live: false, kept: true, epoch: had.live.epoch, cut: Boolean(had.cut && had.cut.live) } : null
+    }
+    return keptAs
+  }
+
+  /** Whether a thread is read at its end, where it stays as it grows. */
+  const atEnd = (scroller) => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
+
+  /**
+   * Puts a thread just drawn into where it is read from: the first time, where it was left
+   * when last read here, else at its end; after that at its end where it was read there, and
+   * otherwise where it was, so that what is drawn behind the reader moves nothing.
+   */
+  function place(scroller, key, stuck, top) {
+    if (placedFor !== key) {
+      placedFor = key
+      const was = had && had.scroll && had.scroll.thread === key && !had.scroll.stuck ? had.scroll.top : null
+      scroller.scrollTop = was === null ? scroller.scrollHeight : was
+    } else if (stuck) scroller.scrollTop = scroller.scrollHeight
+    else if (scroller.scrollTop !== top) scroller.scrollTop = top
+  }
+
   function drawThread(detail, run) {
     const key = threadKey()
     region('main-kind', ['thread'], () => {
@@ -447,19 +531,32 @@ export function mount(root, { parts, query }) {
       cut = h('p', { class: 'dim thread-cut', hidden: true }, isChat(detail) ? t('Only the last {count} lines are shown here; the chat keeps them all.', { count: LINES }) : t('Only its last {count} lines are drawn here; the epic keeps every one.', { count: LINES }))
       fill(main, h('div', { class: 'thread-scroll' }, h('div', { class: 'thread-column' }, cut, box)))
       saidFor = ''
+      lines = []
+      placedFor = null
       drawn['thread'] = undefined
       drawn['thread-ask'] = undefined
     })
     const scroller = main.querySelector('.thread-scroll')
+    const host = held()
     if (run) {
       // Another link's records start their numbers over: what was said is said again from the top.
       const chat = isChat(detail)
-      const whose = JSON.stringify([key, run.number, held().epoch, chat])
+      const whose = JSON.stringify([key, run.number, run.kept ? run.epoch : host.epoch, chat, Boolean(run.cut)])
+      // Lines are drawn already -- as kept, or read off its logs -- and its host is still telling
+      // what it holds: they stay until it has told all of it, and are then drawn over at once,
+      // never emptied to be filled a record at a time.
+      if (saidFor !== whose && !run.kept && !host.caught && box.querySelector(':scope > .said, :scope > .thread-before')) return
+      // A thread read at its end stays at its end as it grows, over it as under it.
+      const stuck = placedFor !== key || atEnd(scroller)
+      const top = scroller.scrollTop
       if (saidFor !== whose) {
         saidFor = whose
         saidBy = sayer(key, { chat })
         saidUpTo = -1
         fill(box)
+        lines = []
+        drawn['thread'] = undefined
+        drawn['thread-before'] = undefined
         cut.hidden = true
       }
       // A chat carried on: what was said before, read out of the last session it had opened
@@ -467,15 +564,14 @@ export function mount(root, { parts, query }) {
       // chat carried on with nothing said has written nothing down of yet; else as it wrote.
       const since = chat && run.started.type === 'started' && run.started.resume ? run.started.at : 0
       const before = !chat ? null : since ? sessionsOf(detail).findLast((one) => !(Date.parse(one.at) / 1000 >= since)) : detail.earlier ? sessionsOf(detail)[detail.earlier - 1] : null
-      if (before && !traced && !tracing && !traceError) readTrace()
-      // A thread read at its end stays at its end as it grows, over it as under it.
-      const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
+      if (before && !traceFresh && !tracing && !traceError) readTrace()
       let added = false
-      region('thread-before', [saidFor, before && before.key, Boolean(traced)], () => {
+      const earlier = before && traced && traced.find((each) => each.key === before.traced)
+      // Drawn again only where what that session said is not what was drawn of it.
+      region('thread-before', [saidFor, before && before.key, earlier ? [earlier.actions.length, (earlier.actions.at(-1) || {}).start] : null], () => {
         box.querySelector(':scope > .thread-before')?.remove()
-        const read = before && traced && traced.find((each) => each.key === before.traced)
-        if (!read || !read.actions.length) return
-        box.prepend(h('div', { class: 'thread-before', 'data-hmz': 'thread-before' }, saidTraced({ ...read, label: before.key, chat: true })))
+        if (!earlier || !earlier.actions.length) return
+        box.prepend(h('div', { class: 'thread-before', 'data-hmz': 'thread-before' }, saidTraced({ ...earlier, label: before.key, chat: true })))
         added = true
       })
       for (const record of run.records) {
@@ -495,10 +591,13 @@ export function mount(root, { parts, query }) {
         box.firstElementChild.remove()
         cut.hidden = false
       }
-      // Read here is read: a session's thread drawn is its lines seen.
-      if (mode.session) markRead(detail.name, mode.session, run.records)
-      if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, t('Nothing said yet.')))
-      else if (added) box.querySelector(':scope > .thread-empty')?.remove()
+      // Read here is read: a session's thread drawn is its lines seen -- as its host tells
+      // them, never as they were kept.
+      if (mode.session && !run.kept) markRead(detail.name, mode.session, run.records)
+      // Nothing is said of a thread's being empty while its host is still telling what it holds.
+      if (!box.childElementCount) {
+        if (run.kept || host.caught) box.append(h('p', { class: 'dim thread-empty' }, t('Nothing said yet.')))
+      } else if (added) box.querySelector(':scope > .thread-empty')?.remove()
       // What a chat's agent stops to ask in a turn is asked at the end of its conversation,
       // its answers offered under the line that asks it and anything typed below answering it.
       const asking = chat && mode.session && run.live ? askedIn(mode.session) : null
@@ -517,31 +616,47 @@ export function mount(root, { parts, query }) {
         )
         added = true
       })
-      if (added && stuck) scroller.scrollTop = scroller.scrollHeight
+      if (added) place(scroller, key, stuck, top)
+      return
+    }
+    // A host holds it and has not told what it holds yet: what is drawn of it stays meanwhile,
+    // and its logs are not read for what its host is about to tell.
+    if (detail.held && !seen.kept && !(host && (host.caught || host.gone))) {
+      if (!box.querySelector(':scope > .said, :scope > .thread-before')) region('thread', [key, 'opening'], () => fill(box, h('p', { class: 'loading late', role: 'status' }, t('Opening…'))))
       return
     }
     // A run written down: what a session said is read out of the logs it kept, once asked for
-    // by opening the session.
-    if (!traced && !tracing && !traceError) readTrace()
-    region('thread', [key, Boolean(traced), tracing, String(traceError)], () => {
+    // by opening the session -- behind what was kept of them, where anything was.
+    if (!traceFresh && !tracing && !traceError) readTrace()
+    // The sessions the thread is of: one, or every one of an agent's.
+    const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : one.agent === mode.log))
+    region('thread', [key, traceStamp, Boolean(traced), String(traceError), sessions.map((one) => one.traced)], () => {
       saidFor = ''
-      // The sessions the thread is of: one, or every one of an agent's.
-      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : one.agent === mode.log))
       const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key, chat: isChat(detail) })).filter((one) => one.actions.length) : []
-      fill(
-        box,
-        traceError
-          ? problem(traceError)
-          : !traced
-            ? h('p', { class: 'loading', role: 'status' }, t('Reading its logs…'))
-            : mode.session && !sessions.length
-              ? empty(t('There is no such session in this epic.'), t(' Pick one of its sessions in the sidebar.'))
-              : read.length
-                ? saidTraced(...read)
+      if (!read.length) {
+        lines = []
+        fill(
+          box,
+          traceError
+            ? problem(traceError)
+            : !traced
+              ? h('p', { class: 'loading late', role: 'status' }, t('Reading its logs…'))
+              : mode.session && !sessions.length
+                ? empty(t('There is no such session in this epic.'), t(' Pick one of its sessions in the sidebar.'))
                 : h('p', { class: 'dim' }, persons.has(mode.log) ? t('A person’s log is kept while the epic is.') : t('Its logs held nothing said.')),
-      )
-      // Opened on what was said last, as one going is; read from there as far back as wanted.
-      scroller.scrollTop = scroller.scrollHeight
+        )
+        return
+      }
+      // Opened on what was said last, as one going is, or where it was left; read again behind
+      // the reader, the lines drawn stay the lines they were, where they were.
+      const stuck = placedFor !== key || atEnd(scroller)
+      const top = scroller.scrollTop
+      const edge = scroller.getBoundingClientRect().top
+      const mark = stuck ? null : lines.find((one) => one.node.getBoundingClientRect().bottom > edge)
+      const was = mark ? mark.node.getBoundingClientRect().top : 0
+      lines = patched(box, lines, tracedLines(...read))
+      const moved = mark && mark.node.isConnected ? mark.node.getBoundingClientRect().top - was : 0
+      place(scroller, key, stuck, top + moved)
     })
   }
 
@@ -738,7 +853,7 @@ export function mount(root, { parts, query }) {
       // up with nothing said, and the pane says so, or why it could not be.
       leaveEnv()
       if (!going) wake(detail)
-      region('panel-env', ['opening', wakeError && wakeError.message], () => fill(pane, wakeError ? problem(wakeError) : h('p', { class: 'loading', role: 'status', 'data-hmz': 'env-opening' }, t('Opening…'))))
+      region('panel-env', ['opening', wakeError && wakeError.message], () => fill(pane, wakeError ? problem(wakeError) : h('p', { class: 'loading late', role: 'status', 'data-hmz': 'env-opening' }, t('Opening…'))))
     } else if (tab === 'env') {
       const host = { workspace: here.workspace, slot: here.slot }
       region('panel-env', [host], () => {
@@ -1319,8 +1434,69 @@ export function mount(root, { parts, query }) {
   /** Whether the chat of this name was looked for, for an address of an epic that names none. */
   let looked = false
 
+  /** Whether anything was drawn of it: its record, as kept or as the daemon said it. */
+  let known = false
+
+  /**
+   * Keeps what the daemon said of it, to draw it by when it is next opened: its record, what
+   * its logs said once they were read, the run its host told once it had told all of it, and
+   * where its thread is read from. Nothing kept is ever kept again as the daemon's word.
+   */
+  function remember() {
+    const detail = seen && seen.detail
+    if (!detail || seen.kept || !name || !keptKey) return
+    const host = held()
+    const run = seen.going && seen.going.started ? seen.going : null
+    const kept = { daemon: on, of: idOf(on), kind: isChat(detail) ? 'chat' : 'epic', id: name, workspace: detail.workspace, detail, stamp: String(detail.ended || detail.began || ''), opened: Date.now() }
+    if (traceFresh && traced) kept.traced = traced
+    if (detail.held && run && host && host.caught) kept.live = { epoch: host.epoch, number: run.number, records: run.records }
+    else if (!detail.held) kept.live = null
+    const scroller = left ? null : main.querySelector('.thread-scroll')
+    if (scroller && box) kept.scroll = { thread: threadKey(), top: scroller.scrollTop, stuck: atEnd(scroller) }
+    logs.put(keptKey, kept)
+  }
+
+  /**
+   * Nothing kept of it stands: the daemon says there is none such, or what was kept was
+   * another's. Everything drawn of it goes, to be drawn anew from what the daemon says.
+   */
+  function forgotten() {
+    if (keptKey) logs.drop(keptKey)
+    had = null
+    keptAs = null
+    if (!traceFresh) {
+      traced = null
+      tracedText = ''
+    }
+    if (!known) return
+    known = false
+    for (const one of Object.keys(drawn)) delete drawn[one]
+    leaveEnv()
+    fill(main)
+    fill(dock)
+    fill(panel.body)
+    panel.node.classList.add('unsettled')
+    usages.clear()
+    cards.clear()
+    settling.length = 0
+    say = sayTo = btw = carry = talk = box = cut = panes = null
+    sayToKey = saidFor = ''
+    lines = []
+    placedFor = null
+  }
+
   function told(now) {
     seen = now
+    // Gone, as the daemon says: what was kept of it is not it, and is drawn no more.
+    if (!now.detail && now.error && now.error.status === 404) forgotten()
+    // What was kept is held, once, against what the daemon says it is: another daemon gone by
+    // the same name since, or another folder's, and nothing kept of it stands.
+    if (now.detail && !now.kept && had && !checked) {
+      checked = true
+      const of = idOf(on)
+      if ((had.of && of && had.of !== of) || (had.workspace && had.workspace !== now.detail.workspace)) forgotten()
+    }
+    if (now.detail) known = true
     // A chat an earlier hmz kept as an epic is a chat now, by the name it had: an address
     // kept of that epic -- a pin, a notice, a bookmark -- opens the chat (Section 3.5.20.3).
     if (parts[0] === 'epics' && name && !now.detail && now.error && !looked) {
@@ -1338,7 +1514,26 @@ export function mount(root, { parts, query }) {
   }
 
   let stop = () => {}
-  stop = watch(name, wanted, told, { chat: parts[0] === 'chats' })
+  stop = watch(name, wanted, told, { chat: parts[0] === 'chats', had: had ? had.detail : null })
+  // Opened before what the browser kept was read -- the page just opened on it -- it is drawn
+  // by what was kept as soon as that is, unless the daemon has answered by then.
+  if (keptKey && !had) {
+    logs.ready.then(() => {
+      if (left || had || (seen && seen.detail) || name !== parts[1]) return
+      had = logs.open(keptKey, { of: idOf(on) })
+      if (!had) return
+      if (!traceFresh) traced = had.traced || null
+      stop()
+      stop = watch(name, wanted, told, { chat: parts[0] === 'chats', had: had.detail })
+    })
+  }
+  /** Keeps it as the page is hidden or closed, which may be the last it is seen. */
+  const hidden = () => {
+    if (!document.hidden) return
+    remember()
+    logs.flush()
+  }
+  document.addEventListener('visibilitychange', hidden)
   // The clocks a run going is drawn with move on their own between records.
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()
@@ -1349,6 +1544,10 @@ export function mount(root, { parts, query }) {
 
   return {
     leave() {
+      remember()
+      left = true
+      fronted('')
+      document.removeEventListener('visibilitychange', hidden)
       stop()
       leaveEnv()
       clearInterval(ticking)
