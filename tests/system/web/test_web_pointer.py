@@ -270,7 +270,7 @@ def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        for one in ("general", "runtimes", "workspace", "usage"):
+        for one in ("general", "runtimes", "workspace", "usage", "workspace-usage"):
             go(page, f"/settings/{one}")
             expect(page.locator(f"[data-hmz=settings-{one}]")).to_be_visible()
             wide = page.evaluate("document.querySelector('.dialog').scrollWidth")

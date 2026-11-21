@@ -322,7 +322,7 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     // The link is to the Usage page on the folder read.
     const link = pop.querySelector('a')
     assert.equal(link.textContent, 'Usage settings')
-    assert.equal(link.getAttribute('href'), '#/settings/usage?workspace=%2Fw%2Fapp')
+    assert.equal(link.getAttribute('href'), '#/settings/workspace-usage?workspace=%2Fw%2Fapp')
     assert.equal(link.getAttribute('role'), null)
     // Open, it is drawn again with what the chat has spent since.
     const mine = () => pop.querySelector('.usage-mine').querySelectorAll('.usage-value').map((one) => one.textContent)

@@ -48,6 +48,7 @@ _PAGES = (
     "backup",
     "workspace",
     "usage",
+    "workspace-usage",
 )
 
 #: What the macOS app's window says it is: WKWebView, and the app.

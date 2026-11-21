@@ -8,6 +8,7 @@ what the page shows meanwhile. Each test runs in Chromium and in WebKit.
 
 from __future__ import annotations
 
+import re
 import socket
 from typing import TYPE_CHECKING, Any
 
@@ -248,7 +249,10 @@ def test_a_range_shown_stays_busy_until_the_next_is_read(
         expect(usage).to_have_attribute("aria-busy", "true")
         expect(usage.locator(".panel").first).to_be_visible()
         wire.waits(page)
-        assert wire.params("runs.usage")[-1]["days"] == 7
+        # Under Daemon it is of everything the daemon ran: no folder is asked for, or picked.
+        assert wire.params("runs.usage")[-1] == {"days": 7}
+        expect(page.locator("[data-hmz=settings-usage] select")).to_have_count(0)
+        expect(page.locator("[data-hmz=settings-workdir]")).to_have_count(0)
         wire.lets_through()
         expect(usage).not_to_have_attribute("aria-busy", "true")
 
@@ -279,6 +283,22 @@ def test_what_the_chats_spent_is_named_in_the_pages_language(
         named = page.locator("[data-hmz=usage] tbody td:first-child a")
         expect(named).to_have_text(["聊天", "goal"])
         expect(named.first).to_have_attribute("title", "聊天")
+        # Each opens Search on what it counts: the chats on their tab, a flow's epics.
+        expect(named.first).to_have_attribute("href", "#/search?kind=chat")
+        expect(named.last).to_have_attribute("href", "#/search?flow=goal")
+        # Usage is two pages, the daemon's and a folder's, each under its own group.
+        nav = page.locator(".settings-nav a", has_text="用量")
+        expect(nav).to_have_count(2)
+        expect(nav.first).to_have_attribute("aria-current", "page")
+        # A folder's lists them in that folder.
+        nav.last.click()
+        expect(nav.last).to_have_attribute("aria-current", "page")
+        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(project))
+        expect(named.first).to_have_attribute(
+            "href", re.compile(r"^#/search\?kind=chat&workspace=")
+        )
+        named.first.click()
+        expect(page.locator("[data-hmz=search-filters]")).to_be_visible()
 
 
 def test_a_settings_list_with_nothing_in_it_offers_what_adds_to_it(
@@ -472,8 +492,9 @@ def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
             ["App", "Daemon", "Workspace"]
         )
         # The last group, under the daemon's own pages.
-        expect(nav.locator("a").nth(-2)).to_have_text("Setup")
-        expect(nav.locator("a").last).to_have_text("Archived chats")
+        expect(nav.locator("a").nth(-3)).to_have_text("Setup")
+        expect(nav.locator("a").nth(-2)).to_have_text("Archived chats")
+        expect(nav.locator("a").last).to_have_text("Usage")
         expect(nav.locator("a[aria-current=page]")).to_have_text("Setup")
 
         picker = page.locator("[data-hmz=settings-workdir]")
@@ -494,6 +515,13 @@ def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
         expect(page.locator("[data-hmz=archived-chats] .empty strong")).to_have_text(
             "No archived chats."
         )
+        # And so does its Usage, which asks for what that folder alone spent.
+        nav.locator("a").last.click()
+        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(other))
+        expect(page.locator("[data-hmz=usage] .panel").first).to_be_visible()
+        assert "#/settings/workspace-usage?" in page.url
+        assert wire.params("runs.usage")[-1]["workspace"] == str(other)
+        expect(nav.locator("a[aria-current=page]")).to_have_text("Usage")
 
         # A directory gone is said beside the picker, not in it.
         other.rmdir()

@@ -546,7 +546,7 @@ export function mountSidebar(root, context, where) {
       fold,
       '-',
       { label: t('Settings'), glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
-      { label: t('Usage'), glyph: 'chart', href: hash(`/settings/usage?workspace=${at}`) },
+      { label: t('Usage'), glyph: 'chart', href: hash(`/settings/workspace-usage?workspace=${at}`) },
       count ? null : { label: t('Forget'), danger: true, act: () => forget(path) },
     ]
   }

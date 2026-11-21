@@ -337,7 +337,8 @@ ring with no figure beside it: click it for a small popup by the ring -- what th
 how long it has run, with a bar for each kind of token while it runs; what the chat's folder
 has spent today and over the last 7 days, with the output tokens written, over how many chats
 and epics; and **Usage settings**, which opens the
-[Usage](#settings) page on that folder.
+[Usage](#settings) page of that folder, under **Workspace** -- the daemon's own **Usage** for a
+chat of no folder.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
@@ -529,7 +530,8 @@ pointer on the chip says it in full.
 The chip after it, **Edit this folder** to begin with, is what the agent may touch: its
 [permission](/user/chat#permission). The ring that ends the row is **Usage**: it opens a small
 popup of what the folder picked has used today and over the last 7 days -- every folder's where
-none is picked -- with **Usage settings** for the whole page.
+none is picked -- with **Usage settings** for the whole page: the folder's **Usage**, or the
+daemon's where none is picked.
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
 picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
@@ -626,8 +628,9 @@ pencil beside the title, type, and press <kbd>Enter</kbd> or click elsewhere;
 Settings has three groups. **App** is the page's own: how it is drawn, the daemons it reaches,
 what it tells you of them and the [language](#language) it is written in. It is the same
 whichever daemon is on screen. **Daemon** is the same
-pages as [`/settings`](/user/settings), in the same order, and what the epics spent, all of one
-daemon. **Workspace**, under it, is of one folder of that daemon:
+pages as [`/settings`](/user/settings), in the same order, and what everything it ran spent, all
+of one daemon. **Workspace**, under it, is of one folder of that daemon -- how it was set up, its
+archived chats, and what it spent:
 
 | Page | What is there |
 | --- | --- |
@@ -637,9 +640,10 @@ daemon. **Workspace**, under it, is of one folder of that daemon:
 | **Nous** | Every [nous](/user/settings#nous), in two parts. **Virtual**: the ones you made, each with its graph, edited node by node; **New virtual nous** makes one. **Concrete**: every one the daemon found by asking the harnesses installed what they run, a group a harness, each by its model -- **Opus 4.1 · High** where it names an effort -- with what `-a` spells where you point at it; none is made by hand, and **Edit** writes how a turn that fails there is tried again and where it goes next, which **Reset** forgets. A harness with more than twelve opens folded, and over more than twelve in all **Find a nous** narrows them. **Scan** asks every harness again and says which would not answer; the daemon also scans by itself as it starts, in the background, and the page says so while it does -- **Scan** pressed meanwhile waits for that one and then asks every harness all the same. A wait policy or a strategy is a short name in its select, with what it does said by it: beside the select of a wait policy, under that of a strategy; the nous a node names is picked from [the menu a new chat picks its own from](#starting-an-epic) |
 | **Runtimes** | First, always, the daemon's own machine -- **This machine**, for Local -- with its host name, system, processors and memory: where chats and epics run unless a runtime is picked, with nothing to edit or remove. Then every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
-| **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
+| **Usage** | Under **Daemon**, at `#/settings/usage`: what everything this daemon ran spent -- the chats and epics of every folder, and those of none -- by day and by flow, looking back 7, 30, 90 or 365 days. There is no folder to pick on it. A flow opens **Search** on its epics, and **chat** on the chats |
 | **Setup** | Under **Workspace**: what the folder picked was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there. A folder that was deleted can still be picked, and forgotten |
 | **Archived chats** | Under **Workspace**: the chats of the folder picked that were [archived](#managing-a-chat), each with **Unarchive** and **Delete**, and under them, as **No folder**, the archived chats that are of none |
+| **Usage** | Under **Workspace**, at `#/settings/workspace-usage`: the same of the folder picked alone, one since deleted too; its flows open **Search** in that folder. A folder's menu in the sidebar opens it there |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** once it is up, and a remote daemon's own **WebRTC servers** |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 | **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
@@ -665,11 +669,11 @@ says **Applied** or why it refused. **General** sends the form as it stands, sav
 is refused there, since the URL is never shown whole. **Nous** and
 **Runtimes** send each nous or runtime, written over the one of the same name there, or added.
 Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
-are never shown (**Secrets stay put**). **Usage**, **Setup** and **Archived chats** are of one
-daemon's directories, and have no **Batch apply**; the daemon's own machine on **Runtimes** is
+are never shown (**Secrets stay put**). Both **Usage** pages, **Setup** and **Archived chats** are
+of one daemon's own runs and directories, and have no **Batch apply**; the daemon's own machine on **Runtimes** is
 never copied.
 
-While a page is read, it says **Reading…**. What a page already shows -- a range or a workdir
+While a page is read, it says **Reading…**. What a page already shows -- a range
 picked on **Usage**, a directory gone into in a path's browser -- stays, faded,
 until what replaces it is read.
 
@@ -800,7 +804,7 @@ is reached, and how many epics are going on it. Click it for its menu:
 - **Daemon**, which opens beside it every daemon, with whether it is reached; pick one to switch
   to it. A remote daemon is connected to when you pick it. **Connect** on one that failed tries it
   again, and **Manage** opens **Settings → Daemons**.
-- **Settings** and **Usage**, and **Update** where a newer Humanize is out.
+- **Settings** and **Usage** -- the daemon's -- and **Update** where a newer Humanize is out.
 
 A daemon is in one of these states:
 

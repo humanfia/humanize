@@ -933,7 +933,7 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         expect(used.locator(".popover-head")).to_have_text(["project"])
         expect(used.locator("dt")).to_have_text(["Today (UTC)", "Last 7 days"])
         expect(used.locator("[data-hmz=usage-settings]")).to_have_attribute(
-            "href", re.compile(r"#/settings/usage\?workspace=")
+            "href", re.compile(r"#/settings/workspace-usage\?workspace=")
         )
         popped = _box(page, "[role=dialog][aria-label=Usage]")
         assert popped["width"] == min(308, width - 16)

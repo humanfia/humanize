@@ -22,7 +22,8 @@ export default {
   'Chats of this folder that were put away': '此文件夹中已归档的聊天',
   'No folder yet.': '还没有文件夹。',
   ' A folder you open from the sidebar, or start a chat or an epic in, is set up here.': '从侧边栏打开文件夹，或在其中开始聊天或史诗后，即可在此设置。',
-  'Spending by day and flow': '按天和流程统计的花费',
+  'What everything on this daemon spent, by day and flow': '此守护进程上所有运行的花费，按天和流程统计',
+  'What this folder spent, by day and flow': '此文件夹的花费，按天和流程统计',
   'App': '应用',
   'Reading the settings…': '正在读取设置…',
   'Settings pages': '设置页面',
@@ -316,7 +317,6 @@ export default {
   'Pictures': '图片',
   'Behind each large plane: a still picture, a GIF, or an SVG, moving or not.': '位于各大块区域背后：静态图片、GIF 或 SVG，可动可静。',
   // views/settings/usage.js
-  'All workdirs': '所有工作目录',
   'How far back': '回溯范围',
   'Reading what the epics spent…': '正在读取史诗的花费…',
   '{n}d': '{n} 天',

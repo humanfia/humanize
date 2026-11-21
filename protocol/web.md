@@ -394,7 +394,7 @@ pointed at or holds the focus, and always where the device has nothing to point 
 
 **3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, searching
 it, copying its
-path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
+path, folding or opening it, its workspace settings, its usage (Section 3.11.2.12.1), and, where no epic ran there,
 forgetting it.
 
 **3.5.7.1** A folder whose directory is no longer there MUST say so by its name and in its menu,
@@ -765,7 +765,8 @@ Settings. That row MUST NOT hold where the chat runs.
 through and how long it has run, where the page knows them, and while the chat runs each kind of
 token with its share of them all; then what the chat's workspace has spent today and over the
 last 7 days (`runs.usage`), read as the popup opens; and MUST end with a link `Usage settings`,
-which opens `Usage` (Section 3.11.2.12) on that workspace. It MUST be 308 CSS pixels wide where
+which opens the `Usage` of `Workspace` (Section 3.11.2.12.1) on that workspace, and the `Usage` of
+`Daemon` (Section 3.11.2.12) where the chat is of none. It MUST be 308 CSS pixels wide where
 the window has the room, and MUST be one of the page's popups (Section 3.4.3.4): Escape MUST
 close it and, closed so, the focus MUST go back to the chip.
 
@@ -1220,8 +1221,8 @@ of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle o
 nothing else -- `Folder`, what the chat is of, and then `Environment`, where it works -- and at its
 right the chips of Section 3.8.19 and Section 3.8.20 and then `Usage`, drawn as the chip of
 Section 3.6.6.17 is, which MUST open the popup of Section 3.6.6.17.1 with no chat's figures: what
-the workspace picked has used -- every workspace's where none is picked -- and the link to `Usage`
-(Section 3.11.2.12). `Folder` MUST name the workspace picked, and `No folder` where none is; it is
+the workspace picked has used -- every workspace's where none is picked -- and the link to its
+`Usage` (Section 3.11.2.12.1), or to the daemon's (Section 3.11.2.12) where none is picked. `Folder` MUST name the workspace picked, and `No folder` where none is; it is
 the control of Section 3.8.2 on this form, and what Section 3.8.2.3 has that control say MUST be
 said on it. It MUST open a menu, under no heading, of `No folder` and then the workspaces the
 daemon shown serves whose directories are there, each one row named by the last part of its path and saying its path where
@@ -1411,11 +1412,11 @@ each of the daemon picked above them.
 until the user picks another, MUST be part of the address, and picking it MUST change nothing else
 on the page.
 
-**3.11.1.5** `Workspace` MUST hold `Setup`, at `#/settings/workspace`, and `Archived chats`, at
-`#/settings/archived`, each of the workspace picked above them, under the daemon picked, among
+**3.11.1.5** `Workspace` MUST hold `Setup`, at `#/settings/workspace`, `Archived chats`, at
+`#/settings/archived`, and `Usage`, at `#/settings/workspace-usage`, each of the workspace picked above them, under the daemon picked, among
 every workspace that daemon serves. The workspace picked MUST be the one the address names
 (`workspace`), else the one Section 3.3.5 offers first; picking another MUST put it in the address,
-and each page of `Workspace` MUST open the other on the same workspace.
+and each page of `Workspace` MUST open the others on the same workspace.
 
 **3.11.1.6** The workspace MUST be picked by its folder's name -- with the folder it is in where two
 have one name -- and nothing else: its whole path, and `Missing` where its directory is gone, MUST
@@ -1504,8 +1505,14 @@ where there is none to pick, it MUST list likewise, under `No folder`, the archi
 folderless workspace (Section 3.5.1.2), which no workspace picked names. It MUST say so where there
 is none of either.
 
-**3.11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of
-one, looking back 7, 30, 90 or 365 days.
+**3.11.2.12** `Usage`, of `Daemon` and at `#/settings/usage`, MUST show what everything the daemon
+picked ran has spent (`runs.usage` with no `workspace`), by day and by flow, looking back 7, 30, 90
+or 365 days: the epics and the chats of every workspace, those of a folderless one (Section
+3.5.1.2) among them. It MUST NOT offer a workspace to pick.
+
+**3.11.2.12.1** `Usage`, of `Workspace`, MUST show the same of the workspace picked alone
+(`runs.usage` with `workspace`), one whose directory is gone too. On either page each flow MUST
+open `Search` on what it counts -- the chats, for the flow `chat` -- in that workspace on this one.
 
 **3.11.2.13** `General`, `Nous`, `Runtimes` and `Backup` MUST each offer `Batch apply`, which
 writes what that page holds to every daemon the user ticks, and MUST say of each daemon whether it
@@ -1664,7 +1671,7 @@ epics are going on it, a chat (Section 3.5.10) and an Ai-chan conversation (Sect
 not counted.
 
 **3.13.14** A click on the daemon bar MUST open its menu: `Daemon`, which opens beside it every
-daemon and its state; then `Settings` and `Usage`; and `Update` where a newer release of hmz is out.
+daemon and its state; then `Settings` and `Usage` (Section 3.11.2.12); and `Update` where a newer release of hmz is out.
 
 **3.13.15** Picking a daemon in that menu MUST switch the page to it and, for a remote daemon, MUST
 reach it; the menu MUST offer `Connect` on a remote daemon that failed and `Manage`, which opens

@@ -3,10 +3,10 @@
 // reaches, what it tells you of them and the language it is written in -- are this browser's,
 // or this machine's, whichever daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
 // and what takes over when one fails, where their work goes, where epics are backed up, and
-// last what the runs there spent -- are read from and written to the daemon picked above them,
+// last what all that ran there spent -- are read from and written to the daemon picked above them,
 // the one on screen unless another is, and each page that saves can copy what it holds to other
-// daemons at once. A workspace's -- what one folder of that daemon was set up with, and the
-// chats archived there -- are of the folder picked under the daemon.
+// daemons at once. A workspace's -- what one folder of that daemon was set up with, the chats
+// archived there, and what ran there spent -- are of the folder picked under the daemon.
 
 import { call, daemon, given, hash, known, started } from '../api.js'
 import { shut, stays } from '../app.js'
@@ -27,9 +27,11 @@ const PAGES = {
   nous: { group: 'daemon', label: t('Nous'), about: t('Who takes a turn, and where it goes once it fails'), load: () => import('./settings/nous.js') },
   runtimes: { group: 'daemon', label: t('Runtimes'), about: t('Machines environments run on'), load: () => import('./settings/runtimes.js') },
   backup: { group: 'daemon', label: t('Backup'), about: t('Git repositories epics go to'), load: () => import('./settings/backup.js') },
-  usage: { group: 'daemon', label: t('Usage'), about: t('Spending by day and flow'), load: () => import('./settings/usage.js') },
+  usage: { group: 'daemon', label: t('Usage'), about: t('What everything on this daemon spent, by day and flow'), load: () => import('./settings/usage.js') },
   workspace: { group: 'workspace', label: t('Setup'), about: t('What this folder was last set up with'), load: () => import('./settings/workspace.js') },
   archived: { group: 'workspace', label: t('Archived chats'), about: t('Chats of this folder that were put away'), load: () => import('./settings/archived.js') },
+  // The page `Usage` of `Daemon` is, of one folder: the same drawing, asked of the folder picked.
+  'workspace-usage': { group: 'workspace', label: t('Usage'), about: t('What this folder spent, by day and flow'), load: () => import('./settings/usage.js') },
 }
 
 const GROUPS = [
@@ -114,8 +116,8 @@ export function mount(root, { parts, query }) {
     const on = chosen
     return {
       name: on,
-      // The folder picked, under `Workspace`.
-      workspace,
+      // The folder picked, under `Workspace`: none on a page of the daemon's.
+      workspace: page.group === 'workspace' ? workspace : '',
       call: (method, params = {}) => call(method, params, { on }),
       // What a page puts in the address beside its own, so the daemon picked stays in it.
       query: carried(page.group),

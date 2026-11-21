@@ -22,7 +22,8 @@ export default {
   'Chats of this folder that were put away': '此資料夾中已封存的聊天',
   'No folder yet.': '尚無資料夾。',
   ' A folder you open from the sidebar, or start a chat or an epic in, is set up here.': '從側邊欄開啟資料夾，或在其中開始聊天或史詩後，即可在此設定。',
-  'Spending by day and flow': '依日期與流程統計的花費',
+  'What everything on this daemon spent, by day and flow': '此常駐程式上所有執行的花費，依日期與流程統計',
+  'What this folder spent, by day and flow': '此資料夾的花費，依日期與流程統計',
   'App': '應用程式',
   'Reading the settings…': '正在讀取設定…',
   'Settings pages': '設定頁面',
@@ -316,7 +317,6 @@ export default {
   'Pictures': '圖片',
   'Behind each large plane: a still picture, a GIF, or an SVG, moving or not.': '位於各大區塊背後：靜態圖片、GIF 或 SVG，動態或靜態皆可。',
   // views/settings/usage.js
-  'All workdirs': '所有工作目錄',
   'How far back': '回溯範圍',
   'Reading what the epics spent…': '正在讀取史詩的花費…',
   '{n}d': '{n} 天',
