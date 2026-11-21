@@ -214,6 +214,25 @@ export function yields(close) {
 }
 
 /**
+ * The strip along the window's top edge that Humanize Desktop's window is moved by, and zoomed
+ * or maximized by a double click on, while something covers the page's own top row -- a dialog's
+ * scrim, a drawer's: it stands over what dims the page and under what is shown over it, so that
+ * it takes no press from a control. Nothing in a browser, whose window has a title bar.
+ *
+ * @returns {HTMLElement|null}
+ */
+export function windowStrip() {
+  if (typeof document === 'undefined' || !document.documentElement?.dataset.shell) return null
+  const strip = document.createElement('div')
+  strip.className = 'window-strip'
+  strip.dataset.hmz = 'window-strip'
+  strip.setAttribute('aria-hidden', 'true')
+  // Itself alone: nothing is ever in it.
+  strip.setAttribute('data-tauri-drag-region', '')
+  return strip
+}
+
+/**
  * Shows a native dialog over everything, as a modal one: whatever floats closes first, a press
  * on its backdrop closes it -- one begun inside it and let go of on the backdrop, what was
  * selected dragged out of it, does not -- and the page going elsewhere closes it as answered
@@ -235,6 +254,9 @@ export function modal(dialog, away = '') {
   dialog.addEventListener('click', (event) => begun && backdrop(event) && dialog.close())
   dialog.addEventListener('close', () => (removeEventListener('hmz:route', left), drop()), { once: true })
   addEventListener('hmz:route', left)
+  // Its backdrop covers the page's top row, and every strip under it: it brings its own.
+  const strip = windowStrip()
+  if (strip) dialog.prepend(strip)
   dialog.showModal()
 }
 

@@ -5147,6 +5147,31 @@ td:has(> .exo-key) {
   background: var(--scrim);
 }
 
+/* What Humanize Desktop's window is moved by while the page's top row is covered: as high as
+   that row, across the window's top, over the scrim and under the dialog -- which is drawn after
+   it, or, where the strip is inside a dialog of the browser's own, holds it under all it shows. */
+.window-strip {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--bar-h);
+}
+
+dialog > .window-strip {
+  z-index: -1;
+}
+
+/* Beside the sidebar's drawer it is there only while the drawer's scrim is, and at its height. */
+.app > .window-strip {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app.side-open > .window-strip {
+    display: block;
+    z-index: var(--z-scrim);
+  }
+}
+
 /* Nothing here moves, is filtered or is contained: a menu opened inside a dialog is placed
    against the window, which any of those would take from it. */
 .dialog {

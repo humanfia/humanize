@@ -1892,6 +1892,79 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         assert page.evaluate(under) == []
 
 
+def test_in_the_app_the_window_is_moved_by_its_top_while_something_is_over_the_page(
+    project: Path, engine: str
+) -> None:
+    """A dialog's scrim, or a drawer's, covers the top row: a strip over it moves the window."""
+    # What a press at a point of the window lands on: the strip, as what moves the window says
+    # it; what is shown over the page; or the class of whatever else is there.
+    at = (
+        "([x, y]) => { const el = document.elementFromPoint(x, y); return"
+        " el?.dataset.hmz === 'window-strip' ? `strip:${el.getAttribute("
+        "'data-tauri-drag-region')}` : el?.closest('.dialog, dialog, .sidebar') ? 'shown'"
+        " : el?.className }"
+    )
+    strip = "[data-hmz=window-strip]"
+
+    # A browser's window has a title bar: nothing is put over the scrim.
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        expect(page.locator(strip)).to_have_count(0)
+        assert page.evaluate(at, [640, 10]) == "dialog-scrim"
+
+    with served() as site, opened(site, engine=engine, user_agent=_APP) as page:
+        # Nothing over the page, nothing but its rows moves the window.
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        # Across the whole top of the window, the lights' room and the far corner included,
+        # 44 high and no higher: under it the scrim is pressed, which closes the dialog.
+        for x in (4, 200, 640, 1276):
+            assert page.evaluate(at, [x, 4]) == "strip:"
+            assert page.evaluate(at, [x, 43]) == "strip:"
+        assert page.evaluate(at, [4, 45]) == "dialog-scrim"
+        # The dialog is over the strip, and what is in it is pressed as ever.
+        page.locator(".settings-nav a[href$='/settings/themes']").click()
+        expect(page.locator("[data-hmz=settings-themes]")).to_be_visible()
+        assert page.evaluate(at, [640, 4]) == "strip:"
+
+        # A dialog of the browser's own, whose backdrop is over all of that, brings its own.
+        page.evaluate(
+            "import('/layers.js').then(({ modal }) => { const asked = document"
+            ".createElement('dialog'); asked.id = 'asked'; asked.append('Sure?');"
+            " document.body.append(asked); modal(asked) })"
+        )
+        expect(page.locator("#asked")).to_be_visible()
+        expect(page.locator(f"#asked > {strip}")).to_have_count(1)
+        for x in (4, 640, 1276):
+            assert page.evaluate(at, [x, 4]) == "strip:"
+        assert page.evaluate(at, [4, 45]) == "shown"
+        page.keyboard.press("Escape")
+        expect(page.locator("#asked")).to_be_hidden()
+
+        # A window so low that the dialog reaches into the top row: the dialog is pressed
+        # where it stands, and the strip beside it.
+        page.set_viewport_size({"width": 1280, "height": 300})
+        assert page.evaluate(at, [640, 30]) == "shown"
+        assert page.evaluate(at, [4, 4]) == "strip:"
+        page.locator("[data-hmz=dialog-settings]").get_by_role(
+            "button", name="Close"
+        ).click()
+        expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+
+        # A narrow window, the sidebar a drawer over the page: beside it, over its scrim.
+        page.set_viewport_size({"width": 700, "height": 800})
+        page.locator("[data-hmz=bar] .bar-side").click()
+        expect(page.locator("[data-hmz=sidebar]")).to_be_in_viewport(ratio=1)
+        assert page.evaluate(at, [690, 4]) == "strip:"
+        assert page.evaluate(at, [690, 45]) == "scrim"
+        assert page.evaluate(at, [100, 4]) == "shown"
+        page.locator("[data-hmz=scrim]").click(position={"x": 690, "y": 400})
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+
+
 def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
     project: Path, engine: str
 ) -> None:
