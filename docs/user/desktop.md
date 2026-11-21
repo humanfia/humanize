@@ -42,7 +42,8 @@ in a browser does.
   [Your epics and WSL](#your-epics-and-wsl).
 - **The page is the whole window**, up to its top edge. On macOS the traffic lights stand in
   the page's top row, which is one row across the sidebar and the view. Drag the window by any
-  empty part of the top row, and double-click it to zoom or maximize.
+  empty part of the top row, and double-click it to zoom or maximize -- also while Settings,
+  another dialog or a drawer is open over the page.
 - **Ai-chan is in the window too**: her avatar, at the right of every view's bar, opens the
   [drawer](/user/web#ai-chan) of your conversations with [Ai-chan](/user/ai-chan).
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown

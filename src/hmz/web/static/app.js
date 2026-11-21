@@ -10,7 +10,7 @@ import { daemon, hash, hello, started } from './api.js'
 import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { pieces, t } from './i18n.js'
-import { dismiss } from './layers.js'
+import { dismiss, windowStrip } from './layers.js'
 import { mountSidebar } from './sidebar.js'
 import { bar, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
@@ -299,14 +299,15 @@ async function open(mine, load, parts, query) {
     // Nothing is left floating over it: what was opened while it loaded closes first.
     dismiss('dialog')
     if (overlay.hidden) focused = document.activeElement
-    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), dialog)
+    // The scrim is over the page's top row: the app's window is moved by a strip over the scrim.
+    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), windowStrip(), dialog)
     overlay.hidden = false
     document.body.classList.add('dialog-open')
     closing = module.mount(dialog, { parts, query }) || null
     ;(dialog.querySelector('[autofocus]') || dialog.querySelector('input, button, a'))?.focus()
   } catch (error) {
     console.error(error)
-    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), h('div', { class: 'dialog' }, problem(error)))
+    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), windowStrip(), h('div', { class: 'dialog' }, problem(error)))
     overlay.hidden = false
   }
 }
@@ -408,6 +409,8 @@ document.addEventListener('keydown', (event) => {
 })
 
 document.querySelector('.scrim').addEventListener('click', () => toggleSidebar(false))
+// Beside the drawer the sidebar is on a narrow window, the scrim is over the bar the app's window is moved by.
+if (windowStrip()) document.querySelector('.scrim').after(windowStrip())
 if (kept('hmz-sidebar', '') === 'folded') document.querySelector('.app').classList.add('side-folded')
 
 // The chosen theme's pictures, after its colours, which theme.js painted before the page was.

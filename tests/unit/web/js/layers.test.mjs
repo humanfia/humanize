@@ -16,7 +16,7 @@ const waiting = []
 globalThis.requestAnimationFrame = (fn) => waiting.push(fn)
 const frame = () => waiting.splice(0).forEach((fn) => fn())
 
-const { chain, closed, dismiss, modal, opened, place, tipping, yields } = await import('../../../../src/hmz/web/static/layers.js')
+const { chain, closed, dismiss, modal, opened, place, tipping, windowStrip, yields } = await import('../../../../src/hmz/web/static/layers.js')
 
 /** A thing in the page: inside `parent`, with the box it is given, taking the focus when asked. */
 function el(name, parent = null, box = { left: 10, top: 10, width: 100, height: 20 }) {
@@ -445,6 +445,36 @@ test('a native dialog is closed by a press on its backdrop, not by one dragged o
   on.pointerdown(beside)
   on.click(beside)
   assert.equal(shut, 1)
+})
+
+test("in the app's window a native dialog brings the strip the window is moved by, and in a browser none", () => {
+  const made = () => {
+    const kids = []
+    return { kids, addEventListener() {}, getBoundingClientRect: () => ({}), showModal() {}, prepend: (kid) => kids.unshift(kid) }
+  }
+  assert.equal(windowStrip(), null)
+  const plain = made()
+  modal(plain)
+  assert.deepEqual(plain.kids, [])
+  document.documentElement = { dataset: { shell: 'macos' } }
+  document.createElement = () => ({
+    dataset: {},
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value
+    },
+  })
+  try {
+    const dialog = made()
+    modal(dialog)
+    const [strip] = dialog.kids
+    assert.equal(strip.className, 'window-strip')
+    // Itself alone moves the window, and it says nothing to a reader.
+    assert.deepEqual(strip.attributes, { 'aria-hidden': 'true', 'data-tauri-drag-region': '' })
+  } finally {
+    delete document.documentElement
+    delete document.createElement
+  }
 })
 
 test('the focus one held goes back to what opened it, unless a press or the focus elsewhere closed it', () => {
