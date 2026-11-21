@@ -13,7 +13,9 @@ from importlib import resources
 from hmz.coganchor import backends
 
 _GATEWAY = "through a local LiteLLM gateway: "
-_ROW = re.compile(r"^  \['((?:[^'\\]|\\.)*)', t\('((?:[^'\\]|\\.)*)'\)\],$", re.M)
+_ROW = re.compile(
+    r"^  \['((?:[^'\\]|\\.)*)', t\('((?:[^'\\]|\\.)*)'\)\],$", re.MULTILINE
+)
 
 
 def _given() -> set[str]:
