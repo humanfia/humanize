@@ -186,12 +186,25 @@ older Humanize wrote is read as each `spec`'s `then: <to>`, and dropped at the n
 ### `clis`
 
 CLIs added on the Accounts page, driven over ACP. A mapping from name to either an argv list
-or `{command: [...], hosts: [...], state: [...]}` (`hosts`, `state` are set by hand: the hosts
-it may reach with `network=False`, and extra paths it may write). A host is `name`,
-`name:port`, `*.suffix` or an IP address; one written as a URL is read as its host and port
-(`https://api.example.com/v1` is `api.example.com`), and one that names no host is dropped
-with a warning, so a list of nothing else counts as no hosts. Removing the key forgets every
-added CLI.
+or a mapping of `command`, `hosts` and `state` (`hosts`, `state` are set by hand: the hosts it
+may reach with `network=False`, and extra paths it may write):
+
+```yaml
+clis:
+  local-agent: [local-agent, --acp]
+  acp-lab:
+    command: [acp-lab, --stdio]
+    hosts: [api.acp-lab.example, https://auth.acp-lab.example/v1]
+    state: [~/.acp-lab]
+```
+
+Only those three keys are read: any other key is ignored, and named in a warning
+(`clis.acp-lab: 'extra' is not a key of an added CLI; ignored`). A `hosts` or `state` written
+as anything but a list is ignored the same way. A host is `name`, `name:port`, `*.suffix` or
+an IP address; one written as a URL is read as its host and port (`https://api.example.com/v1`
+is `api.example.com`), and one that names no host is dropped with a warning, so a list of
+nothing else counts as no hosts. An entry whose `command` is not a non-empty list is ignored
+altogether, as the protocol says. Removing the key forgets every added CLI.
 
 ### `runtimes`
 

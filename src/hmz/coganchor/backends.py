@@ -4487,7 +4487,14 @@ PROFILES = (
 #: what it cannot take a turn without reaching while the flow grants no network, and whose
 #: `state` is where it keeps what it writes as it runs. The protocol says neither, so they are
 #: the person's to write down; see :func:`declared`.
+#:
+#: Only those three are read of a mapping entry, which is what the protocol names (files.md
+#: 3.7.1.1). Any other key is somebody's note to themselves: it means nothing here, and the
+#: log says so rather than keeping it as if it did.
 _SPOKEN = "clis"
+
+#: The keys a mapping entry may carry, and the only ones a write keeps.
+_KEYS = frozenset({"command", "hosts", "state"})
 
 
 #: What was read out of the settings last time, the file it was read from and the moment that
@@ -4514,10 +4521,14 @@ def _hosts(said: object, name: str) -> tuple[str, ...]:
     Written as a URL or as a host, the way an endpoint's variable is read (see
     :func:`_place`): `https://api.example.com/v1` is the host `api.example.com`, which is
     what the fence's proxy compares. One that names no host is dropped, and said so, rather
-    than kept as an entry that matches nothing while still counting as a host declared.
+    than kept as an entry that matches nothing while still counting as a host declared. A
+    list is what it is read from: anything else is dropped whole, and said so.
     """
+    if said is not None and not isinstance(said, list):
+        log.warning("clis.%s.hosts: %r is not a list of hosts; ignored", name, said)
+        return ()
     kept: list[str] = []
-    for one in _strings(said):
+    for one in _strings(cast("object", said)):
         try:
             host = str(ipaddress.ip_address(one.strip()))
         except ValueError:
@@ -4529,6 +4540,18 @@ def _hosts(said: object, name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(kept))
 
 
+def _state(said: object, name: str) -> tuple[str, ...]:
+    """The paths a CLI was declared to keep its state at, as written, `~` and all.
+
+    A list is what it is read from: anything else is dropped whole, and said so. An entry
+    with nothing in it names no path, and is dropped as :func:`_strings` drops it.
+    """
+    if said is not None and not isinstance(said, list):
+        log.warning("clis.%s.state: %r is not a list of paths; ignored", name, said)
+        return ()
+    return _strings(cast("object", said))
+
+
 def speaking() -> dict[str, tuple[str, ...]]:
     """Every CLI somebody has added, and the command that starts each one.
 
@@ -4536,6 +4559,11 @@ def speaking() -> dict[str, tuple[str, ...]]:
       One entry per CLI, by the name it was added under, holding the command to run. Nothing
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
+
+    An entry that does not read as an added CLI -- no non-empty list to run -- is left out,
+    as the protocol requires (files.md 3.7.1.5), and the log says which. So are a key and a
+    declaration that cannot be read, while the rest of the entry stands: what is written
+    wrong costs what it is, and nothing that is written right.
     """
     # Read where it is asked, never at import: the settings are YAML, which is not the
     # standard library's to read.
@@ -4565,16 +4593,25 @@ def speaking() -> dict[str, tuple[str, ...]]:
             if isinstance(entry, dict)
             else {"command": entry}
         )
+        if isinstance(entry, dict):
+            for key in said:
+                if key not in _KEYS:
+                    log.warning(
+                        "clis.%s: %r is not a key of an added CLI; ignored", name, key
+                    )
         argv = said.get("command")
         if not isinstance(argv, list):
+            log.warning("clis.%s: command is not a list; ignored", name)
             continue
         given = tuple(str(one) for one in cast("list[object]", argv))
-        if given:
-            found[str(name)] = given
-            declared[str(name)] = (
-                _hosts(said.get("hosts"), str(name)),
-                _strings(said.get("state")),
-            )
+        if not given:
+            log.warning("clis.%s: command names nothing to run; ignored", name)
+            continue
+        found[str(name)] = given
+        declared[str(name)] = (
+            _hosts(said.get("hosts"), str(name)),
+            _state(said.get("state"), str(name)),
+        )
     _added, _added_at, _declared = found, stamp, declared
     return found
 

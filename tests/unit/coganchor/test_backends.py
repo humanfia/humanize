@@ -709,6 +709,86 @@ def test_declared_hosts_are_read_as_hosts_whether_written_as_urls_or_not(
     assert settings.read()["clis"]["my-agent"]["hosts"] == ["https://"]
 
 
+def test_a_key_of_its_own_is_ignored_and_named(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "my-agent": {
+                    "command": ["my-agent"],
+                    "hosts": ["api.mine"],
+                    "state": ["~/.mine"],
+                    "colours": "red",
+                }
+            }
+        )
+    )
+    assert backends.speaking() == {"my-agent": ("my-agent",)}
+    assert backends.declared("my-agent") == (("api.mine",), ("~/.mine",))
+    assert "clis.my-agent: 'colours' is not a key of an added CLI" in caplog.text
+
+
+def test_declarations_that_are_not_lists_are_dropped_and_named(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "my-agent": {
+                    "command": ["my-agent"],
+                    "hosts": "api.mine",
+                    "state": 3,
+                }
+            }
+        )
+    )
+    assert backends.speaking() == {"my-agent": ("my-agent",)}
+    assert backends.declared("my-agent") == ((), ())
+    assert "clis.my-agent.hosts: 'api.mine' is not a list of hosts" in caplog.text
+    assert "clis.my-agent.state: 3 is not a list of paths" in caplog.text
+
+
+def test_one_unreadable_entry_does_not_take_the_others_away(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "bad": "my-agent --acp",
+                "empty": [],
+                "nested": {"command": "nope"},
+                "mine": ["mine", "--acp"],
+            }
+        )
+    )
+    assert backends.speaking() == {"mine": ("mine", "--acp")}
+    assert "clis.bad: command is not a list" in caplog.text
+    assert "clis.empty: command names nothing to run" in caplog.text
+    assert "clis.nested: command is not a list" in caplog.text
+
+
+def test_remember_keeps_declarations_and_writes_no_other_key() -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "my-agent": {
+                    "command": ["my-agent"],
+                    "hosts": ["api.mine"],
+                    "state": ["~/.mine"],
+                    "extra": 1,
+                }
+            }
+        )
+    )
+    backends.remember("my-agent", ["my-agent", "--v2"])
+    assert settings.read()["clis"]["my-agent"] == {
+        "command": ["my-agent", "--v2"],
+        "hosts": ["api.mine"],
+        "state": ["~/.mine"],
+    }
+
+
 def test_forget_takes_an_added_cli_away() -> None:
     settings.changes(lambda held: held.update(other=1))
     backends.remember("my-agent", ["my-agent"])

@@ -588,7 +588,11 @@ A carve-out (`keep` or `deny`) that this machine's Landlock or Seatbelt cannot h
 the same way: the fence is never run wider than drawn.
 
 Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `network=False` and no
-declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
+declared hosts is refused `HarnessSandboxed`, naming what to declare: without them the fence
+would cut the CLI off from its own model and the turn could not start. One with no declared
+`state` keeps nothing of its own: it is granted nothing beyond the permission's rules, so what
+it writes there is refused and it fails on its own terms, which is narrower than guessing a
+directory for a CLI it knows only by the protocol it speaks. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
 Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
@@ -2019,8 +2023,15 @@ mapping:
 clis:
   my-agent:
     command: [my-agent, --acp]
-    hosts: [api.my-agent.example]
+    hosts: [api.my-agent.example, auth.my-agent.example]
     state: [~/.my-agent]
+```
+
+A CLI with nothing declared is the command alone:
+
+```yaml
+clis:
+  local-agent: [local-agent, --acp]
 ```
 
 | Key | Meaning |
@@ -2028,6 +2039,17 @@ clis:
 | `command` | argv that starts it |
 | `hosts` | hosts reachable under `network=False`, spelled as `Profile.hosts` spells them; none: a network-cutting permission is refused (`HarnessSandboxed`) naming what to declare |
 | `state` | paths it writes its state to, granted whatever the permission's rules say; none: nothing of the home is writable but what the rules give |
+
+Only those three keys are read: any other key is ignored and named in a warning, as is a
+`hosts` or `state` that is not a list, and a `hosts` entry that names no host. What is written
+wrong costs what it is, and nothing that is written right: a bad field leaves the entry a
+backend. An entry whose `command` is not a non-empty list is ignored altogether, as the
+protocol says.
+
+No `hosts` under a `network=False` permission is refused `HarnessSandboxed`, naming what to
+declare. No `state` is not a refusal: the CLI is granted nothing beyond the permission's
+rules, so what it writes there is refused and it fails on its own terms -- Humanize guesses no
+directory for a CLI it knows only by the protocol it speaks.
 
 `backends.declared(name)` returns `(hosts, state)`; `backends.forget(name)` removes one. An
 unreadable settings file reads as no added CLIs.
