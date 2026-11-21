@@ -126,7 +126,7 @@ export function chatting(epic) {
 }
 
 /**
- * How an epic is marked: as it stands, save that one going, asked something no person has
+ * How an epic is marked: as it stands, save that one going or stopping, asked something no person has
  * looked at yet, is asking, and once every question has been looked at, waiting. A chat is
  * marked as a chat app marks one: running while its agent answers, asking while its reply waits
  * unseen, whether or not a host still holds it, failed where it failed, and stopped otherwise:
@@ -147,7 +147,8 @@ export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } =
     if (waits.some((key) => !looked().has(lookedKey(epic, key)))) return 'asking'
     return ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
   }
-  if (how !== 'running' || !asked.length) return how
+  // A question comes before the stopping of the epic that asks it (Section 3.5.8 of web.md).
+  if ((how !== 'running' && how !== 'stopping') || !asked.length) return how
   return asked.some((key) => !looked().has(lookedKey(epic, key))) ? 'asking' : 'waiting'
 }
 

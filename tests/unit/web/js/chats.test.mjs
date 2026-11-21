@@ -76,7 +76,7 @@ const CHAT = { title: 'hello', workspace: '/failed', workdir: '/failed', agent: 
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { ask, chatAsk } = await import('../../../../src/hmz/web/static/held.js')
-const { chatting, watch } = await import('../../../../src/hmz/web/static/epic.js')
+const { chatting, lookedAt, markOf, watch } = await import('../../../../src/hmz/web/static/epic.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -222,4 +222,14 @@ test('an epic is followed as `runs.get` answers it', async () => {
   } finally {
     stop()
   }
+})
+
+test('an epic stopping is marked so, after a question it asks: asking unseen, waiting once seen', () => {
+  // Section 3.5.8 of web.md: the first of asking, waiting, stopping, running that holds.
+  assert.equal(markOf('stopping', { epic: 'stops' }), 'stopping')
+  assert.equal(markOf('stopping', { epic: 'stops', asked: ['1:1'] }), 'asking')
+  lookedAt('stops', ['1:1'])
+  assert.equal(markOf('stopping', { epic: 'stops', asked: ['1:1'] }), 'waiting')
+  assert.equal(markOf('running', { epic: 'stops', asked: ['1:1'] }), 'waiting')
+  assert.equal(markOf('done', { epic: 'stops', asked: ['1:1'] }), 'done')
 })

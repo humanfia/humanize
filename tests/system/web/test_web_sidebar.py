@@ -179,6 +179,45 @@ def _wire(runs: list[dict[str, Any]], **faked: Any) -> Wire:
     )
 
 
+def test_a_flow_epic_its_host_is_stopping_says_stopping_in_its_row(engine: str) -> None:
+    """Section 3.5.8 of protocol/web.md: `Stopping`, which only the epic's host says."""
+    going = _row(
+        "e2", task="Fix e2", kind="flow", flow="ralph", how="running", held=True
+    ) | {"slot": "", "ended": None}
+    host: dict[str, Any] = {
+        "state": "running",
+        "run": 1,
+        "kind": "flow",
+        "flow": "ralph",
+        "epic": "e2",
+        "chat": "",
+        "task": "Fix e2",
+        "workspace": "/w",
+        "slot": "",
+        "asking": [],
+    }
+    hosts = [host]
+
+    def running(_: Any) -> dict[str, Any]:
+        return {"result": {"running": list(hosts)}}
+
+    wire = _wire([going, _RUN], **{"hosts.running": running})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        state = page.locator(
+            "[data-hmz=epics] .side-item[data-epic=e2] [data-hmz=epic-state]"
+        )
+        expect(state).to_have_text("Running")
+        hosts[0] = host | {"state": "stopping"}
+        expect(state).to_have_text("Stopping", timeout=10_000)
+        expect(state).to_have_attribute("data-state", "stopping")
+        # One that ended beside it is as it ended.
+        expect(
+            page.locator(
+                "[data-hmz=epics] .side-item[data-epic=e1] [data-hmz=epic-state]"
+            )
+        ).to_have_text("Done")
+
+
 def _box(target: Locator) -> tuple[int, int, int, int]:
     """Where something is drawn: its left, top, width and height, in whole pixels."""
     box = target.bounding_box()

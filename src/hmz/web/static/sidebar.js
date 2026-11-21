@@ -20,7 +20,7 @@ import { chatRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { notifying } from './notifications.js'
 import { missing, nameOf } from './places.js'
-import { CHAT_SAID, chatState, epicSaid, rowTitle, shortcut, wording } from './sidebar-rows.js'
+import { CHAT_SAID, chatState, epicHow, epicSaid, rowTitle, shortcut, wording } from './sidebar-rows.js'
 import { DEFAULTS, GROUPS, SHOWS, SORTS, WIDTHS, arranged, paged, shownFolders, toggled, viewOf, viewText, widthOf } from './sidebar-view.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
@@ -613,7 +613,7 @@ export function mountSidebar(root, context, where) {
       // The list was drawn again: the toggle pressed is the one that keeps the focus.
       for (const one of list.querySelectorAll('.side-item')) if (one.dataset.epic === run.name) one.querySelector('.side-toggle').focus()
     })
-    const how = markOf(run.how, { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
+    const how = markOf(chat ? run.how : epicHow(run, running), { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
     const at = run.name === here && (chat || !parts[2])
     // A chat's row says how it stands only where there is something to say.
     const state = chat ? chatState(how) : ''

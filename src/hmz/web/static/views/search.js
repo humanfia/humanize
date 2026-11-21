@@ -14,7 +14,7 @@ import { shut, stays } from '../app.js'
 import { chatting, markOf } from '../epic.js'
 import { folderOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
-import { epicSaid, rowSaid } from '../sidebar-rows.js'
+import { epicHow, epicSaid, rowSaid } from '../sidebar-rows.js'
 import { pick } from '../importing.js'
 import { menuOf, menuOn } from '../ui.js'
 import { dragged } from '../shell.js'
@@ -264,7 +264,7 @@ export function mount(root, { query }) {
    */
   const stood = (run) => {
     const chat = chatting(run)
-    const how = markOf(run.how, { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
+    const how = markOf(chat ? run.how : epicHow(run, running), { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
     return { how, said: rowSaid(how, chat) }
   }
 
