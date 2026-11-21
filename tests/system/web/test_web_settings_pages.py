@@ -8,6 +8,7 @@ what the page shows meanwhile. Each test runs in Chromium and in WebKit.
 
 from __future__ import annotations
 
+import socket
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -288,7 +289,7 @@ def test_a_settings_list_with_nothing_in_it_offers_what_adds_to_it(
         for name, said, button, field in (
             ("backup", "No backup target yet.", "Add target", "#backup-name"),
             ("nous", "No nous yet.", "New nous", "#nous-kind"),
-            ("runtimes", "No runtime yet.", "Add runtime", "#runtime-name"),
+            ("runtimes", "No other runtime yet.", "Add runtime", "#runtime-name"),
         ):
             go(page, f"/settings/{name}")
             empty = page.locator(f"[data-hmz=settings-{name}] .empty")
@@ -413,3 +414,105 @@ def test_what_else_is_done_with_an_account_is_behind_more_options(
         expect(row).to_have_count(0)
         ((removed),) = wire.params("accounts.remove")
         assert (removed["cli"], removed["name"]) == ("claude", "work")
+
+
+def test_the_daemons_own_machine_is_first_of_the_runtimes_and_cannot_be_changed(
+    project: Path, engine: str
+) -> None:
+    """Section 3.11.2.7.1 of protocol/web.md: always there, with nothing to press."""
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/runtimes")
+        listing = page.locator("[data-hmz=runtimes]")
+        local = listing.locator("[data-hmz=runtime-local]")
+        expect(local.locator("b")).to_have_text("This machine")
+        expect(local.locator(".chip")).to_have_text("Built in")
+        expect(local.locator("[data-hmz=runtime-local-has]")).to_contain_text(
+            socket.gethostname()
+        )
+        expect(local).to_contain_text("Chats and epics run here")
+        expect(local.locator("button, a, input, select")).to_have_count(0)
+        # None written down is none other, not none.
+        expect(listing.locator(".empty strong")).to_have_text("No other runtime yet.")
+
+        # One written down stands under it, and it is still there.
+        page.evaluate(
+            "async () => (await import('/api.js')).call('runtimes.set',"
+            " {backend: 'ssh', name: 'gpu', fields: {host: 'gpu.lab'}})"
+        )
+        go(page, "/settings/general")
+        go(page, "/settings/runtimes")
+        expect(listing.locator("[data-hmz=runtime]")).to_have_count(1)
+        expect(listing.locator(".empty")).to_have_count(0)
+        expect(local.locator("b")).to_have_text("This machine")
+        first = page.evaluate(
+            "() => document.querySelector('[data-hmz=runtimes] :is("
+            "[data-hmz=runtime-local], table)').dataset.hmz"
+        )
+        assert first == "runtime-local"
+
+
+def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
+    project: Path, engine: str, tmp_path: Path
+) -> None:
+    """Sections 3.11.1.5 and 3.11.1.6 of protocol/web.md: picked by name, said by its path."""
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        page.evaluate(
+            "async (workspace) => (await import('/api.js')).call('workspaces.add',"
+            " {workspace})",
+            str(other),
+        )
+        go(page, "/settings/workspace")
+        nav = page.locator(".settings-nav")
+        expect(nav.locator(".settings-group")).to_have_text(
+            ["App", "Daemon", "Workspace"]
+        )
+        # The last group, under the daemon's own pages.
+        expect(nav.locator("a").nth(-2)).to_have_text("Setup")
+        expect(nav.locator("a").last).to_have_text("Archived chats")
+        expect(nav.locator("a[aria-current=page]")).to_have_text("Setup")
+
+        picker = page.locator("[data-hmz=settings-workdir]")
+        expect(picker).to_have_value(str(project))
+        expect(picker.locator("option")).to_have_text([project.name, other.name])
+        said = page.locator("[data-hmz=settings-workdir-path] .path")
+        expect(said).to_have_attribute("data-path", str(project))
+        shown = page.locator("[data-hmz=settings-workspace] dd").first
+        expect(shown).to_have_text(str(project))
+
+        # Another picked is the page's, and the address's; the other page opens on it.
+        picker.select_option(str(other))
+        expect(said).to_have_attribute("data-path", str(other))
+        expect(shown).to_have_text(str(other))
+        assert "workspace=" in page.url
+        nav.get_by_role("link", name="Archived chats").click()
+        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(other))
+        expect(page.locator("[data-hmz=archived-chats] .empty strong")).to_have_text(
+            "No archived chats."
+        )
+
+        # A directory gone is said beside the picker, not in it.
+        other.rmdir()
+        go(page, "/settings/general")
+        go(page, f"/settings/workspace?workspace={other}")
+        expect(page.locator("[data-hmz=settings-workdir] option")).to_have_text(
+            [project.name, other.name]
+        )
+        expect(page.locator("[data-hmz=settings-workdir-missing]")).to_have_text(
+            "Missing"
+        )
+
+        # A daemon with no folder says so, with nothing to pick.
+        wire.faked["workspaces.list"] = lambda _: {
+            "result": {"here": "", "workspaces": []}
+        }
+        go(page, "/settings/general")
+        go(page, "/settings/archived")
+        none = page.locator("[data-hmz=settings-archived] .empty")
+        expect(none.locator("strong")).to_have_text("No folder yet.")
+        expect(none.get_by_role("link", name="New chat")).to_have_attribute(
+            "href", "#/new/chat"
+        )
+        expect(page.locator("[data-hmz=settings-workdir]")).to_be_hidden()

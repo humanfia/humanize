@@ -94,6 +94,19 @@ def test_a_runtime_is_written_checked_and_removed() -> None:
     _refused(404, runtimes.remove, hmz, "ssh", "gpu")
 
 
+def test_the_daemons_own_machine_is_always_listed_and_never_a_runtime() -> None:
+    hmz = _hmz()
+
+    said = runtimes.listed(hmz)
+    assert said["runtimes"] == []
+    assert set(said["local"]) == {"host", "system", "machine", "cpus", "memory"}
+    assert said["local"]["host"]
+    assert said["local"]["cpus"] > 0
+    assert said["local"]["memory"] > 0
+    assert runtimes.write(hmz, "ssh", "gpu", {})["local"] == said["local"]
+    _refused(404, runtimes.remove, hmz, "local", said["local"]["host"])
+
+
 def test_what_writing_a_runtime_is_refused() -> None:
     assert _refused(400, runtimes.write, _hmz(), "ssh", "gpu", {"name": "x"}) == (
         "Say name beside fields, not among them."

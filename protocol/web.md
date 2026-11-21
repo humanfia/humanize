@@ -1321,18 +1321,32 @@ to and the groups it stands in.
 
 #### 3.11.1. Structure
 
-**3.11.1.1** Settings MUST be a dialog with two groups of pages: `App` and `Daemon`.
+**3.11.1.1** Settings MUST be a dialog with three groups of pages, in this order: `App`, `Daemon`
+and `Workspace`.
 
 **3.11.1.2** `App` MUST hold `Themes`, `Daemons`, `Notifications` and `Language`, and MUST be the
 same whichever daemon is shown.
 
-**3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup`, `Workspace`
-and `Usage`, each of the daemon picked above them.
+**3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup` and `Usage`,
+each of the daemon picked above them.
 
-**3.11.1.4** The daemon picked for the `Daemon` pages MUST be the daemon shown until the user picks
-another, MUST be part of the address, and picking it MUST change nothing else on the page.
+**3.11.1.4** The daemon picked for the `Daemon` and the `Workspace` pages MUST be the daemon shown
+until the user picks another, MUST be part of the address, and picking it MUST change nothing else
+on the page.
 
-#### 3.11.2. Daemon pages
+**3.11.1.5** `Workspace` MUST hold `Setup`, at `#/settings/workspace`, and `Archived chats`, at
+`#/settings/archived`, each of the workspace picked above them, under the daemon picked, among
+every workspace that daemon serves. The workspace picked MUST be the one the address names
+(`workspace`), else the one Section 3.3.5 offers first; picking another MUST put it in the address,
+and each page of `Workspace` MUST open the other on the same workspace.
+
+**3.11.1.6** The workspace MUST be picked by its folder's name -- with the folder it is in where two
+have one name -- and nothing else: its whole path, and `Missing` where its directory is gone, MUST
+be said beside the control, not in its choices. Where the daemon picked serves no workspace the page
+MUST say so in place of its pages (Section 3.4.6), offering `New chat`, and MUST NOT offer a
+workspace to pick.
+
+#### 3.11.2. Daemon and Workspace pages
 
 **3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Harness
 sessions`, whether the sidebar lists them (Section 3.5.21; off until set), and whether errors are
@@ -1362,6 +1376,13 @@ specifies.
 fields, change it, check it, remove it after confirmation, and import hosts from the ssh config, as
 Section 7 of [CORE] specifies.
 
+**3.11.2.7.1** `Runtimes` MUST show first, whatever is written down and where nothing is, the
+machine of the daemon picked (`local` of Section 4.18.4.1.1 of [DAEMON]): `This machine` of Local,
+its host name, system and architecture, its processors and memory, and that chats and epics run
+there unless a runtime is picked. It is no runtime: the page MUST NOT offer to change, check or
+remove it, and `Batch apply` MUST NOT carry it. With no runtime written down the page MUST say `No
+other runtime yet.` under it (Section 3.4.6), and MUST NOT say that there is none.
+
 **3.11.2.8** The runtime form MUST offer one field for each setting the backend's runtime takes,
 including a docker or swarm runtime's `Name prefix`, each labelled with the setting's name in words.
 
@@ -1374,15 +1395,13 @@ specifies.
 the target picked where there is more than one, and downloads the one picked as an import does,
 opening it: a chat among the chats (Section 3.6.6), an epic among the epics.
 
-**3.11.2.11** `Workspace` MUST show what a workspace was last set up with, for any workspace the
-daemon serves, and MUST let the user forget it; forgetting a workspace where no epic ran MUST remove
-it from the sidebar.
+**3.11.2.11** `Setup` MUST show what the workspace picked was last set up with, and MUST let the
+user forget it; forgetting a workspace where no epic ran MUST remove it from the sidebar.
 
-**3.11.2.11.1** `Workspace` MUST list, under `Archived chats`, the archived chats of the workspace
-picked (`chat.list` with `archived`), newest first, each by its title and when it was last
-written, with `Unarchive`, which MUST put it back among the others (`chat.unarchive`) and take it
-off this list, and `Delete`, which MUST open the dialog of Section 3.6.6.26. It MUST say so where
-there is none.
+**3.11.2.11.1** `Archived chats` MUST list the archived chats of the workspace picked (`chat.list`
+with `archived`), newest first, each by its title and when it was last written, with `Unarchive`,
+which MUST put it back among the others (`chat.unarchive`) and take it off this list, and `Delete`,
+which MUST open the dialog of Section 3.6.6.26. It MUST say so where there is none.
 
 **3.11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of
 one, looking back 7, 30, 90 or 365 days.
@@ -1395,7 +1414,7 @@ applied or why it refused.
 whole, and MUST NOT carry a value that only a secret sets; the page MUST say where such a value is
 left out.
 
-**3.11.2.15** `Accounts`, `Workspace` and `Usage` MUST NOT offer `Batch apply`.
+**3.11.2.15** `Accounts`, `Usage`, `Setup` and `Archived chats` MUST NOT offer `Batch apply`.
 
 #### 3.11.3. App pages
 

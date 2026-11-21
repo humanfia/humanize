@@ -269,9 +269,9 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             page.keyboard.press("Escape")
 
             # The workspace's settings list it among the archived, and put it back.
-            go(page, "/settings/workspace")
+            go(page, "/settings/archived")
             archived = page.locator("[data-hmz=archived-chats]")
-            expect(archived.locator("h2")).to_have_text("Archived chats")
+            expect(page.locator(".settings-head h3")).to_have_text("Archived chats")
             listed = archived.locator("[data-hmz=archived-chat]")
             expect(listed).to_have_count(1)
             expect(listed).to_have_attribute("data-chat", fork)
@@ -317,7 +317,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             _call(page, "chat.archive", {"chat": name})
             if width < 860:
                 page.keyboard.press("Escape")
-            go(page, "/settings/workspace")
+            go(page, "/settings/archived")
             expect(listed).to_have_count(1)
             listed.locator("[data-hmz=archived-delete]").click()
             expect(dialog.locator("[data-hmz=delete-title]")).to_have_text(
