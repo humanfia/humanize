@@ -94,15 +94,15 @@ export async function forking(chat) {
   }
 }
 
-/** Archives a chat, or puts it back among the others, on the daemon shown or another. */
-export async function archiving(chat, archived, { on = '' } = {}) {
-  await call(archived ? 'chat.archive' : 'chat.unarchive', { chat: chat.name }, on ? { on } : {})
+/** Archives a chat, or puts it back among the others. */
+export async function archiving(chat, archived) {
+  await call(archived ? 'chat.archive' : 'chat.unarchive', { chat: chat.name })
   chatsChanged()
 }
 
-/** The address of the dialog that deletes a chat, of the daemon shown or another the page keeps. */
-export function deletingAt(chat, { on = '' } = {}) {
-  return hash(`/delete/${encodeURIComponent(chat.name)}${on ? `?daemon=${encodeURIComponent(on)}` : ''}`)
+/** The address of the dialog that deletes a chat. */
+export function deletingAt(chat) {
+  return hash(`/delete/${encodeURIComponent(chat.name)}`)
 }
 
 /**

@@ -33,7 +33,9 @@ from hmz.runtime.chatting import (
     Chat,
     ChatEnd,
     ChatSpec,
+    KeptAs,
     Role,
+    carried_as,
     env_spec,
     resolve,
 )
@@ -1519,6 +1521,205 @@ def test_a_model_called_first_leaves_what_the_harness_has_not_listed_as_text(
 
 
 # ------------------------------------------------------------------------------ a role
+
+
+def test_a_chat_given_another_model_and_effort_is_carried_on_at_them_by_its_harness(
+    wired: Wired,
+) -> None:
+    chat: Chat
+
+    async def gives(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "hi":
+            # Given while a turn goes: written down at once, taken up ahead of the next.
+            chat.runs("claude/opus:high")
+            assert _ran(cast("Path", chat.at)).agents[-1].spec == "claude/opus:high"
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = gives
+    person = Person(["more", "and more"])
+    chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    # The conversation it had, carried on in one opened at the model and effort given.
+    first, second = wired.driver.sessions
+    assert [one.prompt for one in first.requests] == ["hi"]
+    assert [one.prompt for one in second.requests] == ["more", "and more"]
+    assert first.closed
+    assert second.carried == Kept(
+        HarnessKind.CLAUDE, "s1", ended.at / epic.SESSIONS / "claude"
+    )
+    assert [(one.cli, one.model, one.effort) for one in wired.specs] == [
+        ("claude", "haiku", "low"),
+        ("claude", "opus", "high"),
+    ]
+    assert person.shown == ["did: hi", "did: more", "did: and more"]
+    (set_,) = [one for one in _events(ended.at) if one["event"] == "set"]
+    assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == ("opus", "high")
+    # Under the name its sessions were written down by, and no agent a new chat is offered.
+    assert set_["agents"][0]["name"] == wired.driver.name
+    assert Settings(wired.workspace).chat_agent is None
+    # Which is the agent a chat carried on is given, where it is given none.
+    assert _ran(ended.at).agents[-1].spec == "claude/opus:high"
+
+
+def test_a_chat_whose_harness_calls_model_and_effort_is_moved_by_them_and_closes_nothing(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [
+        NativeCommand("/", "model", "the model", "call"),
+        NativeCommand("/", "effort", "the effort", "call"),
+    ]
+    chat: Chat
+
+    async def moved(session: Session, request: TurnRequest) -> str:
+        agent = session.agent
+        assert agent is not None
+        if agent.config is None:
+            agent.config, agent.effort = SimpleNamespace(model="haiku"), "low"
+        if request.native:
+            name, _, to = request.prompt.partition(" ")
+            if name == "/model":
+                agent.config = SimpleNamespace(model=to)
+            else:
+                agent.effort = to
+            return f"set {to}"
+        if request.prompt == "hi":
+            chat.runs("claude/opus:high")
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = moved
+    person = Person(["more"])
+    chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    (only,) = wired.driver.sessions
+    assert [(one.prompt, one.native) for one in only.requests] == [
+        ("hi", False),
+        ("/model opus", True),
+        ("/effort high", True),
+        ("more", False),
+    ]
+    # What its own commands answered is not said as an answer of the chat's.
+    assert person.shown == ["did: hi", "did: more"]
+    assert len(wired.specs) == 1
+    (set_,) = [one for one in _events(ended.at) if one["event"] == "set"]
+    assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == ("opus", "high")
+
+
+def test_a_model_the_harness_cannot_open_leaves_the_chat_with_the_one_it_had(
+    wired: Wired,
+) -> None:
+    chat: Chat
+    opening = wired.driver.open
+
+    async def gives(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "hi":
+            chat.runs("claude/opus:high")
+        return f"did: {request.prompt}"
+
+    async def refusing(placement: Placement, **said: Any) -> Session:
+        if len(wired.specs) == 2 and len(wired.driver.opened) == 1:
+            wired.driver.opened.append({"placement": placement, **said})
+            raise SessionError("opus cannot go on from it")
+        return await opening(placement, **said)
+
+    wired.driver.reply = gives
+    wired.driver.open = refusing
+    person = Person(["more"])
+    chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    # Never a new conversation for it: the one it had, carried on as it ran, saying why.
+    _, second = wired.driver.sessions
+    assert second.carried == Kept(
+        HarnessKind.CLAUDE, "s1", ended.at / epic.SESSIONS / "claude"
+    )
+    assert person.shown == [
+        "did: hi",
+        "This chat goes on with haiku at low: opus cannot go on from it\n\ndid: more",
+    ]
+    sets = [one["agents"][0]["model"] for one in _events(ended.at) if "agents" in one]
+    assert sets == ["haiku", "opus", "haiku"]
+    assert _ran(ended.at).agents[-1].spec == "claude/haiku:low"
+
+
+def test_a_chat_standing_by_given_another_model_is_carried_on_at_it(
+    wired: Wired,
+) -> None:
+    first = _had(wired, Person())
+
+    @dataclass
+    class Gives(Person):
+        chat: Chat | None = None
+
+        async def next(self, answered: str) -> str:
+            chat = self.chat
+            assert chat is not None
+            if not self.shown:
+                # With nothing said yet: its record says so itself, and nothing is opened.
+                chat.runs("claude/opus")
+                assert _ran(first.at).agents[-1].spec == "claude/opus:auto"
+                assert not epic.going(first.at)
+            return await super().next(answered)
+
+    person = Gives(["and now?"])
+    person.chat = _chat(wired, person, task="", resume=first.at)
+    asyncio.run(person.chat.run())
+
+    assert [(one.model, one.effort) for one in wired.specs] == [
+        ("haiku", "low"),
+        ("haiku", "low"),
+        ("opus", ""),
+    ]
+    _, carried = wired.driver.sessions
+    assert carried.carried == Kept(
+        HarnessKind.CLAUDE, "s1", first.at / epic.SESSIONS / "claude"
+    )
+    sets = [one for one in _events(first.at) if one["event"] == "set"]
+    assert [one["agents"][0]["model"] for one in sets] == ["opus"]
+    assert _ran(first.at).agents[-1].model == "opus"
+
+
+def test_a_chat_keeps_its_harness_and_its_account_and_says_what_to_do_instead(
+    wired: Wired,
+) -> None:
+    wired.accounts.add("work")
+    now = epic.Drove("assistant", "claude", "haiku", "low", "", "NeiKos496")
+
+    assert carried_as(now, "claude/opus:high") == now._replace(
+        model="opus", effort="high"
+    )
+    assert carried_as(now, "claude/haiku:low") == now
+    with pytest.raises(KeptAs, match="had with claude; start a new chat to talk to"):
+        carried_as(now, "codex/gpt-5")
+    with pytest.raises(KeptAs, match="keeps the account it runs as, this machine's"):
+        carried_as(now, "claude@work/opus")
+    # Not an agent at all is refused as `-a` refuses it, and is nothing a chat keeps.
+    with pytest.raises(ValueError, match="nope") as refused:
+        carried_as(now, "nope")
+    assert not isinstance(refused.value, KeptAs)
+    # A harness that carries no conversation on keeps the model and effort it began with.
+    cursor = now._replace(backend="cursor-agent")
+    assert carried_as(cursor, "cursor-agent/haiku:low") == cursor
+    with pytest.raises(KeptAs, match="cursor-agent cannot carry a conversation on"):
+        carried_as(cursor, "cursor-agent/opus")
+
+
+def test_an_ai_chan_conversation_keeps_its_nous_and_a_chat_not_begun_takes_none(
+    wired: Wired, tmp_path: Path
+) -> None:
+    person = Person()
+    hers = _chat(wired, person, role=_role(tmp_path / "hers"))
+    with pytest.raises(KeptAs, match="Ai-chan's nous does not change"):
+        hers.runs("claude/opus")
+    with pytest.raises(KeptAs, match="no chat is going here"):
+        _chat(wired, person).runs("claude/opus")
 
 
 def _role(workdir: Path, closed: list[int] | None = None) -> Role:

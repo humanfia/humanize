@@ -114,6 +114,23 @@ def _ending(*, attached: bool) -> Generator[None]:
             signal.signal(one, signal.SIG_DFL if before is None else before)
 
 
+def _origin(said: str) -> str:
+    """An origin, as `--origin` takes one.
+
+    Raises:
+      argparse.ArgumentTypeError: For anything that is not an origin over HTTP.
+    """
+    import argparse
+
+    from hmz.web import is_origin
+
+    if not is_origin(said):
+        raise argparse.ArgumentTypeError(
+            f"{said} is not an origin: http://<host>[:<port>] or https://<host>[:<port>]"
+        )
+    return said
+
+
 def web(argv: list[str]) -> int:
     """Serves the web interface until it is interrupted, terminated or hung up on.
 
@@ -138,6 +155,13 @@ def web(argv: list[str]) -> int:
         "by default the one the last hmz web listened on",
     )
     parser.add_argument(
+        "--origin",
+        type=_origin,
+        default=None,
+        help="the origin a reverse proxy that rewrites Host serves the page at, as "
+        "https://<host>[:<port>]; the page's requests are admitted from it too",
+    )
+    parser.add_argument(
         "--no-open",
         action="store_true",
         help="print the address rather than open a browser on it",
@@ -160,7 +184,7 @@ def web(argv: list[str]) -> int:
     opened = webbrowser.open if not line.no_open and _shows_a_browser() else None
     try:
         with _ending(attached=line.attached):
-            serve(port=line.port, shown=shown, opened=opened)
+            serve(port=line.port, origin=line.origin or "", shown=shown, opened=opened)
     except KeyboardInterrupt:
         # Stopped before it was serving, or while it let go: nothing is left to unwind.
         return 0

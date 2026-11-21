@@ -9969,6 +9969,74 @@
       "x-hmz-writes": true
     },
     {
+      "name": "chat.agent",
+      "summary": "Carry a chat on with another model or effort, of its own harness and account.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agent",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "An agent, as -a spells one after <role>=: <harness>[@<account>]/<model>[:<effort>]."
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "agent",
+        "schema": {
+          "$ref": "#/components/schemas/Chat"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
       "name": "chat.fork",
       "summary": "A new chat that goes on from a copy of a chat's conversation so far.",
       "paramStructure": "by-name",

@@ -1,10 +1,11 @@
-// What a workspace was last set up with: the flow it opens on and every flow set up there, and
+// What a workspace was last set up with: the flow it opens on and every flow set up there -- its
+// directory is said over the page, by the dialog -- and
 // forgetting all of it -- which also stops it being offered, where no epic ran there. The
-// workspace is the one picked over the page (views/settings.js), under `Workspace` (Section
-// 3.11.2.11 of protocol/web.md).
+// workspace is the one the dialog is of (views/workspace.js, Section 3.11.2.11 of
+// protocol/web.md).
 
 import { confirming } from '../../confirm.js'
-import { fill, h, pathText, problem } from '../../dom.js'
+import { fill, h, problem } from '../../dom.js'
 import { t } from '../../i18n.js'
 
 export function draw(holder, query, parts, scope) {
@@ -20,8 +21,6 @@ export function draw(holder, query, parts, scope) {
         h(
           'dl',
           { class: 'facts' },
-          h('dt', {}, t('directory')),
-          h('dd', {}, pathText(settings.workspace)),
           h('dt', {}, t('default flow')),
           h('dd', {}, settings.flow || t('none')),
           h('dt', {}, t('configured')),

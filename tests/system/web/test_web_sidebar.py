@@ -179,6 +179,45 @@ def _wire(runs: list[dict[str, Any]], **faked: Any) -> Wire:
     )
 
 
+def test_a_flow_epic_its_host_is_stopping_says_stopping_in_its_row(engine: str) -> None:
+    """Section 3.5.8 of protocol/web.md: `Stopping`, which only the epic's host says."""
+    going = _row(
+        "e2", task="Fix e2", kind="flow", flow="ralph", how="running", held=True
+    ) | {"slot": "", "ended": None}
+    host: dict[str, Any] = {
+        "state": "running",
+        "run": 1,
+        "kind": "flow",
+        "flow": "ralph",
+        "epic": "e2",
+        "chat": "",
+        "task": "Fix e2",
+        "workspace": "/w",
+        "slot": "",
+        "asking": [],
+    }
+    hosts = [host]
+
+    def running(_: Any) -> dict[str, Any]:
+        return {"result": {"running": list(hosts)}}
+
+    wire = _wire([going, _RUN], **{"hosts.running": running})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        state = page.locator(
+            "[data-hmz=epics] .side-item[data-epic=e2] [data-hmz=epic-state]"
+        )
+        expect(state).to_have_text("Running")
+        hosts[0] = host | {"state": "stopping"}
+        expect(state).to_have_text("Stopping", timeout=10_000)
+        expect(state).to_have_attribute("data-state", "stopping")
+        # One that ended beside it is as it ended.
+        expect(
+            page.locator(
+                "[data-hmz=epics] .side-item[data-epic=e1] [data-hmz=epic-state]"
+            )
+        ).to_have_text("Done")
+
+
 def _box(target: Locator) -> tuple[int, int, int, int]:
     """Where something is drawn: its left, top, width and height, in whole pixels."""
     box = target.bounding_box()
@@ -515,7 +554,13 @@ def test_the_list_is_grouped_sorted_and_filtered_as_its_menu_says(engine: str) -
         expect(
             menu.locator(":scope > .choice-sub > .choice .choice-about")
         ).to_have_text(["Folder", "Last updated"])
-        expect(menu.locator(":scope > .choice")).to_have_text("Reset to defaults")
+        # On a folder's heading it ends with that folder's own settings.
+        expect(menu.locator(":scope > .choice")).to_have_text(
+            ["Reset to defaults", "Workspace settings"]
+        )
+        expect(menu.locator("[data-hmz=workspace-settings]")).to_have_attribute(
+            "href", "#/workspace/setup?workspace=%2Fw"
+        )
         menu.get_by_role("menuitem", name="Sort by").hover()
         expect(page.get_by_role("menuitemradio")).to_have_text(
             ["Last updated", "Created"]
@@ -535,6 +580,8 @@ def test_the_list_is_grouped_sorted_and_filtered_as_its_menu_says(engine: str) -
         expect(page.locator("[data-hmz=list-menu-open]").first).to_be_focused()
 
         menu = _group_and_sort(page)
+        # A heading that is no folder's offers no workspace's settings.
+        expect(menu.locator(":scope > .choice")).to_have_text(["Reset to defaults"])
         menu.get_by_role("menuitem", name="Show").hover()
         epics_shown = page.get_by_role("menuitemcheckbox", name="Epics")
         expect(epics_shown).to_have_attribute("aria-checked", "true")
@@ -683,8 +730,12 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
         # Where its rows would be, what starts a chat in it.
         fresh = page.locator("[data-hmz=epics] [data-hmz=group-empty-new]")
         expect(fresh).to_have_text("New chat")
-        # What brings the chat back is on that heading.
+        # What brings the chat back is on that heading, and so are the settings of
+        # `No folder`: its archived chats.
         menu = _group_and_sort(page)
+        expect(menu.locator("[data-hmz=workspace-settings]")).to_have_attribute(
+            "href", "#/workspace/archived?scratch=1"
+        )
         menu.get_by_role("menuitem", name="Show").hover()
         page.get_by_role("menuitemcheckbox", name="Chats").click()
         expect(epics).to_have_count(1)
@@ -736,7 +787,7 @@ def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them
             "New epic here",
             "Search here",
             "Copy path",
-            "Settings",
+            "Workspace settings",
             "Usage",
             "Forget",
         ]
@@ -950,7 +1001,7 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
                 "states": ["运行中", "等待输入", "已完成", "失败"],
                 "menu": ["分组方式", "排序方式", "显示"],
                 "about": ["文件夹", "最近更新"],
-                "reset": "恢复默认",
+                "reset": ["恢复默认", "工作区设置"],
                 "row": ["打开", "置顶", "标为未读", "重命名"],
                 "date": ["今天", "更早", "文件夹"],
                 "add": "在 w 中新建聊天",
@@ -963,7 +1014,7 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
                 "states": ["執行中", "等待輸入", "已完成", "失敗"],
                 "menu": ["分組方式", "排序方式", "顯示"],
                 "about": ["資料夾", "上次更新"],
-                "reset": "重設為預設值",
+                "reset": ["重設為預設值", "工作區設定"],
                 "row": ["開啟", "置頂", "標示為未讀", "重新命名"],
                 "date": ["今天", "更早", "資料夾"],
                 "add": "在 w 中新增聊天",

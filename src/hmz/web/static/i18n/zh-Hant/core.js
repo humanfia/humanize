@@ -258,6 +258,7 @@ export default {
   // Said by more than one area.
   'Daemon': '常駐程式',
   'Workspace': '工作區',
+  'Workspace settings': '工作區設定',
   'Epic': '史詩',
   'Unpin': '取消置頂',
   'Pin': '置頂',

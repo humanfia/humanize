@@ -119,7 +119,8 @@ def test_grok_is_driven_by_its_own_classes() -> None:
     assert agent.backend == "grok"
     assert isinstance(agent.new(), GrokBuildSession)
     assert GrokBuildAgent.counts == {"input", "output", "cache_read", "cache_write"}
-    assert Moment.PERMISSION_REQUEST in GrokBuildAgent.moments
+    # Section 4.9.1.3 of [CORE]: no flow is served a permission request by grok.
+    assert Moment.PERMISSION_REQUEST not in GrokBuildAgent.moments
 
 
 def test_a_negative_turn_cap_is_refused() -> None:

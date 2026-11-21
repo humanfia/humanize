@@ -740,7 +740,7 @@ with status 130 without writing a traceback.
 ### 8.1. Synopsis
 
 ```text
-hmz web [--port <port>] [--no-open] [--attached]
+hmz web [--port <port>] [--origin <origin>] [--no-open] [--attached]
 ```
 
 **8.1.1** `--port` MUST take an integer from 0 to 65535; any other value MUST be a usage error.
@@ -748,6 +748,10 @@ hmz web [--port <port>] [--no-open] [--attached]
 **8.1.2** `--port` MUST default to the port the last `hmz web` of this home listened on (Section
 4.15 of [FILES]), or 0 where none is kept; 0 MUST mean any free port. Where the port kept cannot be
 listened on, `hmz web` MUST listen on any free port.
+
+**8.1.3** `--origin` MUST take `<scheme>://<host>[:<port>]` whose scheme is `http` or `https`, the
+origin a reverse proxy that rewrites `Host` serves the page at (Section 4.4.6 of [WEB]); any other
+value MUST be a usage error.
 
 ### 8.2. Behaviour
 

@@ -78,11 +78,13 @@ When a skill and a flow share a name, the chat's preference decides which one ru
 
 ### Change the model or effort
 
-Click the nous chip under the box, choose **Model** or **Effort**, and pick a value. To use a model that is not listed, type its name in the **Other model** field under the models and press <kbd>enter</kbd>. You can also type `/model <id>` or `/effort <level>` in the box. The chat sends the command and uses the new setting from then on.
+Click the nous chip under the box, choose **Model** or **Effort**, and pick a value. To use a model that is not listed, type its name in the **Other model** field under the models and press <kbd>enter</kbd>. The chip shows the new value at once, and the chat uses it from its next turn, in the same conversation. This works on every chat, at any time: one that is running, one between turns, and an old one you have just opened from the list. The page does not reload, no message is sent to the agent for it, and an old chat is not started up until you say something.
 
-![The nous chip is clicked, Model is opened, Opus 4.1 is picked, and the chat shows /model with the chip now saying Opus 4.1](/shots/user-chat-input-model.svg)
+![The nous chip is clicked, Model is opened, Opus 4.1 is picked, and the chip now says Opus 4.1](/shots/user-chat-input-model.svg)
 
-The harness and account are locked once a chat starts. Click **New chat** at the bottom of the menu to start a chat with a different harness or account. **Model** and **Effort** are also locked when the CLI does not support those commands, or while the chat is folded away.
+Where the CLI has its own `/model` and `/effort` (Claude Code and Codex), you can also type `/model <id>` or `/effort <level>` in the box of a running chat.
+
+The harness and account are locked once a chat starts: a conversation belongs to the harness that had it. Click **New chat** at the bottom of the menu to start a chat with a different harness or account. A few harnesses cannot go on from an earlier conversation at all (Cursor CLI, MiniMax Code, Antigravity and DeepSeek Harness), and a CLI added by hand is never told a model; picking another model or effort for a chat of theirs is refused with a message that says so, and the chip goes back to what the chat runs.
 
 ### Built-in Humanize commands
 

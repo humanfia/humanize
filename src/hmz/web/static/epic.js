@@ -30,12 +30,15 @@ import { keep, kept } from './shell.js'
  * @param {string} name The epic, or the chat's id, or "" for the one going.
  * @param {string|{workspace: string, slot: string}} where The host to look for the one going on,
  *   for an epic not named: a workspace's own, or a chat's.
- * @param {(seen: {detail: object|null, error: Error|null, held: object|null, going: object|null, none: boolean, workspace: string}) => void} told
- * @param {{chat?: boolean}} [of] Whether what is named is a chat.
+ * @param {(seen: {detail: object|null, kept: boolean, error: Error|null, held: object|null, going: object|null, none: boolean, workspace: string}) => void} told
+ * @param {{chat?: boolean, had?: object|null}} [of] Whether what is named is a chat; and `had`,
+ *   what the page kept of it when it last saw it (logs.js), which stands, marked `kept`, until
+ *   the daemon answers: drawn at once, and never the word of the daemon -- no host is followed
+ *   on it, and one the daemon says is not there is not there.
  * @returns {() => void} What stops following.
  */
-export function watch(name, where, told, { chat: aChat = false } = {}) {
-  const seen = { detail: null, error: null, held: null, going: null, none: false, workspace: placed(where).workspace }
+export function watch(name, where, told, { chat: aChat = false, had = null } = {}) {
+  const seen = { detail: had, kept: Boolean(had), error: null, held: null, going: null, none: false, workspace: placed(where).workspace }
   let unfollow = null
   let followed = ''
   /** Follows a host's runs in place of whichever were followed: whether it was another. */
@@ -57,7 +60,8 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
     // The host going with the epic is followed once it is, and the host asked of until then --
     // a chat carried on, on a host of its own -- or for an epic not named.
     const asked = placed(where)
-    const host = name && seen.detail && seen.detail.held ? { workspace: seen.detail.workspace, slot: seen.detail.slot } : !name || asked.slot ? asked : null
+    // Only a host the daemon says holds it: one kept of it may have gone since, and attaching is no way to ask.
+    const host = name && seen.detail && seen.detail.held && !seen.kept ? { workspace: seen.detail.workspace, slot: seen.detail.slot } : !name || asked.slot ? asked : null
     if (host && follows(host)) return
     const run = seen.held ? going(seen.held) : null
     const standing = seen.held && seen.held.standing.run
@@ -87,7 +91,9 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
   const stop = name
     ? poll(aChat ? 'chat.get' : 'runs.get', aChat ? { chat: name } : { name }, 4000, (data, error) => {
         seen.error = error
-        if (data) seen.detail = aChat ? chatDetail(data) : data
+        // Gone: nothing read of it before, or kept of it, stands in its place.
+        if (error && error.status === 404) Object.assign(seen, { detail: null, kept: false })
+        else if (data) Object.assign(seen, { detail: aChat ? chatDetail(data) : data, kept: false })
         tell()
       })
     : () => {}
@@ -126,7 +132,7 @@ export function chatting(epic) {
 }
 
 /**
- * How an epic is marked: as it stands, save that one going, asked something no person has
+ * How an epic is marked: as it stands, save that one going or stopping, asked something no person has
  * looked at yet, is asking, and once every question has been looked at, waiting. A chat is
  * marked as a chat app marks one: running while its agent answers, asking while its reply waits
  * unseen, whether or not a host still holds it, failed where it failed, and stopped otherwise:
@@ -147,7 +153,8 @@ export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } =
     if (waits.some((key) => !looked().has(lookedKey(epic, key)))) return 'asking'
     return ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
   }
-  if (how !== 'running' || !asked.length) return how
+  // A question comes before the stopping of the epic that asks it (Section 3.5.8 of web.md).
+  if ((how !== 'running' && how !== 'stopping') || !asked.length) return how
   return asked.some((key) => !looked().has(lookedKey(epic, key))) ? 'asking' : 'waiting'
 }
 

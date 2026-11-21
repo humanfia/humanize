@@ -48,7 +48,9 @@ uv run pre-commit install
   the extras; a plain `uv sync` removes them.
 - `cargo build` builds `coganchor`, which every agent's turn runs through. The tests find it
   in `crates/coganchor/target/{release,debug}` and fail without it; `HUMANIZE_COGANCHOR` names
-  a build elsewhere. Build it again after changing the crate.
+  a build elsewhere. Build it again after changing the crate. A new `git worktree` has no build
+  of its own: build one there, or point `HUMANIZE_COGANCHOR` at another checkout's where the
+  worktree leaves the crate as it is. `pytest` says so over its run where it finds none.
 - `pre-commit install` runs the hooks on each commit.
 
 Run tools through `uv run`, not `uvx`, so that you get the versions `uv.lock` pins. Check the

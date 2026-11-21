@@ -167,6 +167,12 @@ class FakeBase {
   createObjectStore(name, { keyPath } = {}) {
     this.stores.set(name, { keyPath, data: new Map() })
   }
+  deleteObjectStore(name) {
+    this.stores.delete(name)
+  }
+  get objectStoreNames() {
+    return [...this.stores.keys()]
+  }
   transaction() {
     return new FakeTransaction(this)
   }

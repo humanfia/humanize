@@ -15,7 +15,7 @@ import pytest
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from hmz import home
-from hmz.web import kept_port, serve
+from hmz.web import is_origin, kept_port, serve
 from tests.integration.doubles_daemon import WAITS, written
 from tests.integration.doubles_web import PATIENCE, Browser, served
 
@@ -79,13 +79,45 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
         assert proxied.get("/here").status == 200
         assert proxied.get("/").status == 200
         assert proxied.get("/here", Origin="http://hmz.example").status == 200
+        # One that serves the page over HTTPS and hands on the `Host` it was asked is the
+        # page's own too, a port left out being its scheme's (Section 4.4.6 of web.md).
+        for came in (
+            "https://hmz.example",
+            "https://hmz.example:443",
+            "https://HMZ.example",
+            "http://hmz.example:80",
+        ):
+            assert proxied.get("/here", Origin=came).status == 200, came
+        ported = Browser(site, host="hmz.example:8443", cookie=browser.cookie)
+        assert ported.get("/here", Origin="https://hmz.example:8443").status == 200
+        assert ported.get("/here", Origin="https://hmz.example").status == 403
+        # Another site is not, whatever it is served over, nor one that says no origin.
+        for came in (
+            "https://evil.example",
+            "https://hmz.example:8443",
+            "https://hmz.example.evil.example",
+            "https://evil.example@hmz.example",
+            "https://hmz.example/",
+            "ftp://hmz.example",
+            "null",
+            "",
+        ):
+            assert proxied.get("/here", Origin=came).status == 403, came
+        # One that rewrites `Host` is not this server's own page to a browser that says
+        # only where its page came from: nothing a proxy adds is believed.
+        assert proxied.get("/here", Origin="http://public.example").status == 403
+        forwarded = {"X-Forwarded-Host": "public.example", "X-Forwarded-Proto": "https"}
+        assert (
+            proxied.get("/here", Origin="https://public.example", **forwarded).status
+            == 403
+        )
 
         # Only this server's own page is admitted, as the browser says it.
         for came in ("same-site", "cross-site", "none"):
             assert browser.get("/here", **{"Sec-Fetch-Site": came}).status == 403
         assert browser.get("/here", Origin="http://127.0.0.1:3000").status == 403
         assert (
-            browser.get("/here", Origin=f"https://127.0.0.1:{site.port}").status == 403
+            browser.get("/here", Origin=f"https://127.0.0.1:{site.port}").status == 200
         )
         assert browser.get("/here", **{"Sec-Fetch-Site": "same-origin"}).status == 200
         with pytest.raises(InvalidStatus) as elsewhere:
@@ -93,6 +125,60 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
                 "/rpc", Origin="http://evil.example", **{"Sec-Fetch-Site": "cross-site"}
             )
         assert elsewhere.value.response.status_code == 403
+
+
+def test_a_proxy_that_rewrites_host_is_admitted_only_for_the_origin_it_was_told(
+    project: Path,
+) -> None:
+    del project
+    with served(origin="https://Public.example") as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        for came in ("https://public.example", "https://public.example:443"):
+            assert browser.get("/here", Origin=came).status == 200, came
+        # Its own page is still its own, and every other site still another.
+        assert (
+            browser.get("/here", Origin=f"http://127.0.0.1:{site.port}").status == 200
+        )
+        for came in (
+            "http://public.example",
+            "https://public.example:8443",
+            "https://other.example",
+            "null",
+        ):
+            assert browser.get("/here", Origin=came).status == 403, came
+        # What the browser itself says is believed before any origin.
+        said = {"Sec-Fetch-Site": "cross-site"}
+        assert (
+            browser.get("/here", Origin="https://public.example", **said).status == 403
+        )
+        # And the key is asked of it as of anybody.
+        assert Browser(site).get("/here", Origin="https://public.example").status == 401
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["public.example", "ftp://public.example", "https://public.example/x", "https://"],
+)
+def test_an_origin_that_is_not_one_is_refused_before_anything_listens(
+    origin: str,
+) -> None:
+    assert not is_origin(origin)
+    with pytest.raises(ValueError, match="is not an origin"), served(origin=origin):
+        pass
+
+
+def test_hmz_web_refuses_an_origin_that_is_not_one_as_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from hmz.cli.web import web
+
+    with pytest.raises(SystemExit) as refused:
+        web(["--origin", "public.example"])
+
+    assert refused.value.code == 2
+    assert "public.example is not an origin" in capsys.readouterr().err
 
 
 def _policy() -> str:

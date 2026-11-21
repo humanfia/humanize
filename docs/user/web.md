@@ -53,10 +53,12 @@ The page has four parts:
 
 - The **sidebar** on the left holds navigation and the list of chats and epics.
 - The **view** beside it shows a new chat, a new epic, an open chat or epic, or the flows.
-- **Dialogs** open over the view: Search, Settings, Download, and Delete chat.
+- **Dialogs** open over the view: Search, Settings, Workspace settings, Download, and Delete chat.
 - A **side panel** opens on the right of some views, alongside [Ai-chan](/user/ai-chan)'s drawer.
 
 Every view and dialog has its own URL hash after the `#`. Bookmark it, reopen it, or step through your history with the browser's back and forward buttons.
+
+A chat, an epic, or an Ai-chan conversation you have opened before appears at once when you open it again: the page draws what it last showed, at the place you had scrolled to, then checks with the daemon in the background. Lines said since are added under the ones already there; nothing reloads, the view does not jump, and what you were typing stays in the box. The page also reads the few most recent conversations in the sidebar ahead of time while it is idle, so the first click on one is instant too. Only a conversation the page has never seen shows `Opening…` or `Reading its logs…`, and only if reading takes longer than about a third of a second. The page keeps up to 40 conversations (24 MB) this way and drops the ones you opened longest ago. Whether a chat is running, what it is waiting on, and its **Stop** button always come from the daemon, and a conversation deleted elsewhere is gone here too.
 
 | Address | Opens |
 | --- | --- |
@@ -67,6 +69,7 @@ Every view and dialog has its own URL hash after the `#`. Bookmark it, reopen it
 | `#/flows` | Flows |
 | `#/search` | The Search dialog |
 | `#/settings/<page>` | A Settings page |
+| `#/workspace/<page>` | A page of a folder's Workspace settings |
 | `#/@<daemon>/…` | Any of the above on another daemon |
 
 See [Page addresses and shortcuts](/reference/web) for the full list.
@@ -98,7 +101,7 @@ Point at any group heading to reveal its **Group and sort** button (always visib
 | **Sort by** | **Last updated**, **Created** | **Last updated** |
 | **Show** | **Chats**, **Epics** | Both |
 
-**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it, or click its **More options** button for the folder menu. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings.
+**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it, or click its **More options** button for the folder menu. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings. On the heading of a folder, and of `No folder`, the menu ends with **Workspace settings**, which opens that folder's own [settings dialog](/user/settings#workspace-settings).
 
 The sidebar loads 60 chats and 60 epics at a time. When the daemon holds more, click **Show more** at the bottom of the list to load the next 60. Running epics sort as the most recently updated, and folders with a running epic appear first.
 
@@ -106,7 +109,7 @@ The sidebar loads 60 chats and 60 epics at a time. When the daemon holds more, c
 
 When grouped by folder, each folder is a heading, and chats without a folder appear under `No folder`. Click a folder name to collapse or expand its rows. Click **+** on the heading beside **Group and sort** to start a new chat in that folder, or right-click the heading to open the folder menu.
 
-![The menu of the shop folder: its path, then New chat here, New epic here, Search here, Copy path, Collapse, Settings and Usage](/shots/user-web-folder-menu.svg)
+![The menu of the shop folder: its path, then New chat here, New epic here, Search here, Copy path, Collapse, Workspace settings and Usage](/shots/user-web-folder-menu.svg)
 
 | Item | What it does |
 | --- | --- |
@@ -114,7 +117,7 @@ When grouped by folder, each folder is a heading, and chats without a folder app
 | **Search here** | Open Search filtered to this folder |
 | **Copy path** | Copy the folder path |
 | **Collapse** / **Expand** | Fold or unfold the group's rows |
-| **Settings**, **Usage** | Open this folder's settings or usage in Settings |
+| **Workspace settings**, **Usage** | Open this folder's own settings dialog, on its Setup or its Usage page |
 | **Forget** | Remove the folder from the list (only available when it has no chats or epics) |
 
 If a folder's directory is deleted on disk, it is tagged `missing`. Its existing rows remain, but you cannot start new runs in it.
@@ -182,12 +185,24 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 - Theme and language (see [Themes and language](/user/themes)).
 - Notification settings (see [Notifications](/user/notifications)).
 - Other daemons you added (see [Connect to other machines](/user/daemons)).
+- What it last showed of your recent chats, epics, and Ai-chan conversations, so that reopening one is instant.
 
 `hmz web` reuses the same port each time so your browser keeps this state. Clearing site data in the browser resets these preferences without affecting your chats, epics, or daemon settings. A browser that cannot store anything works the same and forgets them.
 
+## Behind a reverse proxy
+
+`hmz web` can sit behind an HTTP or HTTPS reverse proxy such as nginx or Caddy. The proxy must run on the same machine, or reach `hmz web` through a port forwarded to that machine's loopback, because `hmz web` answers loopback connections only. It must also pass WebSocket upgrades for `/rpc` and `/dial`.
+
+- **The proxy keeps `Host`.** Nothing else is needed. The page's requests are accepted when the browser's `Origin` is `http` or `https` and names the same host and port as `Host`; a missing port counts as 443 for `https` and 80 for `http`. In nginx this is `proxy_set_header Host $http_host;`. Caddy keeps `Host` by default.
+- **The proxy rewrites `Host`.** Tell `hmz web` the public origin: `hmz web --origin https://hmz.example.com`. Requests whose `Origin` is exactly that origin are accepted too. Without `--origin` the page loads but its connection to the daemon is refused with 403.
+
+Open the printed address with the proxy's origin in place of `http://127.0.0.1:<port>`, keeping `/?key=<key>`, for example `https://hmz.example.com/?key=<key>`. The key lets that browser in under that name.
+
+A request from any other site is still refused, and `hmz web` never reads `X-Forwarded-Host`, `X-Forwarded-Proto` or `Forwarded`. Anyone who can reach the proxy and has the key acts as you on this machine, so put the proxy's own sign-in in front of it when it is reachable from a network.
+
 ## Good to know
 
-- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
+- `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. To serve it under a name of your own over HTTPS, see [Behind a reverse proxy](#behind-a-reverse-proxy). For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
 - If the port passed to `--port` is taken, `hmz web` exits with `hmz: the web interface cannot be served:` and the reason. It also exits with a message if a daemon from an older, incompatible Humanize is running on this machine.
 - Scripts can read the address from standard output: `hmz web --no-open` prints a single line, `hmz web: <address>`. See [CLI](/reference/cli).
 - The browser tab title is `Humanize · ` followed by the machine's name.

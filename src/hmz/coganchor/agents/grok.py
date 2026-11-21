@@ -92,7 +92,6 @@ from .base import (
 )
 from .config import AgentConfig, Unfenced
 from .event import Event, Failed, Saying, Unrecoverable, Usage
-from .hooks import EVERYWHERE, Moment
 
 if TYPE_CHECKING:
     import subprocess
@@ -187,7 +186,7 @@ def _granted(config: AgentConfig) -> tuple[str, ...]:
 #: excluded 'echo hello-from-grok' from future runs in this project` -- which is one refused
 #: turn leaving a rule behind it on somebody's machine -- where a refusal is reached for an
 #: agent driven by hand, whose whole meaning is that Humanize settles nothing about this
-#: machine, or for one whose hook said no to a single call, not to every call like it. So a request
+#: machine. So a request
 #: offering no `reject_once` falls through to `cancelled` instead of to that: refusing without
 #: writing anything down is worth more than refusing in the agent's preferred words.
 #:
@@ -697,19 +696,18 @@ class GrokBuildSession(StreamSessionBase):
         A tool call it asks permission for is answered by whether there is a fence. Under one
         the answer is yes, whatever the fence lets it write: `--always-approve` has already
         approved every tool the process was started with, a request arriving anyway is one a
-        hook of Grok Build's own put in front of the client, which a flow watches rather than
-        gates, and the fence is what holds the grant. With no fence the flag is not sent, so
+        hook of Grok Build's own put in front of the client, and the fence is what holds the
+        grant. With no fence the flag is not sent, so
         the asking is `grok`'s own and the answer is no -- Humanize, told nothing about this
         agent, does not grant on its behalf: a machine whose `[ui] permission_mode` is left at
         `default` asks tool call by tool call, and answering yes there would be Humanize
         settling what it exists not to settle. Answered either way by the *kind* of the option
         rather than by its id, which is the agent's own word for it.
 
-        A hook hung on `PERMISSION_REQUEST` is told either way and may refuse either way,
-        this being the one moment `grok agent` waits on and so the one place a refusal here
-        stops the agent doing something. What it may say is no: `Verdict` carries a refusal
-        and a reason and no yes at all, so with no fence a hook gives the refusal its words
-        rather than turning it round.
+        No hook is told. The asking is not a moment a flow could be written against: under a
+        fence `--always-approve` has settled every tool before one is asked about, and a turn
+        that falls to `grok -p` has no client to ask at all, so a hook hung on it would be one
+        that looked held and was never called (Section 4.9.1.3 of the protocol).
 
         Args:
           at: The id it asked under.
@@ -717,14 +715,7 @@ class GrokBuildSession(StreamSessionBase):
           params: What it asked with, which carries the options for a permission.
         """
         if method == "session/request_permission":
-            called = cast("dict[str, Any]", params.get("toolCall") or {})
-            asking = self._fire(
-                Moment.PERMISSION_REQUEST,
-                tool=str(called.get("title") or called.get("kind") or ""),
-                about=json.dumps(called.get("rawInput") or {}),
-                called=called,
-            )
-            granted = not asking.refused and self._agent.config.fence is not None
+            granted = self._agent.config.fence is not None
             self._send(
                 json.dumps(
                     {
@@ -739,7 +730,7 @@ class GrokBuildSession(StreamSessionBase):
                 # Remembered so that the turn this ends says who ended it. Grok answers a
                 # refused prompt with `stopReason: cancelled` and nothing about why, and a
                 # flow told only that is a flow reading a refusal as the CLI misbehaving.
-                self._refused = asking.because or "Humanize did not permit a tool call"
+                self._refused = "Humanize did not permit a tool call"
             return
         # Everything else is something this client said it could not do, and an agent asking
         # anyway is told so in the protocol's own words rather than left waiting.
@@ -1107,9 +1098,8 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
 
     Args:
       params: What was asked, which carries the options the agent offers.
-      granted: Whether Humanize says yes: under a fence, unless a hook refused. Where it
-        does not, the asking is the CLI's own or the hook's, and so is the tool that does
-        not run.
+      granted: Whether Humanize says yes: under a fence. Where it does not, the asking is
+        the CLI's own, and so is the tool that does not run.
 
     Returns:
       The outcome to answer with: the best option of the kind called for, and a
@@ -1482,13 +1472,11 @@ class GrokBuildAgent(AgentBase):
     #: a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
-    #: And the one moment beyond every backend's that this one reaches. `grok agent` puts a
-    #: tool call to its client as `session/request_permission` and holds the tool until the
-    #: answer comes back, so this is a moment a hook can actually refuse something at rather
-    #: than one it is told about after the fact. Reached on the held-open transport only, a
-    #: `grok -p` run having no client to ask; a fenced turn that falls to the command line is
-    #: one `--always-approve` already settled, so there is nothing there to be asked about.
-    moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
+    # No moment beyond every backend's. `grok agent` can put a tool call to its client as
+    # `session/request_permission`, and that is answered (`GrokBuildSession._answers`) but is
+    # not a moment: a fenced conversation is started with `--always-approve`, which settles
+    # every tool before one is asked about, and a turn taken with `grok -p` has no client to
+    # ask. A hook there would be one a flow could hang and never hear from.
 
     def environment(self) -> Mapping[str, str]:
         """The provider's variables, and the one that has Grok Build read a project's skills.

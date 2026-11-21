@@ -4,11 +4,18 @@ It listens on this machine's loopback alone -- IPv4's and, where there is one, I
 port -- and admits only a browser that came in through the address `hmz web` printed: that
 address carries a key, which the browser is handed back as a cookie, and `/here`, `/rpc` and
 `/dial` are refused without it. A loopback port is open to every account on a machine, where the
-daemon's socket is not; the key is what keeps the daemon this account's. What name the browser
-reached the server by is not asked, so a port forwarded or proxied on to it is answered: what is
-asked is that the connection came from this machine, and the key. A page from anywhere else
-cannot open a bridge either: the browser says where a request came from, and only this server's
-own page is admitted (Section 4.4 of web.md).
+daemon's socket is not; the key is what keeps the daemon this account's. The `Host` a request
+names is not checked, so a port forwarded or proxied on to it from this machine, under any name,
+is answered: what is asked is that the connection came from this machine, and the key. A page
+from anywhere else cannot open a bridge either: the browser says where a request came from, and
+only this server's own page is admitted -- `Sec-Fetch-Site: same-origin`, or, of a browser that
+sends none, an `Origin` over `http` or `https` whose host and port are the `Host` asked, a
+port left out being its scheme's own (Section 4.4 of web.md). So a reverse proxy on this
+machine that serves the page over `https` and hands on the `Host` it was asked is answered as
+the page itself is. One that rewrites `Host` is not, there being nothing in such a request
+that says the page was this server's -- a header a proxy adds is one anything on this machine
+can add -- unless `hmz web` was told the one origin its page is served at (`--origin`), which
+an `Origin` is then admitted for being.
 
 The page's own files are served to anybody on this machine; everything else the page does, it
 does over JSON-RPC to a daemon (`hmz.web.bridge`).
@@ -94,6 +101,37 @@ _LONGEST = 200
 _ADMITTED = frozenset({"/here", "/rpc", "/dial"})
 
 
+#: The port each scheme a page is served over goes to where an address names none.
+_DEFAULTS = {"http": 80, "https": 443}
+
+
+def _origin(said: str) -> tuple[str, str, int] | None:
+    """An origin as its scheme, host and port, or None for what is not one over HTTP.
+
+    Args:
+      said: `<scheme>://<host>[:<port>]`, as a browser writes `Origin`.
+
+    Returns:
+      The three, the scheme and host in lower case and a port left out as the scheme's own;
+      None for any other scheme, for no host, and for anything written after the port.
+    """
+    try:
+        split = urllib.parse.urlsplit(said)
+        port = split.port
+    except ValueError:
+        return None
+    if (
+        split.scheme not in _DEFAULTS
+        or not split.hostname
+        or split.username is not None
+        or split.path
+        or split.query
+        or split.fragment
+    ):
+        return None
+    return split.scheme, split.hostname, port or _DEFAULTS[split.scheme]
+
+
 class _Refusal(Exception):  # noqa: N818 -- what the browser is told, not what went wrong here
     """A request refused, with its status and the sentence it is refused with."""
 
@@ -125,15 +163,22 @@ class Site(_Bound):
 
     Args:
       port: The port to listen on, or 0 for any free one on both.
+      origin: The origin the page is served at by a proxy that rewrites `Host`, as
+        `<scheme>://<host>[:<port>]` over `http` or `https`, or "" for none.
 
     Raises:
       OSError: If the port cannot be listened on.
+      ValueError: If the origin is not one.
     """
 
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, port: int) -> None:
+    def __init__(self, port: int, origin: str = "") -> None:
+        #: The one origin beside its own a request is admitted from (Section 4.4.6 of web.md).
+        self.origin = _origin(origin) if origin else None
+        if origin and self.origin is None:
+            raise ValueError(f"{origin!r} is not an origin: https://<host>[:<port>]")
         self._beside: _Beside | None = None
         #: Every `/dial` open, closed as the server closes.
         self.dials = Dials()
@@ -348,7 +393,8 @@ class _Handler(BaseHTTPRequestHandler):
         """Whether the browser says this server's own page made a request.
 
         A browser that says where a request came from is taken at its word; one that does not
-        is asked only that an `Origin` it names is the `Host` it asked, over `http`.
+        is asked only that an `Origin` it names is the `Host` it asked, over `http` or
+        `https`, or is the origin this server was told its page is served at.
         """
         fetched = self.headers.get("Sec-Fetch-Site")
         if fetched is not None:
@@ -356,8 +402,15 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin is None:
             return True
-        said = urllib.parse.urlsplit(origin)
-        return said.scheme == "http" and said.netloc == self.headers.get("Host", "")
+        said = _origin(origin)
+        if said is None:
+            return False
+        # The `Host` read as the `Origin`'s scheme would have it, so that a port either
+        # leaves out is the one that scheme goes to.
+        return said in (
+            self.site.origin,
+            _origin(f"{said[0]}://{self.headers.get('Host', '')}"),
+        )
 
     def _signs_in(self, key: str) -> None:
         """Hands a browser that came in with the key a cookie carrying it, and the page."""

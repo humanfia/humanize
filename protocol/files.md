@@ -1426,7 +1426,8 @@ the keys:
   differs from `envs`;
 - `params`: object, the parameters given to the **flow**;
 - `budget`: object with the keys `duration` (number of seconds or `null`), `cost` (number of US
-  dollars, or the string `"Infinity"` for none), `output_tokens` (integer or `null`) and `graceful`
+  dollars, the string `"Infinity"` for an unlimited budget, or `null` where none is set),
+  `output_tokens` (integer or `null`) and `graceful`
   (boolean, or object with the boolean keys `duration`, `cost` and `output_tokens`);
 - `profile_flow`: the value `true`; present only where the Python of the **flow** is profiled;
 - `profile_environment`: the value `true`; present only where the processes of the **epic** are
@@ -1769,7 +1770,8 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
   present only for a fork.
 
 **6.12.6** `hmz` MUST write the event `set` into the chat record each time the preference of the
-**chat** is overridden, its agent is changed (Section 8.9.5 of [CORE]), its permission is set
+**chat** is overridden, its agent is changed (Section 8.3.18 and Section 8.9.5 of [CORE]), its
+permission is set
 (Section 8.3.10 of [CORE]), it is moved to another env (Section 8.3.16 of [CORE]), its title is
 changed or it is archived or put back (Section 8.10 of [CORE]), with the key `prefer` (string),
 `agents` (as `began` gives it), `permission` (string, `read-only`, `workspace-write` or

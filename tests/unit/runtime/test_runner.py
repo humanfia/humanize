@@ -986,6 +986,25 @@ def test_a_run_with_no_limit_on_cost_writes_down_a_cost_that_reads_back(
     assert _ran(runner)["kind"] == "flow"
 
 
+def test_a_run_with_no_cost_set_writes_down_a_null_cost_and_a_duration_in_seconds(
+    engine_: Flowing, tmp_path: Path
+) -> None:
+    del engine_
+    runner = _runner(
+        budget=Budget(duration=datetime.timedelta(hours=1)), workspace=tmp_path
+    )
+
+    runner.run("hello")
+
+    # Section 6.5.1 of [FILES]: null where no cost is set, never the "Infinity" of no limit.
+    assert _ran(runner)["budget"] == {
+        "duration": 3600.0,
+        "cost": None,
+        "output_tokens": None,
+        "graceful": True,
+    }
+
+
 def test_a_resumable_flow_keeps_its_journal_in_the_epic(
     engine_: Flowing, tmp_path: Path
 ) -> None:

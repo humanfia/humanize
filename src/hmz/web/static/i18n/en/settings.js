@@ -11,6 +11,6 @@ export default {
   // views/settings/usage.js
   'over {n} epics': { one: 'over {n} epic', other: 'over {n} epics' },
   '{day}: {money}, {n} epics, {tokens} output tokens': { one: '{day}: {money}, {n} epic, {tokens} output tokens', other: '{day}: {money}, {n} epics, {tokens} output tokens' },
-  // views/settings/workspace.js
+  // views/workspace/setup.js
   'Forget how {n} flows were set up here?': { one: 'Forget how {n} flow was set up here?', other: 'Forget how {n} flows were set up here?' },
 }

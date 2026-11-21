@@ -1,9 +1,9 @@
 """The pictures of `docs/user/settings.md`: the settings dialog, and `/settings`.
 
-The dialog in the app's window on its General page, a change of it saved; a folder's Setup
-page, and what it remembers forgotten; the screen of pages `/settings` opens in the terminal
-interface, a change held on one of them and saved, and its Workspace page. Run it by naming
-it: `uv run pytest tests/system/docs/test_docs_user_settings.py`.
+The dialog in the app's window on its General page, a change of it saved; the Setup page of
+a folder's own settings, and what it remembers forgotten; the screen of pages `/settings`
+opens in the terminal interface, a change held on one of them and saved, and its Workspace
+page. Run it by naming it: `uv run pytest tests/system/docs/test_docs_user_settings.py`.
 
 Copying a page to another machine's daemon (Batch apply) is pictured by the scenes of
 `docs/user/daemons.md`, which run a second daemon; here there is this machine's alone.
@@ -53,7 +53,7 @@ def test_the_dialog_opens_on_general_and_saves(world: World) -> None:
         dialog = page.get_by_role("dialog", name="Settings")
         harness = dialog.get_by_label("List in sidebar")
         expect(harness).to_be_visible()
-        expect(dialog.get_by_label("Daemon")).to_be_visible()
+        expect(dialog.locator("[data-hmz=settings-of]")).to_have_text("DaemonLocal")
         page.wait_for_timeout(400)
         shots.web(page, f"{_PAGE}-general", window="desktop")
 
@@ -73,9 +73,9 @@ def test_the_dialog_opens_on_general_and_saves(world: World) -> None:
 def test_a_folder_is_forgotten(world: World) -> None:
     _set_up(world)
     with world.page(desktop=True) as page:
-        go(page, "/settings/workspace")
-        dialog = page.get_by_role("dialog", name="Settings")
-        expect(dialog.get_by_label("Workspace")).to_be_visible()
+        go(page, f"/workspace/setup?workspace={world.workspace}")
+        dialog = page.get_by_role("dialog", name="Workspace settings: shop")
+        expect(dialog.locator("[data-hmz=workspace-name]")).to_have_text("shop")
         expect(dialog).to_contain_text("goal, rlar")
         forget = dialog.get_by_role("button", name="Forget", exact=True)
         expect(forget).to_be_visible()

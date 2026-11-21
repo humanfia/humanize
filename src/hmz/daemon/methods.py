@@ -551,6 +551,23 @@ class _Methods:
             self._let_go(name)
         return self._families["chat.delete"](call)
 
+    def chat_agent(self, call: Call) -> dict[str, Any]:
+        """Carries a chat on with another model or effort, held or not (Section 4.25.7.7).
+
+        Asked of the host that holds it, which takes it up ahead of the chat's next turn;
+        written in its record by the family where none does, which answers its row either
+        way, one caller at a time with those who carry it on.
+        """
+        name = str(call.params.get("chat"))
+        with self._carried:
+            carrying = self._carrying[name]
+        with carrying:
+            holding = self._holding(name)
+            if holding is not None:
+                agent = str(call.params.get("agent") or "")
+                self._chatted(call, holding[0], {"do": "agent", "agent": agent})
+            return self._families["chat.agent"](call)
+
     def _chat_started(
         self,
         call: Call,
@@ -754,6 +771,7 @@ class _Methods:
             "chat.move": self.chat_move,
             "chat.stop": self.chat_stop,
             "chat.delete": self.chat_delete,
+            "chat.agent": self.chat_agent,
         }
 
 

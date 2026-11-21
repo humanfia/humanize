@@ -1454,8 +1454,8 @@ class Host:
         said by whoever the daemon names.
 
         Args:
-          said: `do` -- `start`, `say`, `commands`, `set`, `move` or `stop` -- what that takes, and
-            `by`, who asked.
+          said: `do` -- `start`, `say`, `commands`, `set`, `agent`, `move` or `stop` -- what
+            that takes, and `by`, who asked.
 
         Returns:
           `ok`, and `why` and `code` where it is not.
@@ -1477,6 +1477,7 @@ class Host:
             "say": self._chat_say,
             "commands": self._chat_commands,
             "set": self._chat_set,
+            "agent": self._chat_agent,
             "move": self._chat_move,
             "stop": self._chat_stop,
         }.get(do)
@@ -1754,6 +1755,31 @@ class Host:
             chat.permits(said["permission"])
         if said.get("prefer") is not None:
             chat.prefers(said["prefer"])
+        return _ok()
+
+    def _chat_agent(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
+        """Carries the chat on with another model or effort (Section 4.25.7.7 of daemon.md).
+
+        The daemon's to ask, for the chat this host holds: recorded at once, and taken up
+        ahead of the chat's next turn.
+        """
+        del by, client
+        from hmz.runtime.chatting import KeptAs
+
+        with self._lock:
+            going = self._chatting()
+        if isinstance(going, dict):
+            return going
+        current, run = going
+        try:
+            run.chat.runs(str(said.get("agent") or ""))
+        except KeptAs as why:
+            return _no(str(why), 409)
+        except ValueError as why:
+            return _no(str(why), 400)
+        with self._lock:
+            # What a message that carries it on is told against (Section 4.25.1.9).
+            current.started["agents"] = {"assistant": run.chat.spec.agent}
         return _ok()
 
     def _chat_move(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
