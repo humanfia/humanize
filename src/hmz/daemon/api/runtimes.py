@@ -10,6 +10,9 @@ offers, and what a check says is what a run reaching it would find.
 from __future__ import annotations
 
 import dataclasses
+import os
+import platform
+import socket
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.rpc import Code, RpcError
@@ -27,10 +30,24 @@ _OWN = ("backend", "name", "made")
 
 
 def listed(hmz: Any) -> dict[str, Any]:
-    """Every runtime as it is written down, and what a new one of each backend is made of."""
+    """Every runtime as it is written down, this machine, and what a new one is made of."""
     return {
+        "local": _local(),
         "runtimes": [one.held() for one in hmz.runtimes.all()],
         "blanks": _blanks(),
+    }
+
+
+def _local() -> dict[str, Any]:
+    """The daemon's own machine, where work runs that names no runtime: never written down."""
+    import psutil
+
+    return {
+        "host": socket.gethostname(),
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "cpus": os.cpu_count() or 0,
+        "memory": psutil.virtual_memory().total,
     }
 
 

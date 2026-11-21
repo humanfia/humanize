@@ -6114,6 +6114,61 @@ input[aria-invalid='true'] {
   max-width: min(100%, 320px);
 }
 
+/* Which folder the pages under `Workspace` are of, under the daemon it is a folder of: its name
+   picked, its whole path said after it, and that it is gone where it is. */
+.settings-workspace[hidden] {
+  display: none;
+}
+
+.settings-path {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--ink-3);
+  font: var(--text-sm)/16px var(--mono);
+}
+
+.settings-path .path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The daemon's own machine, over the runtimes written down: said, with nothing to press. */
+.runtime-local {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--hover);
+}
+
+.runtime-local > .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink-2);
+}
+
+.runtime-local p {
+  margin: 0;
+  font: var(--text-md)/20px var(--sans);
+}
+
+.runtime-local p.mono {
+  font: var(--text-sm)/20px var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.runtime-local-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
 /* What is asked over Settings: a small dialog of the browser's own, drawn as the page's are. */
 .batch-dialog {
   width: min(calc(100vw - 32px), var(--dialog-sm));

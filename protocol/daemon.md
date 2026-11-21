@@ -1637,6 +1637,11 @@ with nothing written MUST be refused 404, and one another nous names 400.
 **4.18.4.1** `runtimes.list` MUST answer `runtimes` (each as the runtime's `held()` of Section
 4.20.6.1 of [PYTHON] gives it) and `blanks` (each backend's fields as a new runtime holds them).
 
+**4.18.4.1.1** `runtimes.list` MUST also answer `local`, the daemon's own machine, where work runs
+that names no runtime: its `host` (the host name), `system` and `machine` (as `uname -s` and
+`uname -m` say them), `cpus` and `memory` (bytes). It is no runtime: it MUST NOT be among
+`runtimes`, and no method writes or removes it.
+
 **4.18.4.2** `runtimes.set` MUST take `backend`, `name`, `fields` and `replace` (boolean), and write
 the runtime; `backend` or `name` among `fields`, or an invalid runtime, MUST be refused 400.
 

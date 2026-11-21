@@ -10683,10 +10683,12 @@
       "Runtimes": {
         "type": "object",
         "required": [
+          "local",
           "runtimes",
           "blanks"
         ],
         "properties": {
+          "local": {},
           "runtimes": {},
           "blanks": {}
         }

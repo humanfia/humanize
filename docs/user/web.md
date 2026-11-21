@@ -326,7 +326,7 @@ a right click on it, and the `⋯` menu of its bar.
 | --- | --- |
 | **Rename** | Turns the title into a field, where it stands: on the chat's bar -- pressing the title there does the same -- or in its row of the sidebar. <kbd>Enter</kbd>, or clicking away, saves it; <kbd>Esc</kbd> leaves it as it was. The bar and the row both follow |
 | **Fork** | Makes a new chat from a copy of the conversation so far and opens it, ready to be said something. Refused while a turn is open, in the daemon's own words |
-| **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar (in a narrow window, in its menu alone) and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
+| **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar (in a narrow window, in its menu alone) and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, on **Archived chats**, each with **Unarchive** and **Delete** |
 | **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat whose turn is open is refused, in the daemon's own words: stop the turn, or delete it once the turn is done. Deleted from its own view, the page opens a new chat |
 
 The next chip under the box names what the chat's agent may touch -- **Read only**, **Edit
@@ -588,11 +588,11 @@ pencil beside the title, type, and press <kbd>Enter</kbd> or click elsewhere;
 
 ### Settings {#settings}
 
-Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches,
+Settings has three groups. **App** is the page's own: how it is drawn, the daemons it reaches,
 what it tells you of them and the [language](#language) it is written in. It is the same
 whichever daemon is on screen. **Daemon** is the same
 pages as [`/settings`](/user/settings), in the same order, and what the epics spent, all of one
-daemon:
+daemon. **Workspace**, under it, is of one folder of that daemon:
 
 | Page | What is there |
 | --- | --- |
@@ -600,10 +600,11 @@ daemon:
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
-| **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
+| **Runtimes** | First, always, the daemon's own machine -- **This machine**, for Local -- with its host name, system, processors and memory: where chats and epics run unless a runtime is picked, with nothing to edit or remove. Then every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
-| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; a directory that was deleted is marked `(missing)` in the list, and can still be forgotten; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
+| **Setup** | Under **Workspace**: what the folder picked was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there. A folder that was deleted can still be picked, and forgotten |
+| **Archived chats** | Under **Workspace**: the chats of the folder picked that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** and **Pair a device** once it is up, and a remote daemon's own **WebRTC servers** |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 | **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
@@ -612,7 +613,13 @@ Above the **Daemon** pages, **Daemon** picks which daemon they read and write: t
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
 kept and opened again. Picking one changes nothing else on screen.
 
-**Download**, opened from **Backup**, and **Delete**, opened from **Workspace**, are dialogs of
+Above the **Workspace** pages, under the daemon, **Workspace** picks which of its folders they are
+of, by the folder's name: its whole path is beside it, and **Missing** where the directory is gone.
+It opens on the folder the address names (`?workspace=<path>`, as **Settings** in a folder's menu
+in the sidebar writes it), else on the first folder offered, and both pages stay on the folder
+picked. A daemon with no folder yet says so, with **New chat**.
+
+**Download**, opened from **Backup**, and **Delete**, opened from **Archived chats**, are dialogs of
 their own. Closed -- by **Close**, <kbd>Esc</kbd> or a press beside it -- either goes back to the
 Settings page it was opened from; opened by its own address, it closes to the view under it.
 
@@ -623,11 +630,12 @@ says **Applied** or why it refused. **General** sends the form as it stands, sav
 is refused there, since the URL is never shown whole. **Nous** and
 **Runtimes** send each nous or runtime, written over the one of the same name there, or added.
 Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
-are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
-directories, and have no **Batch apply**.
+are never shown (**Secrets stay put**). **Usage**, **Setup** and **Archived chats** are of one
+daemon's directories, and have no **Batch apply**; the daemon's own machine on **Runtimes** is
+never copied.
 
 While a page is read, it says **Reading…**. What a page already shows -- a range or a workdir
-picked on **Usage** or **Workspace**, a directory gone into in a path's browser -- stays, faded,
+picked on **Usage**, a directory gone into in a path's browser -- stays, faded,
 until what replaces it is read.
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
