@@ -95,6 +95,17 @@ the one stopping, else the last.
 A workspace is known by `str(Path(workspace or cwd).resolve())`: two checkouts of one
 repository are two workspaces, and two spellings of one directory are one.
 
+A **folderless** workspace {#folderless} is a directory the daemon made for one epic or one
+chat started in no folder (`epic.attach` with `scratch`): `<tmp>/humanize-<uid>/nofolder/<random>/`,
+mode `0700`. It is a workspace as any other -- its terminal, files and changes work in it -- but
+nobody's folder: `workspaces.list` never lists it, and the rows of `runs.list` and `chat.list`
+mark it `folderless`, so that a frontend lists everything started in no folder together. It is
+kept while an epic or a chat of it is recorded or a host stands in it, and removed when its last
+host goes with nothing started, or its last chat is deleted with no epic of it left. Where the
+machine has cleaned it away, the next call that starts something in it makes it again, empty.
+A directory `hmz-<8 characters>` straight in `<tmp>`, as an earlier Humanize made for the same
+purpose, is folderless too.
+
 The temporary directory is the machine's to clean: a reboot empties it, and so may the system
 (`systemd-tmpfiles`, macOS's periodic cleanup) for files left untouched. A running daemon marks
 its directory and its four files as used every hour; `daemon.log` left behind by one that has
@@ -358,7 +369,8 @@ a host as one frontend, starting the workspace's host where none is, and answers
 `client`, `workspace` and `slot`; the host's [messages](#messages) then arrive as
 `epic.event` `{sub, message}`, none before the answer. `since` `{epoch, seq}` sends only the
 records after `seq` where `epoch` is the host's and every one after it is kept; `figures`
-also sends `figures`, at most once a second; `scratch` attaches to a new directory of its own.
+also sends `figures`, at most once a second; `scratch` attaches, in place of `workspace`, to a
+new [folderless workspace](#folderless).
 Every other call to an epic is `epic.<do>` `{sub, …}`, answered with the host's fields, or
 refused 409 with its `why`; a `sub` not open on the session is refused 410. `epic.start`,
 `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board` and `quit` are writes,
@@ -579,6 +591,7 @@ model.
 | `id` | string | The chat's name: the name of its directory. |
 | `title` | string | The title last set, else the first line of its first message; cut at 240 characters. |
 | `workspace` | string | The workspace it is a chat of. |
+| `folderless` | bool | Whether that workspace is [folderless](#folderless); an epic row says the same. |
 | `workdir` | string | Where its assistant works: the workspace, the worktree it was started in, or the directory of the env it was started in or [moved to](/user/chat#moving). |
 | `env` | string | The env its assistant works in, as `-e` writes one after `<role>=`: `local/<workdir>` for a directory of this machine, `ssh@gpu-box/srv/repo` for one of a runtime. |
 | `agent` | string | Its assistant, as `-a` spells one: `<cli>[@account]/<model>:<effort>`. |

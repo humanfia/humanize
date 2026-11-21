@@ -1172,7 +1172,7 @@ export function mount(root, { parts, query }) {
     const now = () => (seen && seen.detail) || first
     const model = modelFact({
       of: () => now().agents?.[0]?.runs || '',
-      fresh: () => hash(`/new/chat?${new URLSearchParams(given({ workspace: now().workspace }))}`),
+      fresh: () => hash(`/new/chat?${new URLSearchParams(now().folderless ? { scratch: '1' } : given({ workspace: now().workspace }))}`),
       // A chat going takes its CLI's own `/model` and `/effort`; one folded away is said only what carries it on.
       takes: (name) => going && entries().some((one) => one.source === 'native' && one.sigil === '/' && one.name === name && one.how === 'call'),
       say: (line) => say(line).catch((error) => toast(error.message)),
@@ -1185,7 +1185,8 @@ export function mount(root, { parts, query }) {
       hmz: 'chat-usage',
       tip: t('What this chat has used'),
       chat: () => usageRows(seen && seen.going ? held().figures : null, now().spent),
-      workspace: () => now().workspace || '',
+      // A chat of no folder has no folder's usage to read: every folder's, as its form says.
+      workspace: () => (now().folderless ? '' : now().workspace || ''),
     })
     usages.add(usage)
     /** Where a chat no host holds is carried on, picked before it is: null for where it worked. */

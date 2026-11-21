@@ -353,8 +353,12 @@ under it.
 rows of a last group, `Folders`: each row MUST open a new chat in its workspace and MUST offer the
 menu of a folder (3.5.7), bar folding it, by a right click and by `More options` at its end.
 
-**3.5.1.2** The epics of no workspace MUST be listed as the last folder, `No folder`, which has no
-menu of a folder. Grouped by `Folder`, a list with no workspace and no epic to show MUST keep that
+**3.5.1.2** The epics and chats of no workspace, and those of every folderless workspace (the
+`folderless` of a row, Section 4.16.2 and Section 4.25.5.2 of [DAEMON]) together, MUST be listed as
+the last folder, `No folder`, which has no menu of a folder and whose `+` MUST open a new chat on
+`No folder`; no folderless workspace MUST be shown as a folder of its own, by its name or its path,
+and wherever the page names the workspace of an epic or a chat by the last part of its path it
+MUST say `No folder` of a folderless one. Grouped by `Folder`, a list with no workspace and no epic to show MUST keep that
 heading, so that `Group and sort` (3.5.6) is always offered.
 
 **3.5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
@@ -1079,8 +1083,8 @@ in `Environment` in the middle of the page (Section 3.8.24), and MUST NOT offer 
 of Section 3.8.5 or in the bar over the form.
 
 **3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves whose
-directories are there, each one row named by the last part of its path and saying its path, and
-after them `Open folder…` and `No folder`.
+directories are there, each one row named by the last part of its path and saying its path,
+before them `No folder`, and after them `Open folder…`.
 
 **3.8.2.3** The form MUST go on reading which directories are there while it is shown. A workspace
 picked whose directory is not there -- named by the address, or gone since -- MUST stay picked,
@@ -1091,8 +1095,9 @@ its directory is not there (Section 4.5.2 of [DAEMON]) MUST be said with it too.
 read the workspace again once its directory is back.
 
 **3.8.3** With `No folder` picked, the form MUST offer the flows and the set-up of the
-workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
-alone in the system's temporary directory.
+workspace `hmz web` was started in, and starting MUST start the epic in a new folderless workspace
+made for it alone (`scratch`, Section 4.7.1.3 of [DAEMON]), whose set-up MUST NOT be written down
+(`remember` `false`).
 
 **3.8.4** The user MUST be able to pick any flow on offer in that workspace.
 
@@ -1202,9 +1207,9 @@ Section 3.6.6.17 is, which MUST open the popup of Section 3.6.6.17.1 with no cha
 the workspace picked has used -- every workspace's where none is picked -- and the link to `Usage`
 (Section 3.11.2.12). `Folder` MUST name the workspace picked, and `No folder` where none is; it is
 the control of Section 3.8.2 on this form, and what Section 3.8.2.3 has that control say MUST be
-said on it. It MUST open a menu, under no heading, of the workspaces the daemon shown serves whose
-directories are there, each one row named by the last part of its path and saying its path where
-it is pointed at, with the one picked marked, and after them `Open folder…` and `No folder`; the
+said on it. It MUST open a menu, under no heading, of `No folder` and then the workspaces the
+daemon shown serves whose directories are there, each one row named by the last part of its path and saying its path where
+it is pointed at, with the one picked marked, and after them `Open folder…`; the
 menu MUST open with the focus on the workspace picked. Neither chip, and neither menu, MUST name
 or offer a daemon: which hmz serves the page is the whole page's, picked at the foot of the
 sidebar (Section 3.4.2.4).

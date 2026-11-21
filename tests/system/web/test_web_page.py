@@ -554,10 +554,10 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         folders = page.get_by_role("menu", name="Folder")
         expect(folders.locator("[data-daemon]")).to_have_count(0)
         rows = folders.get_by_role("menuitem")
-        # The ones there are, then opening one, then none.
+        # None, then the ones there are, then opening one.
         expect(folders.locator("[data-folder].chosen")).to_have_text(project.name)
-        expect(rows.nth(-2)).to_contain_text("Open folder…")
-        expect(rows.nth(-1)).to_contain_text("No folder")
+        expect(rows.nth(0)).to_contain_text("No folder")
+        expect(rows.nth(-1)).to_contain_text("Open folder…")
         expect(folders.locator("[data-folder].chosen")).to_be_focused()
         # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
         assert _at(page, "[role=menu] [data-folder].chosen")["height"] == 28
@@ -718,8 +718,8 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         page.keyboard.press("Escape")
         view.locator("[data-hmz=workspace-picker]").click()
         folders = page.get_by_role("menu", name="Folders")
-        expect(folders.get_by_role("menuitem").nth(-2)).to_contain_text("Open folder…")
-        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(0)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("Open folder…")
         box = folders.bounding_box()
         assert box
         assert box["y"] >= folder["y"] + folder["height"]

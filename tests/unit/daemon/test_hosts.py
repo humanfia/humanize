@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 from typing import Any
 from unittest import mock
 
 import pytest
 
-from hmz.daemon.hosts import Hosted, Hosts, Subscription
+from hmz.daemon.hosts import Hosted, Hosts, Subscription, swept
 from hmz.rpc import Closed, RpcError
 
 
@@ -212,3 +213,50 @@ def test_an_epic_scoped_ai_chan_is_let_go_once_another_epic_starts() -> None:
         "type": "gone",
         "why": "out of Ai-chan's scope",
     }
+
+
+def test_a_folderless_workspace_is_removed_once_nothing_is_left_of_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Section 7.7.8 of files.md.
+    import hmz.runtime.epic
+    from hmz.daemon import where
+
+    recorded: dict[str, list[str]] = {"epics": [], "chats": []}
+
+    def epics(workspace: str) -> list[str]:
+        del workspace
+        return recorded["epics"]
+
+    def chats(workspace: str) -> list[str]:
+        del workspace
+        return recorded["chats"]
+
+    monkeypatch.setattr(hmz.runtime.epic, "epics", epics)
+    monkeypatch.setattr(hmz.runtime.epic, "chats", chats)
+
+    def made_for_none(at: str | Path) -> bool:
+        return Path(at).parent.name == "nofolder"
+
+    monkeypatch.setattr(where, "folderless", made_for_none)
+    mine, made = tmp_path / "mine", tmp_path / "nofolder" / "tmp1"
+    mine.mkdir()
+    made.mkdir(parents=True)
+    (made / "notes.md").write_text("kept")
+
+    # Somebody's folder is never touched.
+    swept(str(mine), set())
+    assert mine.is_dir()
+    # Kept while a host stands in it, and while an epic or a chat of it is recorded.
+    swept(str(made), {str(made)})
+    recorded["epics"] = ["e1"]
+    swept(str(made), set())
+    recorded["epics"], recorded["chats"] = [], ["c1"]
+    swept(str(made), set())
+    assert (made / "notes.md").is_file()
+
+    recorded["chats"] = []
+    swept(str(made), set())
+    assert not made.exists()
+    # And one gone already is nothing to remove.
+    swept(str(made), set())

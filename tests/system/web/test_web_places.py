@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 import shutil
-import tempfile
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -208,8 +207,8 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
                 chip.click()
                 expect(page.locator(".popover [data-folder]")).to_have_text(
                     [
-                        re.compile(f"^{re.escape(project.name)}"),
                         re.compile("^No folder"),
+                        re.compile(f"^{re.escape(project.name)}"),
                     ]
                 )
                 page.keyboard.press("Escape")
@@ -269,15 +268,17 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
 
 
 @pytest.mark.parametrize("engine", ENGINES)
-def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
-    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+def test_what_is_started_in_no_folder_stands_together_under_no_folder(
+    project: Path, engine: str
 ) -> None:
-    scratch = tmp_path / "temporary"
-    scratch.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    del project
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
         page.locator(_FOLDER["/new/chat"]).click()
+        # The first of the folders on offer.
+        expect(page.locator(".popover [data-folder]").first).to_have_text(
+            re.compile("^No folder")
+        )
         page.get_by_role("menuitem", name="No folder").click()
         expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text(
             "No folder"
@@ -290,11 +291,32 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
         page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
-        # Under a folder of its own, made in the temporary directory.
-        made = f"[data-hmz=workspace][data-path^='{scratch.resolve()}/hmz-']"
-        expect(page.locator(made).locator("[data-hmz=epic]")).to_contain_text(
-            "nowhere in particular"
+        # Under No folder, the last group, and under no folder named for the directory
+        # made for it, which no menu of folders offers either.
+        none = page.locator("[data-hmz=group][data-group=':nowhere']")
+        expect(none.locator(".side-label").first).to_have_text("No folder")
+        expect(none.locator("[data-hmz=epic]")).to_contain_text("nowhere in particular")
+        expect(
+            page.locator("[data-hmz=workspace][data-path*='nofolder']")
+        ).to_have_count(0)
+
+        # Its `+` starts another in no folder, which stands in the same group.
+        none.locator("[data-hmz=group-add]").click()
+        page.wait_for_url(re.compile(r".*#/new/chat\?scratch=1$"))
+        expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text(
+            "No folder"
         )
+        page.locator(_FOLDER["/new/chat"]).click()
+        expect(page.locator(".popover [data-folder]")).to_have_count(2)
+        page.keyboard.press("Escape")
+        page.locator("[data-hmz=composer-text]").fill("nowhere else")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
+        expect(none.locator("[data-hmz=epic]")).to_have_count(2)
+        expect(page.locator("[data-hmz=group][data-group=':nowhere']")).to_have_count(1)
+        expect(
+            page.locator("[data-hmz=workspace][data-path*='nofolder']")
+        ).to_have_count(0)
         stop(page)
 
 

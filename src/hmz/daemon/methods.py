@@ -16,7 +16,6 @@ import logging
 import os
 import pkgutil
 import socket
-import tempfile
 import threading
 import time
 from collections import defaultdict
@@ -138,7 +137,10 @@ def workspace(said: object, *, made: bool = False) -> str:
     if not path.is_absolute():
         raise _refused(400, f"Say the workspace as a whole path, not {said}.")
     if not made and not path.is_dir():
-        raise _refused(404, f"There is no directory {path}.")
+        if not where.folderless(where.workspace(path)):
+            raise _refused(404, f"There is no directory {path}.")
+        # The machine cleans its temporary directory: a folderless workspace is made again.
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
     return where.workspace(path)
 
 
@@ -364,7 +366,7 @@ class _Methods:
         session = router.session(call)
         params = call.params
         if params.get("scratch"):
-            named = where.workspace(tempfile.mkdtemp(prefix="hmz-"))
+            named = where.nofolder()
         elif "workspace" in params:
             # A host already held is attached to whatever became of its directory; one
             # is started only in a directory that is there (Section 4.5.2).

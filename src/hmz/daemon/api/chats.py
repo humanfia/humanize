@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.daemon import reach
+from hmz.daemon import hosts, reach, where
 from hmz.daemon.api import runs, workspaces
 from hmz.rpc import Code, RpcError
 
@@ -102,6 +102,7 @@ def row(
         "id": ran.name,
         "title": ran.title[:_TITLE],
         "workspace": workspace,
+        "folderless": where.folderless(workspace),
         "workdir": workdir,
         "env": env,
         "agent": assistant.spec if assistant else "",
@@ -293,6 +294,11 @@ def _delete(call: Call) -> dict[str, Any]:
         )
     # Its record and the sessions kept beside it; a worktree it worked in is never removed.
     shutil.rmtree(ran.at)
+    # And, of a folderless chat, the directory made for it, once nothing else is of it.
+    hosts.swept(
+        runs.resolved(ran.workspace),
+        {status["workspace"] for status in workspaces.statuses().values()},
+    )
     return {}
 
 

@@ -88,7 +88,7 @@ export function unplaced(error, path, said = goneSaid) {
 const NONE = t('No folder')
 
 /** Where an epic of no workspace works. */
-const NOWHERE = t('A new directory of its own, in the temporary directory')
+const NOWHERE = t('A temporary directory of its own, made as it starts')
 
 /** The choice of no folder, marked as the folders are by what each picks. */
 function folderless(item) {
@@ -126,6 +126,11 @@ export function folderFiles(folder) {
       return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: t('Files'), items }] : [] }
     },
   }
+}
+
+/** The workspace of an epic or a chat as a list names it: `No folder` of a folderless one. */
+export function folderOf(run) {
+  return run.folderless ? NONE : nameOf(run.workspace)
 }
 
 /** A workspace as a list names it: the last part of its path. */
@@ -208,6 +213,8 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
 
   /** The choices of the menu: the folders there are, opening one by its path, and none. */
   const rows = (close) => [
+    // No folder first, a choice as any folder is: a directory made for what starts, and its alone.
+    none ? tipped(folderless(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close })), plain ? NOWHERE : '') : null,
     plain ? null : section(t('Recent')),
     // Only what is there to work in -- and the one chosen, said to be missing, so that the
     // menu still shows what the button names.
@@ -221,7 +228,6 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
     }),
     h('hr'),
     choice({ label: t('Open folder…'), glyph: 'plus', act: () => open(), close }),
-    none ? tipped(folderless(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close })), plain ? NOWHERE : '') : null,
   ]
 
   if (!hosted) {

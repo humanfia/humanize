@@ -27,7 +27,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.daemon import reach
+from hmz.daemon import reach, where
 from hmz.daemon.api import files, workspaces
 from hmz.rpc import Code, RpcError
 
@@ -417,6 +417,7 @@ def row(
     return {
         "name": ran.name,
         "workspace": resolved(ran.workspace),
+        "folderless": where.folderless(resolved(ran.workspace)),
         # Every epic is of a flow (Section 4.16.2.1): a chat is no epic.
         "kind": "flow",
         "flow": ran.flow,

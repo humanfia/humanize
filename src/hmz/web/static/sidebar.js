@@ -426,7 +426,8 @@ export function mountSidebar(root, context, where) {
         })
         const sort = iconButton('sliders', t('Group and sort'), { class: 'side-sort', 'data-hmz': 'list-menu-open' })
         menu(sort, listMenu, { label: t('Group and sort') })
-        const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
+        // The group of no folder starts one in none; any other group names no folder to start in.
+        const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : group.kind === 'folder' ? '/new/chat?scratch=1' : '/new/chat'
         const head = h(
           'div',
           { class: ['side-folder', folder && chosen === group.path && 'current', lost && 'gone'] },

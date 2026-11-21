@@ -12,7 +12,7 @@ import { pathOf } from '../chats.js'
 import { nousSaid } from '../chips/agent.js'
 import { shut, stays } from '../app.js'
 import { chatting, markOf } from '../epic.js'
-import { nameOf, workspaces } from '../places.js'
+import { folderOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
 import { epicSaid, rowSaid } from '../sidebar-rows.js'
 import { pick } from '../importing.js'
@@ -274,7 +274,7 @@ export function mount(root, { query }) {
       'span',
       { class: 'result-meta' },
       said ? h('span', { class: `badge tone-${tone(how)}`, 'data-hmz': 'result-state' }, said) : null,
-      h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
+      h('span', { class: 'mono', title: run.workspace }, folderOf(run)),
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
       // A chat's agent has no name or role to say: what it runs says which it is.
       run.agents.map((one) => h('span', { class: 'chip', title: chatting(run) ? one.runs : `${one.role} · ${one.runs}` }, chatting(run) ? null : one.name, h('span', { class: chatting(run) ? '' : 'dim' }, nousSaid(one.runs).model ? `${nousSaid(one.runs).harness} ${nousSaid(one.runs).model}` : one.runs))),
@@ -353,7 +353,7 @@ export function mount(root, { query }) {
                       h('span', { class: 'result-task', title: run.task }, headline(run.task)),
                       // Toned as the sidebar's row says it: one that waits on its person stands out.
                       standing.said ? h('span', { class: ['result-how', `tone-${tone(standing.how)}`], 'data-hmz': 'result-how', 'data-state': standing.how }, standing.said) : null,
-                      h('span', { class: 'result-where', title: run.workspace }, nameOf(run.workspace)),
+                      h('span', { class: 'result-where', title: run.workspace }, folderOf(run)),
                       h('span', { class: 'result-when', title: when(run.began) }, ago(run.began)),
                       h('span', { class: 'result-more' }, more(run, standing)),
                     ),

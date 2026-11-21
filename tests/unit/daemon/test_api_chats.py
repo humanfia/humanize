@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.daemon import reach
+from hmz.daemon import hosts, reach, where
 from hmz.daemon.api import chats, runs, workspaces
 from hmz.rpc import RpcError
 
@@ -19,6 +19,7 @@ ROW = {
     "id",
     "title",
     "workspace",
+    "folderless",
     "workdir",
     "env",
     "agent",
@@ -176,6 +177,7 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
         "id": "20260101-abc",
         "title": "fix the parser",
         "workspace": WORKSPACE,
+        "folderless": False,
         # Where its assistant works: the workspace, for one in no worktree.
         "workdir": WORKSPACE,
         "env": f"local/{WORKSPACE.lstrip('/')}",
@@ -191,6 +193,22 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
         "archived": False,
         "spent": None,
     }
+
+
+def test_a_row_says_a_chat_started_in_no_folder_is_folderless(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Section 4.25.5.2 of daemon.md: told by the daemon, which made its directory.
+    asked: list[str] = []
+
+    def folderless(workspace: str) -> bool:
+        asked.append(workspace)
+        return True
+
+    monkeypatch.setattr(where, "folderless", folderless)
+
+    assert chats.row(_ran())["folderless"] is True
+    assert asked == [WORKSPACE]
 
 
 def test_a_row_says_the_worktree_the_permission_the_spending_and_the_host() -> None:
@@ -697,6 +715,12 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
         return at in held_elsewhere
 
     monkeypatch.setattr(hmz.runtime.epic, "going", going)
+    swept: list[tuple[str, set[str]]] = []
+
+    def sweeps(workspace: str, held: set[str]) -> None:
+        swept.append((workspace, held))
+
+    monkeypatch.setattr(hosts, "swept", sweeps)
     worktree = tmp_path / "envs" / "worktrees" / "x"
     worktree.mkdir(parents=True)
     made: dict[str, Path] = {}
@@ -719,8 +743,13 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
         )
     assert _refused("chat.delete", chat="none") == (404, "There is no chat none.")
     assert all(one.is_dir() for one in made.values())
+    assert swept == []
 
     assert _call("chat.delete", chat="c1") == {}
+
+    # Its workspace is swept, which removes the directory of a folderless one alone, where
+    # no host stands in it: the hosts standing are said with it.
+    assert swept == [(WORKSPACE, {WORKSPACE})]
 
     # Its record and the sessions kept beside it; the worktree it worked in stays.
     assert not made["c1"].exists()

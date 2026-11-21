@@ -2041,6 +2041,14 @@ that guards that **runtime**; `hmz` MUST NOT remove it.
 **7.7.7** `hmz` MUST NOT let more than one of its processes size, create or submit containers,
 services or jobs on one **runtime** at a time.
 
+**7.7.8** `<mdir>/nofolder/<random>/` MUST be the directory of one folderless workspace (Section
+2.3.6.1 of [CORE]), made with mode `0700`, with `<mdir>/nofolder/`, when an epic or a chat is
+started in no directory (Section 4.7.1.3 of [DAEMON]). `hmz` MUST keep it while an epic or a chat
+of that workspace is recorded or a host stands in it, and MUST remove it when its last host goes
+with no epic and no chat of it recorded, and when its last chat is deleted with no epic of it
+recorded and no host standing in it; `hmz` MUST do the same for a folderless workspace an earlier
+hmz made in the system's temporary directory (Section 4.2.5.1 of [DAEMON]).
+
 ### 7.8. Other process-private temporary directories
 
 **7.8.1** `hmz` MUST create a process-private temporary directory with the prefix `hmz-sessions-`
