@@ -255,8 +255,9 @@ class FakeChat:
 class FakeChatting:
     """A chat held as a run is, talking to its person: each line said answered by an echo.
 
-    Before a turn it asks what `asks` holds, one question a turn; it ends on an empty line,
-    or fails as `fails` says before it is written down anywhere.
+    Before a turn it asks what `asks` holds, one question a turn; started with nothing said
+    it waits for its first line; it ends on an empty line, or fails as `fails` says before
+    it is written down anywhere.
     """
 
     agent: str
@@ -315,7 +316,10 @@ class FakeChatting:
         return asyncio.run(self._talks())
 
     async def _talks(self) -> ChatEnd:
-        said = self.task
+        # One started with nothing said waits to be told something, as a real one does:
+        # ending at once would leave its host with no chat whenever this thread got there
+        # before the test's next line.
+        said = self.task or await self.person.next("")
         while said:
             if self.asks:
                 question, options = self.asks.pop(0)
