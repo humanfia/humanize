@@ -51,8 +51,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Every picture is an SVG, and nothing plays
+      - name: Every picture is an SVG, light and dark, and nothing plays
         run: pnpm check:pictures
+
+      - name: The home page's banner is the repository's description, and its words keep to their rules
+        run: pnpm check:words
 
       - name: Build
         run: pnpm build

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" role="img">
+  <title>Your script asks the daemon to run a flow and follows it; the daemon holds the epic, and Humanize Desktop shows the same epic</title>
+  <rect width="760" height="304" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 8 4 0 8z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2" text-anchor="middle">
+    <rect x="32" y="72" width="160" height="96" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="112" y="116" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">drive.py</text>
+    <text x="112" y="140" font-size="12" fill="#b3c3c8">your script</text>
+
+    <rect x="320" y="72" width="144" height="96" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="392" y="116">Daemon</text>
+    <text x="392" y="140" font-size="12" fill="#b3c3c8">holds the epic</text>
+
+    <rect x="552" y="40" width="176" height="160" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="640" y="68"><tspan fill="#b3c3c8">Epic of </tspan><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ship</tspan></text>
+    <rect x="568" y="88" width="144" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="640" y="113"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">coder</tspan><tspan font-size="12" fill="#b3c3c8">  an agent</tspan></text>
+    <rect x="568" y="144" width="144" height="40" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="640" y="169"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">human</tspan><tspan font-size="12" fill="#b3c3c8">  asks you</tspan></text>
+
+    <rect x="304" y="232" width="176" height="40" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="392" y="257">Humanize Desktop</text>
+
+    <g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+      <path d="M192 104H318" marker-end="url(#a)"/>
+      <path d="M320 136H194" marker-end="url(#a)"/>
+      <path d="M466 120H550" marker-start="url(#a)" marker-end="url(#a)"/>
+      <path d="M392 232V170" marker-end="url(#a)"/>
+    </g>
+    <g font-size="12" fill="#9aa9b0">
+      <text x="256" y="94">run, answer, stop</text>
+      <text x="256" y="158">events, questions</text>
+      <text x="408" y="206" text-anchor="start">watches the same epic</text>
+    </g>
+  </g>
+</svg>

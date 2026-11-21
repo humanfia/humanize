@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" role="img" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>A permission sets a fence around the coding agent; by default it writes the work folder, reads the rest of the machine and reaches the network</title>
+  <rect width="760" height="304" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <rect x="24" y="104" width="168" height="96" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+  <text x="40" y="138" font-size="14" font-weight="600" fill="#ff94c2">Permission</text>
+  <text x="40" y="162" font-size="12" fill="#b3c3c8">preset, network,</text>
+  <text x="40" y="180" font-size="12" fill="#b3c3c8">path rules</text>
+  <line x1="192" y1="152" x2="230" y2="152" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="232" y="48" width="248" height="208" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+  <text x="248" y="78" font-size="14" font-weight="600" fill="#4fd8ea">Fence</text>
+  <rect x="256" y="96" width="200" height="104" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+  <text x="272" y="134" font-size="14" font-weight="600" fill="#e8f0f2">Coding agent</text>
+  <text x="272" y="158" font-size="12" fill="#b3c3c8">and every command</text>
+  <text x="272" y="176" font-size="12" fill="#b3c3c8">it runs</text>
+  <text x="248" y="234" font-size="12" fill="#b3c3c8">Landlock, bubblewrap or Seatbelt</text>
+  <line x1="480" y1="76" x2="534" y2="76" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="480" y1="152" x2="534" y2="152" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="480" y1="228" x2="534" y2="228" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="536" y="48" width="200" height="56" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+  <text x="552" y="72" font-size="14" font-weight="600" fill="#e8f0f2">Work folder</text>
+  <text x="552" y="92" font-size="12" fill="#b3c3c8">read and write</text>
+  <rect x="536" y="124" width="200" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+  <text x="552" y="148" font-size="14" font-weight="600" fill="#e8f0f2">Rest of the machine</text>
+  <text x="552" y="168" font-size="12" fill="#b3c3c8">read only</text>
+  <rect x="536" y="200" width="200" height="56" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+  <text x="552" y="224" font-size="14" font-weight="600" fill="#e8f0f2">Network</text>
+  <text x="552" y="244" font-size="12" fill="#b3c3c8">open, or model hosts only</text>
+</svg>

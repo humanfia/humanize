@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 264" role="img">
+<title>An error report carries the error, the flow and agent settings, names and versions; what you typed, agent output, files and keys stay on your machine</title>
+<rect width="760" height="264" rx="12" fill="#172026"/>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4fd8ea"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#b3c3c8">
+<rect x="24" y="24" width="272" height="216" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="44" y="60" font-weight="600" fill="#e8f0f2">Stays on your machine</text>
+<line x1="44" y1="76" x2="276" y2="76" stroke="#435058" stroke-width="1.5"/>
+<text x="44" y="108">What you typed</text>
+<text x="44" y="140">Agent output and transcripts</text>
+<text x="44" y="172">Files and paths</text>
+<text x="44" y="204">Keys and tokens</text>
+<rect x="464" y="24" width="272" height="216" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="484" y="60" font-weight="600" fill="#e8f0f2">Sent to Humanize</text>
+<line x1="484" y1="76" x2="716" y2="76" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="484" y="108">The error and where</text>
+<text x="484" y="140">Flow and agent settings</text>
+<text x="484" y="172">Names: agents, accounts, skills</text>
+<text x="484" y="204">Versions and OS</text>
+<line class="go" x1="304" y1="132" x2="456" y2="132" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="380" y="116" text-anchor="middle" fill="#4fd8ea">error report</text>
+<rect x="316" y="152" width="128" height="32" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="380" y="173" text-anchor="middle" font-size="12" fill="#ff94c2">after you say yes</text>
+</g>
+</svg>

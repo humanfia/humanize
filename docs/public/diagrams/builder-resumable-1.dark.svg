@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img">
+<title>The first epic saves each state write to its journal and stops after round 2; the epic that resumes it starts from a copy of that journal and goes on at round 3</title>
+<rect width="760" height="296" rx="12" fill="#172026"/>
+<style>
+.s{animation:s1 9s infinite both}
+.s2{animation-name:s2}.s3{animation-name:s3}.s4{animation-name:s4}.s5{animation-name:s5}.s6{animation-name:s6}
+@keyframes s1{0%,3%{opacity:0}8%,100%{opacity:1}}
+@keyframes s2{0%,16%{opacity:0}21%,100%{opacity:1}}
+@keyframes s3{0%,30%{opacity:0}35%,100%{opacity:1}}
+@keyframes s4{0%,44%{opacity:0}49%,100%{opacity:1}}
+@keyframes s5{0%,58%{opacity:0}63%,100%{opacity:1}}
+@keyframes s6{0%,70%{opacity:0}75%,100%{opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+<marker id="c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4fd8ea"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<rect x="24" y="24" width="336" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="40" y="50">First epic</text>
+<rect x="400" y="24" width="336" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="416" y="50">Resumed epic</text>
+<g class="s">
+<rect x="40" y="64" width="88" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="84" y="89" text-anchor="middle">round 1</text>
+</g>
+<g class="s s2">
+<rect x="144" y="64" width="88" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="188" y="89" text-anchor="middle">round 2</text>
+<path d="M188 104V198" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)"/>
+<text x="200" y="158" font-size="12" fill="#b3c3c8">each write is saved</text>
+<rect x="72" y="200" width="232" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="88" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b3c3c8">resume.jsonl</text>
+<text x="88" y="248" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">state["done"] = 2</text>
+</g>
+<g class="s s3">
+<rect x="248" y="64" width="96" height="40" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+<text x="296" y="89" text-anchor="middle">stopped</text>
+</g>
+<g class="s s4">
+<path d="M304 232H446" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="376" y="222" text-anchor="middle" font-size="12" fill="#b3c3c8">copied on resume</text>
+<rect x="448" y="200" width="232" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="464" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b3c3c8">resume.jsonl</text>
+<text x="464" y="248" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">state["done"] = 2</text>
+</g>
+<g class="s s5">
+<path d="M460 200V106" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)"/>
+<text x="472" y="158" font-size="12" fill="#b3c3c8">the flow reads it and goes on</text>
+<rect x="416" y="64" width="88" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="460" y="89" text-anchor="middle">round 3</text>
+</g>
+<g class="s s6">
+<rect x="520" y="64" width="88" height="40" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="564" y="89" text-anchor="middle">round 4</text>
+<rect x="624" y="64" width="96" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="672" y="89" text-anchor="middle">done</text>
+</g>
+</g>
+</svg>

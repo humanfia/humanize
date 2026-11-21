@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 240" role="img">
+  <title>The virtual nous careful: a turn goes to Codex first, moves to Claude Code on any fault, and the whole graph is walked once more if both fail.</title>
+  <rect width="760" height="240" rx="12" fill="#172026"/>
+  <style>
+    .on { opacity: 0; animation: 8s infinite both; }
+    .a { animation-name: a; } .b { animation-name: b; } .c { animation-name: c; }
+    @keyframes a { 0%, 4% { opacity: 0 } 8%, 30% { opacity: 1 } 36%, 100% { opacity: 0 } }
+    @keyframes b { 0%, 30% { opacity: 0 } 36%, 52% { opacity: 1 } 58%, 100% { opacity: 0 } }
+    @keyframes c { 0%, 52% { opacity: 0 } 58%, 92% { opacity: 1 } 98%, 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } .on { opacity: 1 } }
+  </style>
+  <defs>
+    <marker id="g" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+    <marker id="c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4fd8ea"/></marker>
+    <marker id="y" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#e3b55a"/></marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <text x="24" y="44" font-size="16" font-weight="600">Virtual nous <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">careful</tspan></text>
+
+    <rect x="24" y="88" width="96" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="72" y="125" text-anchor="middle">A turn</text>
+    <path d="M120 120H174" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+
+    <rect x="176" y="88" width="184" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <rect class="on a" x="176" y="88" width="184" height="64" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="268" y="115" text-anchor="middle">n1 · Codex</text>
+    <text x="268" y="136" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpt-6.1-sol · high</text>
+
+    <path d="M360 120H454" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+    <path class="on b" d="M360 120H454" stroke="#4fd8ea" stroke-width="2.5" fill="none" marker-end="url(#c)"/>
+    <text x="407" y="108" text-anchor="middle" font-size="12" fill="#b3c3c8">on any fault</text>
+
+    <rect x="456" y="88" width="184" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <rect class="on c" x="456" y="88" width="184" height="64" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="548" y="115" text-anchor="middle">n2 · Claude Code</text>
+    <text x="548" y="136" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude-opus-4-1 · high</text>
+
+    <path d="M640 120H678" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+    <rect x="680" y="88" width="56" height="64" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="708" y="125" text-anchor="middle">Done</text>
+
+    <path d="M268 88V68H708V86" stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+    <text x="488" y="60" text-anchor="middle" font-size="12" fill="#b3c3c8">answers</text>
+
+    <path d="M548 152V184H268V154" stroke="#e3b55a" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#y)"/>
+    <text x="408" y="208" text-anchor="middle" font-size="12" fill="#e3b55a">both failed: wait, then walk the graph again (Tries: 1)</text>
+  </g>
+</svg>

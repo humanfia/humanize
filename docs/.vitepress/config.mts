@@ -1,3 +1,4 @@
+import { closeSync, openSync, readSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
@@ -252,6 +253,41 @@ const MOVED: Record<string, string> = Object.fromEntries(
   }).filter(([from]) => !PAGES.has(from)),
 )
 
+// A picture is two files, side by side: `<name>.svg` drawn for the light page and
+// `<name>.dark.svg` for the dark one (tests/system/docs/shots.py writes both of a capture, and
+// diagrams.mjs the dark twin of a diagram). A page names the light one, as plain Markdown, and
+// is given both: two `<img>`, of which the stylesheet shows the one of the theme the reader
+// chose (theme/style.css). That theme is a class on `<html>`, not what the system asks for, so
+// no `<picture>` with a media query could pick. Both are lazy, and the hidden one, having no
+// box, is never fetched.
+const PUBLIC = fileURLToPath(new URL('../public', import.meta.url))
+const PICTURE = /^\/(?:shots|diagrams)\/.+\.svg$/
+const DARK = (src: string) => src.replace(/\.svg$/, '.dark.svg')
+
+/** How large an SVG says it is, from its opening tag -- its `width` and `height`, or its
+ *  `viewBox` -- so the page keeps its room before it loads and does not jump when it does. */
+const SIZES = new Map<string, [string, string] | null>()
+function sizeOf(src: string): [string, string] | null {
+  if (!SIZES.has(src) || process.env.NODE_ENV !== 'production') {
+    let size: [string, string] | null = null
+    try {
+      const file = openSync(join(PUBLIC, src), 'r')
+      const head = Buffer.alloc(1024)
+      const read = readSync(file, head, 0, head.length, 0)
+      closeSync(file)
+      const tag = /<svg\b[^>]*>/.exec(head.toString('utf8', 0, read))?.[0] ?? ''
+      const said = (name: string) => new RegExp(`\\s${name}="([\\d.]+)(?:px)?"`).exec(tag)?.[1]
+      const box = /\sviewBox="[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)"/.exec(tag)
+      const [width, height] = [said('width') ?? box?.[1], said('height') ?? box?.[2]]
+      if (width && height) size = [String(Math.round(Number(width))), String(Math.round(Number(height)))]
+    } catch {
+      // Not there: `pnpm check:pictures` says so; the page is drawn without its size.
+    }
+    SIZES.set(src, size)
+  }
+  return SIZES.get(src) ?? null
+}
+
 /** Where a moved page is now: a path on this site, or a full URL on another. */
 const wayTo = (to: string) => (/^https?:\/\//.test(to) ? to : `${BASE}${to}`)
 
@@ -302,6 +338,34 @@ export default defineConfig({
     footer: {
       message: CHROME.footer.message,
       copyright: 'Humanize is released under the Apache-2.0 licence · Copyright © 2026 Zijian Zhang',
+    },
+  },
+
+  markdown: {
+    config(md) {
+      const image = md.renderer.rules.image!
+      md.renderer.rules.image = (tokens, at, options, env, self) => {
+        const token = tokens[at]
+        const src = token.attrGet('src') ?? ''
+        if (!PICTURE.test(src) || src.endsWith('.dark.svg')) return image(tokens, at, options, env, self)
+        const size = sizeOf(src)
+        if (size) {
+          token.attrSet('width', size[0])
+          token.attrSet('height', size[1])
+        }
+        token.attrSet('loading', 'lazy')
+        token.attrSet('decoding', 'async')
+        token.attrSet('class', 'hmz-pic hmz-pic-light')
+        const light = image(tokens, at, options, env, self)
+        // Its dark twin, named whether or not it is written yet: `pnpm check:pictures` fails on
+        // one that is missing, and a page compiled before it was written is not left showing
+        // the light one for good.
+        token.attrSet('src', DARK(src))
+        token.attrSet('class', 'hmz-pic hmz-pic-dark')
+        const dark = image(tokens, at, options, env, self)
+        token.attrSet('src', src)
+        return light + dark
+      }
     },
   },
 

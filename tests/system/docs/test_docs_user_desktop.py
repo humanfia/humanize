@@ -54,7 +54,7 @@ def _sheet(state: str, detail: Any) -> Any:
 
 def _splash(state: str, detail: Any, name: str) -> None:
     """A still of the splash in one state, with no window drawn around it."""
-    defs = shots._Defs()  # pyright: ignore[reportPrivateUsage]
+    defs = shots._pair()  # pyright: ignore[reportPrivateUsage]
     frame = shots._draw(_sheet(state, detail), defs)  # pyright: ignore[reportPrivateUsage]
     shots._still(name, frame, defs)  # pyright: ignore[reportPrivateUsage]
 

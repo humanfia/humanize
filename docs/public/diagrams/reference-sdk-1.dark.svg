@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 312" role="img">
+  <title>The three ways a program reaches Humanize: Hmz.run gives a Run, Daemons gives a Link, Client gives a session; all go through this machine's daemon to the workspace host that runs the epic.</title>
+  <rect width="760" height="312" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="24" y="44" font-size="16" font-weight="600" fill="#e8f0f2">Three ways in</text>
+
+    <g fill="#0f161a" stroke="#435058" stroke-width="1.5">
+      <rect x="24" y="64" width="240" height="64" rx="8" fill="#12343b" stroke="#4fd8ea"/>
+      <rect x="24" y="144" width="240" height="64" rx="8"/>
+      <rect x="24" y="224" width="240" height="64" rx="8"/>
+      <rect x="408" y="64" width="136" height="224" rx="8" fill="#27351a" stroke="#a5d84a"/>
+      <rect x="600" y="128" width="136" height="96" rx="8"/>
+    </g>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8f0f2">
+      <text x="40" y="92">Hmz.run() → Run</text>
+      <text x="40" y="172">Daemons → Link</text>
+      <text x="40" y="252">Client</text>
+    </g>
+    <g font-size="12" fill="#b3c3c8">
+      <text x="40" y="112">an epic, held and followed</text>
+      <text x="40" y="192">one frontend of a host</text>
+      <text x="40" y="272">one session, raw methods</text>
+    </g>
+
+    <g stroke="#9aa9b0" stroke-width="1.5" fill="none" marker-end="url(#a)">
+      <path d="M264 96 H406"/>
+      <path d="M264 176 H406"/>
+      <path d="M264 256 H406"/>
+      <path d="M544 176 H598"/>
+    </g>
+    <g font-size="12" fill="#9aa9b0" text-anchor="middle">
+      <text x="335" y="88">starts, follows</text>
+      <text x="335" y="168">attaches</text>
+      <text x="335" y="248">calls</text>
+    </g>
+
+    <g text-anchor="middle">
+      <text x="476" y="172" font-size="14" fill="#e8f0f2">Daemon</text>
+      <text x="476" y="192" font-size="12" fill="#b3c3c8">this machine's</text>
+      <text x="668" y="172" font-size="14" fill="#e8f0f2">Workspace host</text>
+      <text x="668" y="192" font-size="12" fill="#b3c3c8">runs the epic</text>
+    </g>
+  </g>
+</svg>

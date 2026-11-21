@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 232" role="img">
+  <title>One session takes its first turn in the project and its second in a worktree on the same machine, where the conversation follows it; a turn on another machine is refused</title>
+  <rect width="760" height="232" rx="12" fill="#172026"/>
+  <style>
+    .move { animation: move 8s infinite; }
+    .deny { animation: deny 8s infinite; }
+    @keyframes move { 0%, 16% { opacity: 0 } 28%, 100% { opacity: 1 } }
+    @keyframes deny { 0%, 50% { opacity: 0 } 62%, 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#4fd8ea"/>
+    </marker>
+    <marker id="g" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#e3b55a"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <rect x="24" y="48" width="480" height="136" rx="8" fill="none" stroke="#435058" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="40" y="36" font-size="12" fill="#9aa9b0">One machine</text>
+
+    <rect x="40" y="80" width="168" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="56" y="110" font-size="14" fill="#e8f0f2">Turn 1</text>
+    <text x="56" y="134" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">env=workspace</text>
+
+    <g class="move">
+      <path d="M208 116 L316 116" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+      <text x="262" y="104" font-size="12" fill="#4fd8ea" text-anchor="middle">conversation</text>
+      <text x="262" y="138" font-size="12" fill="#4fd8ea" text-anchor="middle">follows</text>
+      <rect x="320" y="80" width="168" height="72" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+      <text x="336" y="110" font-size="14" fill="#e8f0f2">Turn 2</text>
+      <text x="336" y="134" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">env=tree</text>
+    </g>
+
+    <g class="deny">
+      <path d="M488 116 L564 116" fill="none" stroke="#e3b55a" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#g)"/>
+      <rect x="568" y="80" width="168" height="72" rx="8" fill="#3a3017" stroke="#e3b55a" stroke-width="1.5"/>
+      <text x="584" y="110" font-size="14" fill="#e8f0f2">Another machine</text>
+      <text x="584" y="134" font-size="12" fill="#e3b55a">the turn is refused</text>
+    </g>
+  </g>
+</svg>

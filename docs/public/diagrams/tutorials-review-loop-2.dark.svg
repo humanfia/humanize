@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 224" role="img">
+<title>The same flow run two ways: hmz exec gives its roles real coding agents, run_fake gives them scripted FakeAgentDriver replies</title>
+<rect width="760" height="224" rx="12" fill="#172026"/>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<rect x="24" y="32" width="160" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="104" y="60" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz exec</text>
+<text x="104" y="80" text-anchor="middle" font-size="12" fill="#b3c3c8">a real run</text>
+
+<rect x="24" y="128" width="160" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="104" y="156" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">run_fake</text>
+<text x="104" y="176" text-anchor="middle" font-size="12" fill="#b3c3c8">your test</text>
+
+<rect x="288" y="32" width="184" height="160" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="380" y="108" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">review_loop</text>
+<text x="380" y="130" text-anchor="middle" font-size="12" fill="#b3c3c8">the same code</text>
+
+<path d="M184 64H286" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M184 160H286" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M472 64H574" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M472 160H574" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="524" y="52" text-anchor="middle" font-size="12" fill="#9aa9b0">turns</text>
+<text x="524" y="148" text-anchor="middle" font-size="12" fill="#9aa9b0">turns</text>
+
+<rect x="576" y="32" width="160" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="656" y="60" text-anchor="middle">Coding agents</text>
+<text x="656" y="80" text-anchor="middle" font-size="12" fill="#b3c3c8">minutes, tokens</text>
+
+<rect x="576" y="128" width="160" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="656" y="156" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">FakeAgentDriver</text>
+<text x="656" y="176" text-anchor="middle" font-size="12" fill="#b3c3c8">scripted, instant</text>
+</g>
+</svg>

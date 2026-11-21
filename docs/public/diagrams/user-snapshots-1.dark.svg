@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 256" role="img">
+  <title>A flow takes snapshots as its agent works; rewinding puts the environment back as one of them had it</title>
+  <rect width="760" height="256" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#ff94c2"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="32" y="48" font-size="16" font-weight="600" fill="#e8f0f2">Snapshots along a run</text>
+
+    <path d="M690 138C640 72 300 72 248 136" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="468" y="76" font-size="14" fill="#ff94c2" text-anchor="middle">rewind</text>
+
+    <line x1="64" y1="152" x2="696" y2="152" stroke="#435058" stroke-width="1.5"/>
+    <line x1="248" y1="152" x2="696" y2="152" stroke="#172026" stroke-width="3"/>
+    <line x1="248" y1="152" x2="696" y2="152" stroke="#435058" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+    <text x="144" y="136" font-size="12" fill="#9aa9b0" text-anchor="middle">agent works</text>
+    <text x="352" y="136" font-size="12" fill="#9aa9b0" text-anchor="middle">agent works</text>
+    <text x="584" y="136" font-size="12" fill="#9aa9b0" text-anchor="middle">lost by the rewind</text>
+
+    <circle cx="64" cy="152" r="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <circle cx="240" cy="152" r="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <circle cx="472" cy="152" r="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <circle cx="696" cy="152" r="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#e8f0f2" text-anchor="middle">
+      <text x="64" y="188">before</text>
+      <text x="240" y="188" fill="#4fd8ea">round-1</text>
+      <text x="472" y="188">round-2</text>
+    </g>
+    <text x="696" y="188" font-size="14" fill="#ff94c2" text-anchor="middle">now</text>
+    <text x="32" y="228" font-size="12" fill="#b3c3c8">Each snapshot is a git commit kept aside. Nothing checked out moves when it is taken.</text>
+  </g>
+</svg>
