@@ -27,7 +27,7 @@ test('a row says how it stands in the page’s language, and a mark it has no wo
 
 test('a row’s menu is worded in the page’s language, and the keys of a shortcut are not', () => {
   assert.equal(wording(true).like, '新增類似聊天')
-  assert.equal(wording(false).like, '新增類似 Epic')
+  assert.equal(wording(false).like, '新增類似的史詩')
   for (const said of [...Object.values(wording(true)), ...Object.values(wording(false))]) assert.match(said, /[一-鿿]/)
   assert.deepEqual(shortcut('search', false), ['Ctrl', 'K'])
 })
@@ -35,7 +35,7 @@ test('a row’s menu is worded in the page’s language, and the keys of a short
 test('what `Group and sort` offers and the groups it makes are named in the page’s language, and kept by the same keys', () => {
   assert.deepEqual(GROUPS, [['folder', '資料夾'], ['date', '日期'], ['none', '不分組']])
   assert.deepEqual(SORTS, [['updated', '上次更新'], ['created', '建立時間']])
-  assert.deepEqual(SHOWS, [['chats', '聊天'], ['epics', 'Epic']])
+  assert.deepEqual(SHOWS, [['chats', '聊天'], ['epics', '史詩']])
   assert.equal(NO_FOLDER, '無資料夾')
   const view = { group: 'date', sort: 'updated', chats: true, epics: true }
   const now = Date.parse('2026-05-02T12:00:00')
@@ -51,7 +51,7 @@ test('what `Group and sort` offers and the groups it makes are named in the page
 })
 
 test('Search names its tabs, its keys’ doings and its headings in the page’s language, and a key as it is written on it', () => {
-  assert.deepEqual(TABS, [['', '全部'], ['chat', '聊天'], ['flow', 'Epic']])
+  assert.deepEqual(TABS, [['', '全部'], ['chat', '聊天'], ['flow', '史詩']])
   assert.deepEqual(hints(true).map(([does]) => does), ['關閉', '切換類型', '篩選', '動作', '移動', '開啟'])
   assert.deepEqual(hints(true)[3][1], ['Option', 'Enter'])
   assert.equal(heading({ q: 'x' }), '結果')
@@ -64,14 +64,14 @@ test('Search names its tabs, its keys’ doings and its headings in the page’s
   assert.deepEqual(does, ['chat'])
 })
 
-test('what is said before a chat is deleted, and why it has no worktree, keep Worktree as it is written', () => {
-  assert.match(DELETING, /Worktree/)
+test('what is said before a chat is deleted, and why it has no worktree, say a worktree by the glossary', () => {
+  assert.match(DELETING, /工作樹/)
   assert.match(DELETING, /無法復原/)
-  assert.equal(NO_WORKTREE.none, 'Worktree 需要一個資料夾')
+  assert.equal(NO_WORKTREE.none, '工作樹需要一個資料夾')
 })
 
 test('a count is said with no plural form of its own, and the texts English tells apart by number are held', () => {
-  assert.equal(t('{n} flows have a newer release', { n: 1 }), '1 個 Flow 有新版本')
+  assert.equal(t('{n} flows have a newer release', { n: 1 }), '1 個流程有新版本')
   assert.equal(t('{n} sessions', { n: 2 }), '2 個工作階段')
   document.documentElement.lang = 'en'
   assert.equal(t('{n} flows have a newer release', { n: 1 }), '1 flow has a newer release')

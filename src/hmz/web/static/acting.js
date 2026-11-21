@@ -103,7 +103,7 @@ export function board(workspace, items) {
         value,
         // A line the flow owns is the flow's to change, as the terminal interface refuses it.
         one.whose === 'flow'
-          ? h('span', { class: 'node-tag', title: t('Only the flow changes this line') }, 'Flow')
+          ? h('span', { class: 'node-tag', title: t('Only the flow changes this line') }, t('Flow'))
           : h(
               'span',
               { class: 'row' },

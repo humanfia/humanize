@@ -548,7 +548,7 @@ task and press <kbd>Enter</kbd>. What the flow is set up with is in the middle o
 flow is for, always in sight -- nothing opens or hides it -- as that directory last started it:
 
 - **Environment.** **Daemon** and **Folder**, as above; then, per environment role, the
-  **Backend**, the **Runtime** of it (or **Add runtime…**, or for ssh **Other host…**), and the
+  **Backend** by what it is (**This machine**, **SSH host**, **Docker container**…), the **Runtime** of it (or **Add runtime…**, or for ssh **Other host…**), and the
   **Directory**, completed as you type on this machine. A directory left blank is the folder
   picked, which the field says while it is empty.
 - **Agents.** A row per role: its name, and beside it a chip that says the nous filling it --
@@ -1009,12 +1009,27 @@ kept by this browser and the same for every daemon; another browser starts on **
 
 Some things stay as they were written, whatever the language:
 
-- **Names.** Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon, Exomyth, Agent and
-  Worktree, and the names of harnesses and models, are written in Latin script. An effort is
-  translated: **Extra high** is **超高**.
+- **Names.** Humanize, Ai-chan, Exomyth and EasyTier, and the names of harnesses and models, are
+  written in Latin script. Every other word of the product has a Chinese word of its own, the
+  same wherever it is said -- the table below. An effort is translated: **Extra high** is
+  **超高**.
 - **What the page did not write.** Tasks, what agents answer, a flow's own description and
   options, paths, and what a daemon refuses with are shown as they are.
 - **A text not translated yet** is shown in English.
+
+| English | 简体中文 | 繁體中文 |
+| --- | --- | --- |
+| Daemon | 守护进程 | 常駐程式 |
+| Nous | 心智 | 心智 |
+| Harness | 运行框架 | 執行框架 |
+| Agent | 智能体 | 代理程式 |
+| Epic | 史诗 | 史詩 |
+| Flow | 流程 | 流程 |
+| Flowverse | 流程库 | 流程庫 |
+| Environment | 环境 | 環境 |
+| Runtime | 运行时 | 執行環境 |
+| Workspace | 工作区 | 工作區 |
+| Worktree | 工作树 | 工作樹 |
 
 The presets' names are translated with the rest of the page: in Chinese **Temperate Gold** is
 **节制金色** or **節制金色**, and so on down the list, while **Humanize Green** keeps `Humanize`. A

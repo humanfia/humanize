@@ -262,8 +262,14 @@ export function permitted(permission) {
     read: (path) => t('reads {path}', { path }),
     none: (path) => t('keeps out of {path}', { path }),
   }
+  // A preset as the page's language says it; one the page does not know, as the daemon names it.
+  const presets = {
+    'read-only': t('read-only@@preset'),
+    'workspace-write': t('workspace-write@@preset'),
+    'danger-full-access': t('danger-full-access@@preset'),
+  }
   return [
-    permission.preset,
+    presets[permission.preset] || permission.preset,
     ...permission.granular.map((rule) => touches[rule.access](rule.path)),
     permission.network ? t('goes online') : t('stays offline'),
   ].join(' · ')

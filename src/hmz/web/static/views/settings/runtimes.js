@@ -5,6 +5,7 @@
 // runs that names no runtime, which nothing here changes or removes.
 
 import { call, onDaemon } from '../../api.js'
+import { kindSaid } from '../../chips/environment.js'
 import { confirming } from '../../confirm.js'
 import { acting, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { t } from '../../i18n.js'
@@ -81,7 +82,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   function drawWriting() {
-    const backend = h('select', { id: 'runtime-backend', disabled: Boolean(editing) }, Object.keys(data.blanks).map((one) => h('option', { value: one, selected: editing ? editing.backend === one : false }, one)))
+    const backend = h('select', { id: 'runtime-backend', disabled: Boolean(editing) }, Object.keys(data.blanks).map((one) => h('option', { value: one, selected: editing ? editing.backend === one : false }, kindSaid(one)[0])))
     const name = h('input', { type: 'text', id: 'runtime-name', value: editing ? editing.name : '', placeholder: 'gpu-box', required: true, disabled: Boolean(editing), autocomplete: 'off' })
     const fields = h('div', { class: 'grid' })
     const readers = {}
@@ -283,7 +284,7 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
   }
   if (key === 'harness') {
     const places = ['env', 'local', ...runtimes.filter((one) => one.name !== name || one.backend !== backend).map((one) => `${one.backend}:${one.name}`)]
-    const picked = h('select', { id }, places.map((one) => h('option', { value: one, selected: one === (value || 'env') }, one)))
+    const picked = h('select', { id }, places.map((one) => h('option', { value: one, selected: one === (value || 'env') }, one === 'env' ? t('Inside the environment') : one === 'local' ? t('This machine') : one)))
     return [picked, () => picked.value]
   }
   if (Array.isArray(empty)) {

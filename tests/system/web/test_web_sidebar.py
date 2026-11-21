@@ -946,7 +946,7 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
         (
             "zh-Hans",
             {
-                "nav": ["新建聊天", "新建 Epic", "搜索", "Flow"],
+                "nav": ["新建聊天", "新建史诗", "搜索", "流程"],
                 "states": ["运行中", "等待输入", "已完成", "失败"],
                 "menu": ["分组方式", "排序方式", "显示"],
                 "about": ["文件夹", "最近更新"],
@@ -959,7 +959,7 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
         (
             "zh-Hant",
             {
-                "nav": ["新增聊天", "新增 Epic", "搜尋", "Flow"],
+                "nav": ["新增聊天", "新增史詩", "搜尋", "流程"],
                 "states": ["執行中", "等待輸入", "已完成", "失敗"],
                 "menu": ["分組方式", "排序方式", "顯示"],
                 "about": ["資料夾", "上次更新"],

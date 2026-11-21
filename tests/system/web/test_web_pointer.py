@@ -142,7 +142,9 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         options.get_by_label("Name").fill("ServerAliveInterval")
         options.get_by_label("Value").fill("30")
         harness = page.locator("#runtime-harness")
-        expect(harness.locator("option")).to_have_text(["env", "local"])
+        expect(harness.locator("option")).to_have_text(
+            ["Inside the environment", "This machine"]
+        )
         expect(harness).to_have_value("env")
         harness.select_option("local")
         page.locator("[data-hmz=write-runtime] .row > .confirm > .btn.primary").click()

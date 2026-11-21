@@ -157,7 +157,7 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         (
             "zh-CN",
             "跳到页面内容",
-            "聊天和 Epic",
+            "聊天和史诗",
             "超高",
             "文件夹 ghost 已不在这台机器上。请另选一个文件夹。",
             "此浏览器未获准进入。",
@@ -165,7 +165,7 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         (
             "zh-TW",
             "跳至頁面內容",
-            "聊天與 Epic",
+            "聊天與史詩",
             "超高",
             "資料夾 ghost 已不在這台機器上。請另選一個資料夾。",
             "此瀏覽器未獲准進入。",

@@ -306,8 +306,20 @@ nor Simplified Chinese in Traditional Chinese's.
 **3.4.4.14** The page MUST NOT translate what it did not write: the name of a harness or of a model
 (Section 3.4.4.11), a path, an identifier, a name the user gave, the text of a task, of a flow's
 description or options, of an agent's output or of a question, and the sentence a daemon refuses or
-fails with. In every language it MUST write `Humanize`, `Ai-chan`, `Nous`, `Epic`, `Flow`,
-`Flowverse`, `Harness`, `Daemon`, `Exomyth`, `Agent` and `Worktree` in Latin script.
+fails with. In every language it MUST write `Humanize`, `Ai-chan`, `Exomyth` and `EasyTier` in
+Latin script.
+
+**3.4.4.14.1** Written in Chinese, the page MUST say each word of the product by one translation
+wherever it says it, never in Latin script: a daemon 守护进程 or 常駐程式, a nous 心智, a virtual
+nous 虚拟心智 or 虛擬心智, a concrete nous 具体心智 or 具體心智, a harness 运行框架 or 執行框架, an
+agent 智能体 or 代理程式, an epic 史诗 or 史詩, a flow 流程, a flowverse 流程库 or 流程庫, an
+environment 环境 or 環境, a runtime 运行时 or 執行環境, a workspace 工作区 or 工作區 and a worktree
+工作树 or 工作樹, Simplified first. What is typed stays as it is typed: a command such as `/flow`,
+and an id.
+
+**3.4.4.14.2** A name the daemon gives out of a set this document closes -- a runtime's backend
+(Section 3.11.2.7), a permission's preset (Section 8.3.9 of protocol/core.md) -- MUST be said in
+the page's language; one the page does not know MUST be said as the daemon names it.
 
 **3.4.4.15** The page MUST write a date and a time of day as its language writes them, and as the
 browser's own region of that language does where the browser names one.

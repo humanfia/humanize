@@ -106,7 +106,7 @@ export function draw(holder, query, parts, scope) {
         ? h(
             'div',
             { class: 'table-wrap' },
-            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, t('Account')), h('th', {}, t('Sets')), h('th', {}, t('Models')), h('th', {}, ''))), h('tbody', {}, rows)),
+            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t('CLI')), h('th', {}, t('Account')), h('th', {}, t('Sets')), h('th', {}, t('Models')), h('th', {}, ''))), h('tbody', {}, rows)),
           )
         : empty(
             t('No account yet.'),
@@ -170,7 +170,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   function drawMaking() {
-    const cli = h('select', { 'aria-label': 'CLI', id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, harnessName(one.cli))))
+    const cli = h('select', { 'aria-label': t('CLI'), id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, harnessName(one.cli))))
     const way = h('select', { 'aria-label': t('Sign-in method'), id: 'account-way' })
     const name = h('input', { type: 'text', id: 'account-name', placeholder: 'work', required: true, autocomplete: 'off' })
     const about = h('p', { class: 'hint' })
@@ -181,7 +181,7 @@ export function draw(holder, query, parts, scope) {
     const form = h(
       'form',
       { class: 'form' },
-      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, 'CLI'), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, t('Sign-in method')), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, t('Name')), name)),
+      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, t('CLI')), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, t('Sign-in method')), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, t('Name')), name)),
       about,
       wants,
       answers,

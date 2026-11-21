@@ -23,7 +23,14 @@ const TRANSLATED = ['zh-Hans', 'zh-Hant']
  * What a Chinese catalog may say exactly as English does: the names the page keeps in Latin
  * script, and a text that is nothing but what is put in it.
  */
-const SAME = new Set(['Humanize', 'Ai-chan', 'Nous', 'Epic', 'Flow', 'Flowverse', 'Harness', 'Daemon', 'Exomyth', 'Agent', 'Worktree', 'EasyTier', 'OK'])
+const SAME = new Set(['Humanize', 'Ai-chan', 'Exomyth', 'EasyTier', 'OK'])
+
+/**
+ * The words of the product that have a Chinese word of their own (the glossary of
+ * docs/contributing/architecture.md), which a Chinese text therefore never says in Latin script.
+ * A command's own spelling, as `/flow`, is lower case and is not one of them.
+ */
+const GLOSSED = /(?<![A-Za-z/-])(?:Daemon|Nous|Harness|Epic|Flow|Flowverse|Agent|Worktree|Runtime|Workspace|Environment|Env)s?(?![A-Za-z-])/
 
 const root = { lang: '', dataset: {} }
 const store = new Map()
@@ -334,4 +341,11 @@ test('a community node that is up is said to be online, not connected as a daemo
   assert.deepEqual([CATALOGS['zh-Hans']['up@@node'], CATALOGS['zh-Hant']['up@@node']], ['在线', '上線'])
   for (const language of TRANSLATED) assert.notEqual(CATALOGS[language]['up@@node'], CATALOGS[language].up, language)
   assert.equal(t('up@@node'), 'up')
+})
+
+test('a Chinese text says the product’s words by the glossary, never in Latin script', () => {
+  for (const language of TRANSLATED) {
+    const found = Object.entries(CATALOGS[language]).filter(([, value]) => forms(value).some((form) => GLOSSED.test(form))).map(([key]) => JSON.stringify(key))
+    assert.deepEqual(found, [], language)
+  }
 })

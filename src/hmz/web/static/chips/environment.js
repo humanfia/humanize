@@ -125,6 +125,7 @@ function hooked(item, hmz, off = '') {
 
 /** What each kind of runtime is called, and the icon it is told apart by. */
 const KINDS = {
+  local: () => [t('This machine'), 'server'],
   ssh: () => [t('SSH host'), 'remote'],
   docker: () => [t('Docker container'), 'box'],
   swarm: () => [t('Docker swarm'), 'server'],
@@ -133,7 +134,7 @@ const KINDS = {
 }
 
 /** A kind of runtime as it is said, and its icon: a backend the page does not know by its own name. */
-const kindSaid = (backend) => (KINDS[backend] ? KINDS[backend]() : [backend, 'server'])
+export const kindSaid = (backend) => (KINDS[backend] ? KINDS[backend]() : [backend, 'server'])
 
 /** The last part of a directory, which is what a chip has the room to say of one. */
 const lastOf = (path) => String(path || '').split('/').filter(Boolean).pop() || String(path || '')

@@ -5,6 +5,7 @@
 
 import { call, daemon, hash, onDaemon } from './api.js'
 import { nousOffered, offering, parted, spelled } from './chips/agent.js'
+import { kindSaid } from './chips/environment.js'
 import { fill, h, iconButton } from './dom.js'
 import { t } from './i18n.js'
 import { effortName, harnessName } from './names.js'
@@ -215,7 +216,7 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
   const again = iconButton('resume', t('Refresh models'), { class: 'small' })
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
   // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
-  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
+  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field(t('CLI'), cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
   let typing = false
 
   const picked = agentChoice(role, kept, draw, { effort: withEffort, changed })
@@ -322,7 +323,7 @@ export function envPicker(role, kept, offered, runtimes, { folder = '' } = {}) {
   const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field(t('Backend'), backend), field(t('Runtime'), machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, t('Directory')), dir))
 
   function draw() {
-    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, one)))
+    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, kindSaid(one)[0])))
     const mine = runtimes.filter((one) => one.backend === chosen.backend)
     const local = chosen.backend === 'local'
     machine.closest('.field').hidden = local
