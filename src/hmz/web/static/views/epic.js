@@ -142,6 +142,11 @@ export function mount(root, { parts, query }) {
     draw()
   }
 
+  /** What was drawn in the middle is drawn no more: each part of it is drawn anew when next it is. */
+  function unmain() {
+    for (const one of ['main-kind', 'thread', 'thread-before', 'thread-head', 'thread-ask', 'agent-list', 'graph-note']) drawn[one] = undefined
+  }
+
   function draw() {
     if (!seen) return
     const { detail, error, going, held, none } = seen
@@ -150,13 +155,17 @@ export function mount(root, { parts, query }) {
         // Its bar stands before anything is read of it, and where nothing could be: with the
         // sidebar's button and Ai-chan's, as every view's.
         region('head', ['reading'], () => fill(head, bar()))
-        region('main', ['reading', String(error)], () => fill(main, h('div', { class: 'view-pad' }, error ? problem(error) : h('p', { class: 'loading late', role: 'status' }, t('Opening…')))))
+        region('main', ['reading', String(error)], () => {
+          unmain()
+          fill(main, h('div', { class: 'view-pad' }, error ? problem(error) : h('p', { class: 'loading late', role: 'status' }, t('Opening…'))))
+        })
       } else {
         const starting = held && held.standing.run && held.standing.run.state === 'running'
         // A chat's host is on a slot of its own, which says it is one before it is written down.
         const chat = wanted.slot.startsWith('chat:')
         region('head', ['none', starting], () => fill(head, bar({ title: starting ? (chat ? t('Starting the chat…') : t('Starting the epic…')) : chat ? t('No chat here') : t('No epic is going') })))
-        region('main', ['none', starting, none], () =>
+        region('main', ['none', starting, none], () => {
+          unmain()
           fill(
             main,
             h(
@@ -168,8 +177,8 @@ export function mount(root, { parts, query }) {
                   ? empty(t('This chat is no longer at this address.'), t(' Start one, or open a chat from the sidebar.'), h('a', { class: 'btn primary', href: hash('/new/chat') }, t('New chat')))
                   : empty(t('No epic is going here.'), t(' Start one, or open an epic from the sidebar.'), h('a', { class: 'btn primary', href: hash('/new') }, t('New epic'))),
             ),
-          ),
-        )
+          )
+        })
       }
       region('panel-tabs', ['none'], () => {
         leaveEnv()
@@ -1120,7 +1129,9 @@ export function mount(root, { parts, query }) {
       usages.delete(box.usage)
       carryingOn = true
       stop()
-      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true })
+      // What is drawn of it stands until the daemon says how it is now: nothing of it is emptied
+      // to be read again (Section 3.6.12.2 of protocol/web.md).
+      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true, had: seen && seen.detail })
       // No host holds it: the permission picked is kept for the chat to be carried on with.
     }, () => null)
     return box

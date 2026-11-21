@@ -702,7 +702,7 @@ def test_a_chat_no_host_holds_is_written_as_carried_on_with_another_model(
     )
     assert len(written) == 1
     # One a host holds was given it by that host: its row is answered, and nothing written.
-    held.hosts["/w\0chat:c1"] = {  # pyright: ignore[reportAttributeAccessIssue]
+    _hosts(held)["/w\0chat:c1"] = {
         "chat": "c1",
         "state": "running",
         "slot": "chat:c1",
