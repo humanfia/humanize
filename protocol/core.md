@@ -1346,13 +1346,13 @@ answer validated afterwards.
 #### 4.7.3. Forks
 
 **4.7.3.1** The following harnesses MUST fork a conversation: `claude`, `codex`, `kimi`, `grok`,
-`opencode`, `mimo`, `pi`, `omp`, `qwen`, and an ACP harness that advertises forking.
+`opencode`, `mimo`, `pi`, `omp`, `qwen`, `litellm`, and an ACP harness that advertises forking.
 
-**4.7.3.2** `claude`, `codex` and `kimi` MUST additionally fork a conversation into another
-directory of the same machine.
+**4.7.3.2** `claude`, `codex`, `kimi` and `litellm` MUST additionally fork a conversation into
+another directory of the same machine.
 
-**4.7.3.3** Forking on `agy`, `cursor-agent`, `dsh`, `mcode`, `litellm` and an ACP harness that does
-not advertise it MUST be refused with `UnsupportedOperation`.
+**4.7.3.3** Forking on `agy`, `cursor-agent`, `dsh`, `mcode` and an ACP harness that does not
+advertise it MUST be refused with `UnsupportedOperation`.
 
 **4.7.3.4** A fork MUST carry the conversation's history as of the fork, its effort, its skills and
 its fake tools, and MUST have a session id of its own.
