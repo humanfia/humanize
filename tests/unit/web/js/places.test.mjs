@@ -22,7 +22,7 @@ const served = daemon({
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { chain, dismiss, opened } = await import('../../../../src/hmz/web/static/layers.js')
-const { firstOf, firstWorkspace, folderOf, goneSaid, lostSaid, missing, unplaced, workspacePicker, workspaces } = await import('../../../../src/hmz/web/static/places.js')
+const { firstOf, firstWorkspace, folderOf, goneSaid, lostSaid, missing, unplaced, workspaceAt, workspacePicker, workspaces } = await import('../../../../src/hmz/web/static/places.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -300,25 +300,36 @@ test('Folder says on its chip that the folder picked is gone', async () => {
   }
 })
 
-test('Daemon is which hmz serves the page, on a chip that names no folder and no environment', async () => {
-  const { daemonChip } = await import('../../../../src/hmz/web/static/chips/environment.js')
-  const made = daemonChip('/new')
-  body.append(made.node)
-  const button = made.node.querySelector('[data-hmz=daemon]')
-  try {
-    assert.equal(made.node.querySelector('[data-hmz=environment]'), null)
-    assert.equal(button.textContent, 'Local')
-    assert.equal(button.getAttribute('aria-label'), 'Daemon: Local')
-    button.box = { left: 300, top: 100, width: 80, height: 24 }
-    button.click()
-    const menu = made.node.querySelector('[role=menu]')
-    assert.equal(menu.querySelector('[data-hmz=daemon-about]').textContent, 'Which hmz serves this page: a machine running hmz that you are connected to.')
-    assert.deepEqual(menu.querySelectorAll('[role=menuitem]').map((one) => one.textContent), ['Local', 'Add daemon…'])
-    assert.ok(parseFloat(menu.style.top) >= 124)
-  } finally {
-    dismiss('route')
-    made.node.remove()
+test('no chip is a choice of a daemon: which hmz serves the page is picked at the foot of the sidebar and under Daemons', async () => {
+  const chips = await import('../../../../src/hmz/web/static/chips/environment.js')
+  assert.deepEqual(Object.keys(chips).sort(), ['envSaid', 'environmentChip', 'folderChip', 'kindSaid'])
+})
+
+test('a folder’s settings are a dialog of its own, at an address that names the folder, and No folder’s its archived chats', () => {
+  assert.equal(workspaceAt('/w/my app'), '/workspace/setup?workspace=%2Fw%2Fmy+app')
+  assert.equal(workspaceAt('/w/app', 'usage'), '/workspace/usage?workspace=%2Fw%2Fapp')
+  assert.equal(workspaceAt('/w/app', 'archived'), '/workspace/archived?workspace=%2Fw%2Fapp')
+  assert.equal(workspaceAt(), '/workspace/archived?scratch=1')
+  assert.equal(workspaceAt('', 'usage'), '/workspace/archived?scratch=1')
+})
+
+test('an address of before leads to what it is now: a folder’s page of Settings to its dialog, a daemon in the query to that daemon', () => {
+  const moved = (path) => {
+    const url = new URL(path, 'http://page')
+    return api.movedTo(url.pathname.split('/').filter(Boolean).map(decodeURIComponent), url.searchParams)
   }
+  // As addresses are: nothing to go to.
+  for (const path of ['/settings/general', '/settings/usage?days=7', '/workspace/setup?workspace=%2Fw%2Fapp', '/new?workspace=%2Fw', '/chats/c1']) assert.equal(moved(path), '', path)
+  // The pages of Settings that were a folder's.
+  assert.equal(moved('/settings/workspace?workspace=%2Fw%2Fapp'), '#/workspace/setup?workspace=%2Fw%2Fapp')
+  assert.equal(moved('/settings/workspace-usage?workspace=%2Fw%2Fapp&days=7'), '#/workspace/usage?workspace=%2Fw%2Fapp&days=7')
+  assert.equal(moved('/settings/archived'), '#/workspace/archived')
+  assert.equal(moved('/settings/workspace'), '#/workspace/setup')
+  // A daemon named in the query is the whole page's: the same address, of that daemon.
+  assert.equal(moved('/settings/backup?daemon=gpu'), '#/@gpu/settings/backup')
+  assert.equal(moved('/settings/general?daemon=local'), '#/settings/general')
+  assert.equal(moved('/settings/workspace-usage?daemon=gpu%2F1&workspace=%2Fw'), '#/@gpu%2F1/workspace/usage?workspace=%2Fw')
+  assert.equal(moved('/delete/c1?daemon=gpu'), '#/@gpu/delete/c1')
 })
 
 test('Environment is where a chat works: this computer, a new worktree, or a runtime and the directory there', async () => {

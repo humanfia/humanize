@@ -933,7 +933,7 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         expect(used.locator(".popover-head")).to_have_text(["project"])
         expect(used.locator("dt")).to_have_text(["Today (UTC)", "Last 7 days"])
         expect(used.locator("[data-hmz=usage-settings]")).to_have_attribute(
-            "href", re.compile(r"#/settings/workspace-usage\?workspace=")
+            "href", re.compile(r"#/workspace/usage\?workspace=")
         )
         popped = _box(page, "[role=dialog][aria-label=Usage]")
         assert popped["width"] == min(308, width - 16)
@@ -1122,10 +1122,10 @@ def test_a_new_epic_with_no_flow_says_so_where_it_is_read(
             page.get_by_role("menu", name="Flows").get_by_role("menuitem")
         ).to_have_text(["Open Flows"])
         page.keyboard.press("Escape")
-        # Of what a flow is set up with there are its daemon and where it runs alone, and
-        # no Options.
+        # Of what a flow is set up with there is where it runs alone -- no daemon, which
+        # the foot of the sidebar says -- and no Options.
         expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
-        expect(page.locator("[data-hmz=options] > *:visible")).to_have_count(2)
+        expect(page.locator("[data-hmz=options] > *:visible")).to_have_count(1)
         expect(
             page.locator("[data-hmz=options] [data-hmz=setup-environment]")
         ).to_be_visible()

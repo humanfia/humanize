@@ -1,8 +1,8 @@
 // What the runs here have spent, as their epics say: by day, by flow, and how they ended. One
-// drawing for two pages of Settings (views/settings.js): `Usage` under `Daemon`, of everything
-// the daemon picked ran, whichever folder it was in and where it was in none; and `Usage` under
-// `Workspace`, of the folder picked there. The chart is drawn in plain HTML with a table beside
-// it, so no figure rests on a colour or on a pointer hovering over it.
+// drawing for two pages: `Usage` of Settings, under `Daemon` (views/settings.js), of everything
+// the daemon shown ran, whichever folder it was in and where it was in none; and `Usage` of a
+// folder's own settings (views/workspace.js), of that folder. The chart is drawn in plain HTML
+// with a table beside it, so no figure rests on a colour or on a pointer hovering over it.
 
 import { given, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
@@ -15,7 +15,7 @@ const RANGES = [7, 30, 90, 365]
 
 export function draw(holder, query, parts, scope) {
   let days = Number(query.get('days')) || 30
-  // The folder picked over the page, under `Workspace`; none under `Daemon`, which is every one's.
+  // The folder the dialog is of; none in Settings, where the page is every folder's.
   const workspace = scope.workspace
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': t('How far back') })
   const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, t('Reading what the epics spent…')))
@@ -26,7 +26,7 @@ export function draw(holder, query, parts, scope) {
     stop()
     // What the last range spent stays, plainly on its way out, until this is read.
     if (!body.querySelector('.loading')) body.setAttribute('aria-busy', 'true')
-    stays({ ...scope.query, days })
+    stays({ workspace, days })
     fill(
       range,
       RANGES.map((one) => {
@@ -135,7 +135,7 @@ export function draw(holder, query, parts, scope) {
           : empty(
               t('Nothing ran in this range.'),
               t(' What a chat or an epic spends is counted here as it goes.'),
-              h('a', { class: 'btn primary', href: scope.name === 'local' ? '#/new/chat' : `#/@${encodeURIComponent(scope.name)}/new/chat`, 'data-hmz': 'usage-start' }, t('New chat')),
+              h('a', { class: 'btn primary', href: hash('/new/chat'), 'data-hmz': 'usage-start' }, t('New chat')),
             ),
       ),
     )

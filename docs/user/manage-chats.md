@@ -57,15 +57,15 @@ Select **Archive** to remove a chat from the sidebar and from Search. Nothing el
 
 To view and restore archived chats:
 
-1. Open **Settings**, then click **Archived chats** under **Workspace**.
-2. Pick the **Daemon** if you have several, then pick the folder in **Workspace**.
+1. In the sidebar, point at the folder's heading, click **Group and sort**, and choose **Workspace settings**. You can also right-click the heading.
+2. Click **Archived chats**.
 3. Click a title to read the chat, **Unarchive** to restore it to the list, or **Delete** to remove it.
 
-Chats started with **No folder** appear under the **No folder** heading below the folder's archived chats. This heading appears for any selected folder, and when the daemon has no folders.
+Chats started with **No folder** appear under the **No folder** heading below the folder's archived chats, whichever folder's settings you opened. **Workspace settings** on the sidebar's **No folder** heading lists them alone. See [Workspace settings](/user/settings#workspace-settings).
 
 An open archived chat also has an **Unarchive** button on its top bar.
 
-![Settings, Archived chats: two archived chats of the folder shop and, under No folder, one started without a folder, each with Unarchive and Delete](/shots/user-manage-chats-archived.svg)
+![Workspace settings of the folder shop, Archived chats: two archived chats of the folder and, under No folder, one started without a folder, each with Unarchive and Delete](/shots/user-manage-chats-archived.svg)
 
 ### Delete a chat
 
@@ -101,7 +101,7 @@ When you group by folder, each folder appears as a heading above its chats and e
 - Click `+` on the heading to start a new chat in that folder.
 - Right-click the heading to open the folder's menu.
 
-![A folder's menu: New chat here, New epic here, Search here, Copy path, Collapse, Settings, Usage](/shots/user-manage-chats-folder-menu.svg)
+![A folder's menu: New chat here, New epic here, Search here, Copy path, Collapse, Workspace settings, Usage](/shots/user-manage-chats-folder-menu.svg)
 
 If a folder contains no chats and no epics, its menu includes **Forget**, which removes the folder from the list. When you group by date or not at all, folders appear at the bottom under **Folders** with the same menu; click one to start a new chat in it. A folder whose directory was deleted is tagged `missing`: its chats can still be read, but nothing new starts there.
 

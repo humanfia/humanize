@@ -39,9 +39,10 @@ The epic starts and its page opens.
 
 *Pick the flow, then open a role's chip to change its model and effort.*
 
+The epic runs on the [daemon](/user/daemons) the app shows, named at the foot of the sidebar. The form does not offer another: switch daemons there, or in **Settings > Daemons**, before you start.
+
 | Section | What to do |
 | --- | --- |
-| **Daemon** | The **Connected to** chip names the hmz that will run the epic: **Local** or a remote [daemon](/user/daemons). Picking another one switches the whole page to it. **Add daemon…** opens **Settings > Daemons**. |
 | **Environment** | Pick the starting **Folder**: a folder, **Open folder…**, or **No folder** for a fresh directory. For each environment role, set a **Backend**, a **Runtime** (when the backend is not this machine: a saved one, **Add runtime…**, or **Other host…** for SSH), and a **Directory** (on this machine, leave empty to use the starting folder). |
 | **Agents** | Click a role's chip to pick a virtual nous by name, or select **Harness**, **Account**, **Model** and **Effort**. Roles that can stay empty are marked **Optional**. Hover over a role's name to see its required harness, permissions and skills. |
 | **Parameters** | Fill one field per param. Shown only when the flow has params. |

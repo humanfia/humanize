@@ -48,9 +48,34 @@ export function hash(path) {
   return naming ? `#/@${encodeURIComponent(naming)}${path}` : `#${path}`
 }
 
-/** Switches the page to another daemon, on the view given, a new epic where none is. */
+/** The address of a view of the page on a daemon, which it names unless that is Local. */
+export const hashOn = (name, path) => `#${name === 'local' ? '' : `/@${encodeURIComponent(name)}`}${path}`
+
+/** Switches the page to another daemon, on the view given, a new chat where none is. */
 export function toDaemon(name, path = '/new/chat') {
-  location.hash = name === 'local' ? path : `/@${encodeURIComponent(name)}${path}`
+  location.hash = hashOn(name, path)
+}
+
+/** The pages of Settings that were a folder's, by the page of that folder's own dialog each is now. */
+const FOLDERS = { workspace: 'setup', 'workspace-usage': 'usage', archived: 'archived' }
+
+/**
+ * Where an address written before leads now, or '' for one that is as addresses are: a `daemon`
+ * in its query, which once picked a daemon for one dialog alone, names the daemon the whole page
+ * goes to; and a page of Settings that was a folder's is that folder's own dialog (Sections
+ * 3.4.2.4.1 and 3.11.1.6 of protocol/web.md).
+ *
+ * @param {string[]} parts The parts of the address's path, after the daemon it names.
+ * @param {URLSearchParams} query Its query.
+ */
+export function movedTo(parts, query) {
+  const said = new URLSearchParams(query)
+  const on = said.get('daemon')
+  said.delete('daemon')
+  const folder = parts[0] === 'settings' && Object.hasOwn(FOLDERS, parts[1])
+  if (on === null && !folder) return ''
+  const text = said.toString()
+  return hashOn(on || daemon(), `/${(folder ? ['workspace', FOLDERS[parts[1]]] : parts).map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
 }
 
 /** Tells `fn` the daemon the page switched to, each time it does, until what it returns is called. */

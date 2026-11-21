@@ -1,11 +1,11 @@
 // Traditional Chinese, in Taiwan’s words, `settings`: the texts of views/settings, views/settings/*, themes.
 
 export default {
-  // views/settings.js: the pages, their groups, the daemon picked and Batch apply.
+  // views/settings.js, views/workspace.js: the pages, their groups, whose they are and Batch apply.
   'Themes': '主題',
   'Colours and pictures of this browser’s page': '此瀏覽器中頁面的顏色與圖片',
   'Daemons': '常駐程式',
-  'Machines this page reaches': '此頁面可連線的機器',
+  'Machines this page reaches, and the one it shows': '此頁面可連線的機器，以及目前顯示的那一台',
   'Notifications': '通知',
   'What every daemon tells you': '各常駐程式發給你的提醒',
   'Language': '語言',
@@ -20,8 +20,9 @@ export default {
   'Git repositories epics go to': '史詩備份到的 Git 儲存庫',
   'What this folder was last set up with': '此資料夾上次的組態',
   'Chats of this folder that were put away': '此資料夾中已封存的聊天',
-  'No folder yet.': '尚無資料夾。',
-  ' A folder you open from the sidebar, or start a chat or an epic in, is set up here.': '從側邊欄開啟資料夾，或在其中開始聊天或史詩後，即可在此設定。',
+  'Chats of no folder that were put away': '不屬於任何資料夾的已封存聊天',
+  'Workspace settings: {name}': '工作區設定：{name}',
+  'Workspace settings pages': '工作區設定頁面',
   'What everything on this daemon spent, by day and flow': '此常駐程式上所有執行的花費，依日期與流程統計',
   'What this folder spent, by day and flow': '此資料夾的花費，依日期與流程統計',
   'App': '應用程式',
@@ -331,12 +332,11 @@ export default {
   'Share': '比例',
   'Nothing ran in this range.': '此範圍內沒有執行紀錄。',
   ' What a chat or an epic spends is counted here as it goes.': '聊天或史詩的花費會即時計入此處。',
-  // views/settings/workspace.js
+  // views/workspace/setup.js, views/workspace/archived.js
   'Archived chats': '已封存的聊天',
   'No archived chats.': '沒有已封存的聊天。',
   ' A chat you archive from its menu leaves the sidebar and is kept here.': '從聊天選單封存後，聊天會離開側邊欄並保存在這裡。',
   '{n} more': '還有 {n} 個',
-  'directory': '目錄',
   'default flow': '預設流程',
   'configured': '已設定',
   'Forgotten.': '已清除。',
@@ -524,7 +524,8 @@ export default {
  'A relay both daemons reach, for a machine with no open port.': '兩個常駐程式都能連到的中繼，適用於沒有開放連接埠的機器。',
   'Reach over WebRTC': '透過 WebRTC 連線',
   'A direct path found through a signalling server, with STUN and TURN where the network needs them.': '透過信令伺服器找到直連路徑，網路需要時使用 STUN 與 TURN。',
-  'Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it.': '此頁面能連線的每台機器。每台下面是它的裝置：與它配對、可以連線它的瀏覽器和機器。',
+  'Current': '目前',
+  'Every machine this page reaches. The page shows one of them at a time: switch to another here, or from the menu at the foot of the sidebar. Under each are its devices: the browsers and machines paired with it, which may reach it.': '此頁面能連線的每台機器。頁面一次只顯示其中一台：可在此處切換，也可從側邊欄底部的選單切換。每台下面是它的裝置：與它配對、可以連線它的瀏覽器和機器。',
   'Left empty, the routes the code carries are tried.': '留空則嘗試配對碼自帶的路由。',
   'Say the address as {example}.': '請依 {example} 的格式填寫位址。',
   'Reading the shared nodes…': '正在讀取共享節點…',

@@ -95,7 +95,9 @@ Each device takes the host name of the machine that claimed the code, or `browse
 
 ### Switch machines
 
-The app displays one machine at a time. Click the daemon bar, open **Daemon**, and select a machine.
+The app displays one machine at a time. Click the daemon bar, open **Daemon**, and select a machine. You can also open **Settings > Daemons**, where the machine shown is marked **Current**, and click **Switch** on another; Settings stays open, now on that machine.
+
+Those are the only two places a machine is chosen. Everything else, including a new epic, a new chat, Search, Flows, and the pages of Settings under **Daemon**, is of the machine shown.
 
 ![The daemon bar opens, devbox is picked, and the sidebar turns to devbox](/shots/user-daemons-switch.svg)
 
@@ -103,7 +105,7 @@ The bar displays the machine's name, its host, and its state. A connected machin
 
 ### Edit and copy machine settings
 
-In [Settings](/user/settings), use the **Daemon** picker at the top of any page under **Daemon** or **Workspace** to select which machine's settings to edit. To copy settings to other machines, click **Batch apply** on the **General**, **Nous**, **Runtimes**, or **Backup** page, select the target machines (or **All**), and click **Apply**. Humanize never copies accounts.
+In [Settings](/user/settings), the pages under **Daemon** edit the machine shown, named in a line at the top of each. To edit another machine's settings, switch to it first. To copy settings to other machines, click **Batch apply** on the **General**, **Nous**, **Runtimes**, or **Backup** page, select the target machines (or **All**), and click **Apply**. Humanize never copies accounts.
 
 ![The Batch apply dialog, with devbox ticked and marked Applied](/shots/user-daemons-batch.svg)
 

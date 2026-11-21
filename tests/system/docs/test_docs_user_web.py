@@ -208,7 +208,7 @@ def test_a_button_asks_before_it_does_what_cannot_be_undone(world: World) -> Non
         page.locator("[data-hmz=sidebar]").get_by_text("shop", exact=True).first.click(
             button="right"
         )
-        page.get_by_role("menuitem", name="Settings").click()
+        page.get_by_role("menuitem", name="Workspace settings").click()
         forget = page.get_by_role("dialog").get_by_role(
             "button", name="Forget", exact=True
         )

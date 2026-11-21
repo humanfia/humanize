@@ -53,7 +53,7 @@ The page has four parts:
 
 - The **sidebar** on the left holds navigation and the list of chats and epics.
 - The **view** beside it shows a new chat, a new epic, an open chat or epic, or the flows.
-- **Dialogs** open over the view: Search, Settings, Download, and Delete chat.
+- **Dialogs** open over the view: Search, Settings, Workspace settings, Download, and Delete chat.
 - A **side panel** opens on the right of some views, alongside [Ai-chan](/user/ai-chan)'s drawer.
 
 Every view and dialog has its own URL hash after the `#`. Bookmark it, reopen it, or step through your history with the browser's back and forward buttons.
@@ -69,6 +69,7 @@ A chat, an epic, or an Ai-chan conversation you have opened before appears at on
 | `#/flows` | Flows |
 | `#/search` | The Search dialog |
 | `#/settings/<page>` | A Settings page |
+| `#/workspace/<page>` | A page of a folder's Workspace settings |
 | `#/@<daemon>/…` | Any of the above on another daemon |
 
 See [Page addresses and shortcuts](/reference/web) for the full list.
@@ -100,7 +101,7 @@ Point at any group heading to reveal its **Group and sort** button (always visib
 | **Sort by** | **Last updated**, **Created** | **Last updated** |
 | **Show** | **Chats**, **Epics** | Both |
 
-**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it, or click its **More options** button for the folder menu. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings.
+**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it, or click its **More options** button for the folder menu. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings. On the heading of a folder, and of `No folder`, the menu ends with **Workspace settings**, which opens that folder's own [settings dialog](/user/settings#workspace-settings).
 
 The sidebar loads 60 chats and 60 epics at a time. When the daemon holds more, click **Show more** at the bottom of the list to load the next 60. Running epics sort as the most recently updated, and folders with a running epic appear first.
 
@@ -108,7 +109,7 @@ The sidebar loads 60 chats and 60 epics at a time. When the daemon holds more, c
 
 When grouped by folder, each folder is a heading, and chats without a folder appear under `No folder`. Click a folder name to collapse or expand its rows. Click **+** on the heading beside **Group and sort** to start a new chat in that folder, or right-click the heading to open the folder menu.
 
-![The menu of the shop folder: its path, then New chat here, New epic here, Search here, Copy path, Collapse, Settings and Usage](/shots/user-web-folder-menu.svg)
+![The menu of the shop folder: its path, then New chat here, New epic here, Search here, Copy path, Collapse, Workspace settings and Usage](/shots/user-web-folder-menu.svg)
 
 | Item | What it does |
 | --- | --- |
@@ -116,7 +117,7 @@ When grouped by folder, each folder is a heading, and chats without a folder app
 | **Search here** | Open Search filtered to this folder |
 | **Copy path** | Copy the folder path |
 | **Collapse** / **Expand** | Fold or unfold the group's rows |
-| **Settings**, **Usage** | Open this folder's settings or usage in Settings |
+| **Workspace settings**, **Usage** | Open this folder's own settings dialog, on its Setup or its Usage page |
 | **Forget** | Remove the folder from the list (only available when it has no chats or epics) |
 
 If a folder's directory is deleted on disk, it is tagged `missing`. Its existing rows remain, but you cannot start new runs in it.

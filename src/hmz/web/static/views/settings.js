@@ -1,25 +1,25 @@
 // What Humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
-// down the side, in three groups. The app's own -- how this page is drawn, which daemons it
-// reaches, what it tells you of them and the language it is written in -- are this browser's,
-// or this machine's, whichever daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
-// and what takes over when one fails, where their work goes, where epics are backed up, and
-// last what all that ran there spent -- are read from and written to the daemon picked above them,
-// the one on screen unless another is, and each page that saves can copy what it holds to other
-// daemons at once. A workspace's -- what one folder of that daemon was set up with, the chats
-// archived there, and what ran there spent -- are of the folder picked under the daemon.
+// down the side, in two groups. The app's own -- how this page is drawn, which daemons it
+// reaches and which of them it shows, what it tells you of them and the language it is written
+// in -- are this browser's, or this machine's, whichever daemon is on screen. The daemon's --
+// what is true wherever Humanize runs, who its agents are and what takes over when one fails,
+// where their work goes, where epics are backed up, and last what all that ran there spent --
+// are read from and written to the daemon the page shows, which is said over them and picked
+// nowhere here but under `Daemons`; each page that saves can copy what it holds to other daemons
+// at once. What one folder was set up with is no page of this dialog: it is the folder's own,
+// opened from the sidebar (views/workspace.js).
 
-import { call, daemon, given, hash, known, started } from '../api.js'
-import { shut, stays } from '../app.js'
-import { empty, fill, h, iconButton, pathText, problem } from '../dom.js'
+import { call, daemon, hash, known } from '../api.js'
+import { shut } from '../app.js'
+import { fill, h, icon, iconButton, problem } from '../dom.js'
 import { t } from '../i18n.js'
 import { modal } from '../layers.js'
-import { firstOf, nameOf, there } from '../places.js'
 import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it, in its group. */
 const PAGES = {
   themes: { group: 'app', label: t('Themes'), about: t('Colours and pictures of this browser’s page'), load: () => import('./settings/themes.js') },
-  daemons: { group: 'app', label: t('Daemons'), about: t('Machines this page reaches'), load: () => import('./settings/daemons.js') },
+  daemons: { group: 'app', label: t('Daemons'), about: t('Machines this page reaches, and the one it shows'), load: () => import('./settings/daemons.js') },
   notifications: { group: 'app', label: t('Notifications'), about: t('What every daemon tells you'), load: () => import('./settings/notifications.js') },
   language: { group: 'app', label: t('Language'), about: t('What this browser’s page is written in'), load: () => import('./settings/language.js') },
   general: { group: 'daemon', label: t('General'), about: t('Display and reporting'), load: () => import('./settings/general.js') },
@@ -28,48 +28,40 @@ const PAGES = {
   runtimes: { group: 'daemon', label: t('Runtimes'), about: t('Machines environments run on'), load: () => import('./settings/runtimes.js') },
   backup: { group: 'daemon', label: t('Backup'), about: t('Git repositories epics go to'), load: () => import('./settings/backup.js') },
   usage: { group: 'daemon', label: t('Usage'), about: t('What everything on this daemon spent, by day and flow'), load: () => import('./settings/usage.js') },
-  workspace: { group: 'workspace', label: t('Setup'), about: t('What this folder was last set up with'), load: () => import('./settings/workspace.js') },
-  archived: { group: 'workspace', label: t('Archived chats'), about: t('Chats of this folder that were put away'), load: () => import('./settings/archived.js') },
-  // The page `Usage` of `Daemon` is, of one folder: the same drawing, asked of the folder picked.
-  'workspace-usage': { group: 'workspace', label: t('Usage'), about: t('What this folder spent, by day and flow'), load: () => import('./settings/usage.js') },
 }
 
 const GROUPS = [
   ['app', t('App')],
   ['daemon', t('Daemon')],
-  ['workspace', t('Workspace')],
 ]
 
-/** What a workspace is picked by: its folder's name, or with the folder it is in where another has the name. */
-const shownAs = (one, all) => (all.some((other) => other !== one && other.name === one.name) ? one.path.split('/').slice(-2).join('/') : one.name)
-
 /** What a daemon is called on screen. */
-function called(one) {
+export function called(one) {
   return one.label || (one.name === 'local' ? t('Local') : one.name)
 }
 
-/** Every daemon this browser keeps: Local alone where none can be read. */
-async function daemons() {
-  return known().catch(() => [{ name: 'local' }])
+/**
+ * What a page reads, writes and copies with: the daemon the page shows, which is the only one a
+ * page is ever of, and the folder it is of where it is of one.
+ *
+ * @param {HTMLElement} root Where `Batch apply` draws its dialog.
+ * @param {string} [workspace] The folder, for a page of one (views/workspace.js).
+ */
+export function scopeOf(root, workspace = '') {
+  const on = daemon()
+  return {
+    name: on,
+    workspace,
+    call: (method, params = {}) => call(method, params, { on }),
+    batch: (calls, { off = '', small = true } = {}) => batchButton(root, on, calls, off, small),
+  }
 }
 
 export function mount(root, { parts, query }) {
   const name = parts[1] in PAGES ? parts[1] : 'general'
   const page = PAGES[name]
-  let body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
-  const links = {}
-  let chosen = query.get('daemon') || daemon()
-  // The folder the `Workspace` pages are of: the one the address names, else the first there is.
-  let workspace = query.get('workspace') || ''
-  /** What a page's address carries beside its name: the daemon picked, and the folder under `Workspace`. */
-  const carried = (group) => ({
-    ...(group !== 'app' && query.get('daemon') ? { daemon: chosen } : {}),
-    ...(group === 'workspace' && workspace ? { workspace } : {}),
-  })
-  const href = (key) => {
-    const text = new URLSearchParams(carried(PAGES[key].group)).toString()
-    return hash(`/settings/${key}${text ? `?${text}` : ''}`)
-  }
+  const body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
+  let current = null
   const nav = h(
     'nav',
     { class: 'settings-nav', 'aria-label': t('Settings pages') },
@@ -79,14 +71,13 @@ export function mount(root, { parts, query }) {
       Object.entries(PAGES)
         .filter(([, one]) => one.group === group)
         // The dialog opens on the page it shows: its link has the focus.
-        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null, autofocus: key === name }, one.label))),
+        .map(([key, one]) => {
+          const link = h('a', { href: hash(`/settings/${key}`), 'aria-current': key === name ? 'page' : null, autofocus: key === name }, one.label)
+          if (key === name) current = link
+          return link
+        }),
     ]),
   )
-  const picker = h('select', { 'aria-label': t('Daemon'), 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
-  // Which folder, under `Workspace`: its name picked, and its whole path said beside it.
-  const folder = h('select', { 'aria-label': t('Workspace'), 'data-hmz': 'settings-workdir' })
-  const folderAt = h('span', { class: 'settings-path', 'data-hmz': 'settings-workdir-path' })
-  const folders = h('div', { class: 'settings-daemon settings-workspace', hidden: true }, h('span', { class: 'label' }, t('Workspace')), folder, folderAt)
   const head = h('div', { class: 'settings-head' }, h('div', {}, h('h3', {}, page.label), h('p', { class: 'dim' }, page.about)), iconButton('close', t('Close'), { onclick: shut }))
   root.classList.add('dialog-settings')
   root.setAttribute('aria-label', t('Settings'))
@@ -98,131 +89,22 @@ export function mount(root, { parts, query }) {
       'div',
       { class: 'settings-page' },
       head,
-      page.group === 'app' ? null : h('div', { class: 'settings-daemon' }, h('span', { class: 'label' }, t('Daemon')), picker),
-      page.group === 'workspace' ? folders : null,
+      // Whose the page is, said and never picked: the daemon the whole page shows.
+      page.group === 'daemon' ? h('div', { class: 'settings-of', 'data-hmz': 'settings-of' }, icon('server'), h('span', { class: 'label' }, t('Daemon')), h('b', {}, called({ name: daemon() }))) : null,
       body,
     ),
   )
   // In the middle of the strip the pages are across a narrow window.
-  links[name].scrollIntoView({ block: 'nearest', inline: 'center' })
+  current.scrollIntoView({ block: 'nearest', inline: 'center' })
 
-  let listed = [{ name: 'local' }]
   let leaving = null
   let gone = false
-  let drawn = 0
-
-  /** What every page on the daemon picked reads, writes and copies with. */
-  const scope = () => {
-    const on = chosen
-    return {
-      name: on,
-      // The folder picked, under `Workspace`: none on a page of the daemon's.
-      workspace: page.group === 'workspace' ? workspace : '',
-      call: (method, params = {}) => call(method, params, { on }),
-      // What a page puts in the address beside its own, so the daemon picked stays in it.
-      query: carried(page.group),
-      batch: (calls, { off = '', small = true } = {}) => batchButton(root, on, () => listed, calls, off, small),
-    }
-  }
-
-  const draw = () => {
-    const mine = ++drawn
-    if (leaving) leaving()
-    leaving = null
-    // A body of its own: what the last daemon's page reads late is drawn where nobody sees it.
-    const fresh = body.cloneNode(false)
-    body.replaceWith(fresh)
-    body = fresh
-    fill(fresh, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
-    page
-      .load()
-      .then((module) => {
-        if (!gone && mine === drawn) leaving = module.draw(fresh, query, parts, scope()) || null
-      })
-      .catch((error) => fill(fresh, problem(error)))
-  }
-
-  /** Puts something else than a page under the head: the last page is left first. */
-  const instead = (...told) => {
-    drawn += 1
-    if (leaving) leaving()
-    leaving = null
-    fill(body, told)
-  }
-
-  /** Every folder the daemon picked serves, and the page of the one picked -- or that there is none. */
-  let listing = 0
-  let served = []
-  const placed = () => {
-    const one = served.find((each) => each.path === workspace)
-    fill(folderAt, one ? pathText(one.path) : null, one && !there(one) ? h('span', { class: 'chip', 'data-hmz': 'settings-workdir-missing' }, t('Missing')) : null)
-  }
-  const list = () => {
-    const mine = ++listing
-    const on = chosen
-    started()
-      // Where `hmz web` started is a directory of Local's alone.
-      .then((here) => call('workspaces.list', given({ here: on === 'local' ? here : '' }), { on }))
-      .then(
-        (answer) => {
-          if (gone || mine !== listing) return
-          served = answer.workspaces
-          // One whose directory is there first; one that went only where the address names it
-          // or no other is listed: its set-up is still read, and forgotten, here.
-          if (!workspace) workspace = served.some(there) ? firstOf(answer) : answer.here || served[0]?.path || ''
-          if (workspace && !served.some((one) => one.path === workspace)) served = [...served, { path: workspace, name: nameOf(workspace) }]
-          folders.hidden = !served.length
-          // Each by its folder's name alone, which tells them apart where a path's start does
-          // not; what else there is to say of one is said beside the picker, not in it.
-          fill(folder, served.map((one) => h('option', { value: one.path, selected: one.path === workspace }, shownAs(one, served))))
-          placed()
-          for (const key of Object.keys(PAGES)) links[key].href = href(key)
-          // The archived chats of no folder are listed where there is no folder to pick too.
-          if (workspace || name === 'archived') draw()
-          else
-            instead(
-              empty(
-                t('No folder yet.'),
-                t(' A folder you open from the sidebar, or start a chat or an epic in, is set up here.'),
-                h('a', { class: 'btn primary', href: hash('/new/chat') }, t('New chat')),
-              ),
-            )
-        },
-        (error) => !gone && mine === listing && instead(problem(error)),
-      )
-  }
-  folder.addEventListener('change', () => {
-    workspace = folder.value
-    placed()
-    // Kept in the address, as the daemon picked is.
-    query = new URLSearchParams(carried('workspace'))
-    stays(Object.fromEntries(query))
-    for (const key of Object.keys(PAGES)) links[key].href = href(key)
-    draw()
-  })
-
-  if (page.group !== 'app') {
-    daemons().then((read) => {
-      if (gone) return
-      listed = read
-      if (!listed.some((one) => one.name === chosen)) listed = [...listed, { name: chosen }]
-      fill(picker, listed.map((one) => h('option', { value: one.name, selected: one.name === chosen }, called(one))))
+  page
+    .load()
+    .then((module) => {
+      if (!gone) leaving = module.draw(body, query, parts, scopeOf(root)) || null
     })
-    picker.addEventListener('change', () => {
-      chosen = picker.value
-      // Kept in the address, so that this daemon's page is one that can be kept; what the
-      // page said of the last daemon's directories says nothing of this one's.
-      query = new URLSearchParams({ daemon: chosen })
-      stays({ daemon: chosen })
-      // A folder of the last daemon is none of this one's.
-      workspace = ''
-      for (const key of Object.keys(PAGES)) links[key].href = href(key)
-      if (page.group === 'workspace') list()
-      else draw()
-    })
-  }
-  if (page.group === 'workspace') list()
-  else draw()
+    .catch((error) => fill(body, problem(error)))
   return () => {
     gone = true
     if (leaving) leaving()
@@ -238,17 +120,17 @@ export function mount(root, { parts, query }) {
  *
  * @param {HTMLElement} root Where the dialog is drawn.
  * @param {string} from The daemon the page holds what it holds of.
- * @param {() => {name: string}[]} known Every daemon there is, as last read.
  * @param {(() => Array<[string, object]>) | null} calls What is called: each method and its params.
  * @param {string} off Why nothing can be, where nothing can.
  * @param {boolean} small Whether the button is as small as a card's own are, not a form's.
  */
-function batchButton(root, from, known, calls, off, small) {
+function batchButton(root, from, calls, off, small) {
   const button = h('button', { class: ['btn quiet', small && 'small'], type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, t('Batch apply'))
   const group = h('span', { class: 'row' }, off ? h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off) : null, button)
   if (off) return group
-  button.addEventListener('click', () => {
-    const others = known().filter((one) => one.name !== from)
+  button.addEventListener('click', async () => {
+    // Every other daemon this browser keeps, read as it is asked for: none where none can be read.
+    const others = (await known().catch(() => [])).filter((one) => one.name !== from)
     const boxes = others.map((one) => ({ one, box: h('input', { type: 'checkbox', 'data-daemon': one.name }) }))
     const all = h('input', { type: 'checkbox', 'data-hmz': 'batch-all' })
     all.addEventListener('change', () => boxes.forEach(({ box }) => (box.checked = all.checked)))

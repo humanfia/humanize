@@ -319,10 +319,10 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     assert.deepEqual(lately.querySelectorAll('dt').map((one) => one.textContent), ['Today (UTC)', 'Last 7 days'])
     assert.deepEqual(lately.querySelectorAll('.usage-about').map((one) => one.textContent), ['9.0k output tokens', '120.4k output tokens'])
     assert.equal(lately.querySelector('.usage-sub').textContent, 'Over 2 chats and epics')
-    // The link is to the Usage page on the folder read.
+    // The link is to the Usage page of the folder read, in that folder's own settings.
     const link = pop.querySelector('a')
     assert.equal(link.textContent, 'Usage settings')
-    assert.equal(link.getAttribute('href'), '#/settings/workspace-usage?workspace=%2Fw%2Fapp')
+    assert.equal(link.getAttribute('href'), '#/workspace/usage?workspace=%2Fw%2Fapp')
     assert.equal(link.getAttribute('role'), null)
     // Open, it is drawn again with what the chat has spent since.
     const mine = () => pop.querySelector('.usage-mine').querySelectorAll('.usage-value').map((one) => one.textContent)

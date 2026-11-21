@@ -71,8 +71,8 @@ def test_a_language_is_chosen_in_settings_and_the_page_is_written_in_it(
             ["System", "English", "简体中文", "繁體中文"]
         )
         expect(picker).to_have_value("")
-        # No daemon is picked for it: it is this browser's, whichever daemon is shown.
-        expect(page.locator("[data-hmz=settings-daemon]")).to_have_count(0)
+        # No daemon is said over it: it is this browser's, whichever daemon is shown.
+        expect(page.locator("[data-hmz=settings-of]")).to_have_count(0)
         assert _kept(page) is None
         assert _ago(page) == "just now"
 
@@ -223,7 +223,6 @@ def test_what_every_view_shares_is_said_in_the_pages_language(
                 "row": ["SSH 主机", "手动填写"],
                 "way": "由 `claude setup-token` 生成",
                 "asks": "`claude setup-token` 输出的令牌",
-                "connected": "当前连接",
             },
         ),
         (
@@ -236,7 +235,6 @@ def test_what_every_view_shares_is_said_in_the_pages_language(
                 "row": ["SSH 主機", "手動填寫"],
                 "way": "由 `claude setup-token` 產生",
                 "asks": "`claude setup-token` 輸出的權杖",
-                "connected": "目前連線",
             },
         ),
     ],
@@ -257,14 +255,13 @@ def test_in_chinese_the_daemon_the_env_and_the_runtime_each_have_a_word_of_their
         expect(page.get_by_role("menuitem").first).to_contain_text(words["none"])
         page.keyboard.press("Escape")
 
-        # A new epic: the daemon in a part of its own, not in the environment's.
+        # A new epic: no daemon on its form, in the environment's part or any other.
         go(page, "/new")
-        serving = page.locator("[data-hmz=setup-serving]")
-        expect(serving.locator(".setup-name")).to_have_text(words["connected"])
-        expect(serving.locator("[data-hmz=daemon]")).to_have_text(words["daemon"])
-        expect(
-            page.locator("[data-hmz=setup-environment] [data-hmz=daemon]")
-        ).to_have_count(0)
+        expect(page.locator("[data-hmz=setup-environment]")).to_be_visible()
+        expect(page.locator("[data-hmz=setup-serving]")).to_have_count(0)
+        expect(page.locator("[data-hmz=options] [data-hmz=daemon]")).to_have_count(0)
+        # It is said where it is picked: at the foot of the sidebar.
+        expect(page.locator("[data-hmz=daemon-name]")).to_have_text(words["daemon"])
 
         # The runtimes: this machine by the runtime's word, and what the daemon names out
         # of a closed set -- a backend, how a runtime was made -- in the page's language.

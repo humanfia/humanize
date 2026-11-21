@@ -1,11 +1,11 @@
 // Simplified Chinese, `settings`: the texts of views/settings, views/settings/*, themes.
 
 export default {
-  // views/settings.js: the pages, their groups, the daemon picked and Batch apply.
+  // views/settings.js, views/workspace.js: the pages, their groups, whose they are and Batch apply.
   'Themes': '主题',
   'Colours and pictures of this browser’s page': '此浏览器中页面的颜色与图片',
   'Daemons': '守护进程',
-  'Machines this page reaches': '此页面可连接的机器',
+  'Machines this page reaches, and the one it shows': '此页面可连接的机器，以及当前显示的那一台',
   'Notifications': '通知',
   'What every daemon tells you': '各守护进程发给你的提醒',
   'Language': '语言',
@@ -20,8 +20,9 @@ export default {
   'Git repositories epics go to': '史诗备份到的 Git 仓库',
   'What this folder was last set up with': '此文件夹上次的配置',
   'Chats of this folder that were put away': '此文件夹中已归档的聊天',
-  'No folder yet.': '还没有文件夹。',
-  ' A folder you open from the sidebar, or start a chat or an epic in, is set up here.': '从侧边栏打开文件夹，或在其中开始聊天或史诗后，即可在此设置。',
+  'Chats of no folder that were put away': '不属于任何文件夹的已归档聊天',
+  'Workspace settings: {name}': '工作区设置：{name}',
+  'Workspace settings pages': '工作区设置页面',
   'What everything on this daemon spent, by day and flow': '此守护进程上所有运行的花费，按天和流程统计',
   'What this folder spent, by day and flow': '此文件夹的花费，按天和流程统计',
   'App': '应用',
@@ -331,12 +332,11 @@ export default {
   'Share': '占比',
   'Nothing ran in this range.': '此范围内没有运行记录。',
   ' What a chat or an epic spends is counted here as it goes.': '聊天或史诗的花费会实时计入此处。',
-  // views/settings/workspace.js
+  // views/workspace/setup.js, views/workspace/archived.js
   'Archived chats': '已归档的聊天',
   'No archived chats.': '没有已归档的聊天。',
   ' A chat you archive from its menu leaves the sidebar and is kept here.': '从聊天菜单归档后，聊天会离开侧边栏并保存在这里。',
   '{n} more': '还有 {n} 个',
-  'directory': '目录',
   'default flow': '默认流程',
   'configured': '已配置',
   'Forgotten.': '已清除。',
@@ -524,7 +524,8 @@ export default {
  'A relay both daemons reach, for a machine with no open port.': '两个守护进程都能连到的中继，适用于没有开放端口的机器。',
   'Reach over WebRTC': '通过 WebRTC 连接',
   'A direct path found through a signalling server, with STUN and TURN where the network needs them.': '通过信令服务器找到直连路径，网络需要时使用 STUN 和 TURN。',
-  'Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it.': '此页面能连接的每台机器。每台下面是它的设备：与它配对、可以连接它的浏览器和机器。',
+  'Current': '当前',
+  'Every machine this page reaches. The page shows one of them at a time: switch to another here, or from the menu at the foot of the sidebar. Under each are its devices: the browsers and machines paired with it, which may reach it.': '此页面能连接的每台机器。页面一次只显示其中一台：可在此处切换，也可从侧边栏底部的菜单切换。每台下面是它的设备：与它配对、可以连接它的浏览器和机器。',
   'Left empty, the routes the code carries are tried.': '留空则尝试配对码自带的路由。',
   'Say the address as {example}.': '请按 {example} 的格式填写地址。',
   'Reading the shared nodes…': '正在读取共享节点…',

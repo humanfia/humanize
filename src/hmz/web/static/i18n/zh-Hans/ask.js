@@ -4,7 +4,6 @@ export default {
   // views/new.js
   'Describe the task': '描述任务',
   'Resume epic': '继续史诗',
-  'Connected to': '当前连接',
   'Open Flows': '前往流程页',
   'No flow installed yet.': '尚未安装流程。',
   ' A new epic runs a flow. Install one from Flows, then start it here.': '史诗须依流程运行。请先在“流程”页安装，再回到这里启动。',

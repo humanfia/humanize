@@ -86,7 +86,7 @@ Select a session and press <kbd>enter</kbd>. Humanize copies it into a new chat,
 
 ## Good to know
 
-- The `harness_sessions` setting in `~/.hmz/settings.yaml` applies to the whole machine, so toggling it in the app also toggles it in the terminal (see [Settings](/user/settings)). With a remote daemon selected, the switch and the sessions are those of the daemon's machine. The terminal always lists this machine's sessions. There is no `hmz` CLI command for harness sessions; use the app or the terminal interface.
+- The `harness_sessions` setting in `~/.hmz/settings.yaml` applies to the whole machine, so toggling it in the app also toggles it in the terminal (see [Settings](/user/settings)). With the app switched to a remote daemon, the switch and the sessions are those of the daemon's machine. The terminal always lists this machine's sessions. There is no `hmz` CLI command for harness sessions; use the app or the terminal interface.
 - Each row is titled after your first line in the session. Sub-agent sessions started by another session are not listed on their own. Sessions that Codex archived are listed too.
 - You can continue a session once. To branch again, use **Fork** on the new chat (see [Organise chats](/user/manage-chats)). If you delete the chat, the original session returns to the list.
 - If a session's log omits the model name, you cannot continue it and Humanize shows `does not say the model it ran on`. If the CLI deleted the session files, Humanize shows `cannot be continued: its files are gone`.

@@ -133,6 +133,15 @@ export function folderOf(run) {
   return run.folderless ? NONE : nameOf(run.workspace)
 }
 
+/**
+ * The address of a folder's own settings (views/workspace.js), on one of its pages -- `setup`,
+ * `usage` or `archived` -- or of those of `No folder`, where no folder is named: its archived
+ * chats, said as a new chat of no folder is, by `scratch`.
+ */
+export function workspaceAt(workspace = '', page = 'setup') {
+  return workspace ? `/workspace/${page}?${new URLSearchParams({ workspace })}` : '/workspace/archived?scratch=1'
+}
+
 /** A workspace as a list names it: the last part of its path. */
 export function nameOf(path) {
   return String(path || '').split('/').filter(Boolean).pop() || path || ''

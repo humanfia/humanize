@@ -20,7 +20,7 @@ import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { notifying } from './notifications.js'
-import { missing, nameOf } from './places.js'
+import { missing, nameOf, workspaceAt } from './places.js'
 import { CHAT_SAID, chatState, epicHow, epicSaid, rowTitle, shortcut, wording } from './sidebar-rows.js'
 import { DEFAULTS, GROUPS, SHOWS, SORTS, WIDTHS, arranged, paged, shownFolders, toggled, viewOf, viewText, widthOf } from './sidebar-view.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
@@ -327,8 +327,14 @@ export function mountSidebar(root, context, where) {
     if (data) draw()
   }
 
-  /** What `Group and sort` holds, as a desktop app's does: how to group, how to sort, what to show. */
-  function listMenu(close) {
+  /**
+   * What `Group and sort` holds, as a desktop app's does: how to group, how to sort, what to
+   * show -- and, on the heading of a folder or of `No folder`, that workspace's own settings.
+   *
+   * @param {() => void} close
+   * @param {string | null} [folder] The folder whose heading it is opened on, '' for `No folder`, null for any other group.
+   */
+  function listMenu(close, folder = null) {
     const one = (role, label, on, change) => {
       const el = choice({ label, chosen: on, act: () => choose({ ...view, ...change }), close })
       el.setAttribute('role', role)
@@ -336,6 +342,8 @@ export function mountSidebar(root, context, where) {
       return el
     }
     const said = (all, key) => all.find(([name]) => name === key)[1]
+    const settings = folder === null ? null : choice({ label: t('Workspace settings'), glyph: 'gear', href: hash(workspaceAt(folder)), close })
+    if (settings) settings.dataset.hmz = 'workspace-settings'
     return h(
       'div',
       { class: 'list-menu', 'data-hmz': 'list-menu' },
@@ -344,6 +352,7 @@ export function mountSidebar(root, context, where) {
       submenu({ label: t('Show'), hmz: 'show', items: () => SHOWS.map(([key, label]) => one('menuitemcheckbox', label, view[key], { [key]: !view[key] })) }),
       h('hr'),
       choice({ label: t('Reset to defaults'), act: () => choose(DEFAULTS), close }),
+      settings ? [h('hr'), settings] : null,
     )
   }
 
@@ -428,7 +437,7 @@ export function mountSidebar(root, context, where) {
           focus('.side-toggle')
         })
         const sort = iconButton('sliders', t('Group and sort'), { class: 'side-sort', 'data-hmz': 'list-menu-open' })
-        menu(sort, listMenu, { label: t('Group and sort') })
+        menu(sort, (close) => listMenu(close, group.kind === 'folder' ? group.path : null), { label: t('Group and sort') })
         // The group of no folder starts one in none; any other group names no folder to start in.
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : group.kind === 'folder' ? '/new/chat?scratch=1' : '/new/chat'
         const head = h(
@@ -548,8 +557,9 @@ export function mountSidebar(root, context, where) {
       { label: t('Copy path'), glyph: 'copy', act: () => copy(path, t('Path copied')) },
       fold,
       '-',
-      { label: t('Settings'), glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
-      { label: t('Usage'), glyph: 'chart', href: hash(`/settings/workspace-usage?workspace=${at}`) },
+      // The folder's own settings, a dialog of its own and no page of Settings.
+      { label: t('Workspace settings'), glyph: 'gear', href: hash(workspaceAt(path)) },
+      { label: t('Usage'), glyph: 'chart', href: hash(workspaceAt(path, 'usage')) },
       count ? null : { label: t('Forget'), danger: true, act: () => forget(path) },
     ]
   }
