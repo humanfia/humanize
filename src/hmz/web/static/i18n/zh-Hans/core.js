@@ -200,7 +200,6 @@ export default {
   '{from} handed to {to} {n} times': '{from} 向 {to} 交接了 {n} 次',
   // api.js: a daemon that is not reached, and how it stands.
   'There is no daemon {name}.': '没有名为 {name} 的守护进程。',
-  'Paired': '已配对',
   'connecting': '连接中',
   'installing': '安装中',
   'up': '已连接',

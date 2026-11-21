@@ -1083,7 +1083,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, the daemon, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
 | `HUMANIZE_SCAN` | the daemon | `off`, `0`, `no`, `none`, empty | Off, the daemon does not ask its installed harnesses what they run as it starts. |
-| `HUMANIZE_EASYTIER` | the daemon, and every command that reaches a P2P daemon | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
+| `HUMANIZE_EASYTIER` | the daemon, and every command that reaches an EasyTier daemon | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
 | `HUMANIZE_EASYTIER_NODES` | `hmz web` | a URL | The Uptime Kuma server whose status page `easytier` lists the community's shared EasyTier nodes. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
@@ -1113,7 +1113,7 @@ is [Files](/reference/files).
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `releases.json` (in the machine's directory) | `hmz`, the daemon, `hmz update` | the newest release, refreshed when older than a day by the terminal interface as it opens, by the daemon as it starts and each day it runs, and by `hmz update` |
 | `web-port` | `hmz web` | read as it starts, for `--port`'s default; written, replaced whole, when the port it listens on changes |
-| `easytier/<version>/` | the daemon, and every command that reaches a P2P daemon | written once: the `easytier-core` downloaded and checked, reused after |
+| `easytier/<version>/` | the daemon, and every command that reaches an EasyTier daemon | written once: the `easytier-core` downloaded and checked, reused after |
 | `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 

@@ -6,11 +6,11 @@ holds copied to several daemons at once.
 `gpu` is another machine's daemon, real and paired with this browser, reached through `/dial`;
 `lab` is kept, but nothing answers where it is reached, as a daemon that is not up.
 
-Then the New daemon form, in each kind and mode, with what is said beside it, and what stands
-under each daemon's line: its devices, and a remote daemon's own WebRTC servers. Code against
-`gpu`'s pairing code; SSH Config
-against the real ssh config of the test's home; Custom and EasyTier with what Local answers of
-the ssh config, the community's nodes and the EasyTier entries faked on its wire.
+Then the New daemon form, on each carrier, with what is said beside it, and what stands under
+each daemon's line: its devices, and a remote daemon's own WebRTC servers. TCP against `gpu`'s
+pairing code; a Host of the ssh config against the real ssh config of the test's home; Custom
+and EasyTier with what Local answers of the ssh config, the shared nodes and the EasyTier
+entries faked on its wire.
 """
 
 from __future__ import annotations
@@ -201,20 +201,21 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
     ):
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        expect(_pressed(form, "daemon-kind")).to_have_text("Code")
-        # Beside the form, what the kind chosen is and what the other machine needs for it.
-        about = form.locator("[data-hmz=daemon-about]")
-        expect(about.locator("h3")).to_have_text("Pair with a code")
-        expect(about).to_contain_text("hmz daemon pair")
+        # The carriers stand side by side, with nothing under them.
         kinds = form.locator("[data-hmz=daemon-kind]")
-        kinds.get_by_role("button", name="SSH", exact=True).click()
+        expect(kinds.locator("button")).to_have_text(
+            ["SSH", "EasyTier", "TCP", "WebSocket", "Relay", "WebRTC"]
+        )
+        expect(form.locator("[data-hmz=daemon-mode]")).to_have_count(0)
+        expect(_pressed(form, "daemon-kind")).to_have_text("SSH")
+        # Beside the form, what the carrier chosen is and what the other machine needs for it.
+        about = form.locator("[data-hmz=daemon-about]")
         expect(about.locator("h3")).to_have_text("Reach over SSH")
-        expect(about).to_contain_text("SSH Config: pick a Host of ~/.ssh/config.")
-        kinds.get_by_role("button", name="P2P", exact=True).click()
-        expect(about.locator("h3")).to_have_text("Peer to peer")
-        expect(about).to_contain_text("EasyTier")
-        kinds.get_by_role("button", name="Code", exact=True).click()
-        expect(about.locator("h3")).to_have_text("Pair with a code")
+        kinds.get_by_role("button", name="EasyTier", exact=True).click()
+        expect(about.locator("h3")).to_have_text("Reach over EasyTier")
+        kinds.get_by_role("button", name="TCP", exact=True).click()
+        expect(about.locator("h3")).to_have_text("Reach over TCP")
+        expect(about).to_contain_text("hmz daemon pair")
         # With only Local, the page says so, and what its devices are.
         expect(page.locator("[data-hmz=daemons-none]")).to_contain_text("Only Local")
         expect(page.locator("[data-hmz=daemons-about]")).to_contain_text(
@@ -230,7 +231,7 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         form.locator("#daemon-code").fill(gpu.code())
         add.click()
         row = page.locator("[data-hmz=daemon][data-name=gpu]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("Paired")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("TCP")
         expect(row).to_contain_text(f"tcp://127.0.0.1:{gpu.port}")
         [entry] = _kept(page)
         assert entry["routes"] == [f"tcp://127.0.0.1:{gpu.port}"]
@@ -244,7 +245,6 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         expect(devices.locator("[data-hmz=devices-none]")).to_contain_text(
             "Not reached"
         )
-        expect(devices.get_by_role("button", name="Pair a device")).to_have_count(0)
 
         # Reached, it lists this machine among its devices, paired as it is called.
         row.get_by_role("button", name="Connect").click()
@@ -256,17 +256,8 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         expect(devices.locator("[data-hmz=device] b")).to_contain_text(
             [socket.gethostname().split(".")[0]]
         )
-        devices.get_by_role("button", name="Pair a device").click()
-        expect(devices.locator("[data-hmz=pairing-code] code")).to_contain_text(
-            "hmz-pair:"
-        )
-
-        # Local listens nowhere: no code can be made of it, and the page says why.
-        local = page.locator("[data-hmz=daemon-devices][data-name=local]")
-        local.get_by_role("button", name="Pair a device").click()
-        expect(local.locator(".error")).to_contain_text(
-            "There is no route to pair over"
-        )
+        # The page is a client of its daemons: it makes no pairing code.
+        expect(page.get_by_role("button", name="Pair a device")).to_have_count(0)
         # No panel of every daemon's devices stands apart from them.
         expect(page.locator("[data-hmz=pairing]")).to_have_count(0)
 
@@ -357,9 +348,7 @@ def test_each_daemon_keeps_its_own_webrtc_servers(project: Path, engine: str) ->
         page.locator("[data-hmz=daemon][data-name=relayed]").get_by_role(
             "button", name="Edit"
         ).click()
-        expect(form.locator("[data-hmz=daemon-about] h3")).to_have_text(
-            "Paired with a code"
-        )
+        expect(_pressed(form, "daemon-kind")).to_have_text("WebRTC")
         form.locator("[data-hmz=route-editor] .list-row").nth(1).get_by_role(
             "button", name="Remove"
         ).click()
@@ -370,15 +359,16 @@ def test_each_daemon_keeps_its_own_webrtc_servers(project: Path, engine: str) ->
             {**_RELAYED, "routes": _RELAYED["routes"][:1], "ice": _SERVERS[1:]},
         ]
 
-        # A new Code daemon's are asked under Advanced, which a code over WebRTC opens.
-        advanced = form.locator("[data-hmz=daemon-advanced]")
-        assert advanced.evaluate("(one) => one.open") is False
+        # A new WebRTC daemon's are asked in the form; TCP asks none.
+        kinds = form.locator("[data-hmz=daemon-kind]")
+        kinds.get_by_role("button", name="TCP", exact=True).click()
+        expect(form.locator("#daemon-ice")).to_have_count(0)
+        kinds.get_by_role("button", name="WebRTC", exact=True).click()
         form.locator("#daemon-code").fill(page.evaluate(_RELAYED_CODE))
-        assert advanced.evaluate("(one) => one.open") is True
-        expect(advanced.locator("#daemon-ice")).to_be_visible()
+        expect(form.locator("#daemon-ice")).to_be_visible()
         # Wrong, they are refused before the code is claimed.
         form.get_by_label("Name").fill("far")
-        advanced.locator("#daemon-ice").fill("nope")
+        form.locator("#daemon-ice").fill("nope")
         form.get_by_role("button", name="Add", exact=True).click()
         expect(form.locator(".error")).to_contain_text(
             "nope is not a STUN or TURN server"
@@ -449,18 +439,17 @@ def test_a_host_of_the_ssh_config_is_picked(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("SSH Config")
+        expect(_pressed(form, "daemon-kind")).to_have_text("SSH")
         form.locator("#daemon-alias").select_option("gpu")
         expect(form.get_by_label("Name")).to_have_value("gpu")
         form.get_by_role("button", name="Add", exact=True).click()
         row = page.locator("[data-hmz=daemon][data-name=gpu]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · SSH Config")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH")
         assert _kept(page) == [{"name": "gpu", "id": "", "routes": ["stdio:ssh://gpu"]}]
 
-        # Edited, it opens in its own mode, its host picked.
+        # Edited, it opens on SSH, its host picked.
         row.get_by_role("button", name="Edit").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("SSH Config")
+        expect(_pressed(form, "daemon-kind")).to_have_text("SSH")
         expect(form.locator("#daemon-alias")).to_have_value("gpu")
 
 
@@ -480,32 +469,31 @@ _HOSTS = {
 }
 
 
-def test_a_custom_daemon_is_filled_from_the_ssh_config(
+def test_a_custom_daemon_is_written_a_part_at_a_time(
     project: Path, engine: str
 ) -> None:
     wire = Wire(faked={"runtimes.hosts": lambda _: {"result": _HOSTS}})
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
-        form.get_by_role("button", name="Custom").click()
-        form.locator("#daemon-import").select_option("gpu")
-        form.locator("[data-hmz=daemon-import]").click()
-        expect(form.get_by_label("Name")).to_have_value("gpu")
-        expect(form.locator("#daemon-host")).to_have_value("gpu.example")
-        expect(form.locator("#daemon-user")).to_have_value("ann")
-        expect(form.locator("#daemon-port")).to_have_value("2200")
-        expect(form.locator("#daemon-identity")).to_have_value("~/.ssh/gpu")
+        custom = form.locator("[data-hmz=daemon-custom]")
+        expect(custom).to_be_hidden()
+        form.locator("#daemon-alias").select_option(label="Custom")
+        expect(custom).to_be_visible()
         form.get_by_label("Name").fill("box")
+        form.locator("#daemon-host").fill("gpu.example")
+        form.locator("#daemon-user").fill("ann")
+        form.locator("#daemon-port").fill("2200")
+        form.locator("#daemon-identity").fill("~/.ssh/gpu")
         form.get_by_role("button", name="Add", exact=True).last.click()
         row = page.locator("[data-hmz=daemon][data-name=box]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · Custom")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH")
         route = "stdio:ssh://ann@gpu.example:2200?identity=~%2F.ssh%2Fgpu"
         expect(row).to_contain_text(route)
         assert _kept(page) == [{"name": "box", "id": "", "routes": [route]}]
 
         row.get_by_role("button", name="Edit").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("Custom")
+        expect(custom).to_be_visible()
         expect(form.locator("#daemon-host")).to_have_value("gpu.example")
         expect(form.locator("#daemon-identity")).to_have_value("~/.ssh/gpu")
 
@@ -518,14 +506,14 @@ _NODES = {
             "name": "Public",
             "version": "2.4.5",
             "up": True,
-            "uptime": 99.9,
+            "uptime": 0.999,
         },
         {
             "url": "udp://gone.example:11010",
             "name": "Gone",
             "version": "2.4.5",
             "up": False,
-            "uptime": 12.5,
+            "uptime": 0.125,
         },
     ]
 }
@@ -569,9 +557,7 @@ def test_an_easytier_daemon_takes_a_secret_nodes_and_a_pairing_code(
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
         kinds = form.locator("[data-hmz=daemon-kind]")
-        kinds.get_by_role("button", name="P2P").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("EasyTier")
-        expect(form.locator("[data-hmz=daemon-mode] button")).to_have_count(1)
+        kinds.get_by_role("button", name="EasyTier").click()
         expect(form.locator("#daemon-secret")).to_have_attribute("type", "password")
         community = form.locator("[data-hmz=daemon-community] label")
         expect(community).to_have_count(2)
@@ -605,7 +591,7 @@ def test_an_easytier_daemon_takes_a_secret_nodes_and_a_pairing_code(
         form.locator("#daemon-code").fill(gpu.code())
         add.click()
         row = page.locator("[data-hmz=daemon][data-name=edge]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("EasyTier")
         assert fake.writes == [
             {
                 "name": "edge",
@@ -635,7 +621,7 @@ def test_without_the_community_list_nodes_are_typed(
     ):
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        form.get_by_role("button", name="P2P").click()
+        form.get_by_role("button", name="EasyTier").click()
         expect(form.locator("[data-hmz=daemon-nodes]")).to_contain_text(
             "The node list could not be read."
         )
@@ -660,12 +646,11 @@ def test_an_easytier_daemon_edited_keeps_its_secret(project: Path, engine: str) 
         kept(page, {"name": "far", "id": "b" * 52, "routes": ["easytier:far"]})
         go(page, "/settings/daemons")
         far = page.locator("[data-hmz=daemon][data-name=far]")
-        expect(far.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
+        expect(far.locator("[data-hmz=daemon-via]")).to_have_text("EasyTier")
         far.get_by_role("button", name="Edit").click()
         form = page.locator("[data-hmz=write-daemon]")
         expect(form.locator("h2")).to_have_text("Edit far")
-        expect(_pressed(form, "daemon-kind")).to_have_text("P2P")
-        expect(_pressed(form, "daemon-mode")).to_have_text("EasyTier")
+        expect(_pressed(form, "daemon-kind")).to_have_text("EasyTier")
         secret = form.locator("#daemon-secret")
         expect(secret).to_have_value("")
         expect(secret).to_have_attribute("placeholder", "Left empty, kept as it is")

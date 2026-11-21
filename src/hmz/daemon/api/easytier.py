@@ -111,19 +111,10 @@ def remove(name: str) -> dict[str, Any]:
 
 
 def nodes() -> dict[str, Any]:
-    """The shared nodes of EasyTier's community, and how each has stood.
-
-    Raises:
-      RpcError: 503 for a list that cannot be read.
-    """
+    """The shared EasyTier nodes to offer, and how each has stood where that is known."""
     from hmz.coganchor import easytier
 
-    try:
-        return {"nodes": [dataclasses.asdict(one) for one in easytier.community()]}
-    except OSError as why:
-        raise RpcError(
-            Code.UNAVAILABLE, f"The community nodes could not be read: {why}"
-        ) from why
+    return {"nodes": [dataclasses.asdict(one) for one in easytier.shared()]}
 
 
 def _entries(held: Mapping[str, Any]) -> dict[str, dict[str, Any]]:

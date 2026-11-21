@@ -6394,6 +6394,12 @@ input[aria-invalid='true'] {
   align-items: start;
 }
 
+/* The carriers wrap where the column is narrower than all of them side by side. */
+.daemon-write > .form,
+.daemon-write .segmented {
+  min-width: 0;
+}
+
 .daemon-about {
   display: grid;
   gap: var(--space-8);
@@ -6422,28 +6428,6 @@ input[aria-invalid='true'] {
   .daemon-about {
     order: -1;
   }
-}
-
-/* A code made for a device to pair with: said in a quiet block, with what copies it. */
-.form > [aria-live]:has(> .pairing-code) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-8) var(--space-12);
-  border-radius: var(--radius-md);
-  background: var(--quiet);
-}
-
-.pairing-code {
-  flex: 1;
-  min-width: 0;
-  font: var(--text)/20px var(--mono);
-  overflow-wrap: anywhere;
-}
-
-.form > [aria-live]:has(> .pairing-code) > .dim {
-  flex: none;
-  font-size: var(--text-sm);
 }
 
 .notification-kinds {
