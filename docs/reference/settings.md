@@ -282,6 +282,17 @@ A value is either a command (list of strings) or a mapping:
 
 Entries without a command are ignored. Editing a CLI in the interfaces preserves `hosts` and `state`.
 
+```yaml
+clis:
+  local-agent: [local-agent, --acp]
+  acp-lab:
+    command: [acp-lab, --stdio]
+    hosts: [api.acp-lab.example, https://auth.acp-lab.example/login]
+    state: [~/.acp-lab]
+```
+
+A key other than `command`, `hosts` or `state` is ignored, and the warning names it. A `hosts` or `state` that is not a list is ignored in the same way, while the other fields stay in effect. A host that names no host is dropped from the list and the rest stay. An entry whose `command` is not a non-empty list is ignored.
+
 ## `runtimes`
 
 Saved machines under `runtimes.<backend>.<name>`. `<backend>` is `ssh`, `docker`, `swarm`, `apple-container`, or `slurm`. `<name>` starts with a letter or digit, followed by letters, digits, `.`, `_`, or `-`. Entries with unknown fields or invalid values are ignored; the legacy list field `affinity` is read as `harness` (its first item, `self` meaning `env`). See [Runtimes: servers, containers and clusters](/user/runtimes) and [Environments and runtimes](/reference/environments).

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor import backends, fence
+from hmz.coganchor import backends, fence, settings
 from hmz.coganchor.agents import (
     AcpAgent,
     AcpAgentConfig,
@@ -577,6 +577,22 @@ def test_a_cut_network_needs_the_hosts_the_cli_was_declared_with(
     assert isinstance(_agent(fence=offline), AcpAgent)
 
 
+def test_a_cut_network_needs_the_hosts_declared_in_the_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    offline = Fence(read=("/",), write=("/tmp",), online=False)
+    settings.changes(lambda held: held.update(clis={"mine": {"command": ["my-acp"]}}))
+    with pytest.raises(Unfenced, match="nothing says which hosts mine's model is at"):
+        _agent(fence=offline)
+    settings.changes(
+        lambda held: held.update(
+            clis={"mine": {"command": ["my-acp"], "hosts": ["api.example.com"]}}
+        )
+    )
+    assert isinstance(_agent(fence=offline), AcpAgent)
+
+
 def test_fenced_lets_the_declared_state_be_written(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -587,3 +603,14 @@ def test_fenced_lets_the_declared_state_be_written(
     assert held is not None
     assert str(state) in held.write
     assert _agent().fenced() is None
+
+
+def test_the_declared_state_is_expanded_from_its_tilde(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(backends, "declared", _declaring((), ("~/state",)))
+    held = _agent(fence=Fence(read=("/",), write=(str(tmp_path / "work"),))).fenced()
+    assert held is not None
+    assert str(tmp_path / "state") in held.write

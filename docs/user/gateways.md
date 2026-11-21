@@ -123,6 +123,8 @@ clis:
 
 An entry with only a command can be written as a list, `my-agent: [my-agent, --acp]`, which is what the terminal form saves. To remove a custom CLI, delete its entry under `clis`.
 
+A CLI with no `hosts` cannot run in a flow that cuts the network: the session is refused with `HarnessSandboxed`, which names the missing declaration. A CLI with no `state` is not refused; the fence grants it no extra writable paths, so a CLI that writes its own state directory fails on its own.
+
 ### Use it
 
 Pick the added CLI in the **Harness** list of the agent chip, in the terminal's agent pickers, or with `-a`:
