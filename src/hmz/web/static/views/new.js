@@ -1,8 +1,9 @@
 // A new epic, in the frame a new chat opens in: `New epic` in the bar with the flow picked beside
 // it as a model is picked, and the task typed into the box docked at the foot of the page, with
 // nothing under that box. Everything the epic is set up with is in the middle of the page, always
-// in sight, under what the flow is for: first its environment -- the daemon it runs on, the
-// folder, and where each environment role works -- then an agent for each role, a row a role
+// in sight, under what the flow is for: first the daemon that serves it, a part of its own, which
+// is no part of where it works; then its environment -- the folder, and where each environment
+// role works -- then an agent for each role, a row a role
 // with its nous picked from a chip, its params, its budget, where it is backed up and whether its
 // flow and its environment are profiled, set up as this directory last started that flow, the way
 // `/flow` in the terminal interface sets one up. Nothing saves it but starting. Picking a run up
@@ -44,24 +45,26 @@ export function mount(root, { query }) {
   // An epic of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
   const about = h('p', { class: 'greeting-about' })
-  // Where each environment role of the flow picked works, under the daemon and the folder.
+  // Where each environment role of the flow picked works, under the folder.
   const rooms = h('div', { class: 'setup-rows setup-envs' })
-  // Where it runs, first of what it is set up with, and there whatever flow is picked -- or none.
+  // Which hmz serves it: a part of its own, over where it works, which it is no part of.
+  const serving = h(
+    'section',
+    { class: 'option-group', 'data-hmz': 'setup-serving' },
+    h('h3', {}, t('Daemon')),
+    h('div', { class: 'setup-rows' }, h('div', { class: 'setup-row', 'data-hmz': 'setup-daemon' }, h('span', { class: 'setup-name' }, t('Connected to')), daemonChip('/new').node)),
+  )
+  // Where it works, next, and there whatever flow is picked -- or none.
   const environment = h(
     'section',
     { class: 'option-group', 'data-hmz': 'setup-environment' },
     h('h3', {}, t('Environment')),
-    h(
-      'div',
-      { class: 'setup-rows' },
-      h('div', { class: 'setup-row', 'data-hmz': 'setup-daemon' }, h('span', { class: 'setup-name' }, t('Daemon')), daemonChip('/new').node),
-      h('div', { class: 'setup-row', 'data-hmz': 'setup-folder' }, h('span', { class: 'setup-name' }, t('Folder')), place.node),
-    ),
+    h('div', { class: 'setup-rows' }, h('div', { class: 'setup-row', 'data-hmz': 'setup-folder' }, h('span', { class: 'setup-name' }, t('Folder')), place.node)),
     rooms,
   )
   // The rest of what the flow picked is set up with: drawn for each flow, and of none, nothing.
   const rest = h('div', { class: 'form' })
-  const options = h('div', { class: 'options', 'data-hmz': 'options' }, environment, rest)
+  const options = h('div', { class: 'options', 'data-hmz': 'options' }, serving, environment, rest)
   const resumed = h('div', { class: 'resumed' })
   // Said in the middle of the page where no flow is on offer: hmz ships none.
   const lacking = h('div', { 'data-hmz': 'no-flow', hidden: true })
@@ -233,7 +236,7 @@ export function mount(root, { query }) {
     focus(box.text)
   }
 
-  /** Draws nothing of a flow's set-up: with none picked there is the environment alone. */
+  /** Draws nothing of a flow's set-up: with none picked there are the daemon and the environment alone. */
   function undrawn() {
     for (const one of leaving) one()
     leaving = []
@@ -268,7 +271,7 @@ export function mount(root, { query }) {
         pickers[role.name].node,
       )
     })
-    // An environment role a row, under the daemon and the folder: left blank, it works in the folder.
+    // An environment role a row, under the folder: left blank, it works in the folder.
     const places_ = envs.map((role) => {
       places[role.name] = envPicker(role, (kept.envs || {})[role.name] || '', backends, runtimes, { folder: scratch ? '' : workspace })
       const wants = [role.cpu && `${role.cpu} CPU`, role.memory && `${Math.ceil(role.memory / 2 ** 30)} GiB`, role.gpu && `${role.gpu} GPU`, role.image && role.image].filter(Boolean)

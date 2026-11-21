@@ -216,8 +216,9 @@
 
 /* ------------------------------------------------------------------ how a new epic is set up */
 
-/* Where it runs stands first and whatever flow is picked; the rest of what the flow is set up
-   with under it, a line between them as between every two of its parts. */
+/* Which hmz serves it stands first, where it works next, whatever flow is picked; the rest of
+   what the flow is set up with under them, a line between every two of its parts. */
+.options > .option-group + .option-group,
 .options > .form:not(:empty) {
   margin-top: var(--space-16);
   padding-top: var(--space-16);

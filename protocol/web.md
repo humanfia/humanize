@@ -318,8 +318,10 @@ environment 环境 or 環境, a runtime 运行时 or 執行環境, a workspace �
 and an id.
 
 **3.4.4.14.2** A name the daemon gives out of a set this document closes -- a runtime's backend
-(Section 3.11.2.7), a permission's preset (Section 8.3.9 of protocol/core.md) -- MUST be said in
-the page's language; one the page does not know MUST be said as the daemon names it.
+and how the runtime was made (Section 3.11.2.7), a permission's preset (Section 8.3.9 of
+protocol/core.md) -- and what a harness's way of signing in, and each thing that way asks for, say
+of themselves (the `about` of Section 4.18.2.1 of [DAEMON]) MUST be said in the page's language;
+one the page does not know MUST be said as the daemon says it.
 
 **3.4.4.15** The page MUST write a date and a time of day as its language writes them, and as the
 browser's own region of that language does where the browser names one.
@@ -1117,14 +1119,14 @@ made for it alone (`scratch`, Section 4.7.1.3 of [DAEMON]), whose set-up MUST NO
 
 **3.8.4.1** Where no flow is on offer there, the form MUST say so in the middle of the page, with
 `Open Flows`, which opens `Flows` (Section 3.9), the one page of every workspace, on its
-flowverses, where a flow is installed from; what picks the flow MUST offer the same, the form MUST then show of what a flow is set up with `Environment`
-alone, and starting MUST be refused saying that a flow is installed first.
+flowverses, where a flow is installed from; what picks the flow MUST offer the same, the form MUST then show of what a flow is set up with `Daemon` and
+`Environment` alone, and starting MUST be refused saying that a flow is installed first.
 
 **3.8.5** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
 **3.8.6** The form MUST show, in the middle of the page, what the flow is set up with, as that
-workspace last started it: `Environment` first, holding `Daemon`, `Folder` (Section 3.8.2.1) and
-for each environment role an environment; then for each agent role an agent, the parameters, the
+workspace last started it: `Daemon` first, the daemon that serves the page; then `Environment`,
+holding `Folder` (Section 3.8.2.1) and for each environment role an environment; then for each agent role an agent, the parameters, the
 budget, the backup targets, `Profile flow` and `Profile environment`. All of it MUST be in sight
 without a control being pressed: the form MUST NOT hold a control named `Options`, or any other
 that shows or hides what the flow is set up with.
@@ -1273,13 +1275,14 @@ heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 
 flow is for and, under it, what it is set up with (Section 3.8.6) in the middle of the page; and
 the box of Section 3.8.5 docked at the foot, holding only the `Add` button of Section 3.6.6.16,
 what is typed and the button that sends. The row under that box MUST hold nothing, neither at its
-left nor at its right. `Environment` MUST be the first part of what the flow is set up with, shown
-whatever flow is picked and where none is: a row `Daemon`, a chip that names the daemon the page
-shows and opens a menu of one line that is no choice, `Which hmz serves this page: a machine
+left nor at its right. `Daemon` MUST be the first part of what the flow is set up with, shown
+whatever flow is picked and where none is, a part of its own and no part of `Environment`, so that
+which hmz serves the page is not read as where the epic works: one row, `Connected to`, a chip
+that names the daemon the page shows and opens a menu of one line that is no choice, `Which hmz serves this page: a machine
 running hmz that you are connected to.`, then Local and every remote daemon this browser keeps,
 with the one shown marked, and `Add daemon…`, which opens the daemons' settings (Section 3.13);
-picking another daemon MUST switch the page to it (Section 3.4.2.4), on the same form; a row
-`Folder`, the control of
+picking another daemon MUST switch the page to it (Section 3.4.2.4), on the same form.
+`Environment` MUST be the next part, shown likewise: a row `Folder`, the control of
 Section 3.8.2.1; and then a row for each environment role of the flow picked, named by the role,
 whose directory on this machine, while none is typed, MUST say the workspace picked, where such a
 role left blank works. The menus of `Daemon` and of `Folder` MUST open under their controls.
@@ -1496,7 +1499,10 @@ user forget it; forgetting a workspace where no epic ran MUST remove it from the
 **3.11.2.11.1** `Archived chats` MUST list the archived chats of the workspace picked (`chat.list`
 with `archived`), newest first, each by its title and when it was last written, with `Unarchive`,
 which MUST put it back among the others (`chat.unarchive`) and take it off this list, and `Delete`,
-which MUST open the dialog of Section 3.6.6.26. It MUST say so where there is none.
+which MUST open the dialog of Section 3.6.6.26. Under them, whichever workspace is picked and
+where there is none to pick, it MUST list likewise, under `No folder`, the archived chats of every
+folderless workspace (Section 3.5.1.2), which no workspace picked names. It MUST say so where there
+is none of either.
 
 **3.11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of
 one, looking back 7, 30, 90 or 365 days.

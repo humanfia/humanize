@@ -36,7 +36,7 @@ test('what `Group and sort` offers and the groups it makes are named in the page
   assert.deepEqual(GROUPS, [['folder', '資料夾'], ['date', '日期'], ['none', '不分組']])
   assert.deepEqual(SORTS, [['updated', '上次更新'], ['created', '建立時間']])
   assert.deepEqual(SHOWS, [['chats', '聊天'], ['epics', '史詩']])
-  assert.equal(NO_FOLDER, '無資料夾')
+  assert.equal(NO_FOLDER, '無目錄')
   const view = { group: 'date', sort: 'updated', chats: true, epics: true }
   const now = Date.parse('2026-05-02T12:00:00')
   const runs = [
@@ -46,7 +46,7 @@ test('what `Group and sort` offers and the groups it makes are named in the page
   ]
   const groups = arranged({ runs, view, pinned: new Set(['c']), now })
   assert.deepEqual(groups.map((one) => [one.key, one.label]), [[':pinned', '已置頂'], [':date:today', '今天'], [':date:yesterday', '昨天'], [':folders', '資料夾']])
-  assert.deepEqual(arranged({ runs: [], view: { ...view, group: 'folder' }, now }).map((one) => [one.key, one.label]), [[':nowhere', '無資料夾']])
+  assert.deepEqual(arranged({ runs: [], view: { ...view, group: 'folder' }, now }).map((one) => [one.key, one.label]), [[':nowhere', '無目錄']])
   assert.equal(arranged({ runs, view: { ...view, group: 'none' }, now })[0].label, '全部')
 })
 

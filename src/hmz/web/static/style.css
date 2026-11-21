@@ -1012,6 +1012,25 @@ code {
   margin: var(--space-4) 0 0;
 }
 
+/* A way picked among fields in a row: the select, and beside it what explains the one chosen,
+   which goes under the select where there is no room beside it and never under another field. */
+.row > .field.way-field {
+  flex: 1 1 20rem;
+}
+
+.row:has(> .field.way-field) {
+  align-items: flex-start;
+}
+
+.way-field > .row > select {
+  flex: none;
+}
+
+.way-field .hint.way-about {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
 .hint.way-about:empty {
   display: none;
 }
@@ -5206,6 +5225,16 @@ td:has(> .exo-key) {
 
 dialog > .window-strip {
   z-index: -1;
+}
+
+/* On a wide window of Humanize Desktop's a dialog keeps clear of that row, above and as far
+   below so that it stays in the window's middle: the whole of the row moves the window, not the
+   sliver a dialog as tall as the window would leave of it. A narrow window's dialog fills it, and
+   is moved by its own head. */
+@media (min-width: 861px) {
+  :root[data-shell] .overlay {
+    padding-block: var(--bar-h);
+  }
 }
 
 /* Beside the sidebar's drawer it is there only while the drawer's scrim is, and at its height. */

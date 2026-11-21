@@ -442,6 +442,9 @@ def test_the_daemons_own_machine_is_first_of_the_runtimes_and_cannot_be_changed(
         go(page, "/settings/runtimes")
         expect(listing.locator("[data-hmz=runtime]")).to_have_count(1)
         expect(listing.locator(".empty")).to_have_count(0)
+        # Its backend by the name the form picks it by, and how it was made.
+        expect(listing.locator("[data-hmz=runtime] td").first).to_have_text("SSH host")
+        expect(listing.locator("[data-hmz=runtime]")).to_contain_text("typed")
         expect(local.locator("b")).to_have_text("This machine")
         first = page.evaluate(
             "() => document.querySelector('[data-hmz=runtimes] :is("
@@ -508,10 +511,17 @@ def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
             "result": {"here": "", "workspaces": []}
         }
         go(page, "/settings/general")
-        go(page, "/settings/archived")
-        none = page.locator("[data-hmz=settings-archived] .empty")
+        go(page, "/settings/workspace")
+        none = page.locator("[data-hmz=settings-workspace] .empty")
         expect(none.locator("strong")).to_have_text("No folder yet.")
         expect(none.get_by_role("link", name="New chat")).to_have_attribute(
             "href", "#/new/chat"
+        )
+        expect(page.locator("[data-hmz=settings-workdir]")).to_be_hidden()
+        # The archived chats of no folder are of no folder picked: their page is drawn
+        # all the same, and says there is none.
+        go(page, "/settings/archived")
+        expect(page.locator("[data-hmz=archived-chats] .empty strong")).to_have_text(
+            "No archived chats."
         )
         expect(page.locator("[data-hmz=settings-workdir]")).to_be_hidden()

@@ -946,8 +946,12 @@ export function mount(root, { parts, query }) {
       return
     }
     wokeAt = Date.now()
-    const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null, ...(carry ? carry.movedTo() : {}) }).then(
+    // Where it was picked to be carried on, which the host brought up stands in from the start.
+    const to = carry ? carry.movedTo() : {}
+    const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null, ...to }).then(
       (started) => {
+        // It is there now: nothing is left to move it to, unless another was picked meanwhile.
+        if (to.env && carry && carry.movedTo().env === to.env) carry.settled()
         refresh('chat.get')
         return started.slot
       },
@@ -972,9 +976,19 @@ export function mount(root, { parts, query }) {
   function carrying(detail) {
     const box = chatBox(detail, async (text) => {
       // A host brought up for its environment, or one not followed yet, holds it already.
-      const slot = (waking && (await waking)) || (seen && seen.detail && seen.detail.slot) || ''
+      let slot = (waking && (await waking)) || (seen && seen.detail && seen.detail.slot) || ''
+      // Where it was picked to be carried on, the daemon says whether a host holds it since.
+      if (!slot && box.movedTo().env) slot = await call('chat.get', { chat: name }).then((one) => one.slot || '', () => '')
       if (slot) {
         try {
+          // Picked while that host was coming up, or before it was known of: it is moved
+          // there before anything is said, so that the turn runs where the chip says.
+          const to = box.movedTo()
+          if (to.env) {
+            await chatAsk({ workspace: detail.workspace, slot }, 'move', to)
+            box.settled()
+            refresh('chat.get')
+          }
           return await chatAsk({ workspace: detail.workspace, slot }, 'say', { text })
         } catch (error) {
           // Its host went meanwhile: carried on as one no host holds.
@@ -1203,7 +1217,11 @@ export function mount(root, { parts, query }) {
       pick: async (to) => {
         const env = envSpelled(to)
         if (!env) return
-        const slot = going ? here.slot : (seen && seen.detail && seen.detail.slot) || ''
+        // A host being brought up for its environment holds it in a moment, and one brought up
+        // elsewhere -- another tab, the terminal -- since this page last read the chat holds
+        // it already: the daemon is asked, and the chat is moved there.
+        let slot = going ? here.slot : (seen && seen.detail && seen.detail.slot) || (waking && (await waking)) || ''
+        if (!slot) slot = await call('chat.get', { chat: name }).then((one) => one.slot || '', () => '')
         if (!slot) {
           movingTo = to
           return
@@ -1235,7 +1253,19 @@ export function mount(root, { parts, query }) {
     // whoever cannot see that menu.
     box.text.setAttribute('aria-description', INPUT_HINT)
     box.node.dataset.hmz = 'say'
-    return Object.assign(box, { model, permission, usage, environment, movedTo: () => (movingTo ? { env: envSpelled(movingTo) } : {}) })
+    return Object.assign(box, {
+      model,
+      permission,
+      usage,
+      environment,
+      /** Where a chat no host holds was picked to be carried on, as `chat.start` takes it: nothing for where it worked. */
+      movedTo: () => (movingTo ? { env: envSpelled(movingTo) } : {}),
+      /** It is there: nothing is left to move it to. */
+      settled: () => {
+        movingTo = null
+        environment.again()
+      },
+    })
   }
 
   /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */

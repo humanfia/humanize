@@ -555,6 +555,113 @@ def test_a_chat_is_moved_to_another_environment_between_its_turns(
             stop(page)
 
 
+def test_a_resting_chat_moved_while_its_host_stands_by_stays_where_it_was_put(
+    project: Path, engine: str
+) -> None:
+    """Moved with nothing said yet, the chip keeps the new place and the turn runs there."""
+    other = project.parent / "elsewhere"
+    other.mkdir()
+    with served() as site:
+        name = _chatted(site, "still here")
+        with opened(site, engine=engine, width=1280, height=800) as page:
+            go(page, f"/chats/{name}")
+            where = page.locator("[data-hmz=say] [data-hmz=environment]")
+            form = page.locator("[data-hmz=say] [data-hmz=env-dir-form]")
+            expect(where).to_have_text("This computer")
+            # Its environment opened, a host is brought up for it with nothing said.
+            page.locator("[data-hmz=bar] [data-hmz=pane-files]").click()
+            until = time.monotonic() + 60
+            while not _call(page, "chat.get", {"chat": name})["slot"]:
+                assert time.monotonic() < until
+                time.sleep(0.1)
+            # The page reads the chat again and follows that host, whose box takes the
+            # place of the one it had: what is opened next is opened in the box that stays.
+            page.wait_for_timeout(4500)
+
+            # Moved on that host: the row says where it now works, though its record says
+            # nothing until something is said, and the chip does not go back.
+            where.click()
+            page.get_by_role("menu", name="Environment").locator(
+                "[data-hmz=env-dir-choose]"
+            ).click()
+            form.locator("[data-hmz=env-dir]").fill(str(other))
+            form.locator("[data-hmz=env-dir-pick]").click()
+            expect(form).to_be_hidden()
+            expect(where).to_have_text("This computer · elsewhere")
+            chat = _call(page, "chat.get", {"chat": name})
+            assert (chat["env"], chat["workdir"]) == (f"local{other}", str(other))
+            # Read again a few times over, it is still there.
+            page.wait_for_timeout(4500)
+            expect(where).to_have_text("This computer · elsewhere")
+
+            # What is said next is said there.
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill("and here?")
+            say.press("Enter")
+            landed = other / "landed.txt"
+            until = time.monotonic() + 60
+            while not landed.is_file():
+                assert time.monotonic() < until
+                time.sleep(0.1)
+            assert landed.read_text() == "and here?\n"
+            assert "and here?" not in (project / "landed.txt").read_text()
+            expect(page.locator("[data-hmz=say] .send")).to_have_attribute(
+                "aria-label", "Send"
+            )
+            stop(page)
+
+
+def test_an_archived_chat_of_no_folder_is_listed_put_back_and_deleted_in_settings(
+    project: Path, engine: str
+) -> None:
+    """No folder picked names its directory: it is listed under `No folder` all the same."""
+    with served() as site, opened(site, engine=engine, width=1280, height=800) as page:
+        go(page, "/new/chat?scratch=1")
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
+        page.locator("[data-hmz=start] [data-hmz=permission]").click()
+        page.get_by_role("menu", name="Permissions").locator(
+            "[data-permission=danger-full-access]"
+        ).click()
+        page.locator("[data-hmz=composer-text]").fill("of no folder")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
+        name = urllib.parse.unquote(page.url.split("#/chats/")[1])
+        expect(page.locator("[data-hmz=say] .send")).to_have_attribute(
+            "aria-label", "Send"
+        )
+        assert _call(page, "chat.get", {"chat": name})["folderless"] is True
+        stop(page)
+        _bar_menu(page).get_by_role("menuitem", name="Archive", exact=True).click()
+        expect(_rows(page)).to_have_count(0)
+
+        # Whichever folder is picked, it stands under `No folder`, the folder's own list
+        # saying nothing of an empty one beside it.
+        go(page, "/settings/archived")
+        archived = page.locator("[data-hmz=archived-chats]")
+        nowhere = archived.locator("[data-hmz=archived-nowhere]")
+        expect(nowhere.locator("h4")).to_have_text("No folder")
+        listed = nowhere.locator("[data-hmz=archived-chat]")
+        expect(listed).to_have_count(1)
+        expect(listed).to_have_attribute("data-chat", name)
+        expect(archived).not_to_contain_text("No archived chats.")
+        listed.get_by_role("button", name="Unarchive").click()
+        expect(nowhere).to_have_count(0)
+        expect(archived).to_contain_text("No archived chats.")
+        assert not _call(page, "chat.get", {"chat": name})["archived"]
+
+        # Archived again, it is deleted from there, its directory with it.
+        _call(page, "chat.archive", {"chat": name})
+        go(page, "/settings/general")
+        go(page, "/settings/archived")
+        expect(listed).to_have_count(1)
+        listed.locator("[data-hmz=archived-delete]").click()
+        page.locator("[data-hmz=dialog-delete] [data-hmz=delete-confirm]").click()
+        expect(listed).to_have_count(0)
+        assert _call(page, "chat.list", {"archived": True})["chats"] == []
+
+
 def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
     project: Path, engine: str
 ) -> None:

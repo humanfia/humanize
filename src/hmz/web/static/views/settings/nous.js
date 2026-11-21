@@ -318,10 +318,10 @@ export function draw(holder, query, parts, scope) {
           'div',
           { class: 'row' },
           h('div', { class: 'field' }, h('label', { for: 'nous-tries' }, t('Tries')), tries),
-          h('div', { class: 'field' }, h('label', { for: 'nous-policy' }, t('Wait')), policy.select),
           h('div', { class: 'field' }, h('label', { for: 'nous-timeout' }, t('Limit, s')), timeout),
+          // Last in the row, with what explains the way chosen beside its select, not under another field.
+          h('div', { class: 'field way-field' }, h('label', { for: 'nous-policy' }, t('Wait')), h('div', { class: 'row' }, policy.select, policy.about)),
         ),
-        policy.about,
       ),
       was.virtual ? graph.node : null,
       then.node,

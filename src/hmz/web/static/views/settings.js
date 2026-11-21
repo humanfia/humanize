@@ -175,7 +175,8 @@ export function mount(root, { parts, query }) {
           fill(folder, served.map((one) => h('option', { value: one.path, selected: one.path === workspace }, shownAs(one, served))))
           placed()
           for (const key of Object.keys(PAGES)) links[key].href = href(key)
-          if (workspace) draw()
+          // The archived chats of no folder are listed where there is no folder to pick too.
+          if (workspace || name === 'archived') draw()
           else
             instead(
               empty(

@@ -59,15 +59,15 @@ test('a notification is titled by its kind in the page’s language, over what t
   const notice = { kind: 'asked', daemon: 'local', epic: 'e1', flow: 'goal', text: 'Which **way**?', key: 'local:1' }
   const hans = await loaded('notified.js', 'zh-Hans')
   await written('zh-Hans', () => {
-    assert.deepEqual(hans.shownAs(notice), { title: '提问 · 本机', body: 'goal · Which way?', address: '#/epics/e1', tag: 'local:1' })
+    assert.deepEqual(hans.shownAs(notice), { title: '提问 · 本地', body: 'goal · Which way?', address: '#/epics/e1', tag: 'local:1' })
     assert.equal(hans.shownAs({ ...notice, kind: 'done', daemon: 'atlas' }).title, '已完成 · atlas')
     // A kind the page has no word for is said as the daemon said it.
-    assert.equal(hans.shownAs({ ...notice, kind: 'odd' }).title, 'odd · 本机')
+    assert.equal(hans.shownAs({ ...notice, kind: 'odd' }).title, 'odd · 本地')
   })
   const hant = await loaded('notified.js', 'zh-Hant')
   await written('zh-Hant', () => {
-    assert.equal(hant.shownAs({ ...notice, kind: 'failed' }).title, '失敗 · 本機')
-    assert.equal(hant.shownAs({ ...notice, kind: 'listening' }).title, '等待中 · 本機')
+    assert.equal(hant.shownAs({ ...notice, kind: 'failed' }).title, '失敗 · 本地')
+    assert.equal(hant.shownAs({ ...notice, kind: 'listening' }).title, '等待中 · 本地')
   })
 })
 

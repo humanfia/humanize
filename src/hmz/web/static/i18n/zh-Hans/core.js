@@ -56,7 +56,7 @@ export default {
   'Stopped': '已停止',
   'Question': '提问',
   'Waiting': '等待中',
-  'Local': '本机',
+  'Local': '本地',
   // acting.js: saying a line to an epic, its board, the roles a person fills, and side questions.
   'Say it to': '发送对象',
   'Message {name}': '发消息给 {name}',
@@ -128,7 +128,7 @@ export default {
   // places.js: the folder a chat or an epic works in.
   'The folder {name} is no longer on this machine.': '文件夹 {name} 已不在这台机器上。',
   'The folder {name} is no longer on this machine. Pick another folder.': '文件夹 {name} 已不在这台机器上。请另选一个文件夹。',
-  'No folder': '无文件夹',
+  'No folder': '无目录',
   'A temporary directory of its own, made as it starts': '开始时自动新建的专属临时目录',
   'Files': '文件',
   'Folder': '文件夹',
@@ -223,7 +223,7 @@ export default {
   'A frame of {count} bytes is not read.': '不读取 {count} 字节的帧。',
   'That is more than a call here may carry.': '超出了此处一次调用可携带的大小。',
   '{name} is not a daemon\'s name: start with a letter or a digit, then letters, digits, ., _ and -.': '{name} 不能作为守护进程的名称：须以字母或数字开头，后接字母、数字、.、_ 和 -。',
-  'local is Local\'s name.': 'local 是本机的名称。',
+  'local is Local\'s name.': 'local 是本地的名称。',
   'A daemon\'s routes are a list.': '守护进程的路由须为列表。',
   'A daemon\'s STUN and TURN servers are a list.': '守护进程的 STUN 和 TURN 服务器须为列表。',
   'A STUN or TURN server needs its URL.': 'STUN 或 TURN 服务器需要 URL。',

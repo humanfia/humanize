@@ -13,6 +13,9 @@ import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
 
+/** How a runtime came to be written down, as the page's language says it: one it does not know, as the daemon does. */
+const MADE = { typed: t('typed@@runtime'), imported: t('imported@@runtime') }
+
 export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' }, h('p', { class: 'loading', role: 'status' }, t('Reading the runtimes…')))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-runtime' })
@@ -34,8 +37,8 @@ export function draw(holder, query, parts, scope) {
       return h(
         'tr',
         { 'data-hmz': 'runtime' },
-        h('td', { class: 'mono' }, one.backend),
-        h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, one.made)),
+        h('td', { title: one.backend }, kindSaid(one.backend)[0]),
+        h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, MADE[one.made] || one.made)),
         h('td', { class: 'mono', 'data-label': t('Address') }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
         h('td', { 'data-label': t('Resources') }, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, t('not asked'))),
         h(

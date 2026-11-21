@@ -43,7 +43,8 @@ in a browser does.
 - **The page is the whole window**, up to its top edge. On macOS the traffic lights stand in
   the page's top row, which is one row across the sidebar and the view. Drag the window by any
   empty part of the top row, and double-click it to zoom or maximize -- also while Settings,
-  another dialog or a drawer is open over the page.
+  another dialog or a drawer is open over the page: a dialog stands under that row, never over
+  it, so the whole row still moves the window.
 - **Ai-chan is in the window too**: her avatar, at the right of every view's bar, opens the
   [drawer](/user/web#ai-chan) of your conversations with [Ai-chan](/user/ai-chan).
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown

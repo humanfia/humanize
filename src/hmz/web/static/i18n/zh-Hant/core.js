@@ -56,7 +56,7 @@ export default {
   'Stopped': '已停止',
   'Question': '提問',
   'Waiting': '等待中',
-  'Local': '本機',
+  'Local': '本地',
   // acting.js: saying a line to an epic, its board, the roles a person fills, and side questions.
   'Say it to': '傳送對象',
   'Message {name}': '傳訊息給 {name}',
@@ -128,7 +128,7 @@ export default {
   // places.js: the folder a chat or an epic works in.
   'The folder {name} is no longer on this machine.': '資料夾 {name} 已不在這台機器上。',
   'The folder {name} is no longer on this machine. Pick another folder.': '資料夾 {name} 已不在這台機器上。請另選一個資料夾。',
-  'No folder': '無資料夾',
+  'No folder': '無目錄',
   'A temporary directory of its own, made as it starts': '開始時自動新建的專屬暫存目錄',
   'Files': '檔案',
   'Folder': '資料夾',
@@ -223,7 +223,7 @@ export default {
   'A frame of {count} bytes is not read.': '不讀取 {count} 位元組的訊框。',
   'That is more than a call here may carry.': '超出此處一次呼叫可攜帶的大小。',
   '{name} is not a daemon\'s name: start with a letter or a digit, then letters, digits, ., _ and -.': '{name} 不能作為常駐程式的名稱：須以字母或數字開頭，後接字母、數字、.、_ 和 -。',
-  'local is Local\'s name.': 'local 是本機的名稱。',
+  'local is Local\'s name.': 'local 是本地的名稱。',
   'A daemon\'s routes are a list.': '常駐程式的路由須為清單。',
   'A daemon\'s STUN and TURN servers are a list.': '常駐程式的 STUN 和 TURN 伺服器須為清單。',
   'A STUN or TURN server needs its URL.': 'STUN 或 TURN 伺服器需要 URL。',

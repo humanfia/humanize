@@ -333,7 +333,10 @@ h('p', {}, pieces('From {name}', { name: h('b', {}, called) })) // a sentence ho
 | Turn | 轮 / 轮次 | 回合 | |
 | Chat | 聊天 | 聊天 | |
 | Folder / directory | 文件夹 / 目录 | 資料夾 / 目錄 | |
-| This machine, this computer, Local | 本机 | 本機 | |
+| Local (the daemon of this page's own machine) | 本地 | 本地 | never 本机, which is the runtime |
+| This computer (the env on the daemon's machine) | 这台电脑 | 這台電腦 | |
+| This machine (the built-in runtime) | 本机 | 本機 | |
+| No folder | 无目录 | 無目錄 | a chat or an epic in a temporary directory of its own |
 | Wait (policy) | 等待策略 | 等待策略 | |
 | Token (of a model) | Token | Token | a unit, as GPU is |
 

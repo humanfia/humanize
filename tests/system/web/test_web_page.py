@@ -689,14 +689,20 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
-        # Environment first: the daemon that serves it, then the folder, a row each, the
-        # names in one column and what each picks in the next.
-        first = view.locator("[data-hmz=options] > *").first
-        expect(first).to_have_attribute("data-hmz", "setup-environment")
-        expect(first.locator("h3")).to_have_text("Environment")
-        expect(first.locator(".setup-row > .setup-name")).to_have_text(
-            ["Daemon", "Folder"]
+        # The daemon that serves it first, a part of its own; then Environment, the folder
+        # first: a row each, the names in one column and what each picks in the next.
+        parts = view.locator("[data-hmz=options] > *")
+        expect(parts.nth(0)).to_have_attribute("data-hmz", "setup-serving")
+        expect(parts.nth(0).locator("h3")).to_have_text("Daemon")
+        expect(parts.nth(0).locator(".setup-row > .setup-name")).to_have_text(
+            ["Connected to"]
         )
+        expect(parts.nth(1)).to_have_attribute("data-hmz", "setup-environment")
+        expect(parts.nth(1).locator("h3")).to_have_text("Environment")
+        expect(parts.nth(1).locator(".setup-row > .setup-name")).to_have_text(
+            ["Folder"]
+        )
+        expect(parts.nth(1).locator("[data-hmz=daemon]")).to_have_count(0)
         runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=daemon]")
         folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
         assert runs["x"] == folder["x"]
@@ -1992,11 +1998,14 @@ def test_in_the_app_the_window_is_moved_by_its_top_while_something_is_over_the_p
         page.keyboard.press("Escape")
         expect(page.locator("#asked")).to_be_hidden()
 
-        # A window so low that the dialog reaches into the top row: the dialog is pressed
-        # where it stands, and the strip beside it.
-        page.set_viewport_size({"width": 1280, "height": 300})
-        assert page.evaluate(at, [640, 30]) == "shown"
-        assert page.evaluate(at, [4, 4]) == "strip:"
+        # However low the window, at the app's own size and under it, the dialog keeps clear
+        # of the top row: all of the row moves the window, over the dialog's width too.
+        for height in (820, 800, 700, 300):
+            page.set_viewport_size({"width": 1280, "height": height})
+            for x in (4, 400, 640, 900, 1276):
+                assert page.evaluate(at, [x, 4]) == "strip:", (height, x)
+                assert page.evaluate(at, [x, 43]) == "strip:", (height, x)
+            assert page.evaluate(at, [640, 45]) == "shown", height
         page.locator("[data-hmz=dialog-settings]").get_by_role(
             "button", name="Close"
         ).click()
