@@ -856,8 +856,9 @@ parameters and budget -- the tree of flows it called, its sessions, what it spen
 took.
 
 **3.6.7.2** The page MUST read the epic's handovers and each session's turns back out of the logs
-it kept, on its own, when the epic is shown, and MUST say so while it reads. Where the reading
-fails, the page MUST say why and MUST offer `Read turns`, which reads them again.
+it kept, on its own, when the epic is shown, and MUST say so while it reads, where it kept nothing
+of them (Section 3.6.12). Where the reading fails, the page MUST say why and MUST offer `Read
+turns`, which reads them again.
 
 **3.6.7.3** The page MUST offer `Export`, which downloads the epic as one archive, as Section 3 of
 [CORE] specifies, reading it in chunks (`runs.bundle` and `files.read`, Section 4.16.4.4 of
@@ -1041,6 +1042,52 @@ which loads the frame afresh and, where the face then calls `hmz.on("ask", ...)`
 **3.6.11.10** The page MUST draw, beside every face it shows, one switch: `Plain form`, which shows
 the form in place of the face, and, while the form is shown, `Back to <title>`, the face's `title`,
 else `the custom view`, which shows the face again as the person left it.
+
+#### 3.6.12. A conversation opened again
+
+**3.6.12.1** The page MUST keep what it last saw of each conversation it has drawn -- a chat, an
+epic, a conversation of Ai-chan's -- and MUST draw a conversation opened again from what it kept,
+at once, in the frame it is opened in: its record, what was said in it, and, of a chat or an
+epic, its thread scrolled to where it was last read from. The page MUST then read the conversation
+again of the daemon, behind what is drawn, each time it is opened.
+
+**3.6.12.2** What the daemon then answers MUST be drawn over what was kept in place: a line
+already drawn MUST stay drawn as it is, a line said since MUST be added where it was said, a line
+that differs MUST be drawn in the place of the one it was, and nothing else of the view MUST be
+drawn again. Meanwhile and after, the page MUST NOT say that the conversation is being read, MUST
+NOT empty its thread, MUST NOT move the thread under a reader who is not at its end, and MUST NOT
+disturb what is typed in its box or where the caret stands.
+
+**3.6.12.3** Where what the daemon answers is another conversation than what was kept -- its host
+is in another life, what was kept was only its end, or it is of another daemon or another
+workspace than the one kept -- the page MUST draw what the daemon answers over what was kept once,
+whole, and never a record at a time. A conversation the daemon answers there is none of (404) MUST
+be drawn as not there, whatever was kept of it, and the page MUST then keep nothing of it; the page
+MUST keep nothing of a conversation it deleted, nor of a daemon it removed.
+
+**3.6.12.4** What is kept MUST only ever be what is drawn first. How a conversation stands, its
+marks, what it waits on a person for, what its box does -- `Stop` among it -- and which host holds
+it MUST be the daemon's word alone, and the page MUST NOT attach to a host, nor mark anything read,
+on the word of what it kept.
+
+**3.6.12.5** A conversation the page has kept nothing of MUST say that it is being read only once
+the reading has lasted 300 milliseconds: one read sooner MUST be drawn with nothing said of its
+reading. The same holds for what is opened beside a conversation -- its environment -- and for
+Ai-chan's drawer.
+
+**3.6.12.6** What is kept MUST be kept in memory while the page is open and in the browser's
+IndexedDB between its openings, by the daemon, the kind of conversation and its id, so that two
+daemons' are never drawn for one another. The page MUST keep no more than 40 conversations and no
+more than 24 MiB of them, weighed as the characters of their JSON, letting go first of the one
+opened longest ago, and of one never opened before any that was; of a conversation weighing more
+than 4 MiB it MUST keep the end alone. What
+was kept in an earlier format MUST be dropped, and where the browser will not keep it the page MUST
+go on keeping it in memory alone.
+
+**3.6.12.7** While the browser is idle and the page asks nothing else, the page SHOULD read ahead,
+one at a time, the 4 conversations of the sidebar's list last heard of that it has not kept as they
+stand, so that each is drawn at once the first time it is opened; it MUST NOT read ahead through a
+host, a conversation whose turn is open, or the conversation in front.
 
 ### 3.7. Exomyth
 
@@ -1809,8 +1856,8 @@ while her turn is open and she asks the user nothing in it, and a box that says 
 her, under which the two chips of Section 3.16.3 MUST say the nous, the preset and the scope it was
 made with, and MUST NOT be picked from. The drawer MUST NOT name a session, MUST NOT say in words
 that the conversation waits on the user or has folded away, and MUST NOT show what it cost. Until
-the conversation's host has answered, the drawer MUST say that it is being opened, and, where
-attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
+the conversation's host has answered, the drawer MUST say that it is being opened, where it draws
+nothing kept of the conversation (Section 3.6.12), and, where attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
 without what Ai-chan was told ahead of the user's first line (Section 14.6.4 of [CORE]).
 
 **3.16.4.1** Beside the conversation's title the drawer MUST offer a button drawn as a pencil,
@@ -2198,9 +2245,10 @@ requirement.
   Section 3.13.9); the daemon answers none (Section 5 of [DAEMON]). The page never asks for a
   password or a host key (Section 3.13.11). A pairing code is a secret until it is claimed, and the
   page claims it at once (Section 3.13.4).
-- **Browser storage.** The remote daemons, where each daemon's notices are taken up and the page's
-  own settings are kept in the browser's storage for the server's origin (Section 3.13.1 and Section 3.15.2.1), which any
-  page of that origin can read; the page's WebRTC certificate is kept there too (Section 4.7.2 of
+- **Browser storage.** The remote daemons, where each daemon's notices are taken up, the page's
+  own settings and what the page last saw of each conversation -- what was said in it among that
+  -- are kept in the browser's storage for the server's origin (Section 3.13.1, Section 3.15.2.1
+  and Section 3.6.12.6), which any page of that origin can read; the page's WebRTC certificate is kept there too (Section 4.7.2 of
   [WIRE]), so that whoever can read that storage can act as this browser on the daemons it paired
   with.
 - **Failures.** An unanticipated failure is answered with its reason in one sentence and its

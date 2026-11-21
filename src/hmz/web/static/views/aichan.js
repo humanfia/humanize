@@ -9,9 +9,11 @@
 // the scope the page shows, and whose first line makes it. One there is is drawn attached to its
 // slot: her answers in bubbles beside the conversation's face, the person's at the right, each
 // tool she calls a line to open, a box that says the next line to her, which carries a
-// conversation folded away on, and beside its title a pencil that renames it.
+// conversation folded away on, and beside its title a pencil that renames it. One opened before
+// is drawn at once as the page last saw it (logs.js; Section 3.6.12 of protocol/web.md), and
+// what her host then tells is added to it.
 
-import { call, daemon, onDaemon, poll, refresh } from '../api.js'
+import { call, daemon, idOf, onDaemon, poll, refresh } from '../api.js'
 import { PRESETS, TITLED, actionsOf, created, earlierOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, scopeSaid, scopesOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
 import { retitling } from '../chat-actions.js'
 import { modelChip, nousSaidChip } from '../chips/model.js'
@@ -21,6 +23,7 @@ import { acting, empty, fill, h, icon, iconButton, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
 import { ask, current, follow } from '../held.js'
 import { t } from '../i18n.js'
+import { logKey, logs } from '../logged.js'
 import { readBackends } from '../pickers.js'
 import { firstWorkspace } from '../places.js'
 import { choice, dragged, keep, kept, section, sidePanel } from '../shell.js'
@@ -109,6 +112,8 @@ export function mount(app, where) {
       refused = error
       if (answer) {
         rows = answer.conversations
+        // What is gone is not kept to be drawn by, either.
+        logs.keep(daemon(), 'aichan', rows.map((each) => each.id))
         // Read again: what is gone is forgotten here, and the one open is read as it is said in.
         remember(settled(marks(), rows, showing.kind === 'chat' ? showing.id : lately ? lately.id : null))
       }
@@ -167,7 +172,7 @@ export function mount(app, where) {
   const listing = h('div', { class: 'aichan-listing' }, refusal, listed, none)
 
   function list() {
-    if (!rows) return fill(body, refused ? problem(refused) : h('p', { class: 'loading', role: 'status' }, t('Reading her conversations…')))
+    if (!rows) return fill(body, refused ? problem(refused) : h('p', { class: 'loading late', role: 'status' }, t('Reading her conversations…')))
     if (listing.parentElement !== body) fill(body, listing)
     fill(refusal, refused ? problem(refused) : null)
     const now = marks()
@@ -258,6 +263,7 @@ export function mount(app, where) {
           return
         }
         // Gone at once, here; the list read again says so of the daemon.
+        logs.drop(logKey('aichan', id))
         rows = (rows || []).filter((one) => one.id !== id)
         remember(settled(marks(), rows))
         // Over the list alone: a form or a conversation opened meanwhile stays as it is.
@@ -372,6 +378,12 @@ export function mount(app, where) {
     /** Whether the view was left: what is still being read or made draws nothing. */
     let away = false
     let unwatch = () => {}
+    /** The daemon it is of, what it is kept by, and whether what was kept of it is what is drawn. */
+    const on = daemon()
+    let keptKey = ''
+    let keptShown = false
+    /** What she said before she was last carried on, as read, to be kept with the rest. */
+    let before = null
 
     // What it is made with: the scope the page shows, until another is picked.
     const { parts, query } = where()
@@ -484,6 +496,22 @@ export function mount(app, where) {
       // Opened, it is read.
       const row = (rows || []).find((each) => each.id === made.id)
       if (row) remember(read(marks(), row))
+      // What was last seen of it is drawn at once: her host is asked behind it.
+      keptKey = logKey('aichan', made.id, on)
+      const had = logs.open(keptKey, { of: idOf(on) })
+      if (had && had.live && had.live.records.length) {
+        const key = sessionOf(had.live.records)
+        saidFor = JSON.stringify([key, had.live.number, had.live.epoch, Boolean(had.cut && had.cut.live)])
+        saidBy = sayer(key, { chat: true, folded: true })
+        for (const record of had.live.records) {
+          upTo = record.seq
+          log.append(...saidBy(record))
+        }
+        before = had.traced && had.traced[0] ? had.traced[0] : null
+        if (before) fill(earlier, saidTraced({ ...before, actions: earlierOf(before.actions), chat: true }))
+        keptShown = log.childElementCount > 0
+        log.parentElement.scrollTop = log.parentElement.scrollHeight
+      }
       unwatch = watch('', host(), draw)
     }
 
@@ -522,18 +550,23 @@ export function mount(app, where) {
       if (!held) return
       const { number, records } = current(held)
       const key = sessionOf(records)
-      const whose = JSON.stringify([key, number, held.epoch])
-      if (whose !== saidFor) {
+      const whose = JSON.stringify([key, number, held.epoch, false])
+      const scroller = log.parentElement
+      const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
+      // What was kept of it stays drawn until her host has told all it holds: it is then added
+      // to where it is the same conversation still, and drawn over at once where it is not --
+      // never emptied to be filled a record at a time.
+      const waits = whose !== saidFor && keptShown && !held.caught && !held.gone
+      if (whose !== saidFor && !waits) {
         saidFor = whose
         saidBy = sayer(key, { chat: true, folded: true })
         upTo = -1
         failed = ''
+        keptShown = false
         fill(log)
       }
-      const scroller = log.parentElement
-      const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
       let added = false
-      for (const record of records) {
+      for (const record of waits ? [] : records) {
         if (record.seq <= upTo) continue
         upTo = record.seq
         for (const said of saidBy(record)) {
@@ -551,9 +584,12 @@ export function mount(app, where) {
         // Her conversation is a chat's record, read by the id her host says (`chat.get`).
         call('chat.get', { chat: detail.name, trace: true }).then(
           (got) => {
-            const before = sessionsOf(detail)[detail.earlier - 1]
-            const found = before && got.trace.find((each) => each.key === before.traced)
-            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, actions: earlierOf(found.actions), chat: true }))
+            const opened = sessionsOf(detail)[detail.earlier - 1]
+            const found = opened && got.trace.find((each) => each.key === opened.traced)
+            if (!found || !found.actions.length) return
+            // Drawn again only where it is not what was kept of it, and drawn already.
+            if (JSON.stringify(found) !== JSON.stringify(before)) fill(earlier, saidTraced({ ...found, actions: earlierOf(found.actions), chat: true }))
+            before = found
           },
           () => {},
         )
@@ -592,12 +628,18 @@ export function mount(app, where) {
       const note = met ? '' : held.gone || t('Opening her conversation…')
       const noted = log.querySelector(':scope > .thread-empty')
       if (noted && (noted.textContent !== note || log.querySelector(':scope > .said, :scope > .aichan-typing'))) noted.remove()
-      if (note && !log.childElementCount) log.append(h('p', { class: 'dim thread-empty', role: 'status', 'data-hmz': 'aichan-opening' }, note))
+      // Said only once the opening has taken a while: one opened at once never flashes it.
+      if (note && !log.childElementCount) log.append(h('p', { class: ['dim thread-empty', !held.gone && 'late'], role: 'status', 'data-hmz': 'aichan-opening' }, note))
       if (stuck) scroller.scrollTop = scroller.scrollHeight
     }
 
     return () => {
       away = true
+      // Kept as her host told it, once it had told all of it, to be drawn by when next opened.
+      if (made && held && held.caught && keptKey) {
+        const { number, records } = current(held)
+        if (records.length) logs.put(keptKey, { daemon: on, of: idOf(on), kind: 'aichan', id: made.id, workspace: made.workspace, opened: Date.now(), detail: null, live: { epoch: held.epoch, number, records }, traced: before ? [before] : null })
+      }
       unwatch()
       chip?.leave()
       if (made && rested) left(made.id)

@@ -63,7 +63,10 @@ const served = daemon({
       stopped = true
       return {}
     },
-    'chat.get': ({ chat, trace }) => ({ ...CHAT, id: chat, earlier: carried, ...(trace ? { trace: [{ key: 'claude:s1', actions: [] }] } : {}) }),
+    'chat.get': ({ chat, trace }) => {
+      if (chat === 'gone') throw new RpcError(404, 'There is no chat gone.')
+      return { ...CHAT, id: chat, earlier: carried, ...(trace ? { trace: [{ key: 'claude:s1', actions: [] }] } : {}) }
+    },
     'runs.get': ({ name }) => ({ name, kind: 'flow', flow: 'ralph', task: 'an epic', workspace: '/old', how: 'stopped', held: false, resumable: true, picks_up: true, agents: [], sessions: [] }),
   },
 })
@@ -232,4 +235,35 @@ test('an epic stopping is marked so, after a question it asks: asking unseen, wa
   assert.equal(markOf('stopping', { epic: 'stops', asked: ['1:1'] }), 'waiting')
   assert.equal(markOf('running', { epic: 'stops', asked: ['1:1'] }), 'waiting')
   assert.equal(markOf('done', { epic: 'stops', asked: ['1:1'] }), 'done')
+})
+
+test('what the page kept of a chat stands until the daemon answers, and is never the daemon\'s word', async () => {
+  served.calls.length = 0
+  const told = []
+  // Kept while a host held it: the daemon now says none does.
+  const had = { name: 'c6', kind: 'chat', title: 'kept', workspace: '/kept', held: true, slot: 'chat:kept' }
+  const stop = watch('c6', '', (seen) => told.push({ title: seen.detail ? seen.detail.title : '', kept: seen.kept }), { chat: true, had })
+  try {
+    // Told at once, before anything is asked, and marked as kept.
+    assert.deepEqual(told[0], { title: 'kept', kept: true })
+    await until(() => told.some((one) => !one.kept))
+    assert.deepEqual(told.at(-1), { title: 'hello', kept: false })
+    // No host is attached to on the word of what was kept.
+    assert.deepEqual(calls('epic.attach'), [])
+  } finally {
+    stop()
+  }
+})
+
+test('a chat the daemon says is gone is not there, whatever was kept of it', async () => {
+  const told = []
+  const had = { name: 'gone', kind: 'chat', title: 'kept', workspace: '/kept', held: false, slot: '' }
+  const stop = watch('gone', '', (seen) => told.push({ detail: seen.detail, kept: seen.kept, status: seen.error ? seen.error.status : 0 }), { chat: true, had })
+  try {
+    assert.equal(told[0].detail, had)
+    await until(() => told.some((one) => one.status === 404))
+    assert.deepEqual(told.at(-1), { detail: null, kept: false, status: 404 })
+  } finally {
+    stop()
+  }
 })

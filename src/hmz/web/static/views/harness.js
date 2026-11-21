@@ -17,7 +17,7 @@ export function mount(root, { parts, query }) {
   const workspace = query.get('workspace') || ''
   const named = { workspace, harness, session }
   const head = h('div', {}, bar({ title: t('Harness session') }))
-  const box = walked(h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log' }, h('p', { class: 'loading', role: 'status' }, t('Reading its logs…'))))
+  const box = walked(h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log' }, h('p', { class: 'loading late', role: 'status' }, t('Reading its logs…'))))
   const dock = h('div', { class: 'dock' })
   let gone = false
   fill(root, h('div', { class: 'view view-harness', 'data-hmz': 'harness-session' }, head, h('div', { class: 'harness-main' }, h('div', { class: 'thread-scroll' }, h('div', { class: 'thread-column' }, box))), dock))

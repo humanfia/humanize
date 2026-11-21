@@ -12,6 +12,7 @@ import { call, daemons, forget, hello, kindOf, known, onState, pair, providers, 
 import { confirming } from '../../confirm.js'
 import { acting, ago, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pieces, t } from '../../i18n.js'
+import { logs } from '../../logged.js'
 import { pathPicker } from '../../paths.js'
 import { easytier } from '../../rpc/easytier.js'
 import { parsePairing } from '../../rpc/index.js'
@@ -168,6 +169,8 @@ export function draw(holder) {
                     // How to reach it is all that goes: its machine keeps everything as it is.
                     await daemons.remove(one.name)
                     forget(one.name)
+                    // Another daemon may go by its name next: nothing kept of its conversations is that one's.
+                    logs.dropOf(one.name)
                     if (editing && editing.name === one.name) (editing = null), drawWriting()
                     await read()
                   },
