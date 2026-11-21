@@ -2455,7 +2455,7 @@ refuse one as Section 4.25.5.5 states; and `chat.get` MUST answer one.
 while no turn is open, and as `chat.say` is for a slot no host holds or a chat that has folded
 (Section 4.25.2.4).
 
-#### 4.25.7. `chat.rename`, `chat.fork`, `chat.archive`, `chat.unarchive`, `chat.backup` and `chat.delete`
+#### 4.25.7. `chat.rename`, `chat.agent`, `chat.fork`, `chat.archive`, `chat.unarchive`, `chat.backup` and `chat.delete`
 
 **4.25.7.1** Each method of this section MUST take `chat` (a chat's name, required) and MUST be a
 write; each MUST act on the chat whether or not a host holds it, except as stated.
@@ -2482,6 +2482,19 @@ answered `{}`. Where a host holds the chat between turns, the daemon MUST first 
 as an empty `chat.say` does (Section 4.25.2). It MUST be refused 409 with `Chat <name> has a turn
 open; delete it once it is done.` while the chat's turn is open or a process that is no host
 holds the chat.
+
+**4.25.7.7** `chat.agent` MUST take `agent` (an agent spec, as `chat.start` takes one, required),
+MUST give the chat that agent as Section 8.3.18 of [CORE] states, and MUST be answered with the chat
+row. Where a host holds the chat, the daemon MUST have that host take the agent up as Section 8.3.19
+of [CORE] states, a host that stands by with nothing said (Section 4.25.1.9) included, which MUST
+then be the host a `chat.start` that carries the chat on is answered with; where none does, the
+daemon MUST record the agent in the chat's record and MUST start no host. It MUST be refused 400, in
+the words `chat.start` refuses it with, for an `agent` that is not one; 409, in the words of Section
+8.3.18 of [CORE], for one of another harness or account and for a harness that takes no other model
+or effort; 409 with `Ai-chan's nous does not change while the conversation lasts; to change it, make
+another conversation.` on a host of hers; and 409 with `Chat <name> has a turn open; change its
+model once it is done.` while a process that is no host holds the chat. A call made at once with a
+`chat.start` that carries the same chat on MUST be answered as though made before or after it.
 
 #### 4.25.8. `chat.harness.list`, `chat.harness.get` and `chat.harness.adopt`
 

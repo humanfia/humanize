@@ -7,7 +7,8 @@
 // epic the agent of each role of its flow, in the middle of the page, from the harnesses that can
 // fill that role alone (Section 3.8.8); Ai-chan her nous; and a node of a virtual nous the nous
 // it names, as a field of its form (Section 3.11.2.6). On a chat begun it says what the chat
-// runs, and changes what the chat's own `/model` and `/effort` change (Section 3.6.6.13).
+// runs, and carries the chat on with another model or effort of the same harness and account,
+// whether or not a host holds it (Section 3.6.6.13).
 
 import { hash } from '../api.js'
 import { chipNamed } from '../desk.js'
@@ -296,39 +297,71 @@ export function modelChip(role, kept, changed = () => {}, { up = true, align = '
 
 /**
  * What answers a chat begun, said on its chip. Its menu says the parts of its agent, a level a
- * line as a new chat's picks them, and offers a new chat, where every part is picked. Where the
- * chat's CLI takes `/model` or `/effort` as a line of its own (Section 8.9.5 of
- * protocol/core.md), the line of that level opens the models its account runs, or the efforts
- * its model takes, and picking one says that line to the chat; nothing else of a chat begun is
- * changed.
+ * line as a new chat's picks them, and offers a new chat, where every part is picked. Its
+ * harness and its account are said and not picked: a chat is carried on by the harness that had
+ * it, as the account it ran as. Its model and its effort are picked, whether or not a host holds
+ * the chat, from the models that account runs and the efforts the model takes (Section 8.3.18 of
+ * protocol/core.md): one picked is said on the chip at once and asked of the daemon, and where
+ * the daemon refuses it the chip says what the chat runs again, and why is told.
  *
  * @param {object} made
  * @param {() => string} made.of The chat's agent now, as `-a` spells it, or '' where none is known.
  * @param {() => string} made.fresh Where a new chat is started beside this one.
- * @param {(name: 'model'|'effort') => boolean} [made.takes] Whether the chat takes that line now.
- * @param {(line: string) => unknown} [made.say] Says a line to the chat.
+ * @param {(agent: string) => unknown} [made.set] Carries the chat on with that agent, of its own
+ *   harness and account; without it, nothing of the chat is picked.
+ * @param {(error: Error) => void} [made.failed] Told why an agent picked was refused.
  * @returns {{node: HTMLElement, again: () => void}} The chip, hidden while no agent is known, and
  *   a way to have it read the agent again.
  */
-export function modelFact({ of, fresh, takes = () => false, say: tell = () => {} }) {
+export function modelFact({ of, fresh, set = null, failed = () => {} }) {
   const made = chip('chat-model')
   const { button } = made
   const node = h('span', { class: 'model-pick' }, button)
+  /** The agent picked and not yet read back of the chat, and what the chat said it ran as it was picked. */
+  let picked = ''
+  let from = ''
+  /** The menu's body while it is open. */
+  let body = null
+  const now = () => picked || of()
   const again = () => {
-    const spec = of()
+    // Read again since it was picked: what the chat says now is what it runs.
+    if (picked && of() !== from) picked = ''
+    const spec = now()
     if (button.dataset.agent === spec) return
     node.hidden = !agentLabel(spec)
     say(made, spec)
+    body?.again()
+  }
+
+  /** Carries the chat on with what is picked of it: said at once, and unsaid where it is refused. */
+  function pick(part) {
+    const was = parted(now())
+    const next = { ...was, ...part }
+    // An effort the model picked does not take is not carried to it.
+    const takes = part.model !== undefined && next.effort && next.effort !== 'auto' ? offeredTo(spelled({ ...next, effort: '' })) : null
+    if (takes && !takes.efforts.includes(next.effort)) next.effort = ''
+    const agent = spelled(next)
+    if (!agent || agent === spelled(was)) return
+    from = of()
+    picked = agent
+    again()
+    new Promise((done) => done(set(agent))).catch((error) => {
+      if (picked !== agent) return
+      picked = ''
+      again()
+      failed(error)
+    })
   }
 
   function levels(close) {
-    const spec = of()
-    const { cli, account, model, effort } = parted(spec)
-    const offered = offeredTo(spec)
-    const models = takes('model')
-    const ids = [model, ...(models && offered ? offered.models.map((one) => one.value).filter((one) => one !== model) : [])]
+    const spec = now()
+    const { cli, account, model } = parted(spec)
+    // No rung at all is written `auto`, and picked as the first of its efforts.
+    const effort = parted(spec).effort === 'auto' ? '' : parted(spec).effort
+    const offered = set ? offeredTo(spec) : null
+    const ids = [model, ...(offered ? offered.models.map((one) => one.value).filter((one) => one !== model) : [])]
     const names = modelsNamed(ids)
-    const efforts = takes('effort') && offered ? offered.efforts : []
+    const efforts = offered ? offered.efforts : []
     return [
       { key: 'harness', title: t('Harness'), said: harnessName(cli), fixed: true },
       { key: 'account', title: t('Account'), said: account || t('Local'), fixed: true },
@@ -336,11 +369,11 @@ export function modelFact({ of, fresh, takes = () => false, say: tell = () => {}
         key: 'model',
         title: t('Model'),
         said: names[0],
-        fixed: !models,
+        fixed: !set,
         rows: () => [
           found(
             ids.map((id, at) => {
-              const el = marked(id, { label: names[at], chosen: !at, act: () => at && tell(`/model ${id}`), close })
+              const el = marked(id, { label: names[at], chosen: !at, act: () => at && pick({ model: id }), close })
               el.dataset.cli = cli
               el.dataset.tip = spelled({ cli, account, model: id, effort: '' })
               return el
@@ -349,7 +382,7 @@ export function modelFact({ of, fresh, takes = () => false, say: tell = () => {}
           ),
           other('chat-model-typed', '', {
             entered: (named) => {
-              if (named) tell(`/model ${named}`)
+              if (named) pick({ model: named })
               close()
             },
           }),
@@ -360,7 +393,7 @@ export function modelFact({ of, fresh, takes = () => false, say: tell = () => {}
         title: t('Effort'),
         said: effortName(effort),
         fixed: !efforts.length,
-        rows: () => efforts.map((one) => marked(one, { label: effortName(one), chosen: one === effort, act: () => one !== effort && tell(`/effort ${one}`), close })),
+        rows: () => ['', ...efforts].map((one) => marked(one, { label: effortName(one), chosen: one === effort, act: () => one !== effort && pick({ effort: one }), close })),
       },
     ]
   }
@@ -368,12 +401,13 @@ export function modelFact({ of, fresh, takes = () => false, say: tell = () => {}
   menu(
     button,
     (close) => {
-      const body = stepped({
+      body = stepped({
         levels: () => levels(close),
         foot: () => [h('hr'), choice({ label: t('New chat'), about: t('Every part of its agent is picked as a chat starts'), glyph: 'new', href: fresh(), close })],
       })
       // Read each time it opens, of the daemon shown, and drawn again with what its CLI runs.
-      readFor(of()).then(body.again, body.again)
+      const opened = body
+      readFor(of()).then(opened.again, opened.again)
       return [body.node]
     },
     { align: 'end', up: true, label: t('Nous') },

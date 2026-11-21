@@ -626,6 +626,7 @@ export function mount(root, { parts, query }) {
     // Every line of a chat a host holds is said to it, an answer to what it asks included.
     if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
+    carry?.model.again()
     // Where the chat works, as it was read last: moved, its chip says where to.
     talk?.environment.again()
     carry?.environment.again()
@@ -1187,9 +1188,10 @@ export function mount(root, { parts, query }) {
     const model = modelFact({
       of: () => now().agents?.[0]?.runs || '',
       fresh: () => hash(`/new/chat?${new URLSearchParams(now().folderless ? { scratch: '1' } : given({ workspace: now().workspace }))}`),
-      // A chat going takes its CLI's own `/model` and `/effort`; one folded away is said only what carries it on.
-      takes: (name) => going && entries().some((one) => one.source === 'native' && one.sigil === '/' && one.name === name && one.how === 'call'),
-      say: (line) => say(line).catch((error) => toast(error.message)),
+      // Carried on with another model or effort, a host holding it or none (`chat.agent`): its
+      // record says so at once, and its next turn runs at them.
+      set: (agent) => call('chat.agent', { chat: name, agent }).then(() => refresh('chat.get')),
+      failed: (error) => toast(error.message, 6000),
     })
     const permission = chatPermission(first, sets)
     if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)

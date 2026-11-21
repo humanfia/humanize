@@ -718,11 +718,15 @@ files.
 harness, the model and the effort of the chat's agent, as Section 3.8.19 draws them. The chip MUST
 open a menu saying the agent's
 harness, account, model and effort, a line each in that order as the levels of Section 3.8.19.1 are
-drawn, and offering a new chat in the chat's workspace. Where the
-chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
-the line of that level MUST open the models known runnable as the agent's account, accepting a
-typed model, or the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
-offer to change the agent of a chat that has begun any other way.
+drawn, and offering a new chat in the chat's workspace. The lines of its harness and its account
+MUST open nothing. On every chat that has begun, whether or not a host holds it, the line of its
+model MUST open the models known runnable as the agent's account, accepting a typed model, and the
+line of its effort the efforts its model takes and `Default`, where it takes any; picking one MUST
+give the chat that agent (`chat.agent`, Section 4.25.7.7 of [DAEMON]), an effort the model picked
+does not take being left out, MUST say it on the chip at once, MUST NOT load the page again or start
+a host, and, where the daemon refuses it, MUST say on the chip what the chat runs again and MUST say
+the daemon's reason in a toast. The page MUST NOT offer to change the
+harness or the account of a chat that has begun.
 
 **3.6.6.14** The row under the box of a chat (Section 3.6.6.15) MUST hold a permission chip that
 names the chat's permission
