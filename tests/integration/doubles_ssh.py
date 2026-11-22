@@ -104,6 +104,9 @@ sys.exit(subprocess.run(["sh", "-c", command], env=env).returncode)
 _HMZ = """#!/bin/sh
 if [ ! -f "$HOME/.hmz-version" ]; then echo "sh: hmz: not found" >&2; exit 127; fi
 if [ "$1" = "--version" ]; then echo "hmz $(cat "$HOME/.hmz-version")"; exit 0; fi
+if [ -f "$HOME/.hmz-old" ] && [ "$1" = "daemon" ]; then
+  echo "hmz: error: argument COMMAND: invalid choice: 'daemon'" >&2; exit 2
+fi
 # What its interface says on stderr is also kept, a stack dumped on SIGABRT among it.
 if [ "$1" = "web" ]; then exec {python} -X faulthandler -m hmz "$@" 2>>"$HOME/web.err"; fi
 exec {python} -m hmz "$@"
@@ -111,11 +114,14 @@ exec {python} -m hmz "$@"
 
 #: What is put before `hmz`, so that it reaches no daemon and says why as the real one does.
 _REFUSING = """#!/bin/sh
-if [ "$2" = "connect" ]; then echo "hmz: the daemon cannot be reached: {why}" >&2; exit 1; fi
+if [ "$2" = "connect" ] && [ "$3" != "--help" ]; then
+  echo "hmz: the daemon cannot be reached: {why}" >&2; exit 1
+fi
 """
 
 _UV = """#!/bin/sh
 echo "$@" >> "$HOME/uv.log"
+if [ "$2" = "uninstall" ]; then rm -f "$HOME/.hmz-version"; exit 0; fi
 if [ -f "$HOME/.uv-fails" ]; then cat "$HOME/.uv-fails"; exit 2; fi
 version=9.9.9
 for said; do case "$said" in hmz==*) version="${said#hmz==}";; esac; done
@@ -148,6 +154,10 @@ class Host:
             held.unlink(missing_ok=True)
         else:
             held.write_text(version)
+
+    def predates_daemons(self) -> None:
+        """Has its `hmz`, the one there or one installed, know no `hmz daemon`."""
+        (self.home / ".hmz-old").touch()
 
     def cannot_install(self, why: str) -> None:
         """Has its `uv` fail saying `why`, installing nothing."""

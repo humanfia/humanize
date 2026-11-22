@@ -345,6 +345,39 @@ def test_a_development_build_says_why_none_was_installed(host: Host) -> None:
         remotes.close()
 
 
+def test_a_release_there_with_no_daemon_command_is_said_to_be_too_old(
+    host: Host,
+) -> None:
+    host.installs("0.2.2")
+    host.predates_daemons()
+    remotes = Remotes(version="0.0.0", install=True)
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "failed")
+        assert said["detail"] == (
+            "hmz 0.2.2 on box is too old to be reached: it has no daemon command."
+        )
+        assert not host.installed()
+    finally:
+        remotes.close()
+
+
+def test_a_latest_release_with_no_daemon_command_is_removed_again(host: Host) -> None:
+    host.installs(None)
+    host.predates_daemons()
+    remotes = Remotes(version="0.0.0", install=True)
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "failed")
+        assert said["detail"] == (
+            "The latest release of hmz is too old to be reached: it has no daemon command."
+        )
+        assert host.installed().splitlines()[-1] == "tool uninstall hmz"
+        assert not (host.home / ".hmz-version").exists()
+    finally:
+        remotes.close()
+
+
 def test_a_development_build_uses_another_release_there(host: Host) -> None:
     host.installs("1.0.0")
     remotes = Remotes(version="0.0.0", install=None)

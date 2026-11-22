@@ -573,14 +573,15 @@ IDLE, CONNECTING, ASKING, INSTALLING, UP, FAILED = (
 #: install, which a shell that is not a login one may not have on its `PATH`.
 _PATH = 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; '
 
-#: What is asked of a host before anything is started there: the version of its `hmz`, and
-#: whether its daemon is running -- by the process `daemon.json` names in `humanize-<uid>` of
-#: any temporary directory one may have been started with, as Humanize Desktop tells --
-#: `unknown` where that cannot be read.
+#: What is asked of a host before anything is started there: the version of its `hmz`,
+#: whether that has `hmz daemon connect`, and whether its daemon is running -- by the process
+#: `daemon.json` names in `humanize-<uid>` of any temporary directory one may have been
+#: started with, as Humanize Desktop tells -- `unknown` where that cannot be read.
 _PROBE = (
     _PATH
     + r"""
 echo "hmz: $(hmz --version 2>/dev/null | sed -n 's/^hmz //p' | tail -n 1)"
+echo "connect: $(hmz daemon connect --help >/dev/null 2>&1 && echo yes || echo no)"
 daemon=none
 for under in "$TMPDIR" "$TEMP" "$TMP" "$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)" \
     /tmp /var/tmp; do
@@ -599,7 +600,7 @@ echo "daemon: $daemon"
 )
 
 #: Installs `hmz` as `{wanted}` names it, `hmz==<version>` or the bare `hmz` of the latest
-#: release, fetching uv first where there is none.
+#: release, fetching uv first where there is none; `{checked}` is what follows the install.
 _INSTALL = _PATH + (
     "export UV_NO_MODIFY_PATH=1; "
     "if ! command -v uv >/dev/null 2>&1; then "
@@ -608,7 +609,16 @@ _INSTALL = _PATH + (
     f"then curl -LsSf https://astral.sh/uv/{UV}/install.sh | sh; "
     f"else wget -qO- https://astral.sh/uv/{UV}/install.sh | sh; fi; "
     "command -v uv >/dev/null 2>&1 || exit 1; fi; "
-    "exec uv tool install --force --python '>=3.12' '{wanted}'"
+    "uv tool install --force --python '>=3.12' '{wanted}'{checked}"
+)
+
+#: What follows the install of a release this build did not pick: one with no `hmz daemon
+#: connect` is removed again, and said to be too old (Section 3.8.3.12 of daemon.md).
+_CHECKED = (
+    " && { hmz daemon connect --help >/dev/null 2>&1 || "
+    "{ uv tool uninstall hmz >/dev/null 2>&1; "
+    "echo 'The latest release of hmz is too old to be reached: it has no daemon command.'; "
+    "exit 1; }; }"
 )
 
 #: What `ssh` is told for the probe and the install before what the route says, since ssh
@@ -658,7 +668,7 @@ def said(lines: Sequence[str]) -> dict[str, str]:
     found: dict[str, str] = {}
     for line in lines:
         key, colon, value = line.partition(":")
-        if colon and key in ("hmz", "daemon"):
+        if colon and key in ("hmz", "connect", "daemon"):
             found[key] = value.strip()
     return found
 
@@ -1231,6 +1241,11 @@ class _Remote:
         if not there:
             self._asked()
         elif not pinned or there == self._version:
+            if found.get("connect") != "yes":
+                raise _Failed(
+                    f"hmz {there} on {self._where} is too old to be reached: "
+                    "it has no daemon command."
+                )
             return ""
         elif found.get("daemon") == "running":
             return f"hmz {there} there holds running epics; {wanted} waits"
@@ -1238,7 +1253,8 @@ class _Remote:
             return f"Whether hmz {there} there runs epics is unknown; not replaced"
         self._tells(INSTALLING, wanted)
         lines: list[str] = []
-        installing = self._started(on.line(["sh", "-c", _INSTALL.format(wanted=named)]))
+        script = _INSTALL.format(wanted=named, checked="" if pinned else _CHECKED)
+        installing = self._started(on.line(["sh", "-c", script]))
         for line in _lines(installing, _INSTALLING):
             lines.append(line)
             if line.strip():
