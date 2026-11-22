@@ -397,7 +397,7 @@ fn a_turn_answers_with_its_own_status_streams_and_input() {
         cli.argv(),
         [
             "env",
-            "HUMANIZE=0.0.0",
+            concat!("HUMANIZE=", env!("CARGO_PKG_VERSION")),
             "HUMANIZE_TARGET=ssh://box",
             "HUMANIZE_WORKSPACE=/w",
             "claude",
@@ -942,7 +942,13 @@ fn a_native_turn_asks_the_target_what_pythons_asked_in_the_same_order() {
         // Key for key, in the same order.
         assert_eq!(
             serde_json::to_string(&one.request).unwrap(),
-            serde_json::to_string(&expected["request"]).unwrap(),
+            // Python was asked on `main`, where the version is 0.0.0; a release says its own.
+            serde_json::to_string(&expected["request"])
+                .unwrap()
+                .replace(
+                    "HUMANIZE=0.0.0",
+                    concat!("HUMANIZE=", env!("CARGO_PKG_VERSION"))
+                ),
             "request {index}"
         );
         assert_eq!(
