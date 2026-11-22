@@ -212,6 +212,8 @@ A connection that fails or ends gives its reason as a sentence. The most common 
 | `hmz is not installed on this machine.` | macOS: no `hmz` was found for `stdio:local` |
 | `hmz is not installed on <host>.` | A `stdio:ssh` route found no `hmz` on the host. It is the detail of `asking`, and the reason the connection fails when the answer is no |
 | `hmz could not be installed.` | A development build installed the latest release on the host, and the install failed without saying why or no `hmz` answered afterwards |
+| `hmz <version> on <host> is too old to be reached: it has no daemon command.` | The `hmz` on the host of a `stdio:ssh` route has no `hmz daemon connect`, and the app would use it as it is |
+| `The latest release of hmz is too old to be reached: it has no daemon command.` | A development build installed the latest release on the host, found it has no `hmz daemon connect`, and removed it again |
 | `<route> did not open within 30 seconds.` | The connection or its TLS took too long |
 | `<name> is not the daemon it was paired with.` | The daemon's certificate does not match the pinned ID. Check the address, or pair again |
 | `TLS with <name> failed: <why>` | The TLS handshake failed for another reason |

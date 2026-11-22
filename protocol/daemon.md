@@ -346,7 +346,7 @@ have the id it answered pinned.
 
 **3.8.3.1** Before running `hmz daemon connect --stdio` over a `stdio:ssh` route, the client MUST
 find the hmz there as a login shell finds it, with `~/.local/bin` included, and MUST learn its
-version.
+version and whether it has `hmz daemon connect`.
 
 **3.8.3.2** Where an hmz of another release is there, or none is and the user has said to install
 it (Section 3.8.3.7), the client MUST install hmz of its own release there as a uv tool, installing
@@ -364,7 +364,8 @@ it `failed` with `hmz <wanted> was installed, and hmz <there> answers.`
 **3.8.3.5** A development build of hmz, version `0.0.0`, MUST replace no hmz on a remote machine
 and MUST use the hmz there; where none is there and the user has said to install it (Section
 3.8.3.7), it MUST install hmz there as Section 3.8.3.2 states but at no version, the release uv
-then picks, and MUST use the hmz that then answers, whatever its release. Such an install that
+then picks, and MUST use the hmz that then answers, whatever its release, but where Section
+3.8.3.12 states otherwise. Such an install that
 fails MUST leave the remote daemon `failed` with the last line uv said, or `hmz could not be
 installed.`, and one after which no hmz answers with `hmz could not be installed.`
 
@@ -396,6 +397,12 @@ has failed by itself, the client lets go of the remote daemon, or a session to t
 over another route, which MUST go on being tried meanwhile; a client that lets go of a remote daemon
 MUST close every carrier it was opening to it, the one that asked included. The time the question
 stands MUST NOT count toward the time a route has to open (Section 3.4.9 of [WIRE]).
+
+**3.8.3.12** Where the hmz the client would use there has no `hmz daemon connect`, the remote daemon
+MUST be `failed` with `hmz <there> on <name> is too old to be reached: it has no daemon command.`,
+`<name>` as Section 3.8.3.7 states. Where it is one a development build has just installed, that
+build MUST remove it there again, the remote daemon `failed` with `The latest release of hmz is too
+old to be reached: it has no daemon command.`
 
 #### 3.8.4. Using one
 
