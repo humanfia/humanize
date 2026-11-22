@@ -1,10 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Humanize Desktop",
-  "version": "0.0.0",
+  "version": "0.3.0",
   "identifier": "ai.humanfia.humanize",
   "build": {
-    "frontendDist": ["../../src/hmz/web/static", "../ui"]
+    "frontendDist": [
+      "../../src/hmz/web/static",
+      "../ui"
+    ]
   },
   "app": {
     "windows": [],
@@ -18,34 +21,61 @@
         "font-src": "'self' data:",
         "frame-src": "'self'"
       },
-      "dangerousDisableAssetCspModification": ["script-src", "style-src"]
+      "dangerousDisableAssetCspModification": [
+        "script-src",
+        "style-src"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "DeveloperTool",
     "copyright": "© Humanfia, Apache-2.0",
     "fileAssociations": [
       {
-        "ext": ["hmzepic"],
+        "ext": [
+          "hmzepic"
+        ],
         "name": "Humanize epic",
         "role": "Viewer",
         "rank": "Owner",
         "mimeType": "application/vnd.hmz.epic+gzip",
-        "exportedType": { "identifier": "ai.humanfia.humanize.epic", "conformsTo": ["public.data"] }
+        "exportedType": {
+          "identifier": "ai.humanfia.humanize.epic",
+          "conformsTo": [
+            "public.data"
+          ]
+        }
       }
     ],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
     "macOS": {
       "bundleName": "Humanize",
       "minimumSystemVersion": "11.0",
       "signingIdentity": "-",
       "dmg": {
         "background": "dmg/background.tiff",
-        "windowSize": { "width": 720, "height": 612 },
-        "appPosition": { "x": 210, "y": 196 },
-        "applicationFolderPosition": { "x": 510, "y": 196 }
+        "windowSize": {
+          "width": 720,
+          "height": 612
+        },
+        "appPosition": {
+          "x": 210,
+          "y": 196
+        },
+        "applicationFolderPosition": {
+          "x": 510,
+          "y": 196
+        }
       }
     }
   },
