@@ -186,6 +186,7 @@ Traces read session logs from `agy`, `claude`, `codex`, `dsh`, `grok`, `kimi`, `
 - Only epics have Exomyth. Chats do not.
 - The app and terminal remember the two profiling switches per flow and folder. `hmz exec` ignores those saved settings and profiles only when you pass the flags.
 - The flow profile is written when the epic ends. The environment profile is written as each program runs.
+- The environment profile holds only programs started after the epic began. A program already running when the epic starts, and anything that program starts later, is left out.
 - An unreadable agent log omits that agent without failing the trace.
 - In the terminal, the span pane shows at most 12 arguments, the flame view draws 6 levels and 400 stacks, and the slices table lists at most 400 rows.
 - See [Trace formats](/reference/tracing) for file formats, and [Terminal commands and keys](/reference/tui) and [Page addresses and shortcuts](/reference/web) for all shortcuts.

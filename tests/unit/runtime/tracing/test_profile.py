@@ -104,18 +104,28 @@ class FakeThread(types.SimpleNamespace):
 
 
 class FakeProcess:
-    def __init__(self, pid: int, *, threads: bool = True, gone: bool = False) -> None:
+    def __init__(
+        self,
+        pid: int,
+        *,
+        threads: bool = True,
+        gone: bool = False,
+        parent: int = 1,
+        began: float | None = None,
+    ) -> None:
         self.pid = pid
         self.has_threads = threads
         self.gone = gone
+        self.parent = parent
+        self.began = NOW - pid if began is None else began
 
     def create_time(self) -> float:
         if self.gone:
             raise psutil.NoSuchProcess(self.pid)
-        return NOW - self.pid
+        return self.began
 
     def ppid(self) -> int:
-        return 1
+        return self.parent
 
     def name(self) -> str:
         return f"proc{self.pid}"
@@ -162,7 +172,8 @@ def test_profiler_writes_what_ran_and_when_it_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stays, goes = FakeProcess(3), FakeProcess(5, threads=False)
-    fake_psutil(monkeypatch, [[stays, goes, FakeProcess(9, gone=True)], [stays]])
+    # nothing under the root as sampling begins, which is the first look
+    fake_psutil(monkeypatch, [[], [stays, goes, FakeProcess(9, gone=True)], [stays]])
     at = tmp_path / "epic" / PROFILE
     profiler = Profiler(at, root=1)
     profiler.start()
@@ -187,6 +198,36 @@ def test_profiler_writes_what_ran_and_when_it_left(
     )
     assert held[5].threads == ()
     assert held[5].began == NOW - 2
+
+
+def test_profiler_leaves_out_what_was_running_before_it_began(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # under the root already: two programs, and one that goes as it is looked at
+    old, gone = FakeProcess(3), FakeProcess(4)
+    # started since: by the old one, by the run, and by what the run started -- and one
+    # given the pid of a program that was there before, which is another program
+    theirs, ours, under = (
+        FakeProcess(5, parent=3),
+        FakeProcess(7),
+        FakeProcess(8, parent=7),
+    )
+    again = FakeProcess(4, began=NOW)
+    fake_psutil(
+        monkeypatch,
+        [
+            [old, gone, FakeProcess(6, gone=True)],
+            [old, theirs, ours, under, again, FakeProcess(9, gone=True)],
+            [old],
+        ],
+    )
+    at = tmp_path / PROFILE
+    profiler = Profiler(at, root=1)
+    profiler.start()
+    profiler.stop()
+
+    ran = [("ran", 7), ("ran", 8), ("ran", 4)]
+    assert written(at) == [*ran, ("left", 7), ("left", 8), ("left", 4)]
 
 
 def test_profiler_with_nothing_under_it_writes_nothing(
