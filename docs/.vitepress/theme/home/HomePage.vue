@@ -2,17 +2,12 @@
 // The Humanize page: docs/index.md is this component and nothing else. It is the project's page
 // on humanfia.ai (humanfia.ai/humanize/) and the front page of its documentation at once.
 //
-// It is a page of pictures. Its banner is the repository's description; under it one screen
-// plays the real product, a scene at a time (HomeStage.vue), beside the button that gets it,
-// the one to the documentation and the command that installs it. Below, the loop itself, drawn
-// and moving (HomeLoop.vue); where to get it for each platform; and the doors into the
-// documentation. There is no sentence on it: what it has to say, the pictures say, and its few
-// words are in copy.ts.
-//
-// What gets it is handed to the stage, which puts it in the page's source where the reader sees
-// it, so that the keyboard walks what is shown in the order it is shown: first, over the tabs,
-// on a phone and a tablet (and before the script runs); last, after the screen, on a desk, where
-// it stands under the tabs.
+// It opens as a project's page does: its mark and its name, the repository's description under
+// them, the button that gets it, the one to the documentation and the command that installs it;
+// and under those one window that plays the real product, a scene at a time (HomeStage.vue).
+// Below, the loop itself, drawn and moving (HomeLoop.vue); where to get it for each platform;
+// and the doors into the documentation. There is no sentence on it but the description: what it
+// has to say, the pictures say, and its few words are in copy.ts.
 import { withBase } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import HomeLoop from './HomeLoop.vue'
@@ -52,71 +47,102 @@ onBeforeUnmount(() => clearTimeout(clear))
 /** Whether the reader stopped what moves: the stage has the control, and the loop follows it. */
 const paused = ref(false)
 
-// The banner is the description as written; its full stop alone is set in the accent.
-const SAID = BANNER.replace(/\.$/, '')
-
+/** The documentation's sections, each with a small drawing: a flag, a person, a wrench, a book. */
 const DOORS = [
-  { name: 'Tutorials', href: '/tutorials/' },
-  { name: 'User Guide', href: '/user/' },
-  { name: 'Builder Guide', href: '/builder/' },
-  { name: 'Reference', href: '/reference/' },
+  { name: 'Tutorials', href: '/tutorials/', icon: 'M5 21V4M5 4h11l-2 4 2 4H5' },
+  { name: 'User Guide', href: '/user/', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20.5a7.5 7.5 0 0 1 15 0' },
+  { name: 'Builder Guide', href: '/builder/', icon: 'M14.5 6.5a4 4 0 0 0 5 5L11 20a2.1 2.1 0 0 1-3-3l8.5-8.5M14.5 6.5l3-3' },
+  { name: 'Reference', href: '/reference/', icon: 'M5 4.5h10a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3ZM5 17a3 3 0 0 1 3-3h10M9 8.5h5' },
 ]
+
+const APPLE =
+  'M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701'
+const WINDOWS = 'M2 3h9.5v9.5H2zM12.5 3H22v9.5h-9.5zM2 13.5h9.5V23H2zM12.5 13.5H22V23h-9.5z'
+const DOWN = 'M8 1.5v9M4 7l4 4 4-4M2.5 14.5h11'
+const ARROW = 'M2.5 8h10M8.5 4l4 4-4 4'
+const OUT = 'M4.5 11.5l7-7M6 4.5h5.5V10'
+const COPY = 'M5.5 5.5v-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M3.5 5.5h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z'
+const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
 </script>
 
 <template>
   <div class="hm">
-    <div class="hm-wrap">
-      <h1 class="hm-banner">{{ SAID }}<i>.</i></h1>
+    <section class="hm-hero">
+      <div class="hm-sky" aria-hidden="true" />
+      <div class="hm-wrap">
+        <h1 class="hm-name">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50" />
+            <polygon class="green" points="60,84 94,84 94,64 60,74" />
+          </svg>
+          Humanize
+        </h1>
+        <p class="hm-banner">{{ BANNER }}</p>
 
-      <section class="hm-house">
-        <HomeStage v-model:paused="paused">
-          <div class="hm-get">
-            <a class="hm-btn go" :href="get">
-              {{ WORDS.download }}
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v10M3.5 7 8 11.5 12.5 7M2 15h12" /></svg>
-            </a>
-            <a class="hm-btn" :href="withBase('/tutorials/')">
-              {{ WORDS.docs }}
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M8.5 3.5 13 8l-4.5 4.5" /></svg>
-            </a>
-            <div class="hm-cmd">
-              <code>{{ INSTALL }}</code>
-              <button type="button" aria-live="polite" @click="copy('top')">{{ copied === 'top' ? WORDS.copied : WORDS.copy }}</button>
-            </div>
+        <div class="hm-get">
+          <a class="hm-btn go" :href="get">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="DOWN" /></svg>
+            {{ WORDS.download }}
+          </a>
+          <a class="hm-btn" :href="withBase('/tutorials/')">
+            {{ WORDS.docs }}
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="ARROW" /></svg>
+          </a>
+          <div class="hm-cmd">
+            <code>{{ INSTALL }}</code>
+            <button type="button" :class="{ done: copied === 'top' }" @click="copy('top')">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="copied === 'top' ? CHECK : COPY" /></svg>
+              <span>{{ WORDS.copy }}</span>
+            </button>
           </div>
-        </HomeStage>
-      </section>
-    </div>
+        </div>
 
-    <section class="hm-band">
-      <div class="hm-wrap hm-loop"><HomeLoop :paused="paused" /></div>
+        <HomeStage v-model:paused="paused" />
+      </div>
     </section>
+
+    <section class="hm-wrap hm-loop"><HomeLoop :paused="paused" /></section>
 
     <section id="get" class="hm-wrap hm-end">
       <ul class="hm-platforms">
         <li :class="{ mine: os === 'macos' }">
-          <b>macOS</b>
+          <b>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="APPLE" /></svg>
+            macOS
+          </b>
           <a class="hm-btn go" :href="mac">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="DOWN" /></svg>
             {{ WORDS.download }}
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v10M3.5 7 8 11.5 12.5 7M2 15h12" /></svg>
           </a>
         </li>
-        <li :class="{ mine: os === 'windows', cmd: !found.windows }">
-          <b>Windows <small v-if="!found.windows">{{ WORDS.wsl }}</small></b>
+        <li :class="{ mine: os === 'windows' }">
+          <b>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="WINDOWS" /></svg>
+            Windows <small v-if="!found.windows">{{ WORDS.wsl }}</small>
+          </b>
           <a v-if="found.windows" class="hm-btn go" :href="found.windows">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="DOWN" /></svg>
             {{ WORDS.download }}
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v10M3.5 7 8 11.5 12.5 7M2 15h12" /></svg>
           </a>
-          <div v-else class="hm-cmd boxed">
+          <div v-else class="hm-cmd">
             <code>{{ INSTALL }}</code>
-            <button type="button" aria-live="polite" @click="copy('windows')">{{ copied === 'windows' ? WORDS.copied : WORDS.copy }}</button>
+            <button type="button" :class="{ done: copied === 'windows' }" @click="copy('windows')">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="copied === 'windows' ? CHECK : COPY" /></svg>
+              <span>{{ WORDS.copy }}</span>
+            </button>
           </div>
         </li>
-        <li class="cmd" :class="{ mine: os === 'linux' }">
-          <b>Linux</b>
-          <div class="hm-cmd boxed">
+        <li :class="{ mine: os === 'linux' }">
+          <b>
+            <svg class="line" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5h18v13H3zM7 10l3 2.5L7 15M12.5 15H17" /></svg>
+            Linux
+          </b>
+          <div class="hm-cmd">
             <code>{{ INSTALL }}</code>
-            <button type="button" aria-live="polite" @click="copy('linux')">{{ copied === 'linux' ? WORDS.copied : WORDS.copy }}</button>
+            <button type="button" :class="{ done: copied === 'linux' }" @click="copy('linux')">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="copied === 'linux' ? CHECK : COPY" /></svg>
+              <span>{{ WORDS.copy }}</span>
+            </button>
           </div>
         </li>
       </ul>
@@ -124,82 +150,91 @@ const DOORS = [
       <ul class="hm-doors">
         <li v-for="door in DOORS" :key="door.name">
           <a :href="withBase(door.href)">
-            {{ door.name }}
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M8.5 3.5 13 8l-4.5 4.5" /></svg>
+            <svg class="hm-door-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="door.icon" /></svg>
+            <span>{{ door.name }}</span>
+            <svg class="hm-door-go" viewBox="0 0 16 16" aria-hidden="true"><path :d="ARROW" /></svg>
           </a>
         </li>
       </ul>
       <ul class="hm-out">
         <li>
-          <a href="https://humanfia.ai/flows/">Flows <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 12 4M5.5 4H12v6.5" /></svg></a>
+          <a href="https://humanfia.ai/flows/">Flows <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="OUT" /></svg></a>
         </li>
         <li>
-          <a :href="REPO">GitHub <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 12 4M5.5 4H12v6.5" /></svg></a>
+          <a :href="REPO">GitHub <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="OUT" /></svg></a>
         </li>
       </ul>
     </section>
+    <!-- What a copy did, said once to a reader who cannot see the drawing change. -->
+    <span class="hm-sr" role="status">{{ copied ? WORDS.copied : '' }}</span>
   </div>
 </template>
 
 <style>
-/* The page's own colours: humanfia.ai's ink, paper, pink and cyan, by the names this page draws
-   with, set once for the light theme and once for the dark. They are scoped to the page's root,
-   so no other page can come to depend on them. */
+/* The page's own colours: humanfia.ai's ink, paper, pink and cyan, and the green of Humanize's
+   mark, by the names this page draws with, set once for the light theme and once for the dark.
+   They are scoped to the page's root, so no other page can come to depend on them. */
 .hm {
-  --hm-ink: #141a1f;
-  --hm-paper: #e8f0f2;
-  --hm-bg: var(--hm-paper);
+  --hm-ink: #0f1519;
+  --hm-paper: #eef4f6;
+  --hm-bg: #f5f8f9;
   --hm-sheet: #ffffff;
   --hm-fg: var(--hm-ink);
-  --hm-fg-2: #435058;
-  --hm-fg-3: #5d6a72;
-  /* A tab that is not on: dimmer than the one under the pointer, and still legible. */
-  --hm-fg-dim: color-mix(in srgb, var(--hm-ink) 56%, var(--hm-paper));
-  /* The ring of the keyboard's focus: the text's own colour, which stands out on every ground. */
+  --hm-fg-2: #46545c;
+  --hm-fg-3: #65747c;
   --hm-ring: var(--hm-fg);
   --hm-pink: #ec6fa3;
   --hm-pink-text: #b83a72;
   --hm-cyan: #1fb3c7;
-  --hm-rule: color-mix(in srgb, var(--hm-ink) 16%, transparent);
-  --hm-rule-strong: color-mix(in srgb, var(--hm-ink) 38%, transparent);
-  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 42%, var(--hm-sheet));
-  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 38%, var(--hm-sheet));
-  /* The screen's block, its edge and how far its shadow is cast. */
-  --hm-house: var(--hm-ink);
-  --hm-edge: var(--hm-ink);
-  --hm-cast: 10px;
-  --hm-band: #dde8eb;
+  --hm-green: #76b900;
+  --hm-green-text: #4c7a00;
+  --hm-rule: color-mix(in srgb, var(--hm-ink) 11%, transparent);
+  --hm-rule-strong: color-mix(in srgb, var(--hm-ink) 24%, transparent);
+  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 30%, var(--hm-sheet));
+  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 26%, var(--hm-sheet));
+  /* The window's ground and edge, what its shadow is made of, and how bright it is lit. */
+  --hm-house: #ffffff;
+  --hm-edge: color-mix(in srgb, var(--hm-ink) 14%, transparent);
+  --hm-shade: #1c3640;
+  --hm-glow: 0.42;
+  --hm-grid: color-mix(in srgb, var(--hm-ink) 7%, transparent);
   --hm-mono: var(--vp-font-family-mono);
 }
 .dark .hm {
-  --hm-bg: #10161a;
-  --hm-sheet: #19232a;
+  --hm-bg: #0a0f12;
+  --hm-sheet: #121a1f;
   --hm-fg: var(--hm-paper);
-  --hm-fg-2: #b3c3c8;
+  --hm-fg-2: #aebdc3;
   --hm-fg-3: #82939a;
-  --hm-fg-dim: color-mix(in srgb, var(--hm-paper) 46%, #10161a);
   --hm-pink: #ff94c2;
   --hm-pink-text: #ffa8cf;
   --hm-cyan: #4fd8ea;
-  --hm-rule: color-mix(in srgb, var(--hm-paper) 16%, transparent);
-  --hm-rule-strong: color-mix(in srgb, var(--hm-paper) 40%, transparent);
-  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 34%, var(--hm-sheet));
-  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 30%, var(--hm-sheet));
-  --hm-house: #0a0e11;
-  --hm-edge: color-mix(in srgb, var(--hm-paper) 24%, transparent);
-  --hm-band: #0a0e11;
+  --hm-green: #8fd400;
+  --hm-green-text: #a5e03a;
+  --hm-rule: color-mix(in srgb, var(--hm-paper) 11%, transparent);
+  --hm-rule-strong: color-mix(in srgb, var(--hm-paper) 24%, transparent);
+  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 30%, var(--hm-sheet));
+  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 26%, var(--hm-sheet));
+  --hm-house: #10181d;
+  --hm-edge: color-mix(in srgb, var(--hm-paper) 22%, transparent);
+  --hm-shade: #000000;
+  --hm-glow: 0.6;
+  --hm-grid: color-mix(in srgb, var(--hm-paper) 6%, transparent);
 }
 
 /* The page is its own layout: the theme's content column and its prose styles are not used. */
 .hm-page .VPContent {
-  background: var(--hm-bg, #e8f0f2);
+  background: #f5f8f9;
 }
 .dark .hm-page .VPContent {
-  background: #10161a;
+  background: #0a0f12;
 }
 .hm {
+  position: relative;
+  overflow: hidden;
   color: var(--hm-fg);
   background: var(--hm-bg);
+  font-feature-settings: 'ss01', 'cv11';
 }
 .hm a {
   color: inherit;
@@ -220,114 +255,158 @@ const DOORS = [
   outline-offset: 3px;
 }
 .hm-wrap {
-  width: min(100% - 64px, 1360px);
+  position: relative;
+  width: min(100% - 48px, 1200px);
   margin: 0 auto;
 }
 
-/* ---- the banner: one line, as wide as the page ----------------------------------------- */
+/* ---- the sky: a fine grid that fades out, lit in two colours from above ------------------ */
 
-.hm-banner {
+.hm-sky {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 880px;
+  pointer-events: none;
+  /* It comes in under the site's bar, so there is no seam where the bar ends. */
+  mask-image: linear-gradient(transparent, #000 200px);
+}
+.hm-sky::before,
+.hm-sky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.hm-sky::before {
+  background:
+    linear-gradient(var(--hm-grid) 1px, transparent 1px) 50% 0 / 56px 56px,
+    linear-gradient(90deg, var(--hm-grid) 1px, transparent 1px) 50% 0 / 56px 56px;
+  mask-image: radial-gradient(ellipse 62% 70% at 50% 0%, #000 20%, transparent 78%);
+}
+.hm-sky::after {
+  background:
+    radial-gradient(38% 46% at 28% 0%, color-mix(in srgb, var(--hm-cyan) 22%, transparent), transparent 70%),
+    radial-gradient(38% 46% at 72% 0%, color-mix(in srgb, var(--hm-pink) 20%, transparent), transparent 70%);
+}
+
+/* ---- the hero: the mark and the name, the description, and what gets it ------------------ */
+
+.hm-hero {
+  position: relative;
+  /* What stands over the window gives way in a short window, so the window is still seen. */
+  padding: clamp(24px, 14svh - 60px, 96px) 0 0;
+  text-align: center;
+}
+.hm-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em;
   margin: 0;
-  padding: 30px 0 26px;
-  font-size: min(4.72vw, 70px);
+  font-size: clamp(52px, min(8.4vw, 14svh), 104px);
   line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: -0.055em;
   color: var(--hm-fg);
 }
-.hm-banner i {
-  font-style: normal;
-  color: var(--hm-pink);
+.hm-name svg {
+  flex: none;
+  width: 0.86em;
+  height: 0.86em;
 }
-
-/* ---- the house: the tabs and what gets it, beside the screen ---------------------------- */
-
-.hm-house {
-  /* What is left of the first screen under the site's bar and the banner is the screen's. */
-  --room: calc(100svh - var(--vp-nav-height, 64px) - min(4.72vw, 70px) - 56px - 44px);
-  /* How tall the screen comes out, near enough: its width is what the window leaves beside the
-     column (about 222px of it, the command's line, and the 40px between), or what the room's
-     height allows, and its shape is the window's. */
-  --tall: calc(min(min(100vw - 80px, 1360px) - 262px - var(--hm-cast), max(620px, var(--room) * 1.5294)) / 1.5294);
-  /* The column shrinks with the screen, so that it is never the taller of the two and what gets
-     it ends level with the screen: whole from a screen 597px tall, smallest at one of 369px,
-     which is the least a desk's window leaves. */
-  --tab-size: clamp(20px, min(2.75vw, var(--tall) * 0.08772 - 12.37px), 40px);
-  --tab-pad: clamp(5px, var(--tall) * 0.035088 - 7.947px, 13px);
-  --get-pad: clamp(10px, var(--tall) * 0.078947 - 19.13px, 28px);
-  display: grid;
-  /* The column is as wide as what is in it, so it has one right edge; the screen takes what it
-     wants of the rest, and the column whatever is left over. */
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, calc(max(620px, var(--room) * 1.5294) + var(--hm-cast)));
-  grid-template-rows: auto 1fr;
-  gap: 0 40px;
-  padding-bottom: 44px;
+.hm-name .ink {
+  fill: currentColor;
 }
-.hm-house > .st-tabs {
-  grid-area: 1 / 1;
-  margin-top: calc(-1 * var(--tab-pad));
+.hm-name .green {
+  fill: var(--hm-green);
 }
-.hm-house > .st-screen {
-  grid-area: 1 / 2 / 3 / 3;
-  margin: 0 var(--hm-cast) var(--hm-cast) 0;
-  align-self: start;
+.hm-banner {
+  max-width: 24em;
+  margin: clamp(16px, 2vw, 24px) auto 0;
+  font-size: clamp(19px, 2.1vw, 27px);
+  line-height: 1.3;
+  font-weight: 450;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--hm-fg-2);
 }
 .hm-get {
-  grid-area: 2 / 1;
-  align-self: end;
-  display: grid;
-  gap: 10px;
-  padding: var(--get-pad) 0 var(--hm-cast);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: min(clamp(26px, 3.2vw, 38px), 4.5svh) 0 min(clamp(40px, 5.4vw, 68px), 6svh);
 }
 
 .hm-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  height: 48px;
-  padding: 0 16px;
-  border: 2px solid var(--hm-fg);
-  font-size: 16px;
-  font-weight: 700;
+  justify-content: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 600;
   letter-spacing: -0.01em;
+  background: var(--hm-sheet);
+  box-shadow:
+    inset 0 0 0 1px var(--hm-rule-strong),
+    0 1px 2px color-mix(in srgb, var(--hm-shade) 8%, transparent);
   transition:
-    background-color 0.2s,
-    color 0.2s,
-    border-color 0.2s;
+    transform 0.2s,
+    box-shadow 0.2s,
+    background-color 0.2s;
 }
 .hm-btn svg,
-.hm-doors svg,
-.hm-out svg {
+.hm-out svg,
+.hm-cmd svg,
+.hm-door-go {
   flex: none;
   width: 16px;
   height: 16px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .hm .hm-btn.go {
-  border-color: var(--hm-pink);
-  color: var(--hm-ink);
-  background: var(--hm-pink);
-}
-.hm .hm-btn:hover {
-  border-color: var(--hm-fg);
   color: var(--hm-bg);
   background: var(--hm-fg);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--hm-shade) 20%, transparent),
+    0 8px 20px -8px color-mix(in srgb, var(--hm-shade) 45%, transparent);
+}
+.hm-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px var(--hm-fg-3),
+    0 6px 14px -6px color-mix(in srgb, var(--hm-shade) 24%, transparent);
+}
+.hm .hm-btn.go:hover {
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--hm-shade) 20%, transparent),
+    0 14px 28px -10px color-mix(in srgb, var(--hm-pink) 70%, transparent);
+}
+.hm-btn:active {
+  transform: none;
 }
 
 .hm-cmd {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  height: 42px;
-  border-top: 2px solid var(--hm-rule);
+  min-width: 0;
+  height: 46px;
+  padding: 0 6px 0 16px;
+  border-radius: 12px;
   font-family: var(--hm-mono);
-  font-size: 13px;
-  color: var(--hm-fg-2);
+  font-size: 13.5px;
+  color: var(--hm-fg);
+  background: color-mix(in srgb, var(--hm-sheet) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hm-rule);
 }
 .hm-cmd code {
   min-width: 0;
@@ -343,260 +422,293 @@ const DOORS = [
   content: '$ ';
   color: var(--hm-fg-3);
 }
-/* As wide as its longer word, so the line beside it does not move when it is copied. */
 .hm-cmd button {
   flex: none;
-  min-width: 6ch;
-  padding: 4px 0;
-  font-family: var(--hm-mono);
-  font-size: 13px;
-  text-align: right;
-  color: var(--hm-pink-text);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border-radius: 8px;
+  color: var(--hm-fg-3);
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 .hm-cmd button:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--hm-fg);
+  background: color-mix(in srgb, var(--hm-fg) 8%, transparent);
+}
+.hm-cmd button.done {
+  color: var(--hm-green-text);
+}
+/* Its word is for a reader who cannot see the drawing. */
+.hm-cmd button span,
+.hm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-/* ---- the loop, drawn, on a band of its own ---------------------------------------------- */
-
-.hm-band {
-  background: var(--hm-band);
+/* What the hero holds comes up into place, one after another, when the page opens. */
+@media (prefers-reduced-motion: no-preference) {
+  .hm-name,
+  .hm-banner,
+  .hm-get,
+  .hm-hero .st {
+    animation: hm-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hm-banner {
+    animation-delay: 0.06s;
+  }
+  .hm-get {
+    animation-delay: 0.12s;
+  }
+  .hm-hero .st {
+    animation-delay: 0.2s;
+    animation-duration: 0.9s;
+  }
 }
+@keyframes hm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---- the loop, drawn ------------------------------------------------------------------- */
+
 .hm-loop {
-  max-width: 1040px;
-  padding: clamp(36px, 6vw, 84px) 0;
+  max-width: 880px;
+  padding: clamp(32px, 5vw, 72px) 0;
 }
 
 /* ---- where to get it, and the doors ----------------------------------------------------- */
 
 .hm-end {
-  padding: clamp(40px, 6vw, 88px) 0 clamp(48px, 6vw, 96px);
+  padding: 0 0 clamp(56px, 7vw, 104px);
 }
 .hm-platforms {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 2px solid var(--hm-fg);
+  gap: 16px;
+}
+.hm-platforms li,
+.hm-doors a {
+  border-radius: 16px;
+  background: var(--hm-sheet);
+  box-shadow:
+    inset 0 0 0 1px var(--hm-rule),
+    0 1px 2px color-mix(in srgb, var(--hm-shade) 5%, transparent);
 }
 .hm-platforms li {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 40px;
+  gap: 36px;
   min-width: 0;
-  padding: 28px;
+  padding: 24px;
 }
-.hm-platforms li + li {
-  border-left: 2px solid var(--hm-fg);
-}
+/* The reader's own platform is lit, without a word. */
 .hm-platforms li.mine {
-  background: var(--hm-sheet);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--hm-cyan) 70%, transparent),
+    0 18px 40px -22px color-mix(in srgb, var(--hm-cyan) 80%, transparent);
 }
 .hm-platforms b {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: clamp(26px, 2.6vw, 36px);
+  font-size: 22px;
   line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.hm-platforms b svg {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+.hm-platforms b svg.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 /* Where on Windows the command runs. */
 .hm-platforms small {
-  align-self: flex-end;
+  padding: 3px 7px;
+  border-radius: 6px;
   font-family: var(--hm-mono);
-  font-size: 13px;
-  line-height: 1.4;
-  font-weight: 400;
+  font-size: 11.5px;
+  line-height: 1.2;
+  font-weight: 500;
   letter-spacing: 0;
-  color: var(--hm-fg-3);
+  color: var(--hm-fg-2);
+  background: color-mix(in srgb, var(--hm-fg) 7%, transparent);
 }
-/* The reader's own platform is marked, without a word. */
-.hm-platforms li.mine b::after {
-  content: '';
-  width: 12px;
-  height: 12px;
-  background: var(--hm-pink);
-}
-.hm-platforms .hm-btn {
-  min-width: 168px;
-}
-.hm-cmd.boxed {
-  align-self: stretch;
-  height: 48px;
-  padding: 0 14px;
-  border: 2px solid var(--hm-fg);
-  color: var(--hm-fg);
+.hm-platforms .hm-cmd {
+  display: flex;
+  background: color-mix(in srgb, var(--hm-fg) 4%, transparent);
 }
 
 .hm .hm-doors {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: clamp(36px, 5vw, 72px);
-  border-top: 2px solid var(--hm-fg);
-  border-bottom: 2px solid var(--hm-fg);
-}
-.hm-doors li + li {
-  border-left: 2px solid var(--hm-fg);
+  gap: 12px;
+  margin-top: clamp(40px, 5vw, 72px);
 }
 .hm-doors a {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 132px;
-  padding: 22px;
-  font-size: clamp(22px, 2.3vw, 32px);
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 12px;
+  height: 100%;
+  padding: 18px 20px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   transition:
-    background-color 0.2s,
-    color 0.2s;
+    transform 0.25s,
+    box-shadow 0.25s;
 }
-.hm-doors li:first-child a {
-  padding-left: 0;
+.hm-door-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--hm-fg-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.25s;
 }
-.hm-doors svg {
-  width: 26px;
-  height: 26px;
-  transition: transform 0.25s;
+.hm-door-go {
+  color: var(--hm-fg-3);
+  transition:
+    transform 0.25s,
+    color 0.25s;
 }
 .hm-doors a:hover {
-  color: var(--hm-pink-text);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px var(--hm-rule-strong),
+    0 16px 32px -18px color-mix(in srgb, var(--hm-shade) 40%, transparent);
 }
-.hm-doors a:hover svg {
-  transform: translateX(5px);
+.hm-doors a:hover .hm-door-icon {
+  stroke: var(--hm-pink-text);
+}
+.hm-doors a:hover .hm-door-go {
+  color: var(--hm-fg);
+  transform: translateX(3px);
 }
 .hm .hm-out {
   display: flex;
-  gap: 36px;
-  margin-top: 22px;
-  font-size: 17px;
-  font-weight: 700;
+  justify-content: center;
+  gap: 28px;
+  margin-top: clamp(32px, 4vw, 52px);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--hm-fg-2);
 }
 .hm-out a {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: 5px;
+  padding: 6px 2px;
+  transition: color 0.2s;
 }
 .hm-out a:hover {
-  color: var(--hm-pink-text);
+  color: var(--hm-fg);
 }
 
 /* ---- narrower windows -------------------------------------------------------------------- */
 
-/* The platforms are a list until three of them fit side by side with the command in two. */
-@media (max-width: 1040px) {
+@media (max-width: 960px) {
   .hm-platforms {
     grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
   .hm-platforms li {
     flex-direction: row;
     align-items: center;
     gap: 16px;
-    padding: 18px;
-  }
-  .hm-platforms li + li {
-    border-top: 2px solid var(--hm-fg);
-    border-left: 0;
+    padding: 16px 18px;
   }
   .hm-platforms .hm-btn {
     min-width: 150px;
   }
-  .hm-platforms .hm-cmd.boxed {
-    flex: 0 1 300px;
-    align-self: auto;
+  .hm-platforms .hm-cmd {
+    flex: 0 1 280px;
+  }
+  .hm .hm-doors {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 32px;
   }
 }
-@media (max-width: 560px) {
-  .hm-platforms li {
-    padding: 16px 14px;
+@media (max-width: 640px) {
+  .hm-wrap {
+    width: calc(100% - 32px);
   }
-  .hm-platforms li.cmd {
-    flex-direction: column;
-    align-items: flex-start;
+  .hm-sky {
+    height: 620px;
+  }
+  .hm-sky::before {
+    background-size: 40px 40px;
+  }
+  .hm .hm-get {
+    gap: 10px;
+    max-width: 392px;
+    margin-inline: auto;
+  }
+  .hm-get .hm-btn {
+    flex: 1 1 0;
+  }
+  .hm-get .hm-cmd {
+    display: flex;
+    flex: 1 1 100%;
+  }
+  .hm-platforms .hm-cmd {
+    flex: 0 1 260px;
+  }
+  .hm-platforms li.mine,
+  .hm-platforms li {
+    padding: 16px;
+  }
+}
+@media (max-width: 520px) {
+  .hm-platforms li {
+    flex-wrap: wrap;
   }
   .hm-platforms .hm-btn {
     min-width: 132px;
   }
-  .hm-platforms .hm-cmd.boxed {
-    flex: none;
-    align-self: stretch;
-    padding: 0 10px;
+  .hm-platforms .hm-cmd {
+    flex: 1 1 100%;
   }
 }
-
-/* A tablet and a phone: what gets it comes first, under the banner; then the tabs, in rows, and
-   the screen under them, as wide as the page. HomeStage.vue has the same two widths: to 900px
-   the stage is stacked, and to 640px it plays the reels shot for a phone. */
-@media (max-width: 900px) {
-  .hm-wrap {
-    width: calc(100% - 32px);
-  }
-  .hm {
-    --hm-cast: 6px;
-  }
-  .hm-banner {
-    padding: 22px 0 18px;
-    font-size: clamp(34px, 10.4vw, 60px);
-    line-height: 0.98;
-    white-space: normal;
-    text-wrap: balance;
-  }
-  .hm-house {
-    display: flex;
-    flex-direction: column;
-    /* Room for the stage's control under the screen. */
-    padding-bottom: 52px;
-  }
-  .hm-get {
-    grid-template-columns: 1fr 1fr;
-    align-self: stretch;
-    padding: 0 0 10px;
-  }
-  .hm-get .hm-cmd {
-    grid-column: 1 / -1;
-  }
-  .hm-house > .st-tabs {
-    margin: 0 0 16px;
-  }
-  /* The screen is as wide as the page, but no taller than lets the whole scene and its tabs be
-     seen together under the site's bar, where the window is tall enough for that at all. */
-  .hm-house > .st-screen {
-    align-self: center;
-    width: min(100% - var(--hm-cast), max(380px, (100svh - var(--vp-nav-height, 64px) - 76px) * var(--desk-n, 1.5294)));
-    margin: 0 var(--hm-cast) var(--hm-cast) 0;
-  }
+@media (max-width: 400px) {
   .hm .hm-doors {
-    grid-template-columns: minmax(0, 1fr);
-    border-bottom: 0;
+    grid-auto-rows: 1fr;
   }
-  .hm-doors li {
-    border-bottom: 2px solid var(--hm-fg);
-  }
-  .hm-doors li + li {
-    border-left: 0;
-  }
-  .hm-doors a,
-  .hm-doors li:first-child a {
-    align-items: center;
-    min-height: 0;
-    padding: 20px 0;
-    font-size: 28px;
-  }
-}
-@media (max-width: 640px) {
-  .hm-house > .st-screen {
-    width: min(100% - var(--hm-cast), max(240px, (100svh - var(--vp-nav-height, 64px) - 124px) * var(--phone-n, 0.7538)));
+  .hm-doors a {
+    column-gap: 8px;
+    padding: 16px 12px;
+    font-size: 15px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .hm-btn,
   .hm-doors a,
-  .hm-doors svg {
+  .hm-door-go,
+  .hm-door-icon {
     transition: none;
   }
 }

@@ -5,7 +5,7 @@ turns to its end: the reviewer has sent the work back -- the edge that returns i
 counts a round -- and the actor works again; the reviewer reads it afresh and sends it back a
 second time, the actor works a third, the reviewer passes it, and the epic is done. The graph
 is all the picture is of. For a desk the panel beside it is shut, and the sidebar, and the
-graph is zoomed until its two agents are as wide as the window. A phone lays the two side by
+graph is zoomed until the frame of its flow is as wide as the window. A phone lays the two side by
 side while the epic runs, which is wider than a phone at any size they can be read at: there
 the picture is of the actor whole, at the window's left, the two edges that leave it and
 come back, and as much of the reviewer as says who it is -- its name, its role and the
@@ -49,6 +49,10 @@ _TURN = 9.0
 #: (`graph.js`).
 _WIDE = 248
 _APART = 150
+#: What the frame of a flow stands out past its agents on either side, and what a desk's window
+#: keeps clear of that frame.
+_FRAME = 27
+_CLEAR = 32
 
 #: How large a phone's reel draws the graph, and how far from the window's left its actor is:
 #: the name of the flow they stand in is whole over the actor, the actor is, both edges after
@@ -279,8 +283,8 @@ def test_the_loop_turns_on_a_desk(world: World) -> None:
         go(page, f"/epics/{name}")
         expect(page.get_by_role("button", name="Stop")).to_be_visible()
         # The graph alone, as large as the window lets it be: the panel beside it shut, and
-        # the sidebar, and the two agents zoomed to the window's width -- the frame of the
-        # flow they stand in runs off it on either side.
+        # the sidebar, and the frame of the flow the two agents stand in zoomed to the
+        # window's width, with a little of the canvas left on either side of it.
         # Each leaves the graph wider, over a moment: it is zoomed once it is as wide as
         # it will be.
         canvas = page.locator("[data-hmz=graph]")
@@ -288,7 +292,7 @@ def test_the_loop_turns_on_a_desk(world: World) -> None:
             was = _still(page, canvas)
             page.get_by_role("button", name=shut).click()
             _still(page, canvas, since=was)
-        _set(page, (home.DESK[0] - 68) / (2 * _WIDE + _APART))
+        _set(page, (home.DESK[0] - 2 * _CLEAR) / (2 * _WIDE + _APART + 2 * _FRAME))
         page.mouse.move(520, 600)
         _loop(page, reel, to_the_end=True)
     reel.save()

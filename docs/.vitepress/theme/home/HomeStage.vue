@@ -18,11 +18,8 @@
 // stop, so it is not there. Before the script runs, and without it, the screen shows the first
 // scene, chosen by the theme's class and the window's width alone.
 //
-// Two roots, the tabs and the screen: the page lays them out in its own grid. What the page puts
-// in the stage (its slot) is laid out by the page too; the stage only says where it stands in
-// the page's source, which is the order the keyboard walks: before the tabs where they lie in
-// rows and it is shown over them, and after the screen where it is shown under the tabs, beside
-// the screen.
+// The tabs are one row over the screen, and the screen is a window lit from behind, in the
+// middle of the page.
 import { useData, withBase } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { SCENES, WORDS } from './copy'
@@ -33,9 +30,6 @@ const paused = defineModel<boolean>('paused', { default: false })
 
 /** The widest window that plays the reels shot for a phone; the same number is in the styles. */
 const PHONE_WIDE = '(max-width: 640px)'
-/** The widest window whose tabs lie in rows over the screen; in a wider one they are a column
- *  beside it. The same number is in the styles, here and in the page's. */
-const STACKED = '(max-width: 900px)'
 /** What `window="desktop"` draws around a frame for its shadow (`_SHADOW` in shots.py): the
  *  screen shows the window to its own edge, and is the frame it stands in. */
 const SHADOW = { side: 44, above: 28, below: 60 }
@@ -47,8 +41,6 @@ const AGAIN = 4
 
 const { isDark } = useData()
 const narrow = ref(false)
-/** Rows until the script runs: the page comes in the order a phone shows it in. */
-const stacked = ref(true)
 const still = ref(false)
 /** Whether the control that stops what moves is there: once the script runs, where things move. */
 const stoppable = ref(false)
@@ -72,8 +64,7 @@ function crop(at: number) {
   }
 }
 
-/** The screen's shape: the window's own, on a desk; the page's, on a phone. The page's styles
- *  size the screen by these. */
+/** The screen's shape: the window's own, on a desk; the page's, on a phone. */
 const shape = computed(() => {
   const desk = reel(0, false)
   const phone = reel(0, true)
@@ -198,6 +189,9 @@ function drawn(id: number) {
   live.value = layer.at
   onScreen = id
   misses = 0
+  // The first reel is cut in over the picture the page came with, which would show through it
+  // at another moment of the same scene: that picture goes at once.
+  if (layer.cut) covered.value = true
   setTimeout(() => {
     covered.value = true
     layers.value = layers.value.filter((one) => {
@@ -249,9 +243,7 @@ const tabs = ref<HTMLElement | null>(null)
 function step(event: KeyboardEvent, from: number) {
   const last = SCENES.length - 1
   const to = {
-    ArrowDown: (from + 1) % SCENES.length,
     ArrowRight: (from + 1) % SCENES.length,
-    ArrowUp: (from + last) % SCENES.length,
     ArrowLeft: (from + last) % SCENES.length,
     Home: 0,
     End: last,
@@ -298,11 +290,9 @@ function left(event: FocusEvent) {
 }
 
 let phone: MediaQueryList | undefined
-let rows: MediaQueryList | undefined
 let watching: IntersectionObserver | undefined
 const resized = () => {
   narrow.value = !!phone?.matches
-  stacked.value = !!rows?.matches
 }
 /** Away from the screen -- another tab, or scrolled off -- the scenes wait where they are, and
  *  the tab's line is whole. Back, the scene plays from its first frame, or the one after it if
@@ -317,10 +307,8 @@ const hidden = () => looked(!document.hidden)
 
 onMounted(() => {
   phone = matchMedia(PHONE_WIDE)
-  rows = matchMedia(STACKED)
   resized()
   phone.addEventListener('change', resized)
-  rows.addEventListener('change', resized)
   still.value = matchMedia('(prefers-reduced-motion: reduce)').matches
   rotating.value = !still.value
   stoppable.value = !still.value
@@ -338,7 +326,6 @@ onBeforeUnmount(() => {
   clearTimeout(timer)
   clearTimeout(leaving)
   phone?.removeEventListener('change', resized)
-  rows?.removeEventListener('change', resized)
   document.removeEventListener('visibilitychange', hidden)
   watching?.disconnect()
   layers.value.forEach(gone)
@@ -346,165 +333,229 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <slot v-if="stacked" />
-
-  <div
-    ref="tabs"
-    class="st-tabs"
-    :class="{ timed: rotating && started && seen && !held && !paused, again: showing % 2 === 1 }"
-    role="tablist"
-    :aria-label="WORDS.tabs"
-    :aria-orientation="stacked ? 'horizontal' : 'vertical'"
-    :style="{ '--length': `${length}s`, '--skip': `${-skip}s` }"
-    @pointerenter="over($event, true)"
-    @pointerleave="over($event, false)"
-    @focusin="entered"
-    @focusout="left"
-  >
-    <button
-      v-for="(scene, i) in SCENES"
-      :id="`st-tab-${scene.key}`"
-      :key="scene.key"
-      type="button"
-      role="tab"
-      aria-controls="st-screen"
-      :aria-selected="i === at"
-      :tabindex="i === at ? 0 : -1"
-      @click="pick(i)"
-      @keydown="step($event, i)"
+  <div class="st">
+    <div
+      ref="tabs"
+      class="st-tabs"
+      :class="{ timed: rotating && started && seen && !held && !paused, again: showing % 2 === 1 }"
+      role="tablist"
+      :aria-label="WORDS.tabs"
+      :style="{ '--length': `${length}s`, '--skip': `${-skip}s` }"
+      @pointerenter="over($event, true)"
+      @pointerleave="over($event, false)"
+      @focusin="entered"
+      @focusout="left"
     >
-      {{ scene.tab }}
-    </button>
-  </div>
+      <button
+        v-for="(scene, i) in SCENES"
+        :id="`st-tab-${scene.key}`"
+        :key="scene.key"
+        type="button"
+        role="tab"
+        aria-controls="st-screen"
+        :aria-selected="i === at"
+        :tabindex="i === at ? 0 : -1"
+        @click="pick(i)"
+        @keydown="step($event, i)"
+      >
+        {{ scene.tab }}
+      </button>
+    </div>
 
-  <div
-    id="st-screen"
-    ref="screen"
-    class="st-screen"
-    role="tabpanel"
-    :aria-labelledby="`st-tab-${SCENES[at].key}`"
-    :style="shape"
-    @pointerenter="over($event, true)"
-    @pointerleave="over($event, false)"
-    @focusin="entered"
-    @focusout="left"
-  >
-    <!-- The link opens the page about the scene on the screen, and is named by its picture:
-         only the picture that is showing says what it is. -->
-    <a class="st-link" :href="withBase(SCENES[live].href)">
-      <!-- The picture the page comes with: the first scene, in the file the theme and the
-           window's width choose, with no script. Only the one that is shown is fetched. -->
-      <template v-if="!covered">
-        <picture v-for="dark in [false, true]" :key="String(dark)" :class="dark ? 'st-dark' : 'st-light'">
-          <source :media="PHONE_WIDE" :srcset="address(0, true, dark)" />
-          <img class="st-reel windowed on" :src="address(0, false, dark)" :alt="started ? '' : SCENES[0].alt" loading="lazy" decoding="async" />
-        </picture>
-      </template>
-      <img
-        v-for="layer in layers"
-        :key="layer.id"
-        class="st-reel"
-        :class="{ windowed: layer.windowed, on: layer.on, cut: layer.cut }"
-        :style="layer.style"
-        :src="layer.src"
-        :alt="layer.on ? layer.alt : ''"
-        decoding="async"
-        @load="drawn(layer.id)"
-        @error="failed(layer.id)"
-      />
-    </a>
-    <!-- Its word says what it does next, so it carries no pressed state beside it. -->
-    <button v-if="stoppable" type="button" class="st-hold" @click="toggle">
-      {{ paused ? WORDS.play : WORDS.pause }}
-    </button>
+    <div
+      id="st-screen"
+      ref="screen"
+      class="st-screen"
+      :class="{ paused }"
+      role="tabpanel"
+      :aria-labelledby="`st-tab-${SCENES[at].key}`"
+      :style="shape"
+      @pointerenter="over($event, true)"
+      @pointerleave="over($event, false)"
+      @focusin="entered"
+      @focusout="left"
+    >
+      <!-- The link opens the page about the scene on the screen, and is named by its picture:
+           only the picture that is showing says what it is. -->
+      <a class="st-link" :class="{ term: SCENES[live].key === 'terminal' && !narrow }" :href="withBase(SCENES[live].href)">
+        <!-- The picture the page comes with: the first scene, in the file the theme and the
+             window's width choose, with no script. Only the one that is shown is fetched. -->
+        <template v-if="!covered">
+          <picture v-for="dark in [false, true]" :key="String(dark)" :class="dark ? 'st-dark' : 'st-light'">
+            <source :media="PHONE_WIDE" :srcset="address(0, true, dark)" />
+            <img class="st-reel windowed on" :src="address(0, false, dark)" :alt="started ? '' : SCENES[0].alt" loading="lazy" decoding="async" />
+          </picture>
+        </template>
+        <img
+          v-for="layer in layers"
+          :key="layer.id"
+          class="st-reel"
+          :class="{ windowed: layer.windowed, on: layer.on, cut: layer.cut }"
+          :style="layer.style"
+          :src="layer.src"
+          :alt="layer.on ? layer.alt : ''"
+          decoding="async"
+          @load="drawn(layer.id)"
+          @error="failed(layer.id)"
+        />
+      </a>
+      <!-- Its word says what it does next, so it carries no pressed state beside it. -->
+      <button v-if="stoppable" type="button" class="st-hold" @click="toggle">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path v-if="paused" d="M4.5 2.5v11l9-5.5z" />
+          <path v-else d="M4 2.5h2.6v11H4zM9.4 2.5H12v11H9.4z" />
+        </svg>
+        {{ paused ? WORDS.play : WORDS.pause }}
+      </button>
+    </div>
   </div>
-
-  <slot v-if="!stacked" />
 </template>
 
 <style scoped>
-/* ---- the tabs -------------------------------------------------------------------------- */
-
-/* Their size and the room between them are the page's to give (`--tab-size`, `--tab-pad`): on
-   a desk they shrink with the screen, so that the column beside it is never the taller. */
-.st-tabs {
+.st {
   display: flex;
   flex-direction: column;
+  align-items: center;
+}
+
+/* ---- the tabs: one pill, and the scene that is on is a pill in it ------------------------ */
+
+.st-tabs {
+  display: flex;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--hm-rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hm-sheet) 72%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--hm-shade) 6%, transparent);
+}
+.st-tabs::-webkit-scrollbar {
+  display: none;
 }
 .st-tabs button {
   position: relative;
-  display: block;
-  width: 100%;
-  padding: var(--tab-pad, 13px) 0 calc(var(--tab-pad, 13px) + 1px);
-  border-bottom: 2px solid var(--hm-rule);
-  font-size: var(--tab-size, clamp(26px, 2.75vw, 40px));
+  isolation: isolate;
+  flex: none;
+  height: 34px;
+  padding: 0 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  font-size: 14px;
   line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  text-align: left;
-  color: var(--hm-fg-dim);
-  transition: color 0.2s;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--hm-fg-3);
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 .st-tabs button:hover {
-  color: var(--hm-fg-2);
+  color: var(--hm-fg);
 }
 .st-tabs button[aria-selected='true'] {
   color: var(--hm-fg);
+  background: color-mix(in srgb, var(--hm-fg) 8%, transparent);
 }
-/* The line under the scene that is on: whole when the reader picked it, holds the scenes or is
-   away from the screen, and drawn across in the time its reel runs while they follow one
-   another. */
-.st-tabs button::after {
+.st-tabs button:focus-visible {
+  outline-offset: -2px;
+}
+/* While the scenes follow one another, the pill of the one that is on fills in the time its
+   reel runs; when the reader picked it, holds the scenes or is away, it is plain. */
+.st-tabs button::before {
   content: '';
   position: absolute;
-  left: 0;
-  bottom: -2px;
-  width: 100%;
-  height: 2px;
-  background: var(--hm-pink);
-  transform: scaleX(0);
-  transform-origin: left;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--hm-cyan) 22%, transparent), color-mix(in srgb, var(--hm-pink) 26%, transparent));
+  clip-path: inset(0 100% 0 0);
 }
-.st-tabs button[aria-selected='true']::after {
-  transform: scaleX(1);
-}
-.st-tabs.timed button[aria-selected='true']::after {
+.st-tabs.timed button[aria-selected='true']::before {
+  clip-path: inset(0);
   animation: st-run var(--length) linear var(--skip, 0s) both;
 }
-.st-tabs.timed.again button[aria-selected='true']::after {
+.st-tabs.timed.again button[aria-selected='true']::before {
   animation-name: st-run-again;
 }
 @keyframes st-run {
   from {
-    transform: scaleX(0);
+    clip-path: inset(0 100% 0 0);
   }
 }
 @keyframes st-run-again {
   from {
-    transform: scaleX(0);
+    clip-path: inset(0 100% 0 0);
   }
 }
 
 /* ---- the screen ------------------------------------------------------------------------ */
 
-/* A flat ink block with a hard shadow, square, as a poster frames a picture. The window in it
-   reaches its edges. The block is the link itself, so the ring of its focus is not cut off. */
+/* A window with a hairline edge and a soft shadow, lit from behind in the page's two colours.
+   It is as wide as the page allows and no taller than the window it is read in. The block is
+   the link itself, so the ring of its focus is not cut off. */
 .st-screen {
   position: relative;
+  isolation: isolate;
+  width: min(100%, 1120px, max(560px, (100svh - var(--vp-nav-height, 64px) - 96px) * var(--desk-n, 1.5294)));
+  margin: min(28px, 3svh) 0 40px;
   aspect-ratio: var(--desk);
+}
+.st-screen::before {
+  content: '';
+  position: absolute;
+  inset: -4% -3% -7%;
+  z-index: -1;
+  background:
+    radial-gradient(48% 62% at 22% 46%, var(--hm-cyan), transparent 72%),
+    radial-gradient(48% 62% at 78% 58%, var(--hm-pink), transparent 72%);
+  filter: blur(64px);
+  opacity: var(--hm-glow);
+  animation: st-breathe 9s ease-in-out infinite alternate;
+}
+.st-screen.paused::before {
+  animation-play-state: paused;
+}
+@keyframes st-breathe {
+  to {
+    opacity: calc(var(--hm-glow) * 0.62);
+    transform: scale(1.03);
+  }
 }
 .st-link {
   position: absolute;
   inset: 0;
   display: block;
   overflow: hidden;
-  border: 2px solid var(--hm-edge);
+  border-radius: 14px;
   background: var(--hm-house);
-  box-shadow: var(--hm-cast) var(--hm-cast) 0 var(--hm-pink);
+  box-shadow:
+    0 0 0 1px var(--hm-edge),
+    0 2px 4px color-mix(in srgb, var(--hm-shade) 6%, transparent),
+    0 24px 48px -16px color-mix(in srgb, var(--hm-shade) 28%, transparent),
+    0 64px 96px -48px color-mix(in srgb, var(--hm-shade) 30%, transparent);
 }
-/* The ring stands clear of the block, and the shadow it would cross takes its colour. */
+/* On the dark page a black shadow shows nothing: the window is lifted by light instead. */
+:global(.dark .st-link) {
+  box-shadow:
+    0 0 0 1px var(--hm-edge),
+    inset 0 1px 0 color-mix(in srgb, var(--hm-paper) 10%, transparent),
+    0 40px 120px -40px color-mix(in srgb, var(--hm-cyan) 35%, transparent);
+}
+/* A terminal's reel is a terminal's window drawn whole, edge and all: it is the window, and
+   the block around it is not drawn. */
+.st-link.term {
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+}
+.st-link.term .st-reel {
+  filter: drop-shadow(0 24px 32px color-mix(in srgb, var(--hm-shade) 26%, transparent));
+}
 .st-link:focus-visible {
-  box-shadow: var(--hm-cast) var(--hm-cast) 0 var(--hm-ring);
+  outline-offset: 4px;
 }
 .st-reel {
   position: absolute;
@@ -522,10 +573,6 @@ onBeforeUnmount(() => {
 }
 .st-reel.cut {
   transition: none;
-}
-/* A terminal is fitted whole, with a little of the block around it. */
-.st-reel:not(.windowed) {
-  padding: 2.5%;
 }
 /* A window is laid over the screen so that its shadow falls outside. */
 .st-reel.windowed {
@@ -547,54 +594,51 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* The one control, under the screen where its shadow ends: a word, as the command's is. */
+/* The one control, under the screen's corner: a small word. */
 .st-hold {
   position: absolute;
-  top: calc(100% + var(--hm-cast) + 4px);
-  right: calc(-1 * var(--hm-cast));
-  min-width: 5ch;
+  top: calc(100% + 8px);
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 28px;
-  font-family: var(--hm-mono);
+  padding: 0 8px;
+  border-radius: 8px;
   font-size: 13px;
   line-height: 1;
-  text-align: right;
-  color: var(--hm-pink-text);
+  font-weight: 500;
+  color: var(--hm-fg-2);
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+.st-hold svg {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
 }
 .st-hold:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--hm-fg);
+  background: color-mix(in srgb, var(--hm-fg) 7%, transparent);
 }
 
-/* ---- rows over the screen: a tablet, and a phone ---------------------------------------- */
+/* ---- a phone: the page itself, as a phone holds it --------------------------------------- */
 
-@media (max-width: 900px) {
-  .st-tabs {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    column-gap: 12px;
-  }
-  .st-tabs button {
-    padding: 12px 0;
-    font-size: clamp(19px, 2.7vw, 21px);
-  }
-  /* A finger's width. */
-  .st-hold {
-    min-width: 44px;
-    height: 44px;
-  }
-}
 @media (max-width: 640px) {
-  .st-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    column-gap: 14px;
-  }
   .st-tabs button {
-    font-size: clamp(19px, 5.6vw, 21px);
+    height: 32px;
+    padding: 0 10px;
+    font-size: 13px;
   }
   .st-screen {
+    width: min(100%, 392px, max(240px, (100svh - var(--vp-nav-height, 64px) - 120px) * var(--phone-n, 0.7538)));
+    margin-top: 20px;
     aspect-ratio: var(--phone);
   }
-  /* A phone's reel is the page itself, edge to edge. */
+  .st-link {
+    border-radius: 18px;
+  }
   .st-reel,
   .st-reel.windowed,
   .st-reel:not(.windowed) {
@@ -605,12 +649,30 @@ onBeforeUnmount(() => {
     height: 100%;
     padding: 0;
   }
+  /* A finger's width. */
+  .st-hold {
+    height: 44px;
+    padding: 0 12px;
+  }
+}
+/* The narrowest phones: the six tabs share the pill's width, so none is cut off. */
+@media (max-width: 420px) {
+  .st-tabs {
+    width: 100%;
+    gap: 0;
+  }
+  .st-tabs button {
+    flex: 1 0 auto;
+    padding: 0 4px;
+    font-size: 12.5px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .st-reel {
     transition: none;
   }
-  .st-tabs.timed button[aria-selected='true']::after {
+  .st-screen::before,
+  .st-tabs.timed button[aria-selected='true']::before {
     animation: none;
   }
 }
