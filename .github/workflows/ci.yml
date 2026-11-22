@@ -398,6 +398,48 @@ jobs:
           cargo build --locked --release --target x86_64-unknown-linux-musl
           file target/x86_64-unknown-linux-musl/release/coganchor | grep -Eq 'static(ally|-pie) linked'
 
+  # The kernel's Landlock ABI, not the runner image's, decides what a fence can hold. QEMU
+  # runs software emulation: these jobs check syscalls and security policy, never speed.
+  landlock:
+    name: landlock (${{ matrix.kernel }}, ABI ${{ matrix.abi }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"coganchor"')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kernel: "5.15"
+            abi: 1
+          - kernel: "6.8"
+            abi: 4
+          - kernel: "6.10"
+            abi: 5
+          - kernel: "6.12"
+            abi: 6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          shared-key: coganchor
+          save-if: false
+
+      - name: Install QEMU, kernel build dependencies and BusyBox
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            bc bison build-essential busybox-static cpio curl file flex libelf-dev \
+            libssl-dev make musl-tools qemu-system-x86 xz-utils
+          rustup target add x86_64-unknown-linux-musl
+
+      - name: Landlock ABI ${{ matrix.abi }} on Linux ${{ matrix.kernel }}
+        run: crates/coganchor/ci/landlock-kernel-matrix.sh ${{ matrix.kernel }} ${{ matrix.abi }}
+
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.
   desktop:
@@ -508,12 +550,12 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [changes, static, tests, vendor, coganchor, desktop, desktop-windows]
+    needs: [changes, static, tests, vendor, coganchor, landlock, desktop, desktop-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # `changes` on a dispatch, and what the change left alone.
-          allowed-skips: changes, tests, vendor, coganchor, desktop, desktop-windows
+          allowed-skips: changes, tests, vendor, coganchor, landlock, desktop, desktop-windows
           jobs: ${{ toJSON(needs) }}

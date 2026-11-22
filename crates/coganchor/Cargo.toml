@@ -49,6 +49,11 @@ hmac = "0.13"
 [dev-dependencies]
 tempfile = "3"
 
+[[test]]
+name = "landlock_kernel"
+path = "tests/landlock_kernel.rs"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = true
