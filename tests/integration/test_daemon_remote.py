@@ -180,14 +180,229 @@ def test_one_running_epics_there_is_left_alone(host: Host) -> None:
         remotes.close()
 
 
-def test_a_development_build_installs_nothing(host: Host) -> None:
+#: What a host with no `hmz` is said to be, and how long none is tried again is watched for:
+#: longer than the first two waits of a daemon that is.
+MISSING = "hmz is not installed on box."
+QUIET = 3.5
+
+
+def test_none_there_is_not_installed_with_nobody_to_ask(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3")
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "failed")
+        assert said["detail"] == MISSING
+        probed = len(host.pids())
+        time.sleep(QUIET)
+        assert len(host.pids()) == probed
+        assert remotes.state("box") == said
+        assert not host.installed()
+
+        remotes.connect("box")
+        ending = time.monotonic() + PATIENCE
+        while len(host.pids()) == probed:
+            assert time.monotonic() < ending
+            time.sleep(0.05)
+        assert _stands(remotes, "box", "failed")["detail"] == MISSING
+    finally:
+        remotes.close()
+
+
+def test_none_there_is_installed_unasked_where_that_was_said(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3", install=True)
+    seen: set[str] = set()
+    try:
+        remotes.connect("box")
+        while (said := remotes.state("box"))["state"] not in ("up", "failed"):
+            seen.add(said["state"])
+            time.sleep(0.01)
+        assert said["state"] == "up", said
+        assert "asking" not in seen
+        assert host.installed().split()[-1] == "hmz==1.2.3"
+    finally:
+        remotes.close()
+
+
+def test_none_there_is_asked_about_and_installed_on_yes(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3", install=None)
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "asking", "up", "failed")
+        assert said == {"state": "asking", "detail": MISSING, "version": ""}
+        assert not host.installed()
+        began = time.monotonic()
+        with pytest.raises(Unreached, match="hmz is not installed on box") as unreached:
+            remotes.client("box")
+        assert time.monotonic() - began < 5
+        assert unreached.value.seen["state"] == "asking"
+        # The probe has ended: no ssh is left running while the user is asked.
+        assert all(_gone(pid) for pid in host.pids())
+
+        assert remotes.answer("box", True)["state"] != "asking"
+        assert _stands(remotes, "box", "up", "failed")["state"] == "up"
+        assert host.installed().split()[-1] == "hmz==1.2.3"
+
+        # None there again: the yes is remembered, and it is installed unasked.
+        host.installs(None)
+        os.kill(host.pids()[-1], signal.SIGTERM)
+        seen: set[str] = set()
+        ending = time.monotonic() + PATIENCE
+        while len(host.installed().splitlines()) < 2:
+            seen.add(remotes.state("box")["state"])
+            assert time.monotonic() < ending
+            time.sleep(0.01)
+        assert "asking" not in seen
+        assert _stands(remotes, "box", "up", "failed")["state"] == "up"
+    finally:
+        remotes.close()
+
+
+def test_a_no_fails_it_until_it_is_connected_again(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3", install=None)
+    try:
+        remotes.connect("box")
+        _stands(remotes, "box", "asking")
+        # Nothing to one that is not asking, nor to one nobody holds.
+        assert remotes.answer("nobody", True)["state"] == "idle"
+        assert remotes.answer("box", False)["state"] in ("connecting", "failed")
+        said = _stands(remotes, "box", "failed")
+        assert said["detail"] == MISSING
+        assert remotes.answer("box", True) == said
+        probed = len(host.pids())
+        time.sleep(QUIET)
+        assert len(host.pids()) == probed
+        assert remotes.state("box") == said
+        assert not host.installed()
+
+        # A no is not remembered.
+        assert remotes.connect("box")["state"] in ("failed", "connecting", "asking")
+        assert _stands(remotes, "box", "asking")["detail"] == MISSING
+    finally:
+        remotes.close()
+
+
+def test_a_yes_is_not_kept_once_the_routes_it_was_said_of_change(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3", install=None)
+    try:
+        remotes.connect("box")
+        _stands(remotes, "box", "asking")
+        remotes.answer("box", True)
+        assert _stands(remotes, "box", "up", "failed")["state"] == "up"
+
+        # Removed, and its name written again for another machine, which has none either.
+        Daemons().remove("box")
+        host.installs(None)
+        written({"name": "box", "id": "", "routes": ["stdio:ssh://other@box.example"]})
+        remotes.connect("box")
+        assert _stands(remotes, "box", "asking", "failed")["state"] == "asking"
+        assert len(host.installed().splitlines()) == 1
+        remotes.answer("box", False)
+        assert _stands(remotes, "box", "failed")["detail"] == MISSING
+        assert len(host.installed().splitlines()) == 1
+    finally:
+        remotes.close()
+
+
+def test_a_development_build_installs_nothing_unasked(host: Host) -> None:
     host.installs(None)
     remotes = Remotes(version="0.0.0")
     try:
         remotes.connect("box")
         said = _stands(remotes, "box", "failed")
-        assert said["detail"] == "hmz is not installed on box."
+        assert said["detail"] == MISSING
         assert not host.installed()
+    finally:
+        remotes.close()
+
+
+def test_a_development_build_installs_the_latest_release(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="0.0.0", install=True)
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "up", "failed")
+        assert said["state"] == "up", said
+        assert host.installed().split()[-1] == "hmz"
+        assert (host.home / ".hmz-version").read_text() == "9.9.9"
+    finally:
+        remotes.close()
+
+
+def test_a_development_build_says_why_none_was_installed(host: Host) -> None:
+    host.installs(None)
+    host.cannot_install("error: No solution found")
+    remotes = Remotes(version="0.0.0", install=True)
+    try:
+        remotes.connect("box")
+        said = _stands(remotes, "box", "failed")
+        assert said["detail"] == "error: No solution found"
+    finally:
+        remotes.close()
+
+
+def test_a_development_build_uses_another_release_there(host: Host) -> None:
+    host.installs("1.0.0")
+    remotes = Remotes(version="0.0.0", install=None)
+    seen: set[str] = set()
+    try:
+        remotes.connect("box")
+        while (said := remotes.state("box"))["state"] not in ("up", "failed"):
+            seen.add(said["state"])
+            time.sleep(0.01)
+        assert said["state"] == "up", said
+        assert "asking" not in seen
+        assert not host.installed()
+    finally:
+        remotes.close()
+
+
+def test_another_release_there_is_replaced_and_never_asked_about(host: Host) -> None:
+    host.installs("1.0.0")
+    remotes = Remotes(version="1.2.3", install=None)
+    seen: set[str] = set()
+    try:
+        remotes.connect("box")
+        while (said := remotes.state("box"))["state"] not in ("up", "failed"):
+            seen.add(said["state"])
+            time.sleep(0.01)
+        assert said["state"] == "up", said
+        assert "asking" not in seen
+        assert host.installed().split()[-1] == "hmz==1.2.3"
+    finally:
+        remotes.close()
+
+
+def test_closing_ends_a_question(host: Host) -> None:
+    host.installs(None)
+    remotes = Remotes(version="1.2.3", install=None)
+    remotes.connect("box")
+    _stands(remotes, "box", "asking")
+    began = time.monotonic()
+    remotes.close()
+    assert time.monotonic() - began < 5
+    assert remotes.state("box")["state"] == "idle"
+    assert not host.installed()
+
+
+def test_the_time_a_question_stands_counts_toward_no_timeout(
+    host: Host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host.installs(None)
+    monkeypatch.setattr("hmz.reach.OPENING", 8.0)
+    remotes = Remotes(version="1.2.3", install=None)
+    try:
+        remotes.connect("box")
+        _stands(remotes, "box", "asking")
+        time.sleep(9.0)
+        assert remotes.state("box")["state"] == "asking"
+        remotes.answer("box", True)
+        said = _stands(remotes, "box", "up", "failed")
+        assert said["state"] == "up", said
     finally:
         remotes.close()
 

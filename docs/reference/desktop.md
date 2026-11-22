@@ -162,7 +162,7 @@ The app is a Tauri 2 project in `desktop/`, built with pnpm. Run these in that d
 | `pnpm dmg-background` | Draws the disk image's backgrounds again. macOS only |
 | `pnpm nsis-images` | Draws the Windows installer's pictures again |
 
-A build from source has version `0.0.0`, which makes it a development build. Development builds install nothing, skip update checks, and run `HUMANIZE_HMZ` or the first `hmz` found on `PATH` or in the fallback directories above.
+A build from source has version `0.0.0`, which makes it a development build. Development builds install nothing on this machine, skip update checks, and run `HUMANIZE_HMZ` or the first `hmz` found on `PATH` or in the fallback directories above. Over `stdio:ssh` they replace no `hmz` on the host; where the host has none and the answer to `asking` is yes, they install the latest release there and use it.
 
 ## Commands the page may call
 
@@ -175,6 +175,7 @@ The page inside the window can call only these app commands. Bytes pass as base6
 | `pipe_open` | `{route, id}` | `{pipe}` | Opens a connection to one daemon |
 | `pipe_send` | `{pipe, data}` | Nothing | Sends bytes on a connection that is `up` |
 | `pipe_close` | `{pipe}` | Nothing | Closes a connection |
+| `pipe_answer` | `{pipe, install}` | Nothing | Answers a connection that is `asking`: `install` is `true` to install hmz on the remote machine, `false` to leave it. Does nothing for any other connection |
 | `easytier_list` | None | A list of `{name, nodes, secret}` | Lists the EasyTier entries. `secret` is only true or false |
 | `easytier_set` | `{name, secret, nodes}` | Nothing | Writes an entry. Leaving `secret` out keeps the one written |
 | `easytier_remove` | `{name}` | Nothing | Removes an entry |
@@ -183,7 +184,7 @@ The app sends these events to the page:
 
 | Event | Payload | Meaning |
 | --- | --- | --- |
-| `pipe_state` | `{pipe, state, detail}` | `state` is `connecting`, `installing`, `up` or `failed` |
+| `pipe_state` | `{pipe, state, detail}` | `state` is `connecting`, `asking`, `installing`, `up` or `failed`. `asking` waits, with no time limit, for `pipe_answer` |
 | `pipe_data` | `{pipe, data}` | Bytes from the daemon |
 | `pipe_closed` | `{pipe, why}` | The connection ended. `why` is `closed` when the page closed it, otherwise the reason |
 
@@ -209,6 +210,8 @@ A connection that fails or ends gives its reason as a sentence. The most common 
 | `<route> cannot be reached from here.` | The app opens no such route on this platform |
 | `<route> needs the id of the daemon it reaches.` | A route other than `stdio:` was opened without a daemon ID |
 | `hmz is not installed on this machine.` | macOS: no `hmz` was found for `stdio:local` |
+| `hmz is not installed on <host>.` | A `stdio:ssh` route found no `hmz` on the host. It is the detail of `asking`, and the reason the connection fails when the answer is no |
+| `hmz could not be installed.` | A development build installed the latest release on the host, and the install failed without saying why or no `hmz` answered afterwards |
 | `<route> did not open within 30 seconds.` | The connection or its TLS took too long |
 | `<name> is not the daemon it was paired with.` | The daemon's certificate does not match the pinned ID. Check the address, or pair again |
 | `TLS with <name> failed: <why>` | The TLS handshake failed for another reason |
@@ -221,6 +224,7 @@ A connection that fails or ends gives its reason as a sentence. The most common 
 | Opening a connection, TLS included | 30 seconds |
 | Finding `hmz` on an ssh host | 30 seconds |
 | Installing `hmz` on an ssh host | 900 seconds |
+| Waiting for `pipe_answer` while `asking` | No limit |
 | WSL starting | 60 seconds |
 | An update check or download | 5 minutes |
 | A process still running after quit | Killed after 3 seconds |

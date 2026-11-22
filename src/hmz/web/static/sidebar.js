@@ -920,7 +920,7 @@ export function backedSaid(backed) {
 }
 
 /** How a daemon stands, as its dot says it, and the word for it where it is not up. */
-const STATES = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('not connected') }
+const STATES = { up: t('up'), connecting: t('connecting'), asking: t('asking@@link'), installing: t('installing'), failed: t('failed'), idle: t('not connected') }
 
 /** What a daemon is called on the page. */
 function named(name) {

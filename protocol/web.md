@@ -1761,7 +1761,7 @@ every other daemon, which MUST switch the page to it as picking it in that menu 
 Settings open on `Daemons`, of that daemon; closing Settings then MUST leave the page on that
 daemon, and MUST NOT go back to the daemon left.
 
-**3.13.16** The page MUST show each remote daemon's state as one of `idle`, `connecting`,
+**3.13.16** The page MUST show each remote daemon's state as one of `idle`, `connecting`, `asking`,
 `installing`, `up` and `failed`, with what was said last, as Section 3.8.2 of [DAEMON] specifies.
 
 **3.13.17** A remote daemon that is not `up` MUST be said to be unavailable where the page asks it
@@ -1786,6 +1786,19 @@ refuse what is not a STUN or TURN server, MUST NOT show a credential once writte
 credential left as it is shown. The page MUST open a daemon's `webrtc:` routes with that daemon's
 servers alone, and with none where it has none (Section 4.7.8 of [WIRE]). For a new `WebRTC` daemon
 the form MUST ask them, and MUST claim the code with them.
+
+**3.13.22** While a remote daemon is `asking` (Section 3.8.3.7 of [DAEMON]), the page MUST show,
+over whatever it shows, a dialog saying `hmz is not installed on <name>. Install it?`, `<name>` the
+daemon's name, with `Install` and `Not now`, one daemon at a time. `Install` MUST answer yes, and
+`Not now`, as closing the dialog any other way does, no, to every route of that daemon that waits
+for the answer (Section 3.12.12 of [DESKTOP] and Section 4.8.8); the dialog MUST go once the daemon
+is no longer `asking`. For a daemon the user has answered `Install` for since the page was loaded,
+and whose routes are those it had then (Section 3.8.3.8 of [DAEMON]), the page MUST answer yes by
+itself, showing no dialog and not `asking`.
+
+**3.13.23** A remote daemon that is `failed` after `Not now` MUST NOT be reached again by itself
+(Section 3.8.3.9 of [DAEMON]); `Connect`, in the menu of Section 3.13.15 and in `Settings` ›
+`Daemons`, MUST reach it again, and the page MUST then ask again.
 
 ### 3.14. Release notice
 
@@ -2200,9 +2213,9 @@ where it is untrusted, MUST open mutual TLS over it as this machine's device (Se
 [WIRE]), pinning `id`.
 
 **4.8.4** Until the carrier is open, the server MUST send the page text messages
-`{"state": <state>, "detail": <what was said last>}`, `state` one of `connecting`, `installing`,
-`up` and `failed` of Section 3.8.2.2 of [DAEMON], `up` once the carrier is open and `failed` before
-it closes the WebSocket for a carrier that did not open.
+`{"state": <state>, "detail": <what was said last>}`, `state` one of `connecting`, `asking`,
+`installing`, `up` and `failed` of Section 3.8.2.2 of [DAEMON], `up` once the carrier is open and
+`failed` before it closes the WebSocket for a carrier that did not open.
 
 **4.8.5** From `up` on, the server MUST carry every binary message of the WebSocket to the carrier
 as bytes, inside its mutual TLS where there is one, and every byte the carrier carries back to the
@@ -2214,6 +2227,15 @@ closed when the other closes, and a text message from the page MUST close both.
 
 **4.8.7** An `easytier:` route MUST be opened with the EasyTier entry of that name in the settings
 of this machine (Section 3.4.10 of [FILES]), which the page writes through Local's `easytier.set`.
+
+**4.8.8** Where no hmz is on the machine of a `stdio:ssh` route, the server MUST send the state
+`asking` with `hmz is not installed on <host>.`, `<host>` the host the route names, since `/dial`
+names no daemon, and MUST then wait, for as long as the WebSocket is open, for a text message
+`{"install": <boolean>}` from the page, `true` the yes and `false` the no of Section 3.8.3.8 of
+[DAEMON]. Such a message sent before `up` while the state is not `asking` MUST do nothing, and any
+other message from the page before `up` MUST close the WebSocket. The server MUST ask so of every
+such `/dial` and MUST remember no answer: the page remembers a yes (Section 3.13.22) and does not
+dial again by itself after a no (Section 3.13.23).
 
 ### 4.9. Pipe providers
 
@@ -2273,7 +2295,8 @@ requirement.
   socket is (Section 4.7.3): admission to the server is therefore equivalent to acting as the user
   who runs `hmz web` on this machine, with every method of [DAEMON], as it was before this version.
 - **Dialing.** `/dial` opens ssh, WSL, TCP, WebSocket, EasyTier and relay carriers from this machine
-  for the page (Section 4.8.3), runs `ssh` and EasyTier as this user, and secures untrusted carriers
+  for the page (Section 4.8.3), runs `ssh` and EasyTier as this user, installs hmz on an ssh host
+  that has none only once the page says to (Section 4.8.8), and secures untrusted carriers
   with this machine's device certificate, pinning the id the page gives (Section 4.8.3). It refuses
   `unix:` and `stdio:local`, which `/rpc` covers (Section 4.8.2). Whoever is admitted thereby acts
   as this machine's device on every daemon that device is paired with.

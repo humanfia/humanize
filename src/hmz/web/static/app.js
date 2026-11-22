@@ -16,6 +16,7 @@ import { bar, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
+import './installs.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {

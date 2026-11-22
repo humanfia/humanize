@@ -23,13 +23,14 @@ import { routeKind } from '../../rpc/routes.js'
 const STATES = {
   up: '●',
   connecting: '◐',
+  asking: '◐',
   installing: '◐',
   failed: '✕',
   idle: '○',
 }
 
 /** How far reaching has got, as the page says it. */
-const SAID = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('idle@@link') }
+const SAID = { up: t('up'), connecting: t('connecting'), asking: t('asking@@link'), installing: t('installing'), failed: t('failed'), idle: t('idle@@link') }
 
 /**
  * The carriers a daemon is reached over, side by side as the form offers them: what each is

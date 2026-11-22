@@ -1306,6 +1306,13 @@ revokes one after confirmation; each written at once.
 picked, the accounts excluded, written to each daemon picked as the web interface's `Batch apply`
 writes them (Section 3.11.2.13 of [WEB] to Section 3.11.2.15 of [WEB]), saying how each went.
 
+**19.5.4** While a daemon of another machine is `asking` (Section 3.8.3.7 of [DAEMON]), the
+interface MUST ask, over whatever is on the screen, `hmz is not installed on <name>. Install it?`,
+offering **install** and **not now**, and MUST give that daemon the answer chosen (Section 3.8.3.8
+of [DAEMON]); `esc` MUST answer **not now**, and the question MUST go once the daemon is no longer
+`asking`. **connect** (Section 19.5.2) MUST reach again a daemon that failed so (Section 3.8.3.9 of
+[DAEMON]).
+
 ### 19.6. Accounts
 
 **19.6.1** The Accounts page MUST list every account under its harness, then `as local`, and MUST

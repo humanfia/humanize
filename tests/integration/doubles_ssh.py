@@ -8,7 +8,8 @@ in it is one it cannot reach, as `ssh` says so. Every time it is run it writes i
 it was told to `ssh.log` beside that home.
 
 The machine has an `hmz` in `~/.local/bin` which is this one, saying whichever version it is
-said to be installed at, or none, and a `uv` whose `tool install` installs the version asked.
+said to be installed at, or none, and a `uv` whose `tool install` installs the version asked,
+9.9.9 where none is, or fails as it is told to.
 """
 
 from __future__ import annotations
@@ -115,6 +116,8 @@ if [ "$2" = "connect" ]; then echo "hmz: the daemon cannot be reached: {why}" >&
 
 _UV = """#!/bin/sh
 echo "$@" >> "$HOME/uv.log"
+if [ -f "$HOME/.uv-fails" ]; then cat "$HOME/.uv-fails"; exit 2; fi
+version=9.9.9
 for said; do case "$said" in hmz==*) version="${said#hmz==}";; esac; done
 echo "Resolved 1 package in 3ms"
 printf '%s' "$version" > "$HOME/.hmz-version"
@@ -145,6 +148,10 @@ class Host:
             held.unlink(missing_ok=True)
         else:
             held.write_text(version)
+
+    def cannot_install(self, why: str) -> None:
+        """Has its `uv` fail saying `why`, installing nothing."""
+        (self.home / ".uv-fails").write_text(why + "\n")
 
     def cannot_connect(self, why: str) -> None:
         """Has its `hmz daemon connect` fail saying `why`, its version answered as before."""

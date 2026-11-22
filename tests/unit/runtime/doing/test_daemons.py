@@ -14,6 +14,7 @@ import pytest
 
 from hmz.runtime import Refused
 from hmz.runtime.doing.daemons import (
+    ASKING,
     CARRIED,
     FAILED,
     LOCAL,
@@ -188,6 +189,34 @@ def test_local_stands_up_and_nothing_else_is_reached_unasked() -> None:
         assert remotes.state("gpu") == {"state": "idle", "detail": "", "version": ""}
     finally:
         remotes.close()
+
+
+def test_an_answer_to_a_daemon_nobody_asked_about_does_nothing() -> None:
+    remotes = Remotes(version="1.2.3")
+    try:
+        idle = {"state": "idle", "detail": "", "version": ""}
+        assert remotes.answer("nobody", True) == idle
+        assert remotes.answer("nobody", False) == idle
+        assert remotes.answer(LOCAL, True)["state"] == UP
+    finally:
+        remotes.close()
+
+
+@pytest.mark.parametrize("install", [False, True, None])
+def test_what_is_done_where_no_hmz_is_found_is_said_as_remotes_are_made(
+    monkeypatch: pytest.MonkeyPatch, install: bool | None
+) -> None:
+    made: list[tuple[Any, ...]] = []
+
+    class Made:
+        def __init__(self, version: str | None = None, **said: Any) -> None:
+            made.append((version, said))
+
+    monkeypatch.setattr("hmz.runtime.doing.daemons.Remotes", Made)
+    assert ASKING == "asking"
+    assert isinstance(Daemons().remotes("1.2.3", install=install), Made)
+    assert isinstance(Daemons().remotes(), Made)
+    assert made == [("1.2.3", {"install": install}), (None, {"install": False})]
 
 
 def test_a_probe_is_read_by_what_each_line_says() -> None:

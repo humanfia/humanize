@@ -19,6 +19,8 @@ The app bundles the page from its release. It runs no `hmz web` server and holds
 
 The app connects directly to daemons on other machines without `hmz web` in between. See [Connect to other machines](/user/daemons).
 
+When an SSH machine has no `hmz`, the app installs nothing there until you agree. It asks `hmz is not installed on <name>. Install it?`: **Install** installs `hmz` on that machine and connects; **Not now** leaves the machine untouched and the daemon `failed` until you click **Connect** again. A machine that has another release of `hmz` is not asked about.
+
 On Windows, the app reaches an SSH daemon with the `ssh` inside the default WSL distribution. The **Host** list under **Settings → Daemons → New daemon** comes from WSL's `~/.ssh/config`, and keys, `known_hosts`, and any **Identity file** are WSL paths; the app does not read `%UserProfile%\.ssh`.
 
 The app stores your preferences and daemon list in its own storage, separate from any browser. Its menus, launch window, and update windows are always in English, regardless of the page language.

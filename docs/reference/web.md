@@ -209,11 +209,20 @@ While opening the route, the server sends progress as JSON text messages:
 | `state` | Meaning |
 | --- | --- |
 | `connecting` | The route is being opened. |
+| `asking` | The machine of a `stdio:ssh` route has no `hmz`. The server waits, with no time limit, for the page's answer. `detail` is `hmz is not installed on <host>.` |
 | `installing` | Something the route needs is being installed. |
 | `up` | The route is open. From here on the WebSocket carries bytes both ways, as `/rpc` does. |
 | `failed` | The route did not open. The WebSocket closes next. |
 
 `detail` holds the latest line of progress text, which may be empty. With `failed` it says what went wrong.
+
+While the state is `asking`, answer with one JSON text message:
+
+```json
+{"install": true}
+```
+
+`true` installs `hmz` and continues with `installing`. `false` ends the route with `failed` and `hmz is not installed on <host>.`, then close code `1011`. The server keeps no answer: every `/dial` that finds no `hmz` asks again. Before `up`, an `{"install": <boolean>}` message sent while the state is not `asking` is ignored.
 
 | Close code | Reason | When |
 | --- | --- | --- |
@@ -222,6 +231,6 @@ While opening the route, the server sends progress as JSON text messages:
 | `1008` | `<route> needs the id of the daemon it reaches.` | `id` is missing for a route that needs it. |
 | `1011` | What went wrong, as `failed` said it. | The route did not open. |
 | `1000` | What the route said as it ended, or `The daemon closed.` | The far end closed. |
-| `1000` | none | The page closed, sent a text message, or sent bytes before `up`. |
+| `1000` | none | The page closed, sent a text message other than `{"install": <boolean>}` before `up`, sent any text message after `up`, or sent bytes before `up`. |
 
 Close reasons are truncated to 120 bytes. Closing a `/dial` socket stops any helper process it started for its route. Stopping `hmz web` closes every open `/dial` socket without stopping any runs.

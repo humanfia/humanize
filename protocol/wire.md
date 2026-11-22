@@ -207,9 +207,10 @@ relay at `<url>` (Section 4.7).
 the carrier has opened, its security of Section 4, if any, is established and `session.hello`
 (Section 6.5) over it is answered, and MUST then report `<route> did not open within 30 seconds.`;
 a `stdio:` carrier opens as soon as its process starts and says nothing but the line of Section
-3.4.11 until it is spoken to, so that its 30 seconds are those of its handshake. The time hmz is
-installed over a `stdio:ssh` carrier MUST NOT count, and the 30 seconds MUST start afresh once it
-is installed.
+3.4.11 until it is spoken to, so that its 30 seconds are those of its handshake. The time the user
+is asked whether to install hmz over a `stdio:ssh` carrier (Section 3.8.3.7 of [DAEMON]) and the
+time hmz is installed over it MUST NOT count, and the 30 seconds MUST start afresh once the user has
+answered and once it is installed.
 
 **3.4.10** A carrier MUST NOT be half-closed: a side that stops reading or writing it MUST close it
 both ways, and whatever splices a carrier to another or to standard streams -- `hmz daemon connect
@@ -254,7 +255,8 @@ with a result whose `daemon_id` is the one the client pins, and MUST close every
 of the last route to fail, and a daemon that has no route with `There is no route to try.`
 
 **3.6.4** A session that drops or fails MUST be tried again after 1 second, the wait doubling after
-each further failure up to at most 60 seconds, and starting again at 1 second once a session is up.
+each further failure up to at most 60 seconds, and starting again at 1 second once a session is up,
+but where Section 3.8.3.9 of [DAEMON] states otherwise.
 
 **3.6.5** A client that reconnects MUST attach again to every subscription it held, with `since`
 (Section 6.8.4).

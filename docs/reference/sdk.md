@@ -64,7 +64,7 @@ class Hmz:
 | `nous` | `NousBook` | [NousBook](#nousbook). |
 | `epics` | `Epics` | [Epics](#epics) of this workspace. |
 | `backups` | `Backups` | [Backup targets](#backups). Internal type. |
-| `daemons` | `hmz.runtime` `Daemons` | Recorded remote daemons: `all()`, `find(name)`, `write(name, fields, replace=False)`, `remove(name)`, `offered()`, `imported(wanted)`, `remotes(version=None)`. Internal type, distinct from the exported [`Daemons`](#daemons). |
+| `daemons` | `hmz.runtime` `Daemons` | Recorded remote daemons: `all()`, `find(name)`, `write(name, fields, replace=False)`, `remove(name)`, `offered()`, `imported(wanted)`, `remotes(version=None, *, install=False)`. Where an SSH machine has no hmz, `install=False` installs nothing and the daemon is `failed` with `hmz is not installed on <name>.`, `True` installs it unasked, and `None` leaves the daemon `asking` until `answer(name, install)` on the returned object answers it. Internal type, distinct from the exported [`Daemons`](#daemons). |
 
 `workspace` and `home` are computed on each access. The remaining properties are created on first access and cached.
 

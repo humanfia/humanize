@@ -3237,10 +3237,11 @@ class Registry:  # the class's own name is Daemons
     def remove(self, name: str) -> None: ...
     def offered(self) -> dict[str, dict[str, Any]]: ...
     def imported(self, wanted: Sequence[str]) -> list[str]: ...
-    def remotes(self, version: str | None = None) -> Remotes: ...
+    def remotes(self, version: str | None = None, *, install: bool | None = False) -> Remotes: ...
 class Remotes:
     def state(self, name: str) -> dict[str, str]: ...
     def connect(self, name: str) -> dict[str, str]: ...
+    def answer(self, name: str, install: bool) -> dict[str, str]: ...
     def client(self, name: str) -> Client: ...
     def pair(self, name: str, code: str, *, device: str | None = None) -> dict[str, Any]: ...
     def close(self) -> None: ...
@@ -3270,13 +3271,16 @@ daemon for each `Host` entry named, skipping those already written, and return t
 `LookupError` for a host the config does not name, and `OSError` where the config cannot be read or
 the file written.
 
-**4.14.6** `Registry.remotes(version)` MUST return a `Remotes` that reaches each daemon as it is
-first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` at `version` over a
-`stdio:ssh` route, or at the calling process's version where `version` is `None`.
+**4.14.6** `Registry.remotes(version, install=...)` MUST return a `Remotes` that reaches each daemon
+as it is first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` at `version` over a
+`stdio:ssh` route, or at the calling process's version where `version` is `None`. Where no `hmz` is
+on the machine of that route (Section 3.8.3.7 of [DAEMON]), `install` `False` MUST install nothing,
+as a client with no user to ask does (Section 3.8.3.10 of [DAEMON]); `True` MUST install unasked;
+and `None` MUST have the daemon `asking` until `Remotes.answer` answers it.
 
 **4.14.7** `Remotes.state(name)` MUST return `{state, detail, version}`, `state` being one of
-`idle`, `connecting`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling process's
-version.
+`idle`, `connecting`, `asking`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling
+process's version.
 
 **4.14.8** `Remotes.connect(name)` MUST start reaching the daemon, or reach it again at once where
 it failed, and return its state; it MUST raise `LookupError` for an unknown name and `Unreached`
@@ -3295,6 +3299,11 @@ refused or no route opens, with `Unreached.status` the error code of the refusal
 
 **4.14.11** `Remotes.close()` MUST close every session and stop every process started to reach a
 daemon.
+
+**4.14.12** `Remotes.answer(name, install)` MUST answer a daemon that is `asking`, `install` `True`
+the yes and `False` the no of Section 3.8.3.8 of [DAEMON], and MUST return its state; it MUST do
+nothing to a daemon that is not `asking`. `Remotes.client` MUST NOT wait for that answer: of a
+daemon that is `asking` it MUST raise `Unreached` at once, with `Unreached.seen` its state.
 
 ### 4.15. Hosts
 

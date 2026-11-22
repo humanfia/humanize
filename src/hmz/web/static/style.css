@@ -6153,6 +6153,7 @@ input[aria-invalid='true'] {
 }
 
 .dot.daemon-connecting,
+.dot.daemon-asking,
 .dot.daemon-installing {
   background: var(--budget);
 }
@@ -6284,8 +6285,10 @@ body:has(> .overlay > .dialog-workspace) {
   gap: var(--space-8);
 }
 
-/* What is asked over Settings: a small dialog of the browser's own, drawn as the page's are. */
-.batch-dialog {
+/* What is asked over Settings, and of a machine with no hmz over whatever is shown: a small
+   dialog of the browser's own, drawn as the page's are. */
+.batch-dialog,
+.install-dialog {
   width: min(calc(100vw - 32px), var(--dialog-sm));
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
@@ -6296,7 +6299,8 @@ body:has(> .overlay > .dialog-workspace) {
   border-radius: var(--radius-lg);
 }
 
-.batch-dialog::backdrop {
+.batch-dialog::backdrop,
+.install-dialog::backdrop {
   background: var(--scrim);
 }
 
@@ -6305,9 +6309,11 @@ body:has(> .overlay > .dialog-workspace) {
   font: 600 var(--text-lg)/22px var(--sans);
 }
 
-.batch-dialog > p {
+.batch-dialog > p,
+.install-dialog > p {
   margin: 0;
   font-size: var(--text-md);
+  overflow-wrap: anywhere;
 }
 
 .batch-dialog > .form {
@@ -6329,7 +6335,8 @@ body:has(> .overlay > .dialog-workspace) {
   display: none;
 }
 
-.batch-dialog > .row {
+.batch-dialog > .row,
+.install-dialog > .row {
   justify-content: flex-end;
   margin-top: var(--space-16);
 }
@@ -6374,6 +6381,7 @@ body:has(> .overlay > .dialog-workspace) {
 }
 
 .daemon-connecting .glyph,
+.daemon-asking .glyph,
 .daemon-installing .glyph {
   color: var(--ink-3);
 }
