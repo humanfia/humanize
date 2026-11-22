@@ -62,6 +62,17 @@ def test_help_names_every_command(capsys: pytest.CaptureFixture[str]) -> None:
         assert summary in out
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_help_shows_the_version_query(
+    flag: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as raised:
+        main([flag])
+    assert raised.value.code == 0
+    out = capsys.readouterr().out
+    assert "hmz --version" in " ".join(out.split())
+
+
 @pytest.mark.parametrize("argv", [["bogus"], ["--version", "extra"], ["-x"], ["Exec"]])
 def test_a_line_naming_no_command_is_refused(
     argv: list[str], capsys: pytest.CaptureFixture[str]

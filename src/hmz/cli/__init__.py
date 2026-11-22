@@ -478,7 +478,8 @@ def _line() -> ArgumentParser:
         prog="hmz",
         description="Orchestrate, execute, and observe agent flows. Running without a "
         "command opens the terminal interface where this directory left off.",
-        epilog="Run `hmz COMMAND --help` for more information on a command.",
+        epilog="Run `hmz COMMAND --help` for more information on a command, or "
+        "`hmz --version` to print the version.",
     )
 
 

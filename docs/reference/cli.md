@@ -16,7 +16,7 @@ Notation is defined in [Conventions](/reference/#conventions).
 
 ```text
 hmz                                    open the terminal interface
-hmz -h | --help                        list the commands
+hmz -h | --help                        list the commands and the version query
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
