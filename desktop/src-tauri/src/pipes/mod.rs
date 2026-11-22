@@ -2,8 +2,8 @@
 //! pipe, opened as its route says (Section 3.4 of [WIRE]), inside mutual TLS as the app's own
 //! device where the carrier is untrusted, and its bytes carried both ways unchanged and in
 //! order. The page opens, writes and closes one with `pipe_open`, `pipe_send` and
-//! `pipe_close`, and is told how it stands and what it carries by the events `pipe_state`,
-//! `pipe_data` and `pipe_closed`.
+//! `pipe_close`, answers what one asks with `pipe_answer`, and is told how it stands and what
+//! it carries by the events `pipe_state`, `pipe_data` and `pipe_closed`.
 
 mod easytier;
 mod identity;
@@ -38,7 +38,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 pub type Stream = Box<dyn Io>;
 
 /// How long a carrier and its TLS may take to open (Section 3.4.9 of [WIRE]); installing is
-/// not counted.
+/// not counted, nor is asking.
 const OPENING: Duration = Duration::from_secs(30);
 
 /// What the page is told.
@@ -93,6 +93,9 @@ pub struct Context {
 struct Pipe {
     /// Where what the page sends goes, once the carrier is up; dropped to close it.
     sending: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    /// Where the page's answer goes, while the pipe is `asking` (Section 3.12.12 of
+    /// [DESKTOP]); dropped with the pipe, which is a no.
+    asking: Option<std::sync::mpsc::Sender<bool>>,
     /// Dropped to close it before then.
     _closing: mpsc::UnboundedSender<Vec<u8>>,
 }
@@ -138,6 +141,7 @@ fn open_for(
             pipe.clone(),
             Pipe {
                 sending: None,
+                asking: None,
                 _closing: closing,
             },
         );
@@ -173,6 +177,27 @@ pub fn send(pipe: &str, data: &str) -> Result<(), String> {
 /// Closes a pipe, stopping what it started; nothing where it is closed already.
 pub fn close(pipe: &str) {
     lock(&PIPES).as_mut().and_then(|pipes| pipes.remove(pipe));
+}
+
+/// Has a pipe ask; answers where its answer comes, which is no answer once it is closed.
+fn asking(pipe: &str) -> std::sync::mpsc::Receiver<bool> {
+    let (answering, answered) = std::sync::mpsc::channel();
+    if let Some(pipe) = lock(&PIPES).as_mut().and_then(|pipes| pipes.get_mut(pipe)) {
+        pipe.asking = Some(answering);
+    }
+    answered
+}
+
+/// Gives a pipe that is asking the page's answer; nothing where there is no such pipe or it
+/// is not asking.
+pub fn answer(pipe: &str, install: bool) {
+    let answering = lock(&PIPES)
+        .as_mut()
+        .and_then(|pipes| pipes.get_mut(pipe))
+        .and_then(|pipe| pipe.asking.take());
+    if let Some(answering) = answering {
+        let _ = answering.send(install);
+    }
 }
 
 /// Closes every pipe: the page went, or is loaded again (Section 3.12.8 of [DESKTOP]).
@@ -359,15 +384,25 @@ impl Carried {
                     self.route.clone(),
                 );
                 let hmz = context.hmz.clone();
+                // Asking has no deadline: it ends on the page's answer, or with the pipe.
                 let kid = tokio::task::spawn_blocking(move || {
+                    let answered = Mutex::new(None);
                     let say = |state: &'static str, detail: &str| {
+                        // Held asking before the page is told, whose answer may come at once.
+                        if state == "asking" {
+                            *lock(&answered) = Some(asking(&pipe));
+                        }
                         tell(Event::State {
                             pipe: pipe.clone(),
                             state,
                             detail: detail.to_owned(),
                         });
                     };
-                    stdio::reach_ssh(&kids_, &ssh, &name, hmz.as_deref(), &say)
+                    let asked = || {
+                        let answered = lock(&answered).take();
+                        answered.is_some_and(|answered| answered.recv().unwrap_or(false))
+                    };
+                    stdio::reach_ssh(&kids_, &ssh, &name, hmz.as_deref(), &say, &asked)
                 })
                 .await
                 .map_err(|why| why.to_string())??;
@@ -556,6 +591,11 @@ pub fn pipe_close(pipe: String) {
     close(&pipe);
 }
 
+#[tauri::command]
+pub fn pipe_answer(pipe: String, install: bool) {
+    answer(&pipe, install);
+}
+
 fn entries_file(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
@@ -698,6 +738,15 @@ mod tests {
         };
         assert_eq!(state.name(), "pipe_state");
         assert_eq!(json(&state), r#"{"pipe":"p","state":"up","detail":""}"#);
+        let asking = Event::State {
+            pipe: "p".into(),
+            state: "asking",
+            detail: "hmz is not installed on box.".into(),
+        };
+        assert_eq!(
+            json(&asking),
+            r#"{"pipe":"p","state":"asking","detail":"hmz is not installed on box."}"#
+        );
         let data = Event::Data {
             pipe: "p".into(),
             data: "AA==".into(),
@@ -714,6 +763,52 @@ mod tests {
             (closed.name(), json(&closed).as_str()),
             ("pipe_closed", r#"{"pipe":"p","why":"w"}"#)
         );
+    }
+
+    /// A pipe held as `open_for` holds one, that opens nothing.
+    fn held(pipe: &str) -> mpsc::UnboundedReceiver<Vec<u8>> {
+        let (closing, closed) = mpsc::unbounded_channel();
+        lock(&PIPES).get_or_insert_default().insert(
+            pipe.to_owned(),
+            Pipe {
+                sending: None,
+                asking: None,
+                _closing: closing,
+            },
+        );
+        closed
+    }
+
+    #[test]
+    fn gives_an_asking_pipe_its_answer_once_and_no_other_pipe_any() {
+        // A pipe there is not, and one that is not asking: nothing.
+        answer("asks-0", true);
+        let _closed = held("asks-1");
+        answer("asks-1", true);
+        for install in [true, false] {
+            let answered = asking("asks-1");
+            answer("asks-1", install);
+            assert_eq!(answered.recv(), Ok(install));
+            // Asking no more: a second answer goes nowhere.
+            answer("asks-1", !install);
+            assert!(answered.recv().is_err());
+        }
+        // What was answered before it asked again is not its answer.
+        let answered = asking("asks-1");
+        assert!(answered.try_recv().is_err());
+        close("asks-1");
+    }
+
+    #[test]
+    fn closing_an_asking_pipe_ends_the_wait_as_a_no() {
+        let _closed = held("asks-2");
+        let answered = asking("asks-2");
+        let waiting = std::thread::spawn(move || answered.recv().unwrap_or(false));
+        close("asks-2");
+        assert!(!waiting.join().unwrap());
+        // A pipe closed before it asks takes no for its answer.
+        assert!(asking("asks-2").recv().is_err());
+        answer("asks-2", true);
     }
 
     #[tokio::test(flavor = "multi_thread")]

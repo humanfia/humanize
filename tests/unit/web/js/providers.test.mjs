@@ -106,8 +106,48 @@ test('the bridge fails a route with what was said last, or the reason it closed 
   assert.equal(FakeSocket.made[2].readyState, 3)
 })
 
-/** Tauri's internals as a page sees them, with an app that opens pipes to `served`. */
-function fakeTauri(served) {
+test('the bridge tells a route that asks, and sends the answer as text until the carrier is up', async () => {
+  for (const install of [true, false]) {
+    FakeSocket.made = []
+    const provider = bridge({ base: 'ws://127.0.0.1:9', WebSocket: FakeSocket })
+    const states = []
+    const opening = provider.open('stdio:ssh://box', 'x', {
+      state: (state, detail) => states.push([state, detail]),
+      asked: async () => install,
+      signal: new AbortController().signal,
+    })
+    await sleep(1)
+    const socket = FakeSocket.made[0]
+    socket.says('{"state":"asking","detail":"hmz is not installed on box."}')
+    await until(() => socket.sent.length === 1)
+    assert.deepEqual(socket.sent, [JSON.stringify({ install })])
+    assert.deepEqual(states, [['asking', 'hmz is not installed on box.']])
+    if (install) {
+      socket.says('{"state":"installing","detail":"hmz 1.2.3"}')
+      socket.says('{"state":"up","detail":""}')
+      await opening
+    } else {
+      socket.says('{"state":"failed","detail":"hmz is not installed on box."}')
+      socket.close(1011, 'hmz is not installed on box.')
+      await assert.rejects(opening, { message: 'hmz is not installed on box.' })
+    }
+  }
+  // An answer that comes once the socket has closed is not sent.
+  FakeSocket.made = []
+  let answered
+  const provider = bridge({ base: 'ws://127.0.0.1:9', WebSocket: FakeSocket })
+  const gone = provider.open('stdio:ssh://box', 'x', { state: noState, asked: () => new Promise((resolve) => (answered = resolve)), signal: new AbortController().signal })
+  await sleep(1)
+  FakeSocket.made[0].says('{"state":"asking","detail":"hmz is not installed on box."}')
+  FakeSocket.made[0].close(1001)
+  await assert.rejects(gone)
+  answered(true)
+  await sleep(1)
+  assert.deepEqual(FakeSocket.made[0].sent, [])
+})
+
+/** Tauri's internals as a page sees them, with an app that opens pipes to `served`, asking first where `asks`. */
+function fakeTauri(served, { asks = false } = {}) {
   const callbacks = new Map()
   const listeners = new Map()
   const app = new Map()
@@ -140,8 +180,19 @@ function fakeTauri(served) {
           )
           // The app tells the state before it answers, as it may.
           emit('pipe_state', { pipe, state: 'connecting', detail: 'dialing' })
-          setTimeout(() => emit('pipe_state', { pipe, state: 'up', detail: '' }), 5)
+          if (asks) emit('pipe_state', { pipe, state: 'asking', detail: 'hmz is not installed on box.' })
+          else setTimeout(() => emit('pipe_state', { pipe, state: 'up', detail: '' }), 5)
           return { pipe }
+        }
+        if (command === 'pipe_answer') {
+          if (args.install) {
+            emit('pipe_state', { pipe: args.pipe, state: 'installing', detail: 'hmz 1.2.3' })
+            emit('pipe_state', { pipe: args.pipe, state: 'up', detail: '' })
+          } else {
+            emit('pipe_state', { pipe: args.pipe, state: 'failed', detail: 'hmz is not installed on box.' })
+            emit('pipe_closed', { pipe: args.pipe, why: 'hmz is not installed on box.' })
+          }
+          return null
         }
         if (command === 'pipe_send') return app.get(args.pipe).send(Uint8Array.from(atob(args.data), (c) => c.charCodeAt(0)))
         if (command === 'pipe_close') return app.get(args.pipe).close('closed by the page')
@@ -168,6 +219,50 @@ test('the desktop app pipes carry a session through pipe_open, pipe_send and its
   )
   client.close()
   await until(() => fake.invoked.some(([command]) => command === 'pipe_close'))
+})
+
+test('a pipe of the desktop app that asks is answered with pipe_answer', async () => {
+  for (const install of [true, false]) {
+    const served = daemon()
+    const fake = fakeTauri(served, { asks: true })
+    const client = connect({ name: 'box', id: '', routes: ['stdio:ssh://box'] }, [tauri(fake.internals)], { client: { name: '', kind: 'desktop' } })
+    await until(() => client.state.state === 'asking')
+    assert.deepEqual(client.state, { state: 'asking', detail: 'hmz is not installed on box.' })
+    assert.ok(!fake.invoked.some(([command]) => command === 'pipe_answer'))
+    client.answer(install)
+    await until(() => fake.invoked.some(([command]) => command === 'pipe_answer'))
+    assert.deepEqual(fake.invoked.filter(([command]) => command === 'pipe_answer'), [['pipe_answer', { pipe: 'p1', install }]])
+    if (install) assert.deepEqual(await client.call('echo', {}), {})
+    else {
+      await until(() => client.state.state === 'failed')
+      assert.deepEqual(client.state, { state: 'failed', detail: 'hmz is not installed on box.' })
+    }
+    client.close()
+  }
+})
+
+test('a client closed while it asks closes the carrier that asked, and answers it nothing', async () => {
+  const fake = fakeTauri(daemon(), { asks: true })
+  const piped = connect({ name: 'box', id: '', routes: ['stdio:ssh://box'] }, [tauri(fake.internals)])
+  await until(() => piped.state.state === 'asking')
+  piped.close()
+  await until(() => fake.invoked.some(([command]) => command === 'pipe_close'))
+  assert.deepEqual(fake.invoked.filter(([command]) => command === 'pipe_close'), [['pipe_close', { pipe: 'p1' }]])
+
+  FakeSocket.made = []
+  const dialed = connect({ name: 'box', id: '', routes: ['stdio:ssh://box'] }, [bridge({ base: 'ws://127.0.0.1:9', WebSocket: FakeSocket })])
+  await until(() => FakeSocket.made.length === 1 && FakeSocket.made[0].readyState === 1)
+  const [socket] = FakeSocket.made
+  socket.says('{"state":"asking","detail":"hmz is not installed on box."}')
+  assert.equal(dialed.state.state, 'asking')
+  dialed.close()
+  assert.equal(socket.closedWith, 1000)
+  // What the server says of it after is said of no daemon.
+  socket.says('{"state":"asking","detail":"hmz is not installed on box."}')
+  await sleep(5)
+  assert.equal(dialed.state.state, 'idle')
+  assert.deepEqual(socket.sent, [])
+  assert.ok(!fake.invoked.some(([command]) => command === 'pipe_answer'))
 })
 
 test('a route the desktop app refuses to open leaves the daemon failed with the sentence the app said', async () => {

@@ -12878,8 +12878,47 @@ def remotes() -> Any:
     # Asked from the screen's thread and from workers alike: one reach, however many ask.
     with _REACHING:
         if not _REACH:
-            _REACH.append(_hmz().daemons.remotes())
+            # Asked of whoever is at this interface where a machine has no hmz.
+            _REACH.append(_hmz().daemons.remotes(install=None))
         return _REACH[0]
+
+
+def asking() -> list[str]:
+    """The daemons of other machines that ask whether to install hmz there, by name."""
+    with _REACHING:
+        if not _REACH:
+            return []
+        reach = _REACH[0]
+    return [
+        name for name in daemon_names()[1:] if reach.state(name)["state"] == "asking"
+    ]
+
+
+class Installs(Popup):
+    """Whether to install hmz on the machine of a daemon that has none (Section 19.5.4)."""
+
+    CSS = _popup("Installs")
+
+    ESC: ClassVar = "not now"
+
+    PRIMARY: ClassVar = "yes"
+
+    def __init__(self, daemon: str) -> None:
+        """Initializes the question.
+
+        Args:
+          daemon: The daemon that asks.
+        """
+        super().__init__()
+        self.daemon = daemon
+        self.asked = f"hmz is not installed on {daemon}. Install it?"
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Installing it, or leaving the daemon unreached."""
+        return [
+            ("yes", "install", "install hmz there, and uv where there is none"),
+            ("no", "not now", "leave it unreached until it is connected again"),
+        ]
 
 
 def let_go() -> None:

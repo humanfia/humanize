@@ -88,6 +88,7 @@ Every error in the launch window has a **Documentation** button. See [Humanize D
 | `That pairing code is not valid: ask for a new one.` | The code was already used or has expired, or the daemon restarted or made 16 newer codes. | Run `hmz daemon pair` again on that machine and add it with the new code. |
 | `<name> is not the daemon it was paired with.` | The machine at that address answers with another identity: its `identity/` directory was deleted, or the address now reaches another machine. | If you expect this, remove the daemon and add it again with a new pairing code. |
 | `<route> needs the id of the daemon it reaches.` | The route is not a trusted one, and the daemon was saved with no daemon id. | Remove the daemon and add it again with a pairing code. |
+| `hmz is not installed on <name>.` on a remote daemon | The SSH machine has no `hmz`, and you clicked **Not now**, pressed <kbd>esc</kbd>, or closed the dialog that offered to install it. Humanize does not retry this machine by itself. | Click **Connect**, then **Install** in the dialog. Or install `hmz` on that machine by hand, then click **Connect**: see [Install and update](/user/install). |
 | A remote daemon shows as failed | The route to that machine is down. | Open **Settings → Daemons**, read the reason in the **State** column, and click **Connect** to try again: see [Connect to other machines](/user/daemons). |
 
 After `hmz update`, a running daemon keeps its runs on the old version until it stops.

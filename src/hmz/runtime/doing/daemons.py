@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from hmz.rpc import Call, Kind, Pipe
 
 __all__ = [
+    "ASKING",
     "CARRIED",
     "CONNECTING",
     "FAILED",
@@ -503,14 +504,19 @@ class Daemons:
         _changes(change)
         return added
 
-    def remotes(self, version: str | None = None) -> Remotes:
+    def remotes(
+        self, version: str | None = None, *, install: bool | None = False
+    ) -> Remotes:
         """Every daemon written down, each reached as it is first asked for, until closed.
 
         Args:
           version: The version of `hmz` installed over `stdio:ssh` where another is found;
             this one's by default.
+          install: What is done where no `hmz` is found there: `False` installs nothing,
+            `True` installs unasked, and `None` has the daemon `asking` until
+            :meth:`Remotes.answer` answers it.
         """
-        return Remotes(version)
+        return Remotes(version, install=install)
 
 
 def _pins(name: str, daemon: str) -> None:
@@ -554,9 +560,10 @@ def _networks() -> dict[str, EasyTier]:
 UV = "0.12.24"
 
 #: What a daemon's state may be (Section 3.8.2.2 of daemon.md).
-IDLE, CONNECTING, INSTALLING, UP, FAILED = (
+IDLE, CONNECTING, ASKING, INSTALLING, UP, FAILED = (
     "idle",
     "connecting",
+    "asking",
     "installing",
     "up",
     "failed",
@@ -591,7 +598,8 @@ echo "daemon: $daemon"
 """
 )
 
-#: Installs `hmz` at a version, `{version}`, fetching uv first where there is none.
+#: Installs `hmz` as `{wanted}` names it, `hmz==<version>` or the bare `hmz` of the latest
+#: release, fetching uv first where there is none.
 _INSTALL = _PATH + (
     "export UV_NO_MODIFY_PATH=1; "
     "if ! command -v uv >/dev/null 2>&1; then "
@@ -600,7 +608,7 @@ _INSTALL = _PATH + (
     f"then curl -LsSf https://astral.sh/uv/{UV}/install.sh | sh; "
     f"else wget -qO- https://astral.sh/uv/{UV}/install.sh | sh; fi; "
     "command -v uv >/dev/null 2>&1 || exit 1; fi; "
-    "exec uv tool install --force --python '>=3.12' 'hmz=={version}'"
+    "exec uv tool install --force --python '>=3.12' '{wanted}'"
 )
 
 #: What `ssh` is told for the probe and the install before what the route says, since ssh
@@ -992,10 +1000,27 @@ def _secured(
 class _Remote:
     """One daemon, reached and reached again on a thread of its own until it is closed."""
 
-    def __init__(self, name: str, version: str, changed: threading.Condition) -> None:
+    def __init__(
+        self,
+        name: str,
+        version: str,
+        changed: threading.Condition,
+        *,
+        install: bool | None = False,
+    ) -> None:
         self.name = name
         self._version = version
         self._changed = changed
+        #: Whether `hmz` is installed where none is found: None while nobody has said, which
+        #: asks; a yes is kept for as long as this is and its routes are those the yes was
+        #: said of (Section 3.8.3.8 of daemon.md), after which it is as was said beforehand.
+        self._install = install
+        self._beforehand = install
+        self._routes: list[str] = []
+        #: Set by a no, or where nobody is asked: it is not reached again by itself.
+        self._declined = False
+        #: What `hmz is not installed on <name>.` calls the machine.
+        self._where = name
         self.state = IDLE
         self.detail = ""
         self.there = ""
@@ -1036,15 +1061,32 @@ class _Remote:
         if self._thread is not None:
             self._thread.join(timeout=_STOPPING * 3)
 
+    def answer(self, install: bool) -> None:  # noqa: FBT001 -- the answer is one
+        """Answers whether to install `hmz` there, where `asking` was said; else nothing.
+
+        A no fails the route that asked with `hmz is not installed on <name>.`
+        """
+        with self._changed:
+            if self.state != ASKING:
+                return
+            if install:
+                self._install = True
+            else:
+                self._declined = True
+            self._says(CONNECTING)
+
     def _says(self, state: str, detail: str = "") -> None:
         with self._changed:
             self.state, self.detail = state, detail
             self._changed.notify_all()
 
     def _tells(self, state: str, detail: str = "") -> None:
-        """Says how it stands from a route racing, where the race is not over."""
+        """Says how it stands from a route racing, where the race is not over.
+
+        Nothing while the user is asked, which is how it stands until the answer.
+        """
         with self._changed:
-            if self._racing.is_set():
+            if self._racing.is_set() and self.state != ASKING:
                 self._says(state, detail)
 
     def _keeps(self) -> None:
@@ -1054,6 +1096,7 @@ class _Remote:
         backoff = Backoff()
         while not self._closed.is_set():
             self._again.clear()
+            self._declined = False
             self._says(CONNECTING)
             try:
                 session = self._reaches()
@@ -1062,6 +1105,10 @@ class _Remote:
                 if self._closed.is_set():
                     break
                 self._says(FAILED, str(why) or type(why).__name__)
+                if self._declined:
+                    # Not again by itself: when the user next asks to connect (3.8.3.9).
+                    self._again.wait()
+                    continue
             else:
                 with self._changed:
                     self.session = session
@@ -1092,6 +1139,9 @@ class _Remote:
         self.entry = _entry(self.name)
         if self.entry is None:
             raise _Failed(f"No daemon is called {self.name}.")
+        if self.entry["routes"] != self._routes:
+            # A yes was to the machine its routes reached then, not to the one these do.
+            self._routes, self._install = self.entry["routes"], self._beforehand
         pinned: str = self.entry["id"]
         networks = _networks()
         routed: dict[int, tuple[Route, float]] = {}
@@ -1121,6 +1171,7 @@ class _Remote:
         finally:
             with self._changed:
                 self._racing.clear()
+                self._changed.notify_all()
                 children = list(self._children)
                 self._children.clear()
             # What a route that lost was probing or installing with.
@@ -1159,6 +1210,9 @@ class _Remote:
     def _installed(self, route: Route) -> str:
         """Has the `hmz` there be this one's version, where it may be made so.
 
+        A development build, version `0.0.0`, replaces none, and installs the latest release
+        where none is. None is installed where none is before the user has said to.
+
         Returns:
           Why the `hmz` there is not this one's, where it is not; else "".
 
@@ -1171,31 +1225,62 @@ class _Remote:
             raise _Failed(str(why)) from why
         found = self._probed(on)
         there = found.get("hmz", "")
-        wanted = self._version
-        if wanted in ("0.0.0", there):
-            if not there:
-                raise _Failed(f"hmz is not installed on {self.name}.")
+        pinned = self._version != "0.0.0"
+        wanted = f"hmz {self._version}" if pinned else "hmz"
+        named = f"hmz=={self._version}" if pinned else "hmz"
+        if not there:
+            self._asked()
+        elif not pinned or there == self._version:
             return ""
-        if there and found.get("daemon") != "none":
-            if found.get("daemon") == "running":
-                return f"hmz {there} there holds running epics; hmz {wanted} waits"
+        elif found.get("daemon") == "running":
+            return f"hmz {there} there holds running epics; {wanted} waits"
+        elif found.get("daemon") != "none":
             return f"Whether hmz {there} there runs epics is unknown; not replaced"
-        self._tells(INSTALLING, f"hmz {wanted}")
+        self._tells(INSTALLING, wanted)
         lines: list[str] = []
-        installing = self._started(
-            on.line(["sh", "-c", _INSTALL.format(version=wanted)])
-        )
+        installing = self._started(on.line(["sh", "-c", _INSTALL.format(wanted=named)]))
         for line in _lines(installing, _INSTALLING):
             lines.append(line)
             if line.strip():
                 self._tells(INSTALLING, line.strip())
         if installing.wait() != 0:
-            raise _Failed(_last(lines, f"hmz {wanted} could not be installed."))
+            raise _Failed(_last(lines, f"{wanted} could not be installed."))
         there = self._probed(on).get("hmz", "")
-        if there != wanted:
-            raise _Failed(f"hmz {wanted} was installed, and hmz {there} answers.")
+        if not pinned and not there:
+            raise _Failed("hmz could not be installed.")
+        if pinned and there != self._version:
+            raise _Failed(f"{wanted} was installed, and hmz {there} answers.")
         self._tells(CONNECTING)
         return ""
+
+    def _asked(self) -> None:
+        """Returns once `hmz` may be installed there, where none is.
+
+        At once where that was said beforehand or answered before; else the daemon is
+        `asking` until it is answered (Section 3.8.3.7 of daemon.md).
+
+        Raises:
+          _Failed: `hmz is not installed on <name>.` on a no, or where nobody is asked;
+            `Closed.` where it was let go of, or another route won, before an answer.
+        """
+        missing = f"hmz is not installed on {self._where}."
+        with self._changed:
+            if self._install is None and not self._declined:
+                if self._racing.is_set():
+                    self._says(ASKING, missing)
+                self._changed.wait_for(
+                    lambda: (
+                        self._install
+                        or self._declined
+                        or self._closed.is_set()
+                        or not self._racing.is_set()
+                    )
+                )
+                if self._closed.is_set() or not self._racing.is_set():
+                    raise _Failed("Closed.")
+            if not self._install:
+                self._declined = True
+                raise _Failed(missing)
 
     def _probed(self, on: Road) -> dict[str, str]:
         probing = self._started(on.line(["sh", "-c", _PROBE]))
@@ -1231,6 +1316,8 @@ class _Remote:
             pipes, self._pipes = self._pipes, []
             children = list(self._children)
             self._children.clear()
+            # Whoever waits for an answer sees that it is closed.
+            self._changed.notify_all()
         if session is not None:
             session.close()
         for pipe in pipes:
@@ -1251,7 +1338,8 @@ class Dialing(_Remote):
     Args:
       route: The route.
       pinned: The daemon id pinned, `""` for none.
-      told: Told each state, `connecting`, `installing` or `failed`, and what was said last.
+      told: Told each state, `connecting`, `asking`, `installing` or `failed`, and what was
+        said last.
       version: The version of `hmz` installed where another is found; this one's by default.
     """
 
@@ -1262,7 +1350,10 @@ class Dialing(_Remote):
         told: Callable[[str, str], None],
         version: str | None = None,
     ) -> None:
-        super().__init__(str(route), version or _here_version(), threading.Condition())
+        super().__init__(
+            str(route), version or _here_version(), threading.Condition(), install=None
+        )
+        self._where = route.host
         self._route = route
         self._pinned = pinned
         self._told = told
@@ -1293,6 +1384,7 @@ class Dialing(_Remote):
         finally:
             with self._changed:
                 self._racing.clear()
+                self._changed.notify_all()
                 children = list(self._children)
                 self._children.clear()
             # What probed or installed: the carrier is what is kept.
@@ -1356,10 +1448,16 @@ class Remotes:
 
     Args:
       version: The version of `hmz` installed where another is found; this one's by default.
+      install: What is done where no `hmz` is found over `stdio:ssh`: `False` installs
+        nothing, as nobody is there to ask; `True` installs unasked; `None` has the daemon
+        `asking` until :meth:`answer` answers it.
     """
 
-    def __init__(self, version: str | None = None) -> None:
+    def __init__(
+        self, version: str | None = None, *, install: bool | None = False
+    ) -> None:
         self._version = version or _here_version()
+        self._install = install
         self._changed = threading.Condition()
         self._held: dict[str, _Remote] = {}
         self._closed = False
@@ -1367,8 +1465,8 @@ class Remotes:
     def state(self, name: str) -> dict[str, str]:
         """How a daemon stands: `{state, detail, version}`.
 
-        Its state is `idle` where it has not been asked for, then `connecting`, `installing`,
-        `up` or `failed`; Local's is `up` at this version.
+        Its state is `idle` where it has not been asked for, then `connecting`, `asking`,
+        `installing`, `up` or `failed`; Local's is `up` at this version.
         """
         if name == LOCAL:
             return {"state": UP, "detail": "", "version": _here_version()}
@@ -1389,8 +1487,29 @@ class Remotes:
         self._starts(name, now=True)
         return self.state(name)
 
+    def answer(
+        self,
+        name: str,
+        install: bool,  # noqa: FBT001 -- as Section 4.14 of python.md has it
+    ) -> dict[str, str]:
+        """Answers a daemon that is `asking` whether to install `hmz` on its machine.
+
+        A yes is kept for as long as these are; a no fails it with `hmz is not installed on
+        <name>.` until :meth:`connect` reaches it again. Nothing to one that is not asking.
+
+        Returns:
+          How it stands.
+        """
+        with self._changed:
+            held = self._held.get(name)
+        if held is not None:
+            held.answer(install)
+        return self.state(name)
+
     def client(self, name: str) -> Client:
         """The client of the session to a daemon, reached first where it was not.
+
+        Never waited for where it is `asking`.
 
         Raises:
           Unreached: If it cannot be reached, with its state.
@@ -1492,7 +1611,7 @@ class Remotes:
                     threading.Thread(target=gone.close, daemon=True).start()
                 raise LookupError("There is no daemon by that name.")
             held = self._held.setdefault(
-                name, _Remote(name, self._version, self._changed)
+                name, _Remote(name, self._version, self._changed, install=self._install)
             )
         held.starts(said, now=now)
         return held
@@ -1508,7 +1627,8 @@ class Remotes:
         with self._changed:
             # Not past a failure, which is reached again after its wait rather than at once.
             self._changed.wait_for(
-                lambda: held.state in (UP, FAILED, INSTALLING), timeout=_WAITING
+                lambda: held.state in (UP, FAILED, ASKING, INSTALLING),
+                timeout=_WAITING,
             )
             if held.state == UP:
                 return held

@@ -112,6 +112,12 @@ export class Refused extends Error {
 const clients = new Map()
 /** Who is told each change of any daemon's state. */
 const stateWatchers = new Set()
+/**
+ * The daemons the user has said to install hmz on the machine of, since the page was loaded, each
+ * by the routes it had then: a yes is to the machine those reach (Section 3.13.22 of
+ * protocol/web.md).
+ */
+const installs = new Map()
 
 /**
  * The client of a daemon, by name: reached in the background from the first time it is asked for.
@@ -128,6 +134,7 @@ export async function client(name = daemon()) {
     client: CLIENT,
     // An id answered over a trusted route is pinned from then on (Section 3.8.2.7 of protocol/daemon.md).
     pinned: (id) => name !== 'local' && daemons.update(name, { id }).catch(() => {}),
+    install: installs.get(name) === entry.routes.join(' '),
   })
   clients.set(name, made)
   made.watch((state) => {
@@ -169,6 +176,19 @@ export async function hello(name = daemon()) {
     const stop = one.watch(settles)
     settles(one.state)
   })
+}
+
+/**
+ * Answers a daemon that is `asking` whether hmz is installed on its machine: a yes is kept, and
+ * answers for the page from then on, for as long as its routes are those it has now; a no leaves
+ * it `failed` until it is reached again. Nothing is kept of one that is not asking.
+ *
+ * @param {string} name
+ * @param {boolean} install
+ */
+export function answer(name, install) {
+  const held = clients.get(name)
+  if (held?.answer(install) && install) installs.set(name, held.routes.join(' '))
 }
 
 /** Reaches a daemon again at once: one that failed, or one whose entry has changed. */
@@ -216,7 +236,7 @@ export async function pair(name, code, first, ice = []) {
 }
 
 /** How a daemon is reached, as a failure to reach it says it. */
-const STATES = { idle: t('idle@@link'), connecting: t('connecting'), installing: t('installing'), up: t('up'), failed: t('failed') }
+const STATES = { idle: t('idle@@link'), connecting: t('connecting'), asking: t('asking@@link'), installing: t('installing'), up: t('up'), failed: t('failed') }
 
 /** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
 function refused(error, name) {

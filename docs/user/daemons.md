@@ -17,7 +17,7 @@ Every machine running Humanize has its own [daemon](/user/daemon). Add another m
 | Pairing code | A listening daemon and a one-time code from `hmz daemon pair`. | You can reach a port, WebSocket, or relay on it. |
 | EasyTier | An EasyTier entry with the same secret and node, and a pairing code. | Both machines are behind NAT with no open port and no SSH. |
 
-Over SSH, Humanize installs `hmz` on the remote machine if it is missing or a different version, and starts the remote daemon. It never asks for a password, and it never replaces an `hmz` binary while its daemon has running epics.
+Over SSH, Humanize starts the remote daemon itself. If the remote machine has no `hmz`, a dialog asks `hmz is not installed on <name>. Install it?`: click **Install** to install it, or **Not now** to leave the machine `failed` until you click **Connect** again. After you click **Install** for a machine, Humanize does not ask about it again until you reload the page or change the machine's routes. If the remote `hmz` is a different version, Humanize replaces it without asking, but never while its daemon has running epics. It never asks for a password.
 
 ## Create a pairing code
 
@@ -77,6 +77,7 @@ Each row displays **Name**, **Kind**, **Address** (the routes), and **State**. C
 | --- | --- |
 | `idle` | Not requested yet. |
 | `connecting` | Trying routes. |
+| `asking` | The SSH machine has no `hmz`, and the dialog is waiting for **Install** or **Not now**. |
 | `installing` | Installing `hmz` over SSH, or downloading EasyTier. |
 | `up` | Connected. |
 | `failed` | Connection failed. Displays the reason. |
@@ -101,7 +102,7 @@ Those are the only two places a machine is chosen. Everything else, including a 
 
 ![The daemon bar opens, devbox is picked, and the sidebar turns to devbox](/shots/user-daemons-switch.svg)
 
-The bar displays the machine's name, its host, and its state. A connected machine shows `idle` or `{n} live`, the count of live epics. Otherwise, the bar shows `connecting`, `installing`, `failed`, or `not connected`; point at the bar to see the reason. In the **Daemon** submenu, each machine shows its host and state, and **Connect** under a failed remote machine retries its routes.
+The bar displays the machine's name, its host, and its state. A connected machine shows `idle` or `{n} live`, the count of live epics. Otherwise, the bar shows `connecting`, `asking`, `installing`, `failed`, or `not connected`; point at the bar to see the reason. In the **Daemon** submenu, each machine shows its host and state, and **Connect** under a failed remote machine retries its routes.
 
 ### Edit and copy machine settings
 

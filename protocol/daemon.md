@@ -321,6 +321,7 @@ connect to it, by racing its routes as Section 3.6 of [WIRE] states.
 | --- | --- |
 | `idle` | Not reached yet |
 | `connecting` | A route is being opened: ssh reaching the host, EasyTier joining, a relay joining |
+| `asking` | The user is asked whether to install hmz on the host, where none is |
 | `installing` | hmz is being installed on the host, or EasyTier on this machine |
 | `up` | A session is up |
 | `failed` | Not reached, with the reason |
@@ -328,7 +329,7 @@ connect to it, by racing its routes as Section 3.6 of [WIRE] states.
 **3.8.2.3** Each state MUST carry what was said last, including the last line of an install.
 
 **3.8.2.4** A session to a remote daemon that drops or fails MUST be tried again as Section 3.6.4 of
-[WIRE] states.
+[WIRE] states, but where Section 3.8.3.9 states otherwise.
 
 **3.8.2.5** The client that reached a remote daemon going MUST close its sessions and stop the
 `ssh`, `wsl.exe` and EasyTier processes it started for it; the epics on that machine MUST keep
@@ -347,9 +348,9 @@ have the id it answered pinned.
 find the hmz there as a login shell finds it, with `~/.local/bin` included, and MUST learn its
 version.
 
-**3.8.3.2** Where no hmz is there, or one of another release, the client MUST install hmz of its
-own release there as a uv tool, installing uv there first where none is, and MUST be `installing`
-while it does.
+**3.8.3.2** Where an hmz of another release is there, or none is and the user has said to install
+it (Section 3.8.3.7), the client MUST install hmz of its own release there as a uv tool, installing
+uv there first where none is, and MUST be `installing` while it does.
 
 **3.8.3.3** The client MUST NOT replace an hmz there while that machine's daemon holds running
 epics, and MUST NOT replace it where it cannot tell; it MUST then use the hmz there and say `hmz
@@ -360,11 +361,41 @@ unknown; not replaced`.
 or `hmz <wanted> could not be installed.`; an install after which another version answers MUST leave
 it `failed` with `hmz <wanted> was installed, and hmz <there> answers.`
 
-**3.8.3.5** A development build of hmz, version `0.0.0`, MUST install nothing on a remote machine
-and MUST use the hmz there; where none is there, the remote daemon MUST be `failed` with `hmz is not
-installed on <name>.`
+**3.8.3.5** A development build of hmz, version `0.0.0`, MUST replace no hmz on a remote machine
+and MUST use the hmz there; where none is there and the user has said to install it (Section
+3.8.3.7), it MUST install hmz there as Section 3.8.3.2 states but at no version, the release uv
+then picks, and MUST use the hmz that then answers, whatever its release. Such an install that
+fails MUST leave the remote daemon `failed` with the last line uv said, or `hmz could not be
+installed.`, and one after which no hmz answers with `hmz could not be installed.`
 
 **3.8.3.6** A client MUST install nothing on the machine of a route other than `stdio:ssh`.
+
+**3.8.3.7** Where no hmz is there, the client MUST install nothing until the user has said to: the
+remote daemon MUST be `asking`, with `hmz is not installed on <name>.`, for as long as a route of it
+waits for that answer, and a frontend MUST then ask the user `hmz is not installed on <name>.
+Install it?` and MUST give the client the answer, yes or no. `<name>` MUST be the name of the remote
+daemon, or the host of the route where what opens the route is told no name. An hmz of another
+release there MUST NOT be asked about.
+
+**3.8.3.8** On yes, the client MUST install as Section 3.8.3.2 or Section 3.8.3.5 states, and, for
+as long as the client runs and that remote daemon's routes are those it had when the user said yes,
+MUST NOT ask of that remote daemon again and MUST install there unasked; of a remote daemon whose
+routes have changed since, it MUST ask again. On no, the route MUST fail with `hmz is not installed
+on <name>.`, as MUST, unasked, every other route of that remote daemon that finds no hmz while its
+routes are tried that time; a no MUST NOT be remembered beyond that.
+
+**3.8.3.9** A remote daemon that is `failed` after a route of it failed with `hmz is not installed
+on <name>.` MUST NOT be tried again as Section 3.8.2.4 states: it MUST be reached again only when
+the user next asks to connect to it (Section 3.8.2.1).
+
+**3.8.3.10** A client with no user to ask, as the SDK is, MUST NOT be `asking`: it MUST take no for
+the answer, unless whoever started it said beforehand to install, which it MUST take for a yes.
+
+**3.8.3.11** The question MUST stand until it is answered, every route that waits for the answer
+has failed by itself, the client lets go of the remote daemon, or a session to that daemon is up
+over another route, which MUST go on being tried meanwhile; a client that lets go of a remote daemon
+MUST close every carrier it was opening to it, the one that asked included. The time the question
+stands MUST NOT count toward the time a route has to open (Section 3.4.9 of [WIRE]).
 
 #### 3.8.4. Using one
 
@@ -2619,9 +2650,10 @@ release does not stop a daemon or its epics (Section 3.7.2).
 Remote daemons. A `stdio:ssh` route is carried by `ssh` with the user's own keys and ssh config, in
 batch mode, and never asks for a password or the acceptance of a host key (Section 3.8.2.6 and
 Section 3.4.3 of [WIRE]). Reaching an SSH daemon can install hmz, and uv, on the remote machine
-(Section 3.8.3.2), and does not replace an hmz there whose daemon holds running epics (Section
-3.8.3.3). An EasyTier network is derived from a secret of at least 16 bytes that does not leave the
-machine it is set on and is not passed on any command line (Section 3.8.5.1 and Section 3.8.5.2);
+(Section 3.8.3.2), installs none where none is there before the user says to (Section 3.8.3.7), and
+does not replace an hmz there whose daemon holds running epics (Section 3.8.3.3). An EasyTier
+network is derived from a secret of at least 16 bytes that does not leave the machine it is set on
+and is not passed on any command line (Section 3.8.5.1 and Section 3.8.5.2);
 EasyTier runs without root and without a virtual network device (Section 3.8.5.5), and the binary
 hmz downloads is checked against a pinned SHA-256 unless `HUMANIZE_EASYTIER` names another binary
 (Section 3.8.5.6). Whoever holds the secret reaches the daemon's port over the network, but is still

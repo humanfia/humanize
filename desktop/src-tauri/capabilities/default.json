@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The splash and the page the app carries, the window loading no other: the splash granted its own commands, which say how starting goes and change it; the page granted to post a notification, to read an epic's archive opened with the app, to open, use and close pipes and keep the EasyTier entries they need, and to hear what its pipes say; and both to drag and zoom the window by its top row.",
+  "description": "The splash and the page the app carries, the window loading no other: the splash granted its own commands, which say how starting goes and change it; the page granted to post a notification, to read an epic's archive opened with the app, to open, use, answer and close pipes and keep the EasyTier entries they need, and to hear what its pipes say; and both to drag and zoom the window by its top row.",
   "windows": ["main"],
   "permissions": [
     "allow-status",
@@ -13,6 +13,7 @@
     "allow-pipe-open",
     "allow-pipe-send",
     "allow-pipe-close",
+    "allow-pipe-answer",
     "allow-easytier-list",
     "allow-easytier-set",
     "allow-easytier-remove",

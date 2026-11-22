@@ -8,6 +8,7 @@ a code it made: the page claims it over `/dial`, which opens mutual TLS as this 
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import signal
 import subprocess
@@ -20,6 +21,8 @@ import pytest
 from websockets.exceptions import ConnectionClosed
 
 from hmz.daemon import where
+from hmz.reach import WebSocketPipe
+from hmz.rpc import Peer, hello
 from hmz.trust import pairing
 
 from .doubles_ssh import Host, faked
@@ -143,6 +146,75 @@ def test_another_version_there_is_installed_and_said_as_it_is(
     assert {"state": "installing", "detail": "hmz 1.2.3"} in said
     assert said[-1] == {"state": "up", "detail": ""}
     assert "hmz==1.2.3" in host.installed()
+
+
+#: What `/dial` says of a host with no `hmz`: by the route's host, as it is told no name.
+MISSING = "hmz is not installed on box.example."
+
+
+def _asked(socket_: ClientConnection) -> list[dict[str, str]]:
+    """Every state `/dial` says until it asks."""
+    said: list[dict[str, str]] = []
+    while not said or said[-1]["state"] != "asking":
+        message = socket_.recv(timeout=PATIENCE)
+        assert isinstance(message, str)
+        said.append(json.loads(message))
+    return said
+
+
+def test_none_there_is_asked_about_and_installed_once_the_page_says_to(
+    host: Host,
+) -> None:
+    host.installs(None)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial(BOX))
+        # An answer to no question does nothing.
+        socket_.send(json.dumps({"install": True}))
+        said = _asked(socket_)
+        assert said[0] == {"state": "connecting", "detail": ""}
+        assert said[-1] == {"state": "asking", "detail": MISSING}
+        assert not host.installed()
+
+        socket_.send(json.dumps({"install": True}))
+        said = states(socket_)
+        assert "installing" in [one["state"] for one in said]
+        assert said[-1] == {"state": "up", "detail": ""}
+        assert host.installed().split()[-1].startswith("hmz")
+        peer = Peer(WebSocketPipe(socket_, trusted=True), lambda _: None, name="page")
+        try:
+            assert hello(peer, "page", "web", timeout=PATIENCE)["device"] == "local"
+        finally:
+            peer.close()
+            socket_.close()
+
+
+def test_a_no_fails_the_dial(host: Host) -> None:
+    host.installs(None)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial(BOX))
+        _asked(socket_)
+        socket_.send(json.dumps({"install": False}))
+        assert states(socket_)[-1] == {"state": "failed", "detail": MISSING}
+        assert _closed(socket_) == (1011, MISSING)
+        assert not host.installed()
+
+
+@pytest.mark.parametrize("text", ["hello", "{}", '{"install": 1}', "[true]"])
+def test_other_text_before_it_is_up_closes_the_dial(host: Host, text: str) -> None:
+    host.installs(None)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial(BOX))
+        _asked(socket_)
+        socket_.send(text)
+        # Closed by the server, whichever of its two threads says so first.
+        assert _closed(socket_)[0] in (1000, 1011)
+        assert not host.installed()
 
 
 def test_a_daemon_that_cannot_be_reached_says_why(host: Host) -> None:

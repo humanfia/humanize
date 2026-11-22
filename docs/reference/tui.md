@@ -169,6 +169,8 @@ If you leave a menu with unsaved changes, `Save?` opens with **Save** and **Disc
 | `/settings daemons` | `connect`, `edit…`, `remove`, `copy name`, and on a daemon that is up `pair a device…` and `devices…`. `Local` has only the last two. |
 | `/epics` on another daemon | An epic: `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`. A chat: `follow`, `copy id`. |
 
+When an SSH machine has no hmz, a box asks `hmz is not installed on <name>. Install it?` over whatever is on screen, with `install` and `not now`. <kbd>esc</kbd> answers `not now`, which leaves the daemon `failed` with `hmz is not installed on <name>.` until you pick `connect` again. After `install`, that daemon is not asked about again while the interface runs and its routes stay the same.
+
 <kbd>enter</kbd> or <kbd>m</kbd> on an epic of `/epics` opens its rows: `resume epic`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`. See [History and search](/user/history).
 
 ### Epics list

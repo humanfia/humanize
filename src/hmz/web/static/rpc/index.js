@@ -13,13 +13,18 @@
 //   const here = connect(local(), providers, { client: { name: '', kind: 'web' } })
 //   const remote = connect((await store.list())[0], providers, { client: { name: '', kind: 'web' } })
 //
-// `connect(entry, providers, {client, pinned})` returns a `Client` at once and reaches the daemon
+// `connect(entry, providers, {client, pinned, install})` returns a `Client` at once and reaches the daemon
 // in the background: it races `entry.routes` 250 ms apart through the first provider that opens
 // each, says `session.hello`, keeps the first session answering the id `entry` pins, and tries
 // again after 1 s, doubling to 60 s, whenever the session drops or every route fails. Where
-// `entry.id` is '', the id answered over a trusted route is pinned and told to `pinned`.
+// `entry.id` is '', the id answered over a trusted route is pinned and told to `pinned`. Where a
+// `stdio:ssh` route finds no hmz on its machine the client is `asking` until answered, unless
+// `install` said yes beforehand; answered no, it is `failed` and tries no more.
 //
-//   client.state                          {state, detail}: idle, connecting, installing, up, failed
+//   client.state                          {state, detail}: idle, connecting, asking, installing,
+//                                         up, failed
+//   client.answer(install)                answers a client that is asking: true installs hmz, and
+//                                         is kept; false fails the routes that asked
 //   client.watch(fn)                      tells fn each change of state; returns what stops it
 //   client.hello                          what session.hello answered, while up
 //   await client.call(method, params, {timeout, signal})

@@ -426,14 +426,15 @@ an untrusted route without `id` as Section 3.5.6 of [WIRE] states.
 [WIRE]), pinning `id`, before it carries any byte of the page's; since `pipe_open` names no daemon,
 the `<name>` of Section 4.4.4 of [WIRE] MUST be the route.
 
-**3.12.4** Until the carrier is open, the app MUST send `pipe_state` with `state` `connecting` or
-`installing` and what was said last, then `up` once it is open, or `failed` before `pipe_closed`;
+**3.12.4** Until the carrier is open, the app MUST send `pipe_state` with `state` `connecting`,
+`asking` (Section 3.12.12) or `installing` and what was said last, then `up` once it is open, or
+`failed` before `pipe_closed`;
 from `up` on, it MUST carry every `pipe_send` to the carrier and every byte of the carrier, after
 the line of Section 3.4.11 of [WIRE] on a `stdio:` carrier, to the page as `pipe_data`, unchanged
 and in order.
 
 **3.12.5** Over a `stdio:ssh` route, the app MUST find and install hmz on the remote machine as
-Section 3.8.3 of [DAEMON] states.
+Section 3.8.3 of [DAEMON] states, asking as Section 3.12.12 states.
 
 **3.12.6** An `easytier` route MUST be opened with the EasyTier entry of that name the app keeps
 (Section 4.3.6) and an EasyTier binary the app downloads and checks as Section 3.8.5.6 of [DAEMON]
@@ -468,6 +469,15 @@ daemon closed it.` where it said nothing.
 **3.12.11** The web view MUST hold `faces/frame.html`, the document a face runs in, to both the
 policy of Section 3.12.9 and its own (Section 4.5.8 of [WEB]), and MUST give a face no command of
 the app.
+
+**3.12.12** Where no hmz is on the machine of a `stdio:ssh` route, the app MUST send `pipe_state`
+with `state` `asking` and `hmz is not installed on <host>.`, `<host>` the host the route names,
+since `pipe_open` names no daemon, and MUST then wait, for as long as the pipe is held, for the
+command `pipe_answer` `{pipe, install}`, which it MUST give the page: `install` MUST be a boolean,
+`true` the yes and `false` the no of Section 3.8.3.8 of [DAEMON]. `pipe_answer` of a pipe the app
+does not hold, or of one that is not `asking`, MUST do nothing. The app MUST ask so of every such
+pipe and MUST remember no answer: the page remembers a yes (Section 3.13.22 of [WEB]) and does not
+open the route again by itself after a no (Section 3.13.23 of [WEB]).
 
 ## 4. Files of the Application
 

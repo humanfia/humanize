@@ -41,6 +41,7 @@ from hmz.tui.pick import (
     Devices,
     Epics,
     Exporting,
+    Installs,
     RemoteEpics,
     Revokes,
     Starting,
@@ -186,6 +187,57 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
         await leaves(pilot)
 
     assert [one["name"] for one in Hmz().daemons.all()] == ["box"]
+
+
+async def test_a_machine_with_no_hmz_is_asked_about_before_any_is_installed(
+    host: Host,
+) -> None:
+    host.installs(None)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    question = "hmz is not installed on box. Install it?"
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings daemons")
+        await on(pilot, Adjusts)
+        await _menu(pilot, "box")
+        await onto(pilot, "connect")
+        await pilot.press("enter")
+
+        # Asked over the page, with nothing installed meanwhile; esc is not now.
+        asked = await on(pilot, Installs)
+        assert asked.asked == question
+        await shows(pilot, question, "install", "not now")
+        assert not host.installed()
+        await pilot.press("escape")
+        await on(pilot, Adjusts)
+        await shows(pilot, "failed: hmz is not installed on box.")
+        assert not host.installed()
+
+        # Not reached again by itself; connect asks again, and install brings it up.
+        await _menu(pilot, "box")
+        await onto(pilot, "connect")
+        await pilot.press("enter")
+        await on(pilot, Installs)
+        await pilot.press("enter")
+        await on(pilot, Adjusts)
+        await shows(pilot, "up, hmz ")
+        assert host.installed().split()[-1].startswith("hmz")
+
+
+async def test_a_question_goes_once_its_daemon_no_longer_asks(host: Host) -> None:
+    host.installs(None)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        pick.remotes().connect("box")
+        # Over whatever is on the screen: here, the prompt.
+        await on(pilot, Installs)
+        pick.remotes().answer("box", False)
+        await until(
+            pilot, lambda: not isinstance(pilot.app.screen, Installs), "it to go"
+        )
+        assert pick.remotes().state("box")["state"] == "failed"
+        assert not host.installed()
 
 
 async def test_epics_of_no_such_daemon_are_refused(host: Host) -> None:

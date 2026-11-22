@@ -107,12 +107,14 @@ from .pick import (
     Declared,
     Epics,
     Held,
+    Installs,
     Leaves,
     RemoteEpics,
     Reports,
     Runs,
     ai_chan,
     ai_scope,
+    asking,
     asks,
     budget_of,
     daemon_names,
@@ -1201,6 +1203,8 @@ class Humanize(App[None]):
         #: Whether this interface is on its way out, so that the runs letting it go is not
         #: news to say.
         self._quitting = False
+        #: The question whether to install hmz on a daemon's machine, while one is asked.
+        self._installing: Installs | None = None
         #: Whose epics `/epics` lists: this machine's daemon until another is turned to.
         self._daemon = LOCAL_DAEMON
         #: The daemon of another machine and the workspace there whose host this follows,
@@ -1574,6 +1578,7 @@ class Humanize(App[None]):
         ).start()
         self._draw()
         self.set_interval(_REFRESH, self._draw)
+        self.set_interval(_REFRESH, self._asks_to_install)
         self._asks_what_runs()
         self._asks_about_reports()
         self._freshens_flows()
@@ -4498,6 +4503,29 @@ class Humanize(App[None]):
             "[dim]the current epic keeps its original roles; changes will apply "
             "to the next epic[/dim]"
         )
+
+    def _asks_to_install(self) -> None:
+        """Asks whether to install hmz where a daemon asks it, over whatever is on the screen.
+
+        One daemon at a time, and the question goes, unanswered, once its daemon no longer
+        asks (Section 19.5.4 of tui.md).
+        """
+        names = asking()
+        shown = self._installing
+        if shown is None:
+            if names:
+                self._installing = Installs(names[0])
+                self._installs(self._installing)
+        elif shown.daemon not in names and shown is self.screen:
+            shown.dismiss(None)
+
+    @work
+    async def _installs(self, asked: Installs) -> None:
+        """Puts the question up, and gives its daemon the answer: esc is not now."""
+        said = await self.push_screen_wait(asked)
+        # Nothing to one that no longer asks, as where the question went unanswered.
+        remotes().answer(asked.daemon, said == "yes")
+        self._installing = None
 
     @work
     async def _asks_about_reports(self) -> None:

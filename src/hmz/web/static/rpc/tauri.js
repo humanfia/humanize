@@ -1,6 +1,7 @@
 // The pipe provider of the desktop application (Section 3.12 of protocol/desktop.md): the commands
-// `pipe_open` `{route, id}`, `pipe_send` `{pipe, data}` and `pipe_close` `{pipe}`, and the events
-// `pipe_state`, `pipe_data` and `pipe_closed`, `data` the base64 of the bytes carried.
+// `pipe_open` `{route, id}`, `pipe_send` `{pipe, data}`, `pipe_answer` `{pipe, install}` and
+// `pipe_close` `{pipe}`, and the events `pipe_state`, `pipe_data` and `pipe_closed`, `data` the
+// base64 of the bytes carried.
 
 import { t } from '../i18n.js'
 import { Pipe, fromBase64, onAbort, toBase64 } from './pipe.js'
@@ -57,7 +58,7 @@ export function tauri(internals = /** @type {any} */ (globalThis).__TAURI_INTERN
 
   return {
     opens: (route) => OPENED.has(routeKind(route) ?? ''),
-    async open(route, id, { state, signal }) {
+    async open(route, id, { state, signal, asked }) {
       // A command the app refuses rejects with the sentence itself, a string and not an Error.
       const { pipe: name } = await listen()
         .then(() => invoke('pipe_open', { route, id }))
@@ -88,6 +89,13 @@ export function tauri(internals = /** @type {any} */ (globalThis).__TAURI_INTERN
               ))
               resolve(pipe)
             } else if (now === 'connecting' || now === 'installing') state(now, said)
+            else if (now === 'asking') {
+              // No hmz is there: the app waits to be told whether to install it (Section 3.12.12).
+              state(now, said)
+              asked()
+                .then((install) => invoke('pipe_answer', { pipe: name, install }))
+                .catch(() => {})
+            }
           },
           data: ({ data }) => pipe?.feed(fromBase64(data)),
           closed: ({ why }) => {

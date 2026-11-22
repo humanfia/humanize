@@ -302,6 +302,8 @@ with Daemons().host().link(name="ci", replay=False) as link:
 
 Manage remote daemons with `hmz.daemons`: `all`, `find`, `write`, `remove`, `offered`, `imported`, and `remotes()`, which provides `connect(name)`, `state(name)`, `pair(name, code)` to add a daemon from a pairing code, `client(name)` to obtain a `Client`, and `close()`.
 
+Reaching a daemon over SSH replaces another release of hmz on its machine unasked, unless that release holds running epics. On a machine that has no hmz, the SDK installs nothing and the daemon is `failed` with `hmz is not installed on <name>.`, because nobody is there to ask. Pass `remotes(install=True)` to install it unasked. With `remotes(install=None)` the daemon is `asking` until you call `answer(name, True)` or `answer(name, False)`; while it is asking, `client(name)` raises `Unreached` at once. A yes holds until the returned object is closed or the daemon's routes change. After a no, the daemon stays `failed` until the next `connect(name)`.
+
 See [Daemon and wire](/reference/daemon) for methods and [Events and records](/reference/events) for message formats.
 
 ## Run on objects of your own

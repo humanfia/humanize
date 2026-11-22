@@ -10,6 +10,7 @@ const COMMANDS: &[&str] = &[
     "pipe_open",
     "pipe_send",
     "pipe_close",
+    "pipe_answer",
     "easytier_list",
     "easytier_set",
     "easytier_remove",

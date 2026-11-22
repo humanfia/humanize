@@ -201,10 +201,14 @@ export default {
   // api.js: a daemon that is not reached, and how it stands.
   'There is no daemon {name}.': '沒有名為 {name} 的常駐程式。',
   'connecting': '連線中',
+  'asking@@link': '待確認',
   'installing': '安裝中',
   'up': '已連線',
   '{name} is unavailable, {state}: {detail}': '{name} 無法使用，{state}：{detail}',
   '{name} is unavailable, {state}.': '{name} 無法使用，{state}。',
+  // installs.js: asking before hmz is installed on a remote daemon's machine.
+  'hmz is not installed on {name}. Install it?': '{name} 上尚未安裝 hmz。要現在安裝嗎？',
+  'Not now': '暫不安裝',
   // rpc/*: why a daemon was not reached, or a call not made -- what the page itself says, never what it sends a daemon.
   'Given up.': '已放棄。',
   'The server sent text.': '伺服器傳來了文字。',
