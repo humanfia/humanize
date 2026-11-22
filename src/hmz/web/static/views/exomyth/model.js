@@ -151,6 +151,21 @@ export function firstEnding(row, ends, time) {
 }
 
 /**
+ * The span of one depth of a track at a moment, by its id, or null: the one going on then, or
+ * else the first to end or start within `slack` of it -- so that a span narrower than a pixel
+ * can be pointed at, and never in place of the one the pointer is on.
+ */
+export function spanAt(track, depth, time, slack) {
+  const row = track.rows[depth]
+  if (!row) return null
+  for (const reach of [0, slack]) {
+    const at = firstEnding(row, track.end, time - reach)
+    if (at < row.length && track.start[row[at]] <= time + reach) return track.first + row[at]
+  }
+  return null
+}
+
+/**
  * What a stretch of time holds, category by category: how many spans overlap it, how long of
  * each lies inside it, and the tokens of those spans.
  */

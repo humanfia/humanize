@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import pytest
 from playwright.sync_api import expect
 
+from hmz.coganchor import prices
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Configures, Confirms, Leaves
 from tests.integration.doubles_tui import on, onto, shows, until
@@ -78,6 +79,12 @@ def _prices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         )
     )
     monkeypatch.setenv("HUMANIZE_PRICES", str(at))
+    # One list is held per process, fetched at most once an hour: a scene run after another
+    # that fetched its own has this one fetched into its home, where none is kept, and is
+    # not left with a cost limit over a model nobody prices, which never ends its epic.
+    monkeypatch.setattr(prices, "_listing", None)
+    monkeypatch.setattr(prices, "_read_from", None)
+    monkeypatch.setattr(prices, "_tried", 0.0)
 
 
 #: What the agent says of the task, round after round, each after a while. No tool is said

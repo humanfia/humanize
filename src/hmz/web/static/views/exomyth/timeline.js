@@ -12,7 +12,7 @@ import { t } from '../../i18n.js'
 import { chain } from '../../layers.js'
 import { EDGE } from '../../shell.js'
 import { menuOn } from '../../ui.js'
-import { clock, firstEnding, lasted, locate } from './model.js'
+import { clock, firstEnding, lasted, locate, spanAt } from './model.js'
 
 /** Heights, in CSS pixels: the ruler, a process's head, one depth of a track. */
 const RULER = 26
@@ -574,13 +574,7 @@ export function timeline(told) {
     const time = tOf(x)
     const slack = ((t1 - t0) / plot()) * 2
     const process = model.processes[row.process]
-    const look = (track, depth) => {
-      const list = track.rows[depth]
-      if (!list) return null
-      const at = firstEnding(list, track.end, time - slack)
-      if (at < list.length && track.start[list[at]] <= time + slack) return track.first + list[at]
-      return null
-    }
+    const look = (track, depth) => spanAt(track, depth, time, slack)
     if (row.track >= 0) {
       const span = look(model.tracks[row.track], row.depth)
       return span === null ? { process: row.process } : { span, process: row.process }

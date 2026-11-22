@@ -9,6 +9,7 @@ Run it by naming it: `uv run pytest tests/system/docs/test_docs_builder_loops.py
 
 from __future__ import annotations
 
+import re
 import shutil
 from typing import TYPE_CHECKING
 
@@ -176,10 +177,19 @@ def _exec() -> list[str]:
     ]
 
 
-def _opened(page: Page, name: str, sessions: str) -> None:
-    """Opens an epic that is over on its graph alone, read whole, its side panel shut."""
+def _opened(page: Page, name: str, turns: list[int]) -> None:
+    """Opens an epic that is over on its graph alone, read whole, its side panel shut.
+
+    Args:
+      page: The page.
+      name: The epic's name.
+      turns: How many turns each session the coder opened took, in the order opened.
+    """
     go(page, f"/epics/{name}")
-    expect(page.get_by_text(sessions, exact=True)).to_be_visible()
+    # A session's row says its turns only once the epic's logs are read, and says them from
+    # then on; what its agent's card says until then is replaced as soon as they are.
+    rows = page.locator("[data-hmz=graph-session]")
+    expect(rows).to_have_text([re.compile(rf": {took} turns$") for took in turns])
     expect(page.get_by_text("Reading handovers")).to_have_count(0)
     page.get_by_role("button", name="Close panel").click()
     expect(page.get_by_role("complementary", name="the epic")).to_have_count(0)
@@ -198,7 +208,7 @@ def test_a_fresh_session_every_round_is_two_sessions_in_the_app(world: World) ->
     world.says(_SAYS)
     name = world.epic("@local/until_green", _TASK, budget={"output_tokens": 20000})
     with world.page(desktop=True, height=460) as page:
-        _opened(page, name, "2 sessions")
+        _opened(page, name, [1, 1])
         shots.web(page, f"{_PAGE}-fresh", window="desktop", most=shots.REEL)
 
 
@@ -207,7 +217,7 @@ def test_one_session_for_every_round_is_one_session_in_the_app(world: World) -> 
     world.says(_SAYS)
     name = world.epic("@local/until_green", _TASK, budget={"output_tokens": 20000})
     with world.page(desktop=True, height=460) as page:
-        _opened(page, name, "1 session")
+        _opened(page, name, [2])
         shots.web(page, f"{_PAGE}-one", window="desktop", most=shots.REEL)
 
 
