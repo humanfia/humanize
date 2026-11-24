@@ -485,8 +485,13 @@ serving its socket and its other listeners.
 (`<hmz>` the absolute path of the hmz that ran it) for the user at login and keeps it running: on
 macOS the launchd agent `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist`, loaded with
 `launchctl bootstrap gui/<uid>`; on Linux the systemd user unit
-`~/.config/systemd/user/hmz-daemon.service`, enabled with `systemctl --user enable --now`. `hmz
-daemon uninstall` MUST stop, disable and remove it.
+`<config>/systemd/user/hmz-daemon.service`, enabled with `systemctl --user enable --now`,
+`<config>` being the `XDG_CONFIG_HOME` that `systemctl --user show-environment` shows where it
+is an absolute path, and `~/.config` otherwise or where that command fails. `hmz
+daemon uninstall` MUST stop, disable and remove it. Where `<config>` is not `~/.config`, a
+`~/.config/systemd/user/hmz-daemon.service` an earlier hmz wrote MUST be removed once `hmz daemon
+install` or `hmz daemon uninstall` succeeds, and `hmz daemon uninstall` MUST take that unit, where
+it is the only one, as the service it removes.
 
 **3.9.7** A daemon MUST pair devices and revoke them as Section 4.5 of [WIRE] and Section 4.6 of
 [WIRE] state; every session of any carrier MUST then be as whole as a session over its socket, but

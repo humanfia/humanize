@@ -126,7 +126,7 @@ Removing the app leaves `hmz` and your epics intact, and removing `hmz` leaves t
 | --- | --- | --- |
 | The app, macOS | Quit it, then move it from Applications to the Trash. | `~/Library/Application Support/ai.humanfia.humanize`, and the folders of the same name under `~/Library/WebKit`, `~/Library/Caches` and `~/Library/Logs` |
 | The app, Windows | **Quit** from the tray icon, then **Settings → Apps → Installed apps**. | `%APPDATA%\ai.humanfia.humanize` and `%LOCALAPPDATA%\ai.humanfia.humanize` |
-| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.hmz` (or the folder `HUMANIZE_HOME` names), `~/.cache/humanize`, and `.hmz/` in each project where you keep flows |
+| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.hmz` (or the folder `HUMANIZE_HOME` names), `~/.cache/humanize`, `~/.local/state/humanize`, and `.hmz/` in each project where you keep flows |
 
 If you ever ran `hmz daemon install`, run `hmz daemon uninstall` before you remove the CLI.
 
