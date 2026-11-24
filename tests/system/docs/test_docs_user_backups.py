@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 from playwright.sync_api import expect
 
-from tests.integration.doubles_tui import onto, opens, shows
+from hmz.tui.flows import Flows
+from tests.integration.doubles_tui import on, onto, opens, shows
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
 from tests.system.web.doubles_browser import go
@@ -167,7 +168,7 @@ def _moved(world: World, remote: Path, name: str) -> None:
     _git(clone, "commit", "-q", "-m", f"Back up epic {name} (end)")
     _git(clone, "push", "-q", "origin", "HEAD:refs/heads/main")
     shutil.rmtree(clone)
-    for one in (world.home / ".hmz").rglob(name):
+    for one in world.data.rglob(name):
         if one.is_dir() and "backup" not in one.parts:
             shutil.rmtree(one)
 
@@ -288,7 +289,7 @@ async def test_a_flows_targets_in_the_terminal_interface(world: World) -> None:
     async with world.tui((100, 26)) as (app, pilot):
         await shows(pilot, MODEL)
         await pilot.press(*"/flow goal", "enter")
-        await shows(pilot, "backup")
+        await on(pilot, Flows)
         await onto(pilot, "\x1ebackup")
         await pilot.press("enter")
         await shows(pilot, _URLS[_OFFSITE])

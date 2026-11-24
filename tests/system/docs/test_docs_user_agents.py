@@ -148,7 +148,7 @@ async def test_an_agent_is_set_up_in_the_terminal(world: World) -> None:
         await _settled(pilot)
         reel = shots.Reel(f"{_PAGE}-terminal")
         await typed(pilot, "/settings workspace")
-        await shows(pilot, "Chat agent")
+        await shows(pilot, "Default agent")
         await onto(pilot, "chat-agent")
         await _settled(pilot)
         reel.tui(app, hold=1.6, keys="/settings workspace")

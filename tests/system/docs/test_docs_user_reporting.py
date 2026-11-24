@@ -105,7 +105,7 @@ async def test_the_question_at_first_start(
     telemetry.again()
     try:
         async with world.tui(_SIZE) as (app, pilot):
-            await shows(pilot, "Report errors to Humanize?")
+            await shows(pilot, "Send error reports to Humanize?")
             await _settled(pilot)
             shots.tui(app, f"{_PAGE}-question")
             # Esc answers nothing; the arrow and enter answer no, which is written down.
@@ -113,10 +113,10 @@ async def test_the_question_at_first_start(
             await _settled(pilot)
             assert Settings(world.home).enable_sentry is None
         async with world.tui(_SIZE) as (app, pilot):
-            await shows(pilot, "Report errors to Humanize?")
+            await shows(pilot, "Send error reports to Humanize?")
             await _settled(pilot)
             await pilot.press("right", "enter")
-            await shows(pilot, "error reporting disabled")
+            await shows(pilot, "Error reporting is disabled")
     finally:
         monkeypatch.setenv("HUMANIZE_SENTRY", "off")
         telemetry.again()

@@ -93,7 +93,7 @@ Each row shows the start time, flow, task, agents, spend, output tokens, duratio
 | <kbd>enter</kbd>, <kbd>→</kbd>, <kbd>m</kbd> or click | Open the epic's menu |
 | <kbd>ctrl+t</kbd> or **This machine** | Toggle between this directory and all directories on this machine. `hmz` remembers your choice. |
 | `State`, `Flow` rows | Filter by outcome or flow, with a count for each value. When listing all directories, a `Folder` row filters by directory. |
-| <kbd>/</kbd> or **Search…** | Search by flow, task and epic name, and by directory when listing all directories |
+| <kbd>/</kbd> or **Search** | Search by flow, task and epic name, and by directory when listing all directories |
 | <kbd>i</kbd> or **Import…** | Import a `.hmzepic` file. See [Export and import a run](/user/export). |
 | **Daemon…** | List another daemon's epics |
 | **Newer**, **Older** | Turn the page when more than 50 epics match |
@@ -113,7 +113,7 @@ Press <kbd>enter</kbd> on an epic. The top of the menu shows its path on disk, h
 
 ### Read the graph and sessions
 
-Choose `Graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness, account and action count. If the epic called other flows, they appear as a tree under `called flows`. Choose **Exomyth** from the graph to open the trace.
+Choose `Graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness, account and action count. If the epic called other flows, they appear as a tree under `Called flows`. Choose **Exomyth** from the graph to open the trace.
 
 Press <kbd>enter</kbd> on a session to read it from oldest action to newest: each `turn` with its prompt, each `model` call with its thinking, each tool call with input and output, and what the agent `said`. A tool call that failed is marked `✕ failed`.
 

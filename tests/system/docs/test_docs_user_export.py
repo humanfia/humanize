@@ -104,7 +104,7 @@ def _exported(world: World, name: str) -> Path:
 
 def _forgotten(world: World, name: str) -> None:
     """Takes the epic away, as on a machine that has the archive and not the epic."""
-    (kept,) = (world.home / ".hmz").rglob(name)
+    (kept,) = world.data.rglob(name)
     shutil.rmtree(kept)
 
 
@@ -127,7 +127,7 @@ def _over(world: World, name: str) -> None:
     """
     from hmz.runtime import epic
 
-    (kept,) = (world.home / ".hmz").rglob(name)
+    (kept,) = world.data.rglob(name)
     deadline = time.monotonic() + 60
     while True:
         ran = epic.read(kept)

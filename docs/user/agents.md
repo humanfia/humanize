@@ -95,7 +95,7 @@ To refresh all harnesses at once, open **Settings**, pick **Nous**, and click **
 
 In `hmz`, configure an agent on a sheet with four rows: `CLI`, `Account`, `Model` and `Effort`. Open this sheet in one of two ways:
 
-1. Type `/settings workspace` and press <kbd>enter</kbd> on **Chat agent** to set the default agent for new chats in the current directory.
+1. Type `/settings workspace` and press <kbd>enter</kbd> on **Default agent** to set the default agent for new chats in the current directory.
 2. Type `/flow`, pick a flow, and press <kbd>enter</kbd> on a role.
 
 ![In the terminal, the chat agent's sheet is opened, a coding agent is picked from the list, then a model](/shots/user-agents-terminal.svg)

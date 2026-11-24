@@ -23,7 +23,7 @@ from textual.widgets import OptionList
 from hmz.tui.chats import Resumes
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.settings import Adjusts
-from tests.integration.doubles_tui import on, onto, opens, shows, typed
+from tests.integration.doubles_tui import on, onto, opens, shows, typed, wrapped
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
 from tests.system.web.doubles_browser import go
@@ -323,7 +323,7 @@ async def test_the_switch_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await typed(pilot, "/settings general")
         await on(pilot, Adjusts)
-        await shows(pilot, "Harness sessions", "to continue as chats")
+        await wrapped(pilot, "Harness sessions", "to continue as chats")
         await opens(pilot, "harness_sessions")
         dropped = await on(pilot, Dropdown)
         listing = dropped.query_one(OptionList)

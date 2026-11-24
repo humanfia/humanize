@@ -52,9 +52,9 @@ cd ~/shop
 hmz
 ```
 
-The terminal interface opens on a new chat. The line above the prompt shows the active agent: the harness, model, and effort. On first run, a box asks `Report errors to Humanize?`. Answer `yes` or `no`.
+The terminal interface opens on a new chat. The line above the prompt shows the active agent: the harness, model, and effort. On first run, a box asks `Send error reports to Humanize?`. Answer **Yes** or **No**.
 
-If the line says `No harness installed`, return to step 2. To switch agents, type `/settings workspace` and open **Chat agent**.
+If the line says `No harness installed`, return to step 2. To switch agents, type `/settings workspace` and open **Default agent**.
 
 ## 4. Chat with the agent
 
@@ -72,14 +72,14 @@ The agent answers. A chat needs no flow or budget.
 
 A flow is a loop that runs agents on a task. Humanize starts with no flows installed. You install them from a flowverse, and the official flowverse is already listed.
 
-1. Type `/flow` and press <kbd>enter</kbd>. The **Installed** page is empty and **Install more…** is highlighted.
+1. Type `/flow` and press <kbd>enter</kbd>. The **Installed** page is empty and **Browse Flowverses** is highlighted.
 2. Press <kbd>enter</kbd>. The **Flowverses** page lists `official`.
 3. Press <kbd>enter</kbd> to view its flows.
 4. Select `ralph_loop` and press <kbd>enter</kbd> to see its releases.
-5. Press <kbd>enter</kbd> on the newest release. It shows `✔ installed`.
+5. Press <kbd>enter</kbd> on the newest release. It shows `✔ Installed`.
 6. Press <kbd>esc</kbd> until the menu closes.
 
-![The flow menu: Install more, the official flowverse, ralph_loop, its release, installed](/shots/tutorials-first-task-terminal-install.svg)
+![The flow menu: Browse Flowverses, the official flowverse, ralph_loop, its release, installed](/shots/tutorials-first-task-terminal-install.svg)
 
 `ralph_loop` gives one agent the same task in a fresh session every round until its budget runs out or you stop it. The [catalogue](https://humanfia.ai/flows/) describes the other flows.
 
@@ -92,14 +92,14 @@ If `official` says `not fetched`, press <kbd>tab</kbd>, select **Fetch**, and pr
 Every flow run requires a budget to know when to stop.
 
 1. Type `/flow ralph_loop` and press <kbd>enter</kbd>. The page lists the flow's settings. The `agent` row already names an agent; press <kbd>enter</kbd> on it to choose another.
-2. Select `budget` and press <kbd>enter</kbd>.
+2. Select `Budget` and press <kbd>enter</kbd>.
 3. On `duration`, press <kbd>enter</kbd>, type `10m`, and press <kbd>enter</kbd> again.
-4. Press <kbd>tab</kbd> to reach **Set**, then press <kbd>enter</kbd>. The `budget` row now reads `stops at 10m`.
-5. Press <kbd>esc</kbd>. A box asks `Save?`. Press <kbd>enter</kbd> on **Save**.
+4. Press <kbd>tab</kbd> to reach **Set**, then press <kbd>enter</kbd>. The `Budget` row now reads `stops at 10m`.
+5. Press <kbd>esc</kbd>. A box asks `Save changes?`. Press <kbd>enter</kbd> on **Save**.
 
 ![The budget is opened, set to ten minutes, and saved](/shots/tutorials-first-task-terminal-budget.svg)
 
-The transcript shows `set up: /flow ralph_loop <task> starts it`. A budget can also limit `cost` in US dollars and `output_tokens`. The run stops at the first limit it reaches.
+The transcript shows ``Flow set up; `/flow ralph_loop <task>` starts it.`` A budget can also limit `cost` in US dollars and `output_tokens`. The run stops at the first limit it reaches.
 
 ## 7. Start it on a task
 
@@ -131,7 +131,7 @@ The agent's changes stay in your project.
 
 ## 10. Read the result
 
-1. Type `/epics` and press <kbd>enter</kbd>. Every epic for this directory appears, newest first, with its flow, task, duration, and status.
+1. Type `/epics` and press <kbd>enter</kbd>. Every epic for this folder appears, newest first, with its flow, task, duration, and status.
 2. Press <kbd>enter</kbd> on the epic, then <kbd>enter</kbd> on `Graph`.
 3. Press <kbd>enter</kbd> on a session to read the task, each tool call and output, and the agent's response.
 

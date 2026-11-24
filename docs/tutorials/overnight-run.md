@@ -27,10 +27,10 @@ hmz
 ```
 
 1. Type `/flow stateful_ralph` and press <kbd>enter</kbd>.
-2. Select `budget` and press <kbd>enter</kbd>.
+2. Select `Budget` and press <kbd>enter</kbd>.
 3. Select `duration`, press <kbd>enter</kbd>, type `8h`, and press <kbd>enter</kbd>.
 4. Select `cost`, press <kbd>enter</kbd>, type `20`, and press <kbd>enter</kbd>.
-5. Press <kbd>tab</kbd> to reach **Set**, then press <kbd>enter</kbd>. The `budget` row reads `stops at 8h, $20.00`.
+5. Press <kbd>tab</kbd> to reach **Set**, then press <kbd>enter</kbd>. The `Budget` row reads `stops at 8h, $20.00`.
 6. Press <kbd>esc</kbd>, then press <kbd>enter</kbd> on **Save**.
 
 ![The budget sheet: eight hours, twenty dollars, set and saved](/shots/tutorials-overnight-run-budget.svg)
@@ -65,14 +65,14 @@ In the app, open the **People** tab in the side panel and click **Away for all**
 
 ## 4. Leave it running
 
-Type `/exit` and press <kbd>enter</kbd>, or press <kbd>ctrl+q</kbd>. A dialog says `A flow is running.` Select **Detach and exit** and press <kbd>enter</kbd>.
+Type `/exit` and press <kbd>enter</kbd>, or press <kbd>ctrl+q</kbd>. A dialog says `A flow is running.` Select **Detach and quit** and press <kbd>enter</kbd>.
 
-![The leave box opens on /exit, and Detach and exit is selected](/shots/tutorials-overnight-run-leave.svg)
+![The leave box opens on /exit, and Detach and quit is selected](/shots/tutorials-overnight-run-leave.svg)
 
 You return to your shell while the epic runs in the background. Closing the terminal window or losing an ssh connection detaches the same way.
 
 ::: warning
-**Stop the flow and exit** ends the epic.
+**Stop the flow and quit** ends the epic.
 :::
 
 In the app, closing the window, quitting Humanize Desktop, or closing the browser tab detaches automatically without stopping the epic. On Windows, epics run in WSL, which may shut down once the app has quit: see [Humanize Desktop](/user/desktop).

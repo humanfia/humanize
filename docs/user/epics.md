@@ -58,7 +58,7 @@ If no flow is installed, the page shows `No flow installed yet.` and a button fo
 
 Type `/flow review_loop` in `hmz` and press <kbd>enter</kbd> to open the flow's setup page. Type plain `/flow` to list installed flows first.
 
-![The page of a flow in the terminal interface: a row for each role, params, budget, profiling and backup](/shots/user-epics-roles.svg)
+![The page of a flow in the terminal interface: a row for each role, Parameters, Budget, profiling and Backup](/shots/user-epics-roles.svg)
 
 Select a row with the arrow keys and press <kbd>enter</kbd> to open it.
 
@@ -66,16 +66,16 @@ Select a row with the arrow keys and press <kbd>enter</kbd> to open it.
 | --- | --- |
 | An agent role | A sheet with `CLI`, `Account`, `Model`, `Effort`, and `Swarm` (if the model supports it). |
 | An environment role | A form with `Backend`, the machine when the backend is not `local` (`Host`, `Daemon`, `Docker swarm` or `Slurm cluster`), `Workdir`, and `As -e` (where you can type the spec in `hmz exec` format). |
-| `params` | A form with one row per param. The main row shows only modified values. |
-| `budget` | `duration`, `cost`, `output_tokens`, and a `graceful_` switch for each. Type durations as `30m`, `1h30m` or `PT2H`. |
-| `profile flow`, `profile environment` | `On` or `Off`. |
-| `backup` | A switch per backup target. |
+| `Parameters` | A form with one row per param. The main row shows only modified values. |
+| `Budget` | `duration`, `cost`, `output_tokens`, and a `graceful_` switch for each. Type durations as `30m`, `1h30m` or `PT2H`. |
+| `Profile flow`, `Profile environment` | `On` or `Off`. |
+| `Backup` | A switch per backup target. |
 
 ![The sheet of one agent role: CLI, Account, Model and Effort](/shots/user-epics-agent-sheet.svg)
 
 ![The budget sheet with thirty minutes and five dollars typed in](/shots/user-epics-budget-sheet.svg)
 
-Changes apply only when you save. Press <kbd>tab</kbd> to reach **Save**, or press <kbd>esc</kbd> and confirm **Save**. Save is refused if a role lacks a model or a required environment lacks a place (`reviewer is not configured yet`), or if no budget is set (`this flow requires a budget: set the budget first`).
+Changes apply only when you save. Press <kbd>tab</kbd> to reach **Save**, or press <kbd>esc</kbd> and confirm **Save**. Save is refused if a role lacks a model or a required environment lacks a place (`reviewer not set up yet.`), or if no budget is set (`This flow needs a budget; set the budget first.`).
 
 Start the flow on a task:
 

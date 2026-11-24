@@ -82,7 +82,7 @@ Type `/settings` or press <kbd>F2</kbd> to open a screen of eleven cards in the 
 
 Type `/settings <page>` (for example, `/settings themes`) to open a page directly. See [Themes and language](/user/themes) for the Themes and Language pages.
 
-![The /settings screen in the terminal: nine cards, each with its name, what it holds and a summary](/shots/user-settings-terminal.svg)
+![The /settings screen in the terminal: eleven cards in three groups, each with its name, what it holds and a summary](/shots/user-settings-terminal.svg)
 
 | Key | What it does |
 | --- | --- |
@@ -115,7 +115,7 @@ Creating or signing in to an account, saving or checking a runtime, and changing
 
 Open `/settings workspace` to manage the directory `hmz` was started in.
 
-![The Workspace page in the terminal: Default flow, Chat agent, Archived chats and Forget](/shots/user-settings-terminal-workspace.svg)
+![The Workspace page in the terminal: Flow, Default agent, Archived chats and Forget](/shots/user-settings-terminal-workspace.svg)
 
 | Row | What it does |
 | --- | --- |

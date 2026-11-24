@@ -357,7 +357,7 @@ async def test_the_same_is_done_in_the_terminal(world: World, tmp_path: Path) ->
         await pilot.press("enter")
         await shows(pilot, _INDEX)
         await _settled(pilot)
-        reel.tui(app, hold=1.6, keys="tab enter", caption="Install more…")
+        reel.tui(app, hold=1.6, keys="tab enter", caption="Browse Flowverses")
         await onto(pilot, _VERSE)
         await pilot.press("enter")
         await shows(pilot, "0.2.0")

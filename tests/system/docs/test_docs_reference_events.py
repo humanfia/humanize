@@ -64,7 +64,7 @@ def _ran(world: World) -> None:
     if kept := os.environ.get("HMZ_EVENTS_KEEP"):
         # For whoever writes the page: the stream and the record, to read whole.
         shutil.copy(world.workspace / "events.ndjson", kept)
-        for record in (world.home / ".hmz" / "epics").glob("*/*/epic*.jsonl"):
+        for record in (world.data / "epics").glob("*/*/epic*.jsonl"):
             shutil.copy(record, Path(kept) / record.name)
 
 
@@ -80,7 +80,7 @@ def test_the_stream_and_the_record(world: World) -> None:
         f"{_PAGE}-result",
         columns=92,
     )
-    (record,) = (world.home / ".hmz" / "epics").glob("*/*/epic.jsonl")
+    (record,) = (world.data / "epics").glob("*/*/epic.jsonl")
     shots.cli(
         ["jq", "-c", "del(.workspace, .agents, .budget, .name)", "epic.jsonl"],
         f"{_PAGE}-record",

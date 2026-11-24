@@ -76,13 +76,13 @@ Type `/settings backup` to list each target with its URL, branch, and policies. 
 
 ![/settings backup in the terminal interface lists lab and offsite; enter on lab opens its form with Name, URL, Branch, the three policies and Default](/shots/user-backups-tui.svg)
 
-To choose targets for a flow, type `/flow`, press <kbd>enter</kbd> on the flow, and press <kbd>enter</kbd> on the `backup` row. A sheet opens with a switch for each target.
+To choose targets for a flow, type `/flow`, press <kbd>enter</kbd> on the flow, and press <kbd>enter</kbd> on the `Backup` row. A sheet opens with a switch for each target.
 
 ![The Backup sheet of the flow goal in the terminal interface: a switch per target, lab on and offsite off](/shots/user-backups-tui-flow.svg)
 
 To back up an epic now, open `/epics`, press <kbd>enter</kbd> on the epic, and choose `Upload`, which is listed once a target exists. For a chat, type `/resume` inside a chat, press <kbd>m</kbd> on the chat, and choose `Upload`.
 
-To download, choose **Download…** on `/settings backup`, then press <kbd>enter</kbd> on an epic or chat. Choose **Fetch** to re-read the repository, **Target…** to switch targets, or **Search…** to filter by flow, task, directory, or machine.
+To download, choose **Download…** on `/settings backup`, then press <kbd>enter</kbd> on an epic or chat. Choose **Fetch** to re-read the repository, **Target** to switch targets, or **Search** to filter by flow, task, directory, or machine.
 
 ![Download from lab in the terminal interface: an epic of studio marked here, and one of gpu-box under /srv/shop](/shots/user-backups-tui-download.svg)
 

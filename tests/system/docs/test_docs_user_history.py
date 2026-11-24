@@ -345,7 +345,7 @@ async def test_an_epic_is_read_back_down_to_one_session(world: World) -> None:
         reel.tui(app, hold=3.0, keys="down enter", caption="its graph, read back")
         await pilot.press("enter")
         await on(pilot, SessionRead)
-        await shows(pilot, "read back from its log", "pytest -q")
+        await shows(pilot, "read from its log", "pytest -q")
         await _settled(pilot, 1.0)
         reel.tui(app, hold=4.5, keys="enter", caption="one session, whole", poster=True)
         reel.save()

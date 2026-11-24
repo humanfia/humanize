@@ -134,7 +134,7 @@ async def test_a_flow_is_left_running_and_found_again(world: World) -> None:
         reel.tui(app, hold=2.2, keys="enter", caption="the box asks")
         await pilot.press("down")
         await pilot.pause()
-        reel.tui(app, hold=3.2, keys="down", caption="detach and exit", poster=True)
+        reel.tui(app, hold=3.2, keys="down", caption="Detach and quit", poster=True)
         reel.save()
         await pilot.press("enter")
         await until(pilot, lambda: not app.is_running, "the interface to close")

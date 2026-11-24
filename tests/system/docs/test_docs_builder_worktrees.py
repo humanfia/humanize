@@ -227,7 +227,16 @@ def test_a_failed_check_is_rewound(world: World, printing: None) -> None:
 def _listed(home: Path, name: str) -> None:
     """A picture of what Humanize keeps under `envs/` in its home, three levels of it."""
     shots.cli(
-        ["find", ".hmz/envs", "-mindepth", "3", "-maxdepth", "3", "-type", "d"],
+        [
+            "find",
+            ".local/state/humanize/envs",
+            "-mindepth",
+            "3",
+            "-maxdepth",
+            "3",
+            "-type",
+            "d",
+        ],
         name,
         cwd=home,
         columns=80,
@@ -268,7 +277,7 @@ def test_copies_and_scratch_go_when_the_flow_ends(world: World) -> None:
     world.says(
         {"discount": {"text": "charge() takes a discount code now.", "after": 25}}
     )
-    envs = world.home / ".hmz" / "envs"
+    envs = world.state / "envs"
     _running(world)
     _waited(lambda: any(envs.glob("*/scratch/*")))
     _listed(world.home, f"{_PAGE}-kept-running")

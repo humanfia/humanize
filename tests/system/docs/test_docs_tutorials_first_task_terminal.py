@@ -13,6 +13,7 @@ the real ones, under the real names.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from typing import TYPE_CHECKING
@@ -22,7 +23,7 @@ import yaml
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Configures, Confirms
 from tests.integration.conftest import FLOWS
-from tests.integration.doubles_tui import on, onto, shows, until
+from tests.integration.doubles_tui import on, onto, screen, shows, until
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
 
@@ -192,7 +193,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         await pilot.press("enter")
         await shows(pilot, "is working")
         reel.tui(app, hold=1.2, keys="enter")
-        await shows(pilot, "shop/cart.py", "done")
+        await shows(pilot, "shop/cart.py", "Done")
         await _settled(pilot)
         reel.tui(app, hold=3.5, poster=True)
         reel.save()
@@ -206,7 +207,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         reel.tui(app, hold=1.6, keys="enter", caption="nothing installed yet")
         await pilot.press("enter")
         await shows(pilot, "humanfia/flowverse")
-        reel.tui(app, hold=1.4, keys="enter", caption="on Install more…")
+        reel.tui(app, hold=1.4, keys="enter", caption="on Browse Flowverses")
         await pilot.press("enter")
         await shows(pilot, "stateful_ralph")
         reel.tui(app, hold=1.2, keys="enter", caption="on official")
@@ -236,7 +237,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         reel.tui(app, hold=1.8, keys="down", caption="to budget")
         await pilot.press("enter")
         await on(pilot, Configures)
-        await shows(pilot, "Set budget for ralph_loop")
+        await shows(pilot, "Set the budget for ralph_loop")
         reel.tui(app, hold=1.4, keys="enter")
         await pilot.press("enter")
         await pilot.pause(0.3)
@@ -269,7 +270,12 @@ async def test_a_first_task_from_a_chat_to_its_result(
 
         await pilot.press("left")
         await shows(pilot, "monitor · graph", "time ")
-        await shows(pilot, "3 turns")
+        # Two rounds are over, so that the second session is whole when it is read back.
+        await until(
+            pilot,
+            lambda: re.search(r"\b([3-9]|\d\d) turns", screen(app)) is not None,
+            "a third turn",
+        )
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-monitor")
 
@@ -294,6 +300,6 @@ async def test_a_first_task_from_a_chat_to_its_result(
         await shows(pilot, "actions")
         await _settled(pilot, 1.0)
         await pilot.press("down", "enter")
-        await shows(pilot, "read back from its log", "3 passed.")
+        await shows(pilot, "read from its log", "3 passed.")
         await _settled(pilot, 1.5)
         shots.tui(app, f"{_PAGE}-session")

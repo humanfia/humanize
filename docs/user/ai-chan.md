@@ -40,7 +40,7 @@ The daemon checks every tool call against her scope and preset before running it
 
 In an open conversation, her answers appear on the left and your lines appear on the right. Each tool call is a line you can expand. A line you send answers whatever she is waiting on, or joins her current turn if it is still open. When she asks a question with options, the options appear as buttons.
 
-While she answers, the send button becomes **Stop**, which stops her turn at once. Click the pencil beside the title to **Rename** (the terminal cannot rename), or click **Back** to return to the list. Press <kbd>esc</kbd> inside the drawer, click **Close panel**, or click the avatar to close the drawer.
+While she answers, the send button becomes **Stop**, which stops her turn at once. Click the pencil beside the title to **Rename**, or click **Back** to return to the list. Press <kbd>esc</kbd> inside the drawer, click **Close panel**, or click the avatar to close the drawer.
 
 ### Manage conversations
 
@@ -60,11 +60,11 @@ Pins and read marks are saved per browser. A conversation becomes unread when ne
 
 ## In the terminal
 
-1. Type `/ai`. The menu lists **New conversation** and every conversation, pinned ones first and then the latest said in, with its scope, nous, preset, and state (`typing…`, `between turns`, or `folded away`).
-2. Choose **New**. Set `scope`, `nous`, and `preset` (`read-only` or `danger-full-access`), then press **Done**.
+1. Type `/ai`. The menu lists **New conversation** and every conversation, pinned ones first and then the latest said in, with its scope, nous, permissions, and state (`typing…`, `between turns`, or `folded away`).
+2. Choose **New conversation**. Set **Scope**, **Nous**, and **Permissions** (the preset: `read-only` or `danger-full-access`), then press **Done**.
 3. Type your first line and press <kbd>enter</kbd> to create the conversation.
 
-![In the terminal: /ai opens the menu, New opens the form, and the first line typed is answered by Ai-chan](/shots/user-ai-chan-terminal.svg)
+![In the terminal: /ai opens the menu, New conversation opens the form, and the first line typed is answered by Ai-chan](/shots/user-ai-chan-terminal.svg)
 
 The scope defaults to `epic` when the terminal is in an epic, and `workspace` otherwise. `epic` appears only when an epic is open; `daemon` is always available. If you have no nous defined, enter an agent spec such as `claude/claude-opus-4-1`.
 

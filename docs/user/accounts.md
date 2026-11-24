@@ -94,7 +94,7 @@ Choose **Add CLI** on the same page to register your own ACP-compatible CLI; see
 
 ### Pick an account for an agent
 
-1. Open the agent sheet from `/settings workspace` and **Chat agent**, or from a role in `/flow`.
+1. Open the agent sheet from `/settings workspace` and **Default agent**, or from a role in `/flow`.
 2. Set `CLI` first, then press <kbd>enter</kbd> on the `Account` row.
 
 The **Pick an account** list opens. It starts with `Local`, followed by each account for that CLI, its sign-in method, and the variables it sets. If the CLI has no accounts, the list shows `No account yet.`.

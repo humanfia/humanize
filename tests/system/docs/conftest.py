@@ -10,7 +10,9 @@ A scene asks for `world`, and has:
 
 - a person `alex` on a machine `studio`, whose home holds a project `shop` -- a small git
   repository, which is the working directory and what the interfaces open on -- and Humanize's
-  own home `~/.hmz`, all under a temporary directory with no name of this machine's in it;
+  own directories where a person's are (`~/.config/humanize`, `~/.local/share/humanize`,
+  `~/.local/state/humanize`, `~/.cache/humanize`), all under a temporary directory with no
+  name of this machine's in it;
 - this machine's daemon, held in the test's process (the `daemon` fixture);
 - a stand-in `claude` as the only coding agent, serving `claude-haiku-4-5` and
   `claude-opus-4-1`, which answers what `World.says` scripts for it;
@@ -54,6 +56,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
+import hmz
 from hmz.runtime import telemetry
 from tests.conftest import hide_agents, own
 from tests.integration.conftest import FLOWS
@@ -439,6 +442,16 @@ class World:
     _lines: list[tuple[str, dict[str, Any]]] = dataclasses.field(
         default_factory=list[tuple[str, dict[str, Any]]]
     )
+
+    @property
+    def data(self) -> Path:
+        """Where Humanize keeps the person's epics and chats: `~/.local/share/humanize`."""
+        return hmz.data()
+
+    @property
+    def state(self) -> Path:
+        """Where it keeps what environments derive: `~/.local/state/humanize`."""
+        return hmz.state()
 
     # -- the interfaces -----------------------------------------------------------------
 

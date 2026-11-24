@@ -64,7 +64,7 @@ Type `/` to list the commands that work right now, along with their arguments an
 | <kbd>tab</kbd> or <kbd>enter</kbd> | Accept the highlighted option. It replaces the word and adds a space without sending the line. |
 | <kbd>esc</kbd> | Hide the list until you type again. |
 
-The list also completes arguments: flows after `/flow` and `$`, the nine pages after `/settings`, and `native` or `flow` after `/prefer`. When a command is complete, one row shows its arguments and <kbd>enter</kbd> runs it.
+The list also completes arguments: flows after `/flow` and `$`, the eleven pages after `/settings`, and `native` or `flow` after `/prefer`. When a command is complete, one row shows its arguments and <kbd>enter</kbd> runs it.
 
 | Command | What it does | More |
 | --- | --- | --- |
@@ -128,9 +128,9 @@ You can also click any row, button or breadcrumb across the top.
 
 ### Save or discard changes
 
-Menus hold your edits until you save. While you have unsaved edits, the top line shows `● Unsaved`. Press **Save**, or leave the menu to open a `Save?` prompt with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu).
+Menus hold your edits until you save. While you have unsaved edits, the top line shows `● Unsaved`. Press **Save**, or leave the menu to open a `Save changes?` box with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu). A theme or a language is kept as soon as you choose it.
 
-![A reel: enter on a switch drops its values, picking off marks the page as unsaved, and leaving the settings opens the Save? box](/shots/user-terminal-save.svg)
+![A reel: enter on a switch drops its values, picking off marks the page as unsaved, and leaving the settings opens the Save changes? box](/shots/user-terminal-save.svg)
 
 Actions that install, fetch, import, export or upload take effect immediately.
 
@@ -200,6 +200,6 @@ See [Watch a run](/user/watch-a-run) and [Trace a run with Exomyth](/user/tracin
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.
 - When a new release is out, the transcript prints ``hmz <version> is out; run `hmz update` to update.`` once. See [Install and update](/user/install).
 - When installed flows have updates, the transcript prints ``Flow updates available: …; install them from `/flow`.``
-- On first start, Humanize asks `Report errors to Humanize?`. See [Report a problem](/user/reporting).
+- On first start, Humanize asks `Send error reports to Humanize?`. See [Report a problem](/user/reporting).
 - When a background run finishes or asks a question, a card appears in the corner. See [Notifications](/user/notifications).
 - Type `/` for all commands.

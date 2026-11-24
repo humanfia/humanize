@@ -278,7 +278,6 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await on(pilot, Agent)
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-agent-sheet")
-        reel.tui(app, hold=1.8, keys="enter", caption="an agent role")
         await pilot.press("escape")
         await on(pilot, Flows)
 
@@ -289,7 +288,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await onto(pilot, "workdir")
         await pilot.press(*"~/shop")
         await _settled(pilot)
-        reel.tui(app, hold=1.8, caption="where repo works")
+        reel.tui(app, hold=1.8, keys="~/shop", caption="where repo works")
         await pilot.press("enter")
         await _settled(pilot, 0.3)
         await _done(pilot)
@@ -313,7 +312,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await onto(pilot, "\x1ebudget")
         await pilot.press("enter")
         await on(pilot, Configures)
-        await shows(pilot, "Set budget for review_loop")
+        await shows(pilot, "Set the budget for review_loop")
         await pilot.press("enter")
         await pilot.pause(0.3)
         await pilot.press(*"30m", "enter")
@@ -335,14 +334,14 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         # -- saved, and started on a task -------------------------------------------
         await pilot.press("escape")
         await on(pilot, Confirms)
-        reel.tui(app, hold=1.6, keys="esc", caption="it asks before leaving")
         await pilot.press("enter")
         await shows(pilot, "Flow set up; `/flow review_loop <task>` starts it.")
         await _settled(pilot)
-        reel.tui(app, hold=1.8, keys="enter", caption="saved")
         await pilot.press(*f"/flow review_loop {_TASK}")
         await pilot.pause()
-        reel.tui(app, hold=1.2, caption="the task", cut=True)
+        reel.tui(
+            app, hold=1.8, keys="esc enter", caption="saved, and the task", cut=True
+        )
         await pilot.press("enter")
         await shows(pilot, "WELCOME10")
         await _settled(pilot)

@@ -117,7 +117,7 @@ The flow's page under **Flows** lists each param by its `title`, or its key when
 
 ## In the terminal
 
-Select the flow in the `/flow` menu. If the flow has params, the **Set up polish** sheet opens before role assignment. You can reopen it from the `params` row on the flow's page.
+Select the flow in the `/flow` menu. If the flow has params, the **Set up polish** sheet opens before role assignment. You can reopen it from the `Parameters` row on the flow's page.
 
 ![The terminal's Set up polish sheet: rounds and focus under the heading Review, commit and Commit message under After, each with its value at the right and its description below, and a Set button](/shots/builder-params-terminal.svg)
 

@@ -217,7 +217,7 @@ async def test_an_agents_account_is_picked_in_the_terminal(world: World) -> None
     async with world.tui((100, 24)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings workspace")
-        await shows(pilot, "Chat agent")
+        await shows(pilot, "Default agent")
         await onto(pilot, "chat-agent")
         await pilot.press("enter")
         await on(pilot, Agent)

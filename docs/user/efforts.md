@@ -54,7 +54,7 @@ Once a chat has started, selecting an effort on the chip changes it for the chat
 
 ## In the terminal
 
-Open the agent sheet for a flow role with `/flow`, the flow, and the role, or for the workspace chat agent with `/settings workspace` and **Chat agent**.
+Open the agent sheet for a flow role with `/flow`, the flow, and the role, or for the workspace chat agent with `/settings workspace` and **Default agent**.
 
 1. Select the `Effort` row and press <kbd>enter</kbd> to list the model's efforts.
 2. Press <kbd>↑</kbd> or <kbd>↓</kbd> to highlight an effort, press <kbd>enter</kbd> to pick it, and select **Save**.
