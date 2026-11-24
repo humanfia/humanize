@@ -94,6 +94,10 @@ It is normative. It is cited by the tag [CLI].
   - [19.5. Usage](#195-usage)
 - [20. `hmz env`](#20-hmz-env)
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
+  - [21.1. Synopsis](#211-synopsis)
+  - [21.2. `hmz flows`](#212-hmz-flows)
+  - [21.3. `hmz flowverses`](#213-hmz-flowverses)
+  - [21.4. `hmz workspaces`](#214-hmz-workspaces)
 - [22. `hmz settings`, `hmz accounts` and `hmz nous`](#22-hmz-settings-hmz-accounts-and-hmz-nous)
   - [22.1. Synopsis](#221-synopsis)
   - [22.2. `hmz settings`](#222-hmz-settings)
@@ -1586,7 +1590,177 @@ This section is reserved for `hmz env`, the declared commands of `env.*` and `ho
 
 ## 21. `hmz flows`, `hmz flowverses` and `hmz workspaces`
 
-This section is reserved for `hmz flows`, `hmz flowverses` and `hmz workspaces`, the declared commands of `flows.*`, `flowverses.*`, `workspaces.*` and `paths.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 21.1. Synopsis
+
+```text
+hmz flows list [-w <path>]
+hmz flows show <name> [-w <path>]
+hmz flows backends
+hmz flows check <flow> [-a <agents>]... [-e <envs>]... [-p <params>]... [--profile-flow]
+                [--profile-environment] [--backup <target>]... [--resume] [-w <path>]
+hmz flows setup <flow> [-a <agents>]... [-e <envs>]... [-p <params>]... [--profile-flow]
+                [--profile-environment] [--backup <target>]... [-w <path>]
+hmz flows fork <flow> [-w <path>]
+hmz flowverses list
+hmz flowverses show <name>
+hmz flowverses add <url> [--name <name>]
+hmz flowverses fetch <name>
+hmz flowverses remove <name> [-y]
+hmz flowverses install <flow> [--version <version>]
+hmz flowverses uninstall <flow> [-y]
+hmz workspaces list
+hmz workspaces add <path>
+hmz workspaces forget <path>
+hmz workspaces browse [<path>] [--files] [--hidden] [--env <env>]
+hmz workspaces complete <typed>
+```
+
+**21.1.1** `hmz flows`, `hmz flowverses` and `hmz workspaces` MUST each be a group of declared
+commands (Section 16), with the summaries `list flows, show what one declares, check and set up an
+epic`, `add flowverses and install, update and uninstall their flows` and `list, add and forget
+workspaces, and browse the daemon's folders`.
+
+**21.1.2** `-w` and `--workspace` MUST be the same option. It MUST name the workspace a command of
+`hmz flows` is about, the current directory where it is absent.
+
+**21.1.3** A path a command of this section takes as a workspace, or `hmz workspaces browse` takes
+without `--env`, MUST be sent to the daemon whole: one that begins with `/` or `~` as it is
+written, and any other taken from the current directory. So MUST the `<typed>` of `hmz workspaces
+complete` be, and a `<flow>` of `hmz flows check` or a `<url>` of `hmz flowverses add` that begins
+with `./` or `../`.
+
+**21.1.4** `-a` and `--agents`, `-e` and `--envs`, and `-p` and `--params` MUST each be the same
+option, each accepted any number of times, and `-y` and `--yes` MUST be the same flag.
+
+### 21.2. `hmz flows`
+
+**21.2.1** `hmz flows list` MUST call `flows.list` with the workspace and write one line per flow,
+in the daemon's order: its name, whose it is and what it is about, in columns. Its JSON document
+MUST be the result of `flows.list` (Section 4.17.1 of [DAEMON]). Where there is no flow and no
+`--json`, it MUST write nothing to standard output and say so on standard error.
+
+**21.2.2** `hmz flows show <name>` MUST call `flows.get` with `name` and the workspace. Its JSON
+document MUST be the result of `flows.get` (Section 4.17.2 of [DAEMON]). Without `--json` it MUST
+write, in this order: the flow's name; its description, where it has one; its `ref`; whether it is
+resumable; each agent role; each environment role; each param; what the workspace last set it up
+with, where it has; and a line that starts it.
+
+**21.2.3** For an agent role `hmz flows show` MUST write its name and, where the role is not `auto`,
+whether it is required, the harnesses of `clis`, what its `permission` lets it touch and its skills;
+for an environment role its name and, where the role is not `auto`, whether it is required and each
+of `cpu`, `memory`, `gpu` and `image` it asks for as `<name>=<value>`; for a param its key as `-p`
+takes it, its type, its default as JSON or that it is required, and its title and description.
+
+**21.2.4** What the workspace last set the flow up with MUST be written as the options of `hmz exec`
+that say it again: an `-a` for each agent, an `-e` for each environment, a `-p` for each param and
+for each limit of the budget, `--profile-flow`, `--profile-environment`, and a `--backup` for each
+target, `--backup none` for no target. A param kept as `null` MUST be left out.
+
+**21.2.5** The line that starts the flow MUST be `hmz exec -f <name>`, then `-a <role>=HARNESS/MODEL`
+for each required agent role that is not `auto`, `-e <role>=ENV` for each required environment role
+that is not `auto`, `-p <key>=VALUE` for each required param, `-p budget.cost=USD` and `TASK`.
+
+**21.2.6** `hmz flows backends` MUST call `flows.backends`. Its JSON document MUST be the result of
+`flows.backends` (Section 4.17.3 of [DAEMON]). Without `--json` it MUST write, for each harness
+installed, each of its accounts and each model of that account, one line of the agent as `-a` takes
+it after `<role>=` (Section 7.4), `<harness>/<model>` for the account named `""` and
+`<harness>@<account>/<model>` for any other, and the efforts of the model; then the same for each
+harness that can be installed; then each of `envs`.
+
+**21.2.7** `hmz flows check <flow>` MUST call `flows.check` with the workspace, `flow`, and what the
+line sets the epic up with (21.2.9), `resume` being `true` with `--resume`. Its JSON document MUST
+be the result of `flows.check` (Section 4.17.8 of [DAEMON]). Without `--json` it MUST write that
+the epic can start, its `ref`, the agent of each role, the budget, the backup targets, and
+`unreadable` where it is not empty. It MUST NOT start an epic.
+
+**21.2.8** `hmz flows setup <flow>` MUST call `flows.setup` with the workspace, `flow`, and what the
+line sets the epic up with (21.2.9), and write that the set-up was saved. Its JSON document MUST be
+the result of `flows.setup` (Section 4.17.4 of [DAEMON]).
+
+**21.2.8.1** The line of `hmz flows setup` MUST be the whole set-up: it MUST send `agents`, `envs`
+and `params` as empty objects where the line gives none, and `profile_flow` and
+`profile_environment` as `false` where the line does not ask for them, so that nothing the workspace
+kept for the flow before outlasts a line that does not say it. `backup` MUST be left out without
+`--backup`.
+
+**21.2.8.2** `hmz flows setup` MUST first call `flows.get` for the flow's params, and MUST send a
+param whose schema there lets it be a boolean, an integer or a number as that, where its text is
+`true` or `false` in any case, a whole number, or a number; every other param MUST be sent as its
+text.
+
+**21.2.9** `hmz flows check` and `hmz flows setup` MUST read `-a`, `-e`, `-p`, `--profile-flow`,
+`--profile-environment` and `--backup` as `hmz exec` reads them: items as Section 7.2, an `-a` or
+`-e` item split at its first `=` into the role and what is sent for it, params and a budget as
+Section 7.6, and backups as Section 7.11.2. They MUST send `agents` and `envs` as objects of role to
+what was written, `params` as an object of key to text, `budget` as the JSON of a `Budget` (Section
+3 of [PYTHON]), and `backup` as a list, and MUST leave out each that the line does not give. An
+agent and an environment MUST be sent unread: whether each names one is the daemon's to say.
+
+**21.2.10** An `-a` or `-e` item with no `=`, an empty role or nothing after the `=`, a role given
+twice to one option, a `-p` that Section 7.6 makes a usage error, and `--backup none` beside
+another target MUST each be a usage error (Section 16.10), and MUST call nothing. Under `--json` the
+usage error MUST instead be the document `{"error": {"code": 400, "message": <what is wrong>}}` on
+standard output, with nothing on standard error, and the exit status 2.
+
+**21.2.11** `hmz flows fork <flow>` MUST call `flows.fork` with the workspace and `flow`, and write
+its `said`. Its JSON document MUST be `{"said", "at"}` (Section 4.17.4.3 of [DAEMON]).
+
+### 21.3. `hmz flowverses`
+
+**21.3.1** `hmz flowverses list` MUST call `flowverses.list`. Its JSON document MUST be the result
+of `flowverses.list` (Section 4.17.6.1 of [DAEMON]). Without `--json` it MUST write, under a
+heading, one line per flowverse: its name, its URL, how many flows are installed out of it, and that
+it is not fetched where it is not; and, under a second heading, one line per installed flow: its
+name, its version, its flowverse, and the newer version of `updates` where there is one.
+
+**21.3.2** `hmz flowverses show <name>` MUST call `flowverses.get`. Its JSON document MUST be the
+result of `flowverses.get` (Section 4.17.6.2 of [DAEMON]). Without `--json` it MUST write the
+flowverse's name and URL, then one line per release, flows in the daemon's order and releases newest
+first: the flow as `hmz flowverses install` takes it, the version, marked where it is a prerelease,
+whether it is the one installed, and its description; then each of `skipped` with why.
+
+**21.3.3** `hmz flowverses add <url>` MUST call `flowverses.add` with `url`, and `name` where
+`--name` is given; `hmz flowverses fetch <name>` MUST call `flowverses.fetch`; `hmz flowverses
+remove <name>` MUST call `flowverses.remove`; `hmz flowverses install <flow>` MUST call
+`flowverses.install` with `flow`, and `version` where `--version` is given; and `hmz flowverses
+uninstall <flow>` MUST call `flowverses.uninstall`. Each MUST write the `said` of its result, and
+its JSON document MUST be that result (Section 4.17.6.3 of [DAEMON]).
+
+> Informative: `hmz flowverses install <flow>` on a flow already installed updates it to the newest
+> release, and with `--version` switches it to that one.
+
+**21.3.4** Without `-y`, `hmz flowverses remove` and `hmz flowverses uninstall` MUST first ask on
+standard error, in the words the web interface asks in, and MUST make their call only where the line
+read from standard input is `y` or `yes`, in any case; any other answer MUST change nothing, say so
+on standard error, and exit with status 1.
+
+**21.3.5** Without `-y`, where standard input is not a terminal, or under `--json`, `hmz flowverses
+remove` and `hmz flowverses uninstall` MUST ask nothing and call nothing, and MUST end as the usage
+error of Section 21.2.10 does.
+
+### 21.4. `hmz workspaces`
+
+**21.4.1** `hmz workspaces list` MUST call `workspaces.list` with the current directory as `here`
+and write one line per workspace, in the daemon's order: its path, its count of epics, its count of
+chats, when the latest began or `-`, and whether it is running and whether its directory is missing.
+Its JSON document MUST be the result of `workspaces.list` (Section 4.17.5.1 of [DAEMON]). Where
+there is no workspace and no `--json`, it MUST write nothing to standard output and say so on
+standard error.
+
+**21.4.2** `hmz workspaces add <path>` MUST call `workspaces.add` with the path as `workspace` and
+the current directory as `here`, and write `kept`. `hmz workspaces forget <path>` MUST call
+`workspaces.forget` likewise, and write that it was forgotten. The JSON document of each MUST be
+the result of its call (Section 4.17.5 of [DAEMON]).
+
+**21.4.3** `hmz workspaces browse [<path>]` MUST call `paths.list` with the path as `at`, `~` where
+none is given, `files` with `--files`, `hidden` with `--hidden` and `env` with `--env`; with `--env`
+the path MUST be sent as it is written. It MUST write one line per entry, in the daemon's order: the
+entry's whole path, ending in `/` for a directory; and, where `more` is not 0, how many were left
+out, on standard error. Its JSON document MUST be the result of `paths.list` (Section 4.17.7.1 of
+[DAEMON]).
+
+**21.4.4** `hmz workspaces complete <typed>` MUST call `paths.complete` with `typed` (21.1.3) and
+write one path per line. Its JSON document MUST be `{"paths": [<path>]}`.
 
 ## 22. `hmz settings`, `hmz accounts` and `hmz nous`
 
