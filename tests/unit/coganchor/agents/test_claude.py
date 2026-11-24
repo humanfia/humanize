@@ -8,6 +8,7 @@ it, and the turn read back out of what it wrote.
 from __future__ import annotations
 
 import json
+import plistlib
 import re
 from dataclasses import replace
 from types import SimpleNamespace
@@ -28,7 +29,9 @@ from hmz.coganchor.agents import (
     Unserved,
     Verdict,
 )
+from hmz.coganchor.agents import claude as driver
 from hmz.coganchor.agents.base import KEEPING, AgentBase
+from hmz.coganchor.agents.hooks import WAITING
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
@@ -154,6 +157,16 @@ def _assistant(
 def spawner(monkeypatch: pytest.MonkeyPatch) -> Spawner:
     """Every process a turn asks for, scripted rather than started."""
     return Spawner(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def managed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """This machine's managed settings, kept in a folder of the test's and empty until said."""
+    folder = tmp_path / "managed"
+    (folder / "managed-settings.d").mkdir(parents=True)
+    monkeypatch.setattr(driver, "MANAGED", (tmp_path / "device.plist", folder))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "home"))
+    return folder
 
 
 @pytest.fixture
@@ -899,6 +912,183 @@ def test_bypass_refused_as_root_is_taken_again_at_accept_edits(
         "bypassPermissions",
         "acceptEdits",
     ]
+
+
+def _forbid(where: Path, settings: dict[str, Any]) -> None:
+    """Writes managed settings, as JSON or as the plist an MDM profile installs."""
+    where.parent.mkdir(parents=True, exist_ok=True)
+    if where.suffix == ".plist":
+        where.write_bytes(plistlib.dumps(settings))
+    else:
+        where.write_text(json.dumps(settings))
+
+
+_NO_BYPASS = {"permissions": {"disableBypassPermissionsMode": "disable"}}
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "managed/managed-settings.json",
+        "managed/managed-settings.d/20-security.json",
+        "device.plist",
+        "home/remote-settings.json",
+    ],
+)
+def test_bypass_forbidden_by_managed_settings_is_never_launched(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, where: str
+) -> None:
+    _forbid(tmp_path / where, _NO_BYPASS)
+    claude.mode = "acceptEdits"
+    agent = _agent(fence=_WRITES)
+    events = list(agent.new(tmp_path).stream("go"))
+    said = [one.text for one in events if one.kind == "notice"]
+    assert len(said) == 1
+    assert "disableBypassPermissionsMode" in said[0]
+    assert str(tmp_path / where) in said[0]
+    assert [_flag(one.args, "--permission-mode") for one in spawner.started] == [
+        "acceptEdits"
+    ]
+    assert spawner.last.stdin is not None
+    assert not [one for one in spawner.last.stdin.said if one["type"] != "user"]
+    events = list(agent.new(tmp_path).stream("again"))
+    assert not [one for one in events if one.kind == "notice"]
+    assert _flag(spawner.last.args, "--permission-mode") == "acceptEdits"
+
+
+def test_a_permission_request_hook_runs_at_manual_whatever_the_policy(
+    spawner: Spawner, claude: _Claude, managed: Path, tmp_path: Path
+) -> None:
+    _forbid(managed / "managed-settings.json", _NO_BYPASS)
+    claude.mode = "manual"
+    agent = _agent(fence=_WRITES)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda occasion: Verdict())
+    agent.new(tmp_path)("go")
+    assert _flag(spawner.last.args, "--permission-mode") == "manual"
+
+
+def test_a_setting_that_forbids_nothing_here_changes_nothing(
+    spawner: Spawner, claude: _Claude, managed: Path, tmp_path: Path
+) -> None:
+    _forbid(managed / "managed-settings.json", {"model": "opus"})
+    _forbid(managed / "managed-settings.d/.hidden.json", _NO_BYPASS)
+    _forbid(managed / "managed-settings.d/notes.txt", _NO_BYPASS)
+    claude.mode = "bypassPermissions"
+    _agent(fence=_WRITES).new(tmp_path)("go")
+    assert _flag(spawner.last.args, "--permission-mode") == "bypassPermissions"
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        {"allowManagedHooksOnly": True},
+        {"disableAllHooks": True},
+        {"strictPluginOnlyCustomization": ["hooks"]},
+    ],
+)
+def test_a_gate_the_policy_drops_from_settings_is_served_over_the_stream(
+    spawner: Spawner,
+    claude: _Claude,
+    managed: Path,
+    tmp_path: Path,
+    policy: dict[str, Any],
+) -> None:
+    _forbid(managed / "managed-settings.json", policy)
+    claude.mode = "bypassPermissions"
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that")
+
+    agent = _agent(fence=_WRITES)
+    agent.hooks.on(Moment.PRE_TOOL_USE, refuse)
+    called = {
+        "subtype": "hook_callback",
+        "callback_id": "hmz-gate",
+        "input": {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "rm"},
+        },
+    }
+    use = {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "rm"}}
+    claude.answers = [
+        _says(
+            {"type": "control_request", "request_id": "r1", "request": called},
+            _assistant(use),
+        )
+    ]
+    agent.new(tmp_path)("go")
+    assert "hooks" not in json.loads(_flag(spawner.last.args, "--settings"))
+    assert spawner.last.stdin is not None
+    first = spawner.last.stdin.said[0]
+    assert first["request"]["subtype"] == "initialize"
+    assert first["request"]["hooks"] == {
+        "PreToolUse": [
+            {"matcher": None, "hookCallbackIds": ["hmz-gate"], "timeout": WAITING}
+        ]
+    }
+    assert _replied(spawner.last) == {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "not that",
+        }
+    }
+    # Once, from the callback: the tool the stream then announces is not fired again.
+    assert [(one.tool, one.about) for one in seen] == [("Bash", "rm")]
+
+
+def test_with_no_policy_the_gate_is_a_table_and_nothing_is_registered(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    agent = _agent(fence=_WRITES)
+    agent.hooks.on(Moment.PRE_TOOL_USE, lambda occasion: Verdict())
+    agent.new(tmp_path)("go")
+    assert "PreToolUse" in json.loads(_flag(spawner.last.args, "--settings"))["hooks"]
+    assert spawner.last.stdin is not None
+    assert not [one for one in spawner.last.stdin.said if one["type"] != "user"]
+
+
+@pytest.mark.parametrize("where", ["managed-settings.json", "managed-mcp.json"])
+def test_callbacks_the_policy_drops_are_refused_before_anything_starts(
+    spawner: Spawner,
+    claude: _Claude,
+    managed: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    where: str,
+) -> None:
+    _forbid(managed / where, {"disableSideloadFlags": True, "mcpServers": {}})
+    agent = _agent(fence=_WRITES)
+    monkeypatch.setattr(agent.toolbox, "names", lambda: ("answer",))
+    with pytest.raises(Unserved, match=re.escape(str(managed / where))):
+        agent.new(tmp_path)("go")
+    assert spawner.started == []
+
+
+@pytest.mark.parametrize(("fence", "refused"), [(None, True), (_WRITES, False)])
+def test_allow_rules_the_policy_drops_are_refused_only_where_they_are_the_grant(
+    spawner: Spawner,
+    claude: _Claude,
+    managed: Path,
+    tmp_path: Path,
+    fence: Fence | None,
+    refused: bool,
+) -> None:
+    _forbid(
+        managed / "managed-settings.json", {"allowManagedPermissionRulesOnly": True}
+    )
+    agent = _agent(fence=fence, allowed_tools=("Read",))
+    if refused:
+        with pytest.raises(Unserved, match="allowManagedPermissionRulesOnly"):
+            agent.new(tmp_path)("go")
+        assert spawner.started == []
+    else:
+        agent.new(tmp_path)("go")
+        assert len(spawner.started) == 1
 
 
 def test_a_word_put_in_mid_turn_is_heard_and_answered_with_the_turn(

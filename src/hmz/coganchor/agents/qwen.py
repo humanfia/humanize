@@ -47,6 +47,8 @@ import contextlib
 import json
 import os
 import re
+import sys
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,7 +60,7 @@ from hmz.coganchor.homes import merged, merger
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
 from .config import AgentConfig
-from .event import Event, Failed, Unrecoverable, Usage
+from .event import Event, Failed, Question, Unrecoverable, Usage
 from .hooks import WAITING, Gate, Moment
 from .native import NativeCommand
 from .preload import preloaded
@@ -82,6 +84,20 @@ _SETTINGS = "settings.json"
 #: here: a file one of them names is watched like any other settings file.
 _SYSTEM = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
 _DEFAULTS = "QWEN_CODE_SYSTEM_DEFAULTS_PATH"
+
+#: Where the system layer is when neither variable moves it, by platform, the system defaults
+#: beside it: what an administrator sets, read here before a process is started under it.
+_MACHINE = {
+    "darwin": "/Library/Application Support/QwenCode",
+    "win32": "C:\\ProgramData\\qwen-code",
+}
+_ETC = "/etc/qwen-code"
+_MACHINE_DEFAULTS = "system-defaults.json"
+
+#: The variable that moves the user's trusted folders, and the file under their Qwen home
+#: otherwise: which folders folder trust, where it is on, lets Qwen Code run above `default`.
+_TRUSTED = "QWEN_CODE_TRUSTED_FOLDERS_PATH"
+_TRUSTS = "trustedFolders.json"
 
 #: What the server carrying a flow's own callbacks is called among the CLI's MCP servers.
 _SERVER = "humanize"
@@ -128,30 +144,41 @@ _VERSION = {"$version": 4}
 _COMPILED = "NODE_COMPILE_CACHE"
 _CACHE = ("compiled", "qwen")
 
-#: What Qwen Code is run at under a fence, as `--approval-mode`: `yolo`, which is not an
-#: oversight but the only mode this CLI can be driven at from out here.
+#: What Qwen Code is run at under a fence, as `--approval-mode`: `yolo`, where it asks about
+#: nothing but a question for its user, so that the fence holds the grant and what Qwen Code
+#: is told is only which of its tools it is started with (:data:`_WRITERS`).
 #:
 #: Its own ladder does have modes that would hold a grant almost outright -- `plan` for an
-#: agent that may change nothing, `auto-edit` for one that edits and asks before it runs.
-#: Each of them works by *asking*, and the asking has to reach somebody. Run with a prompt for
+#: agent that may change nothing, `auto-edit` for one that edits and asks before it runs, and
+#: `auto`, where a model of its own decides. Each of them works by *asking*, and a model
+#: deciding is one this protocol does not let near an agent's actions. Run with a prompt for
 #: input, Qwen Code knows nobody is there and turns every such ask into a refusal the tool
-#: call ends on. Run with `stream-json` for input -- which is how a session here is held open
-#: across its turns -- it decides there is somebody on the other end of the protocol, skips
-#: that refusal, and leaves the call sitting in `awaiting_approval`.
-#:
-#: Sitting there for good. The `can_use_tool` request that would let a client answer is only
-#: ever emitted by its interactive terminal UI running in dual-output mode, and the
-#: `confirmation_response` that would answer one is only ever read from the separate file
-#: `--input-file` names. Neither is on the protocol this driver speaks, so a turn that asks
-#: is a turn that never finishes and never says why. And a mode that asks is not a way to
-#: hold a grant in any case: the fence holds it, and what Qwen Code is told is only which of
-#: its tools it is started with (:data:`_WRITERS`), everything left approved without asking.
+#: call ends on; run with `stream-json`, it puts each to this driver as a `can_use_tool`
+#: control request, and gives up on it a minute later. Every one is answered here
+#: (:meth:`QwenCodeSession._answer`), but a mode that asks is still not a way to hold a grant.
 #:
 #: Written only where there is a fence. An agent driven by hand carries none and is run with
 #: no flag at all -- left at whatever `qwen` itself is run at -- since there is no mode for
 #: saying nothing: `--approval-mode ""` is a word Qwen Code reads as a mode spelled wrong
 #: rather than as a flag withdrawn.
 _APPROVAL = "yolo"
+
+#: What it is run at instead in a folder its folder trust has not trusted, which Qwen Code
+#: allows nothing above but `plan`: `default`, which asks about every tool that changes
+#: something, each request granted as it is asked. Read off the machine before the process
+#: is started (:func:`_distrusted`) rather than found out from the turn: Qwen Code moves such
+#: a folder down to it whatever it is told.
+_DISTRUSTED = "default"
+
+#: The tools Qwen Code's headless `default` refuses outright unless an allow rule names them,
+#: named in one so that a turn with nobody to ask -- a shaped turn, whose input is not the
+#: protocol -- is granted them too. An allow rule is the grant made before the asking, and
+#: a tool withheld stays withheld: Qwen Code reads a deny over an allow.
+_ALLOWED = ("run_shell_command", "monitor", "edit", "write_file")
+
+#: The one tool that asks its user something rather than asking leave to run, which `yolo`
+#: still puts to the protocol: its answers go back on the same reply as a grant would.
+_QUESTION = "ask_user_question"
 
 #: The tools withheld from an agent whose fence writes nothing, by the names Qwen Code calls
 #: them: the four that write a file. `save_memory` among them, since what it writes is a
@@ -346,6 +373,145 @@ def _listed(said: object) -> list[Any]:
     return list(cast("list[Any]", said)) if isinstance(said, list) else []
 
 
+def _home(environment: dict[str, str], cwd: Path) -> Path:
+    """The user's own Qwen home, where their settings and trusted folders are kept."""
+    theirs = Path(environment.get("HOME") or Path.home())
+    return cwd / Path(environment.get("QWEN_HOME") or theirs / ".qwen").expanduser()
+
+
+def _loaded(at: Path) -> dict[str, Any]:
+    """One settings file as Qwen Code reads it, comments and all, or nothing for none."""
+    import json5
+
+    try:
+        raw: object = json5.loads(at.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return {}
+    return cast("dict[str, Any]", raw) if isinstance(raw, dict) else {}
+
+
+def _layers(
+    environment: dict[str, str], cwd: Path
+) -> list[tuple[Path, dict[str, Any]]]:
+    """The settings Qwen Code merges that a repository cannot touch, the one that wins first.
+
+    The system layer, the user's, then the system defaults -- read only, as everything of the
+    machine's and the user's is here. The workspace's own is not among them: Qwen Code reads
+    a folder's trust before it reads that folder's settings at all.
+
+    Args:
+      environment: What the process is started with.
+      cwd: Where it is started.
+
+    Returns:
+      Each file and what it says, `{}` for one that is not there.
+    """
+    machine = Path(_MACHINE.get(sys.platform, _ETC))
+    system = cwd / Path(environment.get(_SYSTEM) or machine / _SETTINGS).expanduser()
+    defaults = (
+        cwd
+        / Path(
+            environment.get(_DEFAULTS) or system.parent / _MACHINE_DEFAULTS
+        ).expanduser()
+    )
+    return [
+        (at, _loaded(at))
+        for at in (system, _home(environment, cwd) / _SETTINGS, defaults)
+    ]
+
+
+def _setting(
+    layers: list[tuple[Path, dict[str, Any]]], *keys: str
+) -> tuple[Path, object] | None:
+    """The file that decides one setting, and what it says, or None where none says it."""
+    for at, held in layers:
+        if (said := _under(held, keys)) is not None:
+            return at, said
+    return None
+
+
+def _under(said: object, keys: tuple[str, ...]) -> object:
+    """What one file says under a path of keys, or None where it says nothing there."""
+    for key in keys:
+        said = (
+            cast("dict[str, object]", said).get(key) if isinstance(said, dict) else None
+        )
+    return said
+
+
+def _unhooked(
+    layers: list[tuple[Path, dict[str, Any]]], cwd: Path, *, trusted: bool
+) -> Path | None:
+    """The file that turns every hook off over the run's own `false`, or None for none.
+
+    The system layer, and the workspace's under it where Qwen Code reads that at all, which
+    is in a folder it trusts: both outrank the user layer the run's own settings are in.
+
+    Args:
+      layers: What :func:`_layers` read.
+      cwd: Where the process is started.
+      trusted: Whether Qwen Code trusts `cwd`.
+
+    Returns:
+      The file, or None where hooks stay on.
+    """
+    ranked = layers[:1]
+    if trusted:
+        workspace = cwd / ".qwen" / _SETTINGS
+        ranked.append((workspace, _loaded(workspace)))
+    said = _setting(ranked, "disableAllHooks")
+    return said[0] if said is not None and said[1] is True else None
+
+
+def _distrusted(
+    layers: list[tuple[Path, dict[str, Any]]], environment: dict[str, str], cwd: Path
+) -> Path | None:
+    """The file that turns folder trust on, where `cwd` is not a folder it trusts.
+
+    Qwen Code runs such a folder at `default` or `plan` whatever it is told. A folder is
+    trusted only by a rule of the user's trusted folders: the deepest rule over it decides,
+    `TRUST_PARENT` speaking for the folder it names the parent of, and a distrust wins a tie.
+
+    Args:
+      layers: What :func:`_layers` read.
+      environment: What the process is started with.
+      cwd: Where it is started.
+
+    Returns:
+      The file, or None for a folder Qwen Code will run above `default`.
+    """
+    said = _setting(layers, "security", "folderTrust", "enabled")
+    if said is None or said[1] is not True:
+        return None
+    at = Path(environment.get(_TRUSTED) or _home(environment, cwd) / _TRUSTS)
+    where = _variants(str(cwd))
+    deepest, trusted = -1, False
+    for named, level in _loaded(cwd / at.expanduser()).items():
+        if level == "TRUST_PARENT":
+            # The folder it names the parent of, a trailing separator not being a folder.
+            root = os.path.dirname(named.rstrip(os.sep + (os.altsep or "")) or named)  # noqa: PTH120
+            says = True
+        elif level in ("TRUST_FOLDER", "DO_NOT_TRUST"):
+            root, says = named, level == "TRUST_FOLDER"
+        else:
+            continue
+        for over in _variants(root):
+            depth = len(Path(over).parts) - 1
+            if any(Path(one).is_relative_to(over) for one in where) and (
+                depth > deepest or (depth == deepest and not says)
+            ):
+                deepest, trusted = depth, says
+    return None if trusted else said[0]
+
+
+def _variants(path: str) -> set[str]:
+    """One path as it is spelled and as it resolves, either of which a rule may name."""
+    return {
+        os.path.normcase(os.path.abspath(path)),  # noqa: PTH100 -- a spelling, not a Path
+        os.path.normcase(os.path.realpath(path)),
+    }
+
+
 def _asked(config: AgentConfig, named: str, *, default: bool) -> bool:
     """Whether one of Qwen Code's own options is on for this agent.
 
@@ -441,6 +607,9 @@ class QwenCodeSession(StreamSessionBase):
         #: The `/` commands the CLI said it serves headless, as the last `system` record
         #: opening a turn listed them: none until a turn has been taken.
         self._commands: tuple[str, ...] = ()
+        #: What the process is run at under a fence: :data:`_APPROVAL`, or what the machine's
+        #: settings leave it (:meth:`_policy`).
+        self._mode = _APPROVAL
 
     def natives(self) -> list[NativeCommand]:
         """What a chat's line may open with here: the CLI's own `/` commands, and `@`.
@@ -464,6 +633,10 @@ class QwenCodeSession(StreamSessionBase):
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
         """Keeps plain turns warm, and resumes shaped turns in a command of their own."""
+        with self._lock:
+            instead = self._policy()
+        if instead:
+            yield Event(kind="notice", text=instead)
         if schema is not None:
             with self._lock:
                 self._shut()
@@ -481,6 +654,53 @@ class QwenCodeSession(StreamSessionBase):
             except BaseException:
                 self._shut()
                 raise
+
+    def _policy(self) -> str:
+        """Reads what the machine's settings leave this agent, before a process is started.
+
+        Read off the files Qwen Code itself merges, without a turn: a hook table the system
+        layer turns off is a flow that could not refuse a tool before it runs, and a folder
+        folder trust has not trusted is one Qwen Code runs at `default` whatever it is told,
+        so it is told :data:`_DISTRUSTED` outright and every request it asks is granted
+        (:meth:`_answer`). Not for an anchored turn, whose files are another machine's: what
+        it asks is granted there all the same, and what it runs at is said by its `init`.
+
+        Returns:
+          What to say about the mode it runs at instead, the first time for the agent, or "".
+
+        Raises:
+          Unrecoverable: If a pre-tool-use hook is hung and the system layer turns hooks off.
+        """
+        self._mode = _APPROVAL
+        if self._agent.anchor is not None:
+            return ""
+        environment = self._environ() or dict(os.environ)
+        cwd = Path(self.cwd)
+        layers = _layers(environment, cwd)
+        distrusted = _distrusted(layers, environment, cwd)
+        if (
+            self._agent.hooks.hooked(Moment.PRE_TOOL_USE)
+            and (at := _unhooked(layers, cwd, trusted=distrusted is None)) is not None
+        ):
+            said = (
+                f"{_COMMAND}: {at} sets disableAllHooks, which outranks the run's own"
+                " settings, so no hook of this flow's could refuse a tool before it runs"
+            )
+            raise Unrecoverable(1, [_COMMAND], "", said)
+        if self._agent.config.fence is None or distrusted is None:
+            return ""
+        self._mode = _DISTRUSTED
+        return self._shifted(
+            self._mode,
+            f"{distrusted} turns folder trust on and {cwd} is not a trusted folder",
+        )
+
+    def _shifted(self, mode: str, why: str) -> str:
+        """What to say of an agent run at `mode` rather than `yolo`, once an agent and mode."""
+        agent = self._agent
+        if isinstance(agent, QwenCodeAgent) and not agent.moved(mode):
+            return ""
+        return f"{_COMMAND}: {why}, so it runs at {mode}, where what it asks is granted"
 
     def _command(self) -> list[str]:
         """Builds the official NDJSON command with the current turn configuration."""
@@ -500,6 +720,7 @@ class QwenCodeSession(StreamSessionBase):
         native = self._native(environment)
         return (
             self._agent.config,
+            self._mode,
             self.effort,
             self._carrying(),
             self._agent.toolbox.names(),
@@ -516,7 +737,7 @@ class QwenCodeSession(StreamSessionBase):
         """
         cwd = Path(self.cwd)
         theirs = Path(environment.get("HOME") or Path.home())
-        qwen = cwd / Path(environment.get("QWEN_HOME") or theirs / ".qwen").expanduser()
+        qwen = _home(environment, cwd)
         # The user's own home rather than the virtual one a process is started in, which is
         # made of it: its `settings.json` is a copy of theirs, and the rest links to theirs.
         # And a system layer the machine names, which is the machine's and is watched as any
@@ -620,6 +841,10 @@ class QwenCodeSession(StreamSessionBase):
         if not isinstance(raw, dict):
             return
         said = cast("dict[str, Any]", raw)
+        if said.get("type") == "control_request":
+            # Qwen Code waits on the answer, and gives the tool up a minute later.
+            self._answer(said)
+            return
         yield from self._record(said)
         if named := said.get("session_id"):
             self._announced = str(named)
@@ -630,6 +855,58 @@ class QwenCodeSession(StreamSessionBase):
                     self._announced or self._minted or self._read_session_id(line)
                 )
             yield result
+
+    def _answer(self, said: dict[str, Any]) -> None:
+        """Answers one control request of Qwen Code's: a tool it asks leave for is granted.
+
+        Whatever mode it runs at, what it still asks about is granted -- the fence holds the
+        grant, and what the machine's own settings deny Qwen Code refuses before it asks. A
+        question for its user is put to whoever answers for this agent, by number, as Qwen
+        Code reads its answers; one nobody answers is refused rather than left waiting.
+
+        Args:
+          said: The `control_request`, as read.
+        """
+        asked = cast("dict[str, Any]", said.get("request") or {})
+        if asked.get("subtype") != "can_use_tool":
+            self._reply(said, None)
+            return
+        answer: dict[str, Any] = {"behavior": "allow"}
+        called = cast("dict[str, Any]", asked.get("input") or {})
+        if asked.get("tool_name") == _QUESTION:
+            answers: dict[str, str] = {}
+            for index, raw in enumerate(
+                cast("list[Any]", called.get("questions") or [])
+            ):
+                question = cast("dict[str, Any]", raw) if isinstance(raw, dict) else {}
+                offered = tuple(
+                    str(cast("dict[str, Any]", option)["label"])
+                    for option in cast("list[Any]", question.get("options") or [])
+                    if isinstance(option, dict)
+                    and cast("dict[str, Any]", option).get("label")
+                )
+                wanted = str(question.get("question") or question.get("header") or "")
+                got = self._agent.asked(Question(text=wanted, options=offered))
+                if got is None:
+                    self._reply(
+                        said, {"behavior": "deny", "message": "nobody answered"}
+                    )
+                    return
+                answers[str(index)] = got
+            answer["updatedInput"] = {**called, "answers": answers}
+        self._reply(said, answer)
+
+    def _reply(self, said: dict[str, Any], answer: dict[str, Any] | None) -> None:
+        """Writes one answer back to Qwen Code, or an error for a request not served here."""
+        named = said.get("request_id")
+        response: dict[str, Any] = (
+            {"subtype": "success", "request_id": named, "response": answer}
+            if answer is not None
+            else {"subtype": "error", "request_id": named, "error": "not served here"}
+        )
+        self._send(
+            json.dumps({"type": "control_response", "response": response}) + "\n"
+        )
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
         """Builds the `qwen` one turn is, and hands it the prompt on stdin.
@@ -664,11 +941,11 @@ class QwenCodeSession(StreamSessionBase):
         fence = self._agent.config.fence
         if fence is not None:
             # Everything the fence leaves is approved without being asked: a flow watches its
-            # agent rather than gating it, and a turn waiting on an approval nobody is there
-            # to give -- and, on this transport, nobody can answer -- is a flow that has
-            # stopped. And where there is no fence, no flag: an agent driven by hand is
-            # started with neither and runs at whatever `qwen` runs itself at.
-            argv += ["--approval-mode", _APPROVAL]
+            # agent rather than gating it. And where there is no fence, no flag: an agent
+            # driven by hand is started with neither and runs at whatever `qwen` runs at.
+            argv += ["--approval-mode", self._mode]
+            if self._mode == _DISTRUSTED:
+                argv += ["--allowed-tools", ",".join(_ALLOWED)]
         if _asked(self._agent.config, "partial_messages", default=False):
             # Off in the CLI and off here, because it is a different stream to read rather
             # than more of the same one, and an install that says nothing gets what `qwen`
@@ -810,6 +1087,19 @@ class QwenCodeSession(StreamSessionBase):
             self._tells(str(named))
         kind = str(said.get("type") or "")
         if kind == "system" and said.get("subtype") == "init":
+            running = str(said.get("permission_mode") or "")
+            if (
+                self._agent.config.fence is not None
+                and running
+                and running != self._mode
+                # Moved there by something read beforehand did not see: an IDE's trust, say.
+                and (
+                    instead := self._shifted(
+                        running, f"it moved itself off {self._mode}"
+                    )
+                )
+            ):
+                yield Event(kind="notice", text=instead)
             listed = said.get("slash_commands")
             if isinstance(listed, list):
                 # Replaced whole rather than added to: what a turn opens on is what the CLI
@@ -1062,6 +1352,32 @@ class QwenCodeAgent(AgentBase):
     #: What it counts, read off the same table its driver reads a usage with, so that what
     #: a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
+        """Initializes an agent that has said nothing yet of the mode it runs at.
+
+        Args:
+          config: The model and effort every session of this agent runs at.
+          name: What to call this agent, defaulting to one nothing else answers to.
+        """
+        super().__init__(config, name=name)
+        self._modes: set[str] = set()
+        self._noting = threading.Lock()
+
+    def moved(self, mode: str) -> bool:
+        """Notes that this agent runs at `mode` rather than `yolo`.
+
+        Args:
+          mode: What it runs at.
+
+        Returns:
+          Whether this is the first anybody has heard of it, and so something to say.
+        """
+        with self._noting:
+            if mode in self._modes:
+                return False
+            self._modes.add(mode)
+            return True
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> QwenCodeSession:
         """Opens a new Qwen Code session, in the directory it is given or in this one."""

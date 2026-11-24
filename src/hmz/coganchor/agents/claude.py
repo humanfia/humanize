@@ -2,27 +2,31 @@
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import json
 import os
+import platform
+import plistlib
 import re
 import threading
 import uuid
 from collections import Counter
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import prices
 
 from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
-from .config import AgentConfig
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Question, Usage
-from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
+from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, answers, arriving
 from .native import NativeCommand
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
-    from pathlib import Path
+    from collections.abc import Callable, Iterator, Mapping
 
     from pydantic import BaseModel
 
@@ -185,7 +189,9 @@ _ALIASES = frozenset({"default", "best", "opus", "sonnet", "haiku", "opusplan"})
 #: "disable"`), and a Claude told it on such an account does not refuse: it starts the turn at
 #: `default` and says so in its `system/init`. So :data:`_DECLINED` is where a fenced agent
 #: runs there, with every request it still makes answered yes (see
-#: :meth:`ClaudeCodeSession._declined`); and :data:`_ASKING` is where it runs while a hook is
+#: :meth:`ClaudeCodeSession._declined`) -- told it from the start where this machine's managed
+#: settings say so (:func:`_managed`), and moved to it where only the `system/init` does, a
+#: user's own settings saying it; and :data:`_ASKING` is where it runs while a hook is
 #: hung on `PERMISSION_REQUEST`, which a mode that asks nothing would never reach.
 _BYPASS = "bypassPermissions"
 
@@ -218,6 +224,146 @@ _ASKING = "manual"
 #: What Claude says, and exits on, when told `bypassPermissions` as root outside a sandbox it
 #: was told of: 2.1.285 word for word.
 _ROOT = "cannot be used with root/sudo privileges"
+
+#: Where Claude Code reads what an organisation manages on this machine, besides the copy of
+#: the server's it keeps in its own home: the managed preferences an MDM profile installs, the
+#: user's before the device's, and the folder of `managed-settings.json`, its
+#: `managed-settings.d/` drop-ins and `managed-mcp.json`. Read off 2.1.316. A test points this
+#: elsewhere; nothing here is ever written.
+MANAGED: tuple[Path, ...] = (
+    (
+        *(
+            (
+                Path(f"/Library/Managed Preferences/{user}")
+                / "com.anthropic.claudecode.plist",
+            )
+            if (user := os.environ.get("USER") or os.environ.get("LOGNAME"))
+            else ()
+        ),
+        Path("/Library/Managed Preferences/com.anthropic.claudecode.plist"),
+        Path("/Library/Application Support/ClaudeCode"),
+    )
+    if platform.system() == "Darwin"
+    else (Path("/etc/claude-code"),)
+)
+
+#: The managed settings that change how a fenced agent is launched, each with what holds it.
+#: Every one is what Claude calls restrictive: set in any managed source, it holds whichever
+#: source wins, so a source is never read as shadowing another for these.
+#:
+#: - `permissions.disableBypassPermissionsMode`: no `bypassPermissions`, so :data:`_DECLINED`.
+#: - `allowManagedHooksOnly`, `disableAllHooks` and `strictPluginOnlyCustomization` naming
+#:   hooks: a hook table on the command line is dropped, so `PreToolUse` is served as a hook
+#:   of the SDK's instead, which each of them leaves running.
+#: - `allowManagedPermissionRulesOnly`: `--allowedTools` is dropped (`--disallowedTools`
+#:   still holds).
+#: - `disableSideloadFlags`: an `--mcp-config` serving anything but the SDK's is dropped.
+_POLICED: dict[str, Callable[[Any], bool]] = {
+    "permissions.disableBypassPermissionsMode": lambda said: said == "disable",
+    "allowManagedHooksOnly": lambda said: said is True,
+    "disableAllHooks": lambda said: said is True,
+    "strictPluginOnlyCustomization": lambda said: (
+        said is True or (isinstance(said, list) and "hooks" in said)
+    ),
+    "allowManagedPermissionRulesOnly": lambda said: said is True,
+    "disableSideloadFlags": lambda said: said is True,
+}
+
+#: What a managed folder holding it says: that its servers alone are Claude's, every one an
+#: `--mcp-config` names dropped.
+_MANAGED_MCP = "managed-mcp.json"
+
+#: The managed setting that forbids `bypassPermissions`.
+_BYPASS_OFF = "permissions.disableBypassPermissionsMode"
+
+#: What the one hook registered over the stream is called back under.
+_GATE = "hmz-gate"
+
+#: The managed settings that drop a hook table from the command line.
+_UNHOOKED = (
+    "allowManagedHooksOnly",
+    "disableAllHooks",
+    "strictPluginOnlyCustomization",
+)
+
+
+@functools.lru_cache(maxsize=64)
+def _settled(where: str, stamp: tuple[int, int]) -> dict[str, Any]:
+    """One managed source as the settings it holds, read once per version of the file.
+
+    Args:
+      where: The file, a plist or JSON.
+      stamp: Its modification time and size, so that a file rewritten is read again.
+
+    Returns:
+      Its settings, or nothing for a file that is not one mapping.
+    """
+    del stamp
+    try:
+        with open(where, "rb") as held:  # noqa: PTH123
+            said = plistlib.load(held) if where.endswith(".plist") else json.load(held)
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        return {}
+    return cast("dict[str, Any]", said) if isinstance(said, dict) else {}
+
+
+def _sources(home: Path) -> Iterator[tuple[Path, dict[str, Any]]]:
+    """Every managed source Claude reads on this machine, for the account whose home is given.
+
+    Args:
+      home: Claude's own home for the account, where its copy of the server's is kept.
+
+    Yields:
+      Each file that holds settings, with them.
+    """
+    places = [home / "remote-settings.json"]
+    for place in MANAGED:
+        if place.suffix == ".plist":
+            places.append(place)
+            continue
+        places.append(place / "managed-settings.json")
+        with contextlib.suppress(OSError):
+            places += sorted(
+                one
+                for one in (place / "managed-settings.d").glob("*.json")
+                if not one.name.startswith(".")
+            )
+    for place in places:
+        try:
+            stat = place.stat()
+        except OSError:
+            continue
+        if settings := _settled(str(place), (stat.st_mtime_ns, stat.st_size)):
+            yield place, settings
+
+
+def _managed(home: Path) -> dict[str, str]:
+    """What this machine's managed settings forbid a Claude of the account, read without one.
+
+    Args:
+      home: Claude's own home for the account.
+
+    Returns:
+      Each of :data:`_POLICED` set, and :data:`_MANAGED_MCP` where it is present, against the
+      file that says so.
+    """
+    found: dict[str, str] = {}
+    for where, settings in _sources(home):
+        for key, holds in _POLICED.items():
+            said: Any = settings
+            for part in key.split("."):
+                said = (
+                    cast("dict[str, Any]", said).get(part)
+                    if isinstance(said, dict)
+                    else None
+                )
+            if key not in found and holds(said):
+                found[key] = str(where)
+    for place in MANAGED:
+        if place.suffix != ".plist" and (place / _MANAGED_MCP).is_file():
+            found.setdefault(_MANAGED_MCP, str(place / _MANAGED_MCP))
+    return found
+
 
 #: Claude Code's commands that only its own interactive interface serves: a dialog, a picker,
 #: a terminal it sets up, an account it signs in to. Print mode lists some of them among its
@@ -553,6 +699,13 @@ class ClaudeCodeSession(StreamSessionBase):
         self._gating = False
         #: The permission mode the command line just built said, "" for none.
         self._launching = ""
+        #: What this machine's managed settings forbid, read as the command line was built
+        #: (:func:`_managed`), against where each is said.
+        self._forbidding: dict[str, str] = {}
+        #: Whether the command line just built serves `PreToolUse` over the stream rather than
+        #: by a table, and whether the process now up was started so.
+        self._serving = False
+        self._served = False
         #: What of the config the process now up was built with, out of the settings only a
         #: command line can carry, or None while nothing is up. `reconfigure` says that every
         #: turn from then on runs at the new one, and these are read when Claude starts.
@@ -605,6 +758,12 @@ class ClaudeCodeSession(StreamSessionBase):
         an anchored session needs: its process ends with each turn, so the next one has a
         conversation to rejoin. An unanchored session opens once and stays open.
         """
+        # Read before anything is started, so that a launch the account's managed settings
+        # make impossible is refused here rather than started and failed -- and not again
+        # for a process already up, which was started under what was read then.
+        if self._proc is None or self._proc.poll() is not None:
+            self._forbidding = self._policy()
+            self._refuses()
         # Kept for the process it starts, as the offer below is: what its `system/init` says
         # it is running at is read against what it was told (:meth:`_declined`).
         self._launching = self._mode()
@@ -789,7 +948,17 @@ class ClaudeCodeSession(StreamSessionBase):
         # Seconds, which is the unit Claude Code reads this number in. Nothing at all for a
         # gate that could not be served, which is a turn whose `PreToolUse` is read off the
         # stream again rather than one pointed at a socket nothing is listening on.
-        if self._gating and (table := self._agent.hooks.gate().table(WAITING)):
+        # Where the managed settings drop a table from the command line, the moment is served
+        # as a hook the SDK registers over the stream instead, which they leave running
+        # (:meth:`_restarted`).
+        self._serving = self._gating and any(
+            key in self._forbidding for key in _UNHOOKED
+        )
+        if (
+            self._gating
+            and not self._serving
+            and (table := self._agent.hooks.gate().table(WAITING))
+        ):
             settings["hooks"] = table
         return settings
 
@@ -807,6 +976,8 @@ class ClaudeCodeSession(StreamSessionBase):
         Returns:
           True where this process asks about it and waits to be told.
         """
+        if self._served:
+            return moment is Moment.PRE_TOOL_USE and self._agent.hooks.hooked(moment)
         return bool(self._gated) and super()._asking(moment)
 
     def _hooking(self) -> bool:
@@ -867,6 +1038,31 @@ class ClaudeCodeSession(StreamSessionBase):
         self._offering = self._telling
         self._gated = self._gating
         self._built = self._configured()
+        self._served = self._serving
+        if self._served:
+            # Before the turn's prompt: Claude reads its stdin in order, so the hook is
+            # registered by the time the model can reach for a tool.
+            self._send(
+                json.dumps(
+                    {
+                        "type": "control_request",
+                        "request_id": f"hmz-{uuid.uuid4()}",
+                        "request": {
+                            "subtype": "initialize",
+                            "hooks": {
+                                Moment.PRE_TOOL_USE.value: [
+                                    {
+                                        "matcher": None,
+                                        "hookCallbackIds": [_GATE],
+                                        "timeout": WAITING,
+                                    }
+                                ]
+                            },
+                        },
+                    }
+                )
+                + "\n"
+            )
 
     def _configured(self) -> tuple[tuple[str, ...], bool, bool, bool | None, bool]:
         """What of the config a Claude started now would be built with and cannot be told.
@@ -1143,8 +1339,8 @@ class ClaudeCodeSession(StreamSessionBase):
 
         None for an agent with no fence. A fenced one runs at :data:`_BYPASS`, whatever its
         fence writes, except :data:`_ASKING` while the config asks for every request to be put
-        to Humanize, and :data:`_DECLINED` on an account already found to forbid
-        `bypassPermissions`.
+        to Humanize, and :data:`_DECLINED` where this machine's managed settings forbid
+        `bypassPermissions` or the account was already found to.
 
         Returns:
           The mode, in Claude's own spelling.
@@ -1153,7 +1349,9 @@ class ClaudeCodeSession(StreamSessionBase):
             return ""
         if self._asks():
             return _ASKING
-        if isinstance(self._agent, ClaudeCodeAgent) and self._agent.declines():
+        if _BYPASS_OFF in self._forbidding or (
+            isinstance(self._agent, ClaudeCodeAgent) and self._agent.declines()
+        ):
             return _DECLINED
         return _BYPASS
 
@@ -1169,6 +1367,54 @@ class ClaudeCodeSession(StreamSessionBase):
         if said is not None:
             return said
         return self._agent.hooks.hooked(Moment.PERMISSION_REQUEST)
+
+    def _policy(self) -> dict[str, str]:
+        """What this machine's managed settings forbid a Claude started now, as :func:`_managed`.
+
+        Read off the files Claude itself reads them from, before it is started, rather than
+        found out by starting one: a launch the settings forbid is then never made. Nothing
+        for an anchored session, whose Claude runs under another machine's settings -- what
+        that one refuses is still found out as it refuses it.
+
+        Returns:
+          Each setting forbidding something, against the file that says so.
+        """
+        if self._agent.anchor is not None:
+            return {}
+        home = (
+            self._environment().get("CLAUDE_CONFIG_DIR")
+            or os.environ.get("CLAUDE_CONFIG_DIR")
+            or Path.home() / ".claude"
+        )
+        return _managed(Path(home))
+
+    def _refuses(self) -> None:
+        """Refuses a Claude the managed settings would leave unable to do what is asked of it.
+
+        Raises:
+          Unserved: If they drop the flow's own callbacks, which reach Claude only on an
+            `--mcp-config`, or the allow rules an agent with no fence was given, which are the
+            only grant such an agent has: started, it would run without either and say
+            nothing of it.
+        """
+        offers = bool(self._agent.toolbox.names())
+        bounds = self._grant() is None and bool(
+            getattr(self._agent.config, "allowed_tools", ())
+        )
+        dropped = [
+            f"{key} in {self._forbidding[key]} drops {what}"
+            for key, what, needed in (
+                ("disableSideloadFlags", "the flow's callbacks", offers),
+                (_MANAGED_MCP, "the flow's callbacks", offers),
+                ("allowManagedPermissionRulesOnly", "allowed_tools", bounds),
+            )
+            if needed and key in self._forbidding
+        ]
+        if dropped:
+            raise Unserved(
+                "claude: this machine's managed settings forbid what this agent needs: "
+                + "; ".join(dropped)
+            )
 
     def _declined(self, running: str) -> str:
         """Moves a Claude whose account forbids `bypassPermissions` to :data:`_DECLINED`.
@@ -1187,6 +1433,10 @@ class ClaudeCodeSession(StreamSessionBase):
         Returns:
           What to say about it, once an agent and account, or "".
         """
+        if self._launching == _DECLINED and _BYPASS_OFF in self._forbidding:
+            # Told it from the start, the managed settings having said so before it began:
+            # said with its first turn, as a refusal found out is.
+            return self._refused(f"{_BYPASS_OFF} in {self._forbidding[_BYPASS_OFF]}")
         if self._launching != _BYPASS or not running or running in (_BYPASS, _DECLINED):
             return ""
         self._send(
@@ -1202,8 +1452,11 @@ class ClaudeCodeSession(StreamSessionBase):
         self._launching = _DECLINED
         return self._refused()
 
-    def _refused(self) -> str:
+    def _refused(self, why: str = "") -> str:
         """Remembers that `bypassPermissions` is refused this agent where it runs.
+
+        Args:
+          why: The managed setting that refuses it, and where, where one was read.
 
         Returns:
           What to say about it, the first time for the agent and account, and "" after.
@@ -1211,8 +1464,9 @@ class ClaudeCodeSession(StreamSessionBase):
         if not isinstance(self._agent, ClaudeCodeAgent) or not self._agent.declined():
             return ""
         return (
-            "claude: this account will not run an agent at bypassPermissions, so it runs at "
-            f"{_DECLINED}, where what it asks for is granted"
+            "claude: this account will not run an agent at bypassPermissions"
+            + (f" ({why})" if why else "")
+            + f", so it runs at {_DECLINED}, where what it asks for is granted"
         )
 
     def _listed(self, said: dict[str, Any]) -> None:
@@ -1800,8 +2054,19 @@ class ClaudeCodeSession(StreamSessionBase):
           said: The `control_request`, as read.
         """
         asked: dict[str, Any] = said.get("request") or {}
+        if (
+            asked.get("subtype") == "hook_callback"
+            and asked.get("callback_id") == _GATE
+        ):
+            # `PreToolUse`, served over the stream where the managed settings drop a table:
+            # answered as the relay a table runs answers it, by the same function.
+            self._reply(
+                said,
+                json.loads(answers(json.dumps(asked.get("input")), self._agent.hooks)),
+            )
+            return
         called: dict[str, Any] = asked.get("input") or {}
-        answers: dict[str, str] = {}
+        given: dict[str, str] = {}
         tool = str(asked.get("tool_name") or "")
         if tool != _ASKS:
             asking = self._fire(
@@ -1834,12 +2099,12 @@ class ClaudeCodeSession(StreamSessionBase):
                 if answer is None:
                     self._reply(said, {"behavior": "deny", "message": "nobody to ask"})
                     return
-                answers[wanted] = answer
+                given[wanted] = answer
         self._reply(
             said,
             {
                 "behavior": "allow",
-                "updatedInput": {**called, "answers": answers} if answers else called,
+                "updatedInput": {**called, "answers": given} if given else called,
             },
         )
 

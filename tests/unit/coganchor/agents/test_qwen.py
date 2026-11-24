@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     Failed,
+    Moment,
+    Question,
     QwenCodeAgent,
     QwenCodeAgentConfig,
     QwenCodeSession,
@@ -52,9 +54,12 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         _SYSTEM,
         "QWEN_CODE_SYSTEM_DEFAULTS_PATH",
         "QWEN_HOME",
+        "QWEN_CODE_TRUSTED_FOLDERS_PATH",
         "NODE_COMPILE_CACHE",
     ):
         monkeypatch.delenv(one, raising=False)
+    # Nor the machine's own system layer, which is read before a fenced process starts.
+    monkeypatch.setenv(_SYSTEM, str(tmp_path / "no-machine/settings.json"))
 
 
 def _agent(**said: Any) -> QwenCodeAgent:
@@ -293,6 +298,7 @@ def test_what_the_agent_may_do_goes_on_the_command_line(
 def test_the_effort_is_merged_into_a_copy_of_the_user_s_settings(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.delenv(_SYSTEM)
     theirs = tmp_path / "home/.qwen/settings.json"
     theirs.parent.mkdir(parents=True)
     said = {
@@ -585,3 +591,267 @@ def test_a_native_line_is_written_as_it_was_typed(
     assert [json.loads(one)["message"]["content"] for one in process.told] == [
         "/review @a.py"
     ]
+
+
+_TRUST_ON = '{"security": {"folderTrust": {"enabled": true}}} // the administrator\'s\n'
+
+
+def _policed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, system: str = _TRUST_ON
+) -> Path:
+    """A system settings file saying `system`, and the folder a fenced agent works in."""
+    at = tmp_path / "etc/settings.json"
+    at.parent.mkdir(parents=True)
+    at.write_text(system)
+    monkeypatch.setenv(_SYSTEM, str(at))
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    work = tmp_path / "work/repo"
+    work.mkdir(parents=True)
+    return work
+
+
+def _trusting(tmp_path: Path, rules: dict[str, str]) -> None:
+    trusts = tmp_path / "home/.qwen/trustedFolders.json"
+    trusts.parent.mkdir(parents=True, exist_ok=True)
+    trusts.write_text(json.dumps(rules))
+
+
+def test_a_folder_folder_trust_has_not_trusted_runs_at_default_said_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    work = _policed(monkeypatch, tmp_path)
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent(fence=Fence(write=_WRITES, online=True))
+    heard(agent)
+
+    first = _turn(agent.new(work))
+    second = _turn(agent.new(work))
+
+    assert len(spawned) == 2
+    for process in spawned:
+        assert option(process.args, "--approval-mode") == "default"
+        assert option(process.args, "--allowed-tools") == (
+            "run_shell_command,monitor,edit,write_file"
+        )
+    (notice,) = [one for one in [*first, *second] if one.kind == "notice"]
+    assert "etc/settings.json turns folder trust on" in notice.text
+    assert "runs at default" in notice.text
+
+
+@pytest.mark.parametrize(
+    ("rules", "mode"),
+    [
+        ({"{work}": "TRUST_FOLDER"}, "yolo"),
+        ({"{work}/../..": "TRUST_FOLDER"}, "yolo"),
+        ({"{work}/child": "TRUST_PARENT"}, "yolo"),
+        ({"{work}/": "TRUST_PARENT"}, "yolo"),
+        ({"{work}/..": "TRUST_FOLDER", "{work}": "DO_NOT_TRUST"}, "default"),
+        ({"{work}/..": "DO_NOT_TRUST", "{work}": "TRUST_FOLDER"}, "yolo"),
+        ({"{work}/elsewhere": "TRUST_FOLDER"}, "default"),
+    ],
+)
+def test_the_deepest_trusted_folders_rule_over_the_folder_decides(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rules: dict[str, str],
+    mode: str,
+) -> None:
+    work = _policed(monkeypatch, tmp_path)
+    _trusting(tmp_path, {key.format(work=work): value for key, value in rules.items()})
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent(fence=Fence(online=True))
+    heard(agent)
+
+    _turn(agent.new(work))
+
+    assert option(spawned[0].args, "--approval-mode") == mode
+
+
+@pytest.mark.parametrize(
+    ("system", "mode"),
+    [
+        # The user's own layer turns it on where the machine's says nothing.
+        ("{}", "default"),
+        # And the machine's outranks theirs.
+        ('{"security": {"folderTrust": {"enabled": false}}}', "yolo"),
+    ],
+)
+def test_the_system_layer_outranks_the_user_s(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, system: str, mode: str
+) -> None:
+    work = _policed(monkeypatch, tmp_path, system)
+    theirs = tmp_path / "home/.qwen/settings.json"
+    theirs.parent.mkdir(parents=True)
+    theirs.write_text(json.dumps({"security": {"folderTrust": {"enabled": True}}}))
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent(fence=Fence(online=True))
+    heard(agent)
+
+    _turn(agent.new(work))
+
+    assert option(spawned[0].args, "--approval-mode") == mode
+
+
+def test_an_agent_with_no_fence_is_told_nothing_whatever_the_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    work = _policed(monkeypatch, tmp_path)
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    heard(agent)
+
+    events = _turn(agent.new(work))
+
+    assert option(spawned[0].args, "--approval-mode") is None
+    assert "notice" not in [one.kind for one in events]
+
+
+def test_hooks_the_system_layer_turns_off_refuse_the_turn_before_a_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    work = _policed(monkeypatch, tmp_path, '{"disableAllHooks": true}')
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    agent.hooks.on(Moment.PRE_TOOL_USE, lambda _occasion: None)
+    heard(agent)
+
+    with pytest.raises(Unrecoverable, match="disableAllHooks"):
+        _turn(agent.new(work))
+
+    assert spawned == []
+
+
+@pytest.mark.parametrize(
+    ("trusts", "refused"), [({"{work}": "TRUST_FOLDER"}, True), ({}, False)]
+)
+def test_hooks_a_trusted_workspace_turns_off_refuse_the_turn_too(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    trusts: dict[str, str],
+    refused: bool,
+) -> None:
+    # An untrusted folder's own settings are not read at all, its `true` included.
+    work = _policed(monkeypatch, tmp_path)
+    _trusting(tmp_path, {key.format(work=work): value for key, value in trusts.items()})
+    (work / ".qwen").mkdir()
+    (work / ".qwen/settings.json").write_text('{"disableAllHooks": true}')
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    agent.hooks.on(Moment.PRE_TOOL_USE, lambda _occasion: None)
+    heard(agent)
+
+    if refused:
+        with pytest.raises(Unrecoverable, match=r"\.qwen/settings\.json"):
+            _turn(agent.new(work))
+    else:
+        _turn(agent.new(work))
+    assert len(spawned) == (0 if refused else 1)
+
+
+def _asking(request: dict[str, Any]) -> Callable[[str], Iterable[str]]:
+    """Asks one control request on the first turn, and finishes the turn once answered."""
+
+    def answers(told: str) -> Iterable[str]:
+        if json.loads(told).get("type") == "control_response":
+            return _TURN
+        asks = {"type": "control_request", "request_id": "r1", "request": request}
+        return [line(asks)]
+
+    return answers
+
+
+def _replied(told: list[str]) -> dict[str, Any]:
+    (replied,) = [
+        json.loads(one)["response"]
+        for one in told
+        if json.loads(one)["type"] == "control_response"
+    ]
+    assert replied["request_id"] == "r1"
+    return replied
+
+
+def test_a_tool_qwen_asks_leave_for_is_granted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    asked = {"subtype": "can_use_tool", "tool_name": "edit", "input": {"path": "a"}}
+    spawned = spawning(monkeypatch, answers=_asking(asked))
+    agent = _agent()
+    heard(agent)
+
+    events = _turn(agent.new(tmp_path))
+
+    assert events[-1].text == "done"
+    assert _replied(spawned[0].told) == {
+        "subtype": "success",
+        "request_id": "r1",
+        "response": {"behavior": "allow"},
+    }
+
+
+@pytest.mark.parametrize(("answer", "behavior"), [("blue", "allow"), (None, "deny")])
+def test_a_question_for_its_user_is_put_to_whoever_answers_for_the_agent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    answer: str | None,
+    behavior: str,
+) -> None:
+    question = {"question": "Which?", "options": [{"label": "blue"}, {"label": "red"}]}
+    asked = {
+        "subtype": "can_use_tool",
+        "tool_name": "ask_user_question",
+        "input": {"questions": [question]},
+    }
+    spawned = spawning(monkeypatch, answers=_asking(asked))
+    agent = _agent()
+    heard(agent)
+    put: list[Question] = []
+
+    def ask(question: Question) -> str | None:
+        put.append(question)
+        return answer
+
+    agent.ask = ask
+
+    _turn(agent.new(tmp_path))
+
+    assert [(one.text, one.options) for one in put] == [("Which?", ("blue", "red"))]
+    replied = _replied(spawned[0].told)["response"]
+    assert replied["behavior"] == behavior
+    if answer is not None:
+        assert replied["updatedInput"]["answers"] == {"0": "blue"}
+
+
+def test_a_control_request_not_served_here_is_answered_with_an_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_asking({"subtype": "hook_callback"}))
+    agent = _agent()
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert _replied(spawned[0].told)["subtype"] == "error"
+
+
+def test_a_mode_qwen_says_it_moved_itself_to_is_said_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    moved = {
+        "type": "system",
+        "subtype": "init",
+        "session_id": "qs-1",
+        "permission_mode": "default",
+    }
+    spawning(monkeypatch, answers=_answering(line(moved), *_TURN[1:]))
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    agent = _agent(fence=Fence(online=True))
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    said = [*_turn(session), *_turn(session)]
+
+    (notice,) = [one for one in said if one.kind == "notice"]
+    assert notice.text == (
+        "qwen: it moved itself off yolo, so it runs at default, where what it asks is"
+        " granted"
+    )
