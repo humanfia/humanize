@@ -1,0 +1,30 @@
+{
+ "entries": [
+  {
+   "wants": "what the up and down arrow keys do in a list of a chat's chips and actions: move the cursor to the row above or below",
+   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
+   "text": "move"
+  },
+  {
+   "wants": "what the enter key does on a chip (Folder, Environment, Model, Effort, Permissions): opens the list its value is changed from",
+   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
+   "text": "choose"
+  },
+  {
+   "wants": "what the up and down arrow keys do while reading what was said in a harness session: scroll it",
+   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
+   "text": "scroll"
+  },
+  {
+   "wants": "a chat was started in another folder than the one this terminal interface was opened in, named by {folder}; it is read by opening hmz in that folder",
+   "where": "one line in the log of the terminal interface, two short sentences with full stops, keep {folder}",
+   "text": "The chat was started in {folder}. Open hmz in that folder to read it."
+  },
+  {
+   "wants": "the folder has no harness session to read: no harness kept a session of its own that worked in this folder",
+   "where": "one short sentence with full stop, shown on the Harness session page of the terminal interface where there is nothing to read",
+   "text": "No harness session in this folder."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

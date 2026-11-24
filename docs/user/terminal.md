@@ -152,6 +152,12 @@ TEXTUAL_THEME=nord hmz
 
 Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
+Press <kbd>ctrl+g</kbd> for **Details** of the open chat: its model, effort, permissions and environment, each changed with <kbd>enter</kbd>, its usage, and **Rename…**, **Fork**, **Archive** and **Delete chat**.
+
+## Pages over the log
+
+Press <kbd>ctrl+n</kbd> for the New chat page: the first message, and above it the chips **Folder**, **Environment**, **Model**, **Effort** and **Permissions** showing what the chat starts with. A page covers the log until you press <kbd>esc</kbd>. See [Chat with an agent](/user/chat) and [Continue sessions from other CLIs](/user/harness-sessions).
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.

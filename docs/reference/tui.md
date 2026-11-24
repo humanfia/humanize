@@ -61,6 +61,8 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>ctrl+c</kbd> | Takes back the nearest thing. See the next table. |
 | <kbd>ctrl+q</kbd> | Same as `/exit`. |
 | <kbd>f1</kbd> | Opens Keys beside the log. Pressed from elsewhere it goes to Keys; pressed inside Keys it closes it. |
+| <kbd>ctrl+n</kbd> | Opens the New chat page. Pressed on the page it closes it. |
+| <kbd>ctrl+g</kbd> | Opens Details of the open chat beside the log. Pressed inside Details it closes it. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
 The bottom line of the screen lists the keys that work where you are, then the key of each pane.
@@ -259,6 +261,33 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Slices | <kbd>o</kbd> | Sorts by the next column. |
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |
+
+### New chat page
+
+| Where | Key | Action |
+| --- | --- | --- |
+| Page | <kbd>tab</kbd> <kbd>shift+tab</kbd> | Next or previous of the chips, the message and the list. |
+| Chip | <kbd>enter</kbd> | Drops the list its value is picked from: **Folder**, **Environment**, **Model**, **Effort**, **Permissions**. |
+| Message | <kbd>enter</kbd> | Starts the chat with what the chips say. |
+| List | <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next chat or harness session. |
+| List | <kbd>enter</kbd> | Opens the waiting chat, or reads the harness session. |
+| Page | <kbd>esc</kbd> | Closes the page. |
+
+### Details of a chat
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next chip or action. |
+| <kbd>enter</kbd> | Changes **Model**, **Effort**, **Permissions**, **Skill or flow** or **Environment**, or runs **Rename…**, **Fork**, **Archive** or **Delete chat**. |
+| <kbd>esc</kbd> | Gives the keys back to the prompt. |
+
+### Harness session page
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>pageup</kbd> <kbd>pagedown</kbd> | Scroll what was said. |
+| <kbd>enter</kbd> | **Continue in chat**, for a session that can be continued. |
+| <kbd>esc</kbd> | Closes the page. |
 
 ### Mouse
 

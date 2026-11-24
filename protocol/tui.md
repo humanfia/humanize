@@ -91,6 +91,10 @@ It is normative. It is cited by the tag [TUI].
 - [26. Keys view](#26-keys-view)
 - [27. Navigator and Search](#27-navigator-and-search)
 - [28. New chat and the chat's chips](#28-new-chat-and-the-chats-chips)
+  - [28.1. Chips](#281-chips)
+  - [28.2. New chat](#282-new-chat)
+  - [28.3. Details](#283-details)
+  - [28.4. Harness session](#284-harness-session)
 - [29. New epic and the epic's context](#29-new-epic-and-the-epics-context)
 - [30. Environment panes](#30-environment-panes)
 - [31. Flows page and transfers](#31-flows-page-and-transfers)
@@ -1642,6 +1646,15 @@ states where its row's context holds.
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 | 24.1.72 | app | the key of a view | Section 25.1.4 |
+| 24.1.73 | New chat page | `tab`, `shift+tab` | next or previous of chips, box, list (Section 28.2.5) |
+| 24.1.74 | New chat page, chip | `enter`, click | drop the list its value is picked from |
+| 24.1.75 | New chat page, box | `enter` | start the chat (Section 28.2.6) |
+| 24.1.76 | New chat page, list | `↑`, `↓`, `enter` | move; open the chat or the harness session |
+| 24.1.77 | Details view | `↑`, `↓` | previous or next chip or action |
+| 24.1.78 | Details view | `enter`, click | change the chip, or do the action (Section 28.3) |
+| 24.1.79 | Harness session page | `↑`, `↓`, `pageup`, `pagedown` | scroll what was said |
+| 24.1.80 | Harness session page | `enter` | `Continue in chat` (Section 28.4.2) |
+| 24.1.81 | New chat or Harness session page | `esc` | close the page |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
@@ -1728,7 +1741,125 @@ This section is reserved for the navigator's view of every workspace's chats, ep
 
 ## 28. New chat and the chat's chips
 
-This section is reserved for the New chat page, the chips of a chat's prompt, and reading a harness session. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 28.1. Chips
+
+**28.1.1** A _chip_ is one thing a chat starts or goes on with, named and showing the value in
+force: `Folder`, `Environment`, `Model`, `Effort`, `Permissions`. `enter` on a chip MUST drop the
+list its value is picked from (Section 15), the value in force ticked, and picking nothing MUST
+leave the value as it was.
+
+**28.1.2** `Model` MUST offer the models each harness installed on the daemon's machine lists, as
+`flows.backends` answers them, a group a harness, and MUST answer with an agent spec. A harness
+nobody has asked what it runs MUST be offered as one row which, picked, asks it (`accounts.models`)
+and offers the list again; a harness that lists none MUST say so in a row that cannot be picked. A
+model picked MUST keep the effort in force where that model takes it, and MUST otherwise have none.
+
+**28.1.3** `Effort` MUST offer `Default`, the model's own, then the efforts the model in force
+takes.
+
+**28.1.4** `Permissions` MUST offer the three permissions of Section 8.3.9 of [CORE], narrowest
+first, as `Read only`, `Edit this folder` and `Full access`, each with the line the web interface
+gives it.
+
+**28.1.5** `Environment` MUST offer `This computer`, then each runtime `runtimes.list` answers
+under `Runtimes`. A runtime picked MUST then offer the directories of its machine (`paths.list`
+with `env`) to pick one from; picking none, or a machine whose directories cannot be listed, MUST
+come to the runtime named alone.
+
+**28.1.6** `Folder` MUST offer the workspaces `workspaces.list` answers whose directory exists,
+then `Open folder…`, which MUST walk the directories of the daemon's machine (`paths.list`) and
+answer with the one `Use this directory` is picked in.
+
+### 28.2. New chat
+
+**28.2.1** `ctrl+n` MUST be the key of the _New chat_ view, a page whose hint is `New chat`. On
+that key while the page is open, the page MUST close.
+
+**28.2.2** The page MUST draw, from the top: the five chips of Section 28.1, each showing the value
+a chat started now would have; the box the first message is typed into; and a list. The page MUST
+open with the keys in the box.
+
+**28.2.3** The chips MUST open on: the directory the interface was opened in; `This computer`; the
+chat agent that folder remembers (`settings.get`), else the first model `flows.backends` lists;
+that agent's effort; and `Edit this folder`. Picking another folder MUST read what that folder
+remembers, and MUST put the environment back to `This computer`.
+
+**28.2.4** On the page `Environment` MUST also offer `New worktree`, which MUST NOT be pickable,
+saying `This folder is not a git repository`, where neither the folder nor a directory over it
+holds `.git`.
+
+**28.2.5** `tab` and `shift+tab` MUST move the keys to the next and the previous of the chips, the
+box and the list, wrapping; a list with no row MUST be passed over.
+
+**28.2.6** `enter` in the box with nothing typed MUST do nothing. With something typed it MUST start
+a chat (`chat.start`) with that as `task`, the agent of `Model` and `Effort` as `agent`, the
+permission picked, `worktree` where `New worktree` is picked, `env` where a runtime is, and
+`remember` `true`; where no model is in force it MUST instead say `Pick a nous for the chat.` and
+drop the list of `Model`.
+
+**28.2.7** A chat of the directory the interface was opened in MUST be started on a new chat host
+which the log screen then follows (Section 11), and the page MUST close at once. A chat of another
+folder MUST be started with that folder as `workspace`; once it has started the page MUST close and
+the log MUST say that it was started there and is read by opening hmz in that folder, and a start
+refused MUST be said on the page, which MUST stay open.
+
+**28.2.8** The list MUST hold, first, under `Waiting for you`, each chat of the directory the
+interface was opened in whose state is `asking` (`chat.list`), each saying `Asked a question`; then,
+under `Harness sessions`, where the setting `harness_sessions` is on, the harness sessions of that
+directory (`chat.harness.list`), each naming its harness. The list MUST be read again every 4
+seconds. `enter` on a chat MUST close the page and put that chat on the log screen; `enter` on a
+harness session MUST open it as Section 28.4 states.
+
+**28.2.9** On the page the start action, drawn at the end of the box, MUST be the one thing drawn
+pink; a chip with the keys MUST be cyan.
+
+### 28.3. Details
+
+**28.3.1** `ctrl+g` MUST be the key of the _Details_ view, which opens in the context and whose
+hint is `Details`. It MUST be about the chat on the log screen, read by `chat.get` as it opens and
+every 4 seconds after, and MUST say `No chat here` where the log screen shows none.
+
+**28.3.2** The view MUST draw the chat's title; that it waits on its person or that it failed,
+where it does; `Harness` and `Account`, which cannot be changed; the chips `Model`, `Effort`,
+`Permissions`, `Skill or flow` and `Environment`; the directory it works in; under `Usage`, what
+the chat has spent, its output tokens and the time it has worked, or `Nothing used yet`, and what
+its folder spent over the last 7 days (`runs.usage`); and under `Actions`, `Rename…`, `Fork`,
+`Archive` and `Delete chat`. `↑` and `↓` MUST move between the chips and the actions.
+
+**28.3.3** `Model` MUST offer only the models of the chat's own harness and account, and `Model`
+and `Effort` picked MUST be asked as `chat.agent`.
+
+**28.3.4** `Permissions` and `Skill or flow` -- `Use the skill` or `Start the flow`, the chat's
+preference of Section 8.9.10 of [CORE] -- picked MUST be asked as `chat.set`, and `Environment`
+picked as `chat.move`, `This computer` being the chat's folder. Where no host holds the chat, the
+view MUST first carry the chat on with nothing said (`chat.start` with `resume` and an empty
+`task`), MUST put the log screen on the host that answers, and MUST ask that host.
+
+**28.3.5** `Rename…` MUST ask for the title on the form of Section 18 and ask `chat.rename`; `Fork`
+MUST ask `chat.fork` and put the fork on the log screen; `Archive` MUST ask `chat.archive` and
+`Delete chat` MUST ask `chat.delete`, each then leaving the log screen on a new chat as `/clear`
+does. `Delete chat` MUST first ask, in a box naming the chat by its title, whether to delete it,
+and MUST delete nothing unless that is answered yes.
+
+**28.3.6** While a chip is being changed, that chip MUST be the one thing of the view drawn pink.
+A refusal MUST be said in the view, in the daemon's words, and MUST change nothing else.
+
+### 28.4. Harness session
+
+**28.4.1** The _Harness session_ view MUST be a page with no key, opened for one harness session
+of one workspace. It MUST read the session by `chat.harness.get` with `trace` `true` and draw what
+was said in it in the order it was said: each line the user said behind the mark of Section 9, what
+the harness said, and the name of whatever else it did, dim. A session whose logs hold nothing MUST
+say `Its logs held nothing said.` Opened for no session, it MUST read the workspace's newest.
+
+**28.4.2** The page MUST change nothing of the session. For a session whose row says `continuable`
+it MUST draw `Continue in chat`, the one thing on the page drawn pink, and `enter` MUST ask
+`chat.harness.adopt`, close the page, and put the chat that answers on the log screen; where that
+was opened from the New chat page, that page MUST close too. For any other session it MUST say that
+a session of that harness cannot be continued in a chat, and `enter` MUST do nothing.
+
+**28.4.3** `↑`, `↓`, `pageup` and `pagedown` MUST scroll what was said, and `esc` MUST close the
+page.
 
 ## 29. New epic and the epic's context
 

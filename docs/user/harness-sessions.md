@@ -80,9 +80,15 @@ Type `/resume` in a chat. The list shows the current directory's chats followed 
 
 ![The /resume list with one chat and three harness sessions](/shots/user-harness-sessions-resume-list.svg)
 
-Select a session and press <kbd>enter</kbd>. Humanize copies it into a new chat, shows what was said, and waits for your input. Picking a session that cannot be continued only shows a refusal. You cannot preview a session or open a row menu in the terminal.
+Select a session and press <kbd>enter</kbd>. Humanize copies it into a new chat, shows what was said, and waits for your input. Picking a session that cannot be continued only shows a refusal. To read a session first, use the New chat page (see below).
 
 ![In the terminal, /resume lists the sessions, one is picked, and the chat goes on](/shots/user-harness-sessions-resume.svg)
+
+### Read a session before continuing it
+
+Press <kbd>ctrl+n</kbd> for the New chat page. With the session list enabled, **Harness sessions** lists up to 50 sessions of the current folder under the message. Press <kbd>tab</kbd> to reach the list, select a session and press <kbd>enter</kbd>.
+
+The page shows what was said in the session, read-only. Scroll with <kbd>↑</kbd>, <kbd>↓</kbd>, <kbd>pageup</kbd> and <kbd>pagedown</kbd>. Press <kbd>enter</kbd> for **Continue in chat**: Humanize copies the session into a new chat and opens it. A session that cannot be continued says so, and <kbd>enter</kbd> does nothing. Press <kbd>esc</kbd> to go back.
 
 ## Good to know
 
