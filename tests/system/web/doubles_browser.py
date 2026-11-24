@@ -503,7 +503,7 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """
     import subprocess
 
-    import yaml
+    import tomlkit
 
     from hmz import config
     from hmz.runtime.epic import every
@@ -516,7 +516,7 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     def targets() -> None:
         config().mkdir(parents=True, exist_ok=True)
         said = {"backup": {"targets": [target], "defaults": []}}
-        (config() / "settings.yaml").write_text(yaml.safe_dump(said))
+        (config() / "settings.toml").write_text(tomlkit.dumps(said))
 
     targets()
     ran = hmz_exec(

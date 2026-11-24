@@ -87,11 +87,15 @@ Run `hmz daemon uninstall` to stop the service and remove its file.
 | System | Service | File |
 | --- | --- | --- |
 | macOS | launchd agent | `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` |
-| Linux | systemd user unit | `~/.config/systemd/user/hmz-daemon.service` |
+| Linux | systemd user unit | `$XDG_CONFIG_HOME/systemd/user/hmz-daemon.service`, or `~/.config/systemd/user/hmz-daemon.service` when `XDG_CONFIG_HOME` is unset or not an absolute path |
+
+On Linux, `XDG_CONFIG_HOME` here is the one your systemd user manager has (`systemctl --user show-environment`), not your shell's, so the unit always goes where systemd looks for it.
+
+Earlier versions of Humanize always wrote the Linux unit to `~/.config/systemd/user/`. If `XDG_CONFIG_HOME` now points somewhere else, `hmz daemon install` and `hmz daemon uninstall` also remove that old unit once they succeed, so you never have two.
 
 Each command prints the file it wrote or removed: `hmz daemon: installed <path>` or `hmz daemon: uninstalled <path>`.
 
-The service does not take `--listen`. It opens the listeners configured in the `listen` setting. See [settings.yaml](/reference/settings).
+The service does not take `--listen`. It opens the listeners configured in the `listen` setting. See [settings.toml](/reference/settings).
 
 ### Set the environment for agents
 

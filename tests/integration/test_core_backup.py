@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+import tomlkit
 
 from hmz import config
 from hmz.cli import main
@@ -65,8 +65,8 @@ def bare(tmp_path: Path) -> Path:
 
 def _targets(*targets: dict[str, object], defaults: tuple[str, ...] = ()) -> None:
     config().mkdir(parents=True, exist_ok=True)
-    (config() / "settings.yaml").write_text(
-        yaml.safe_dump(
+    (config() / "settings.toml").write_text(
+        tomlkit.dumps(
             {"backup": {"targets": list(targets), "defaults": list(defaults)}}
         )
     )

@@ -48,6 +48,7 @@ _BASES = {
 _KINDS = {
     "settings.yaml": "config",
     ".settings.yaml.lock": "config",
+    "settings.yaml.migrated": "config",
     "settings.toml": "config",
     ".settings.toml.lock": "config",
     "providers": "data",

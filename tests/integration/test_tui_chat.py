@@ -96,7 +96,7 @@ async def test_tool_rows_shown_in_detail_are_drawn_as_written_and_again_on_a_res
 ) -> None:
     home = config()
     home.mkdir(parents=True, exist_ok=True)
-    (home / "settings.yaml").write_text("details: true\n")
+    (home / "settings.toml").write_text("details = true\n")
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)

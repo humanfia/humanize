@@ -54,7 +54,7 @@ Every other device must pair first. A pairing code admits one device a single ti
 
 An unpaired device can only say hello, claim a pairing code, and list the daemon's methods. The daemon refuses any other request with `This device is not paired: claim a pairing code first.`
 
-A paired device has the same access you do, except it cannot open a terminal in an environment. Set `envs.paired_terminals` to `true` in `settings.yaml` to allow terminal access.
+A paired device has the same access you do, except it cannot open a terminal in an environment. Set `envs.paired_terminals` to `true` in `settings.toml` to allow terminal access.
 
 Revoking a device closes its sessions immediately, and it cannot reconnect without a new code. See [Connect to other machines](/user/daemons) to add a machine.
 
@@ -106,7 +106,7 @@ Open **Settings**, then **General**, and set **Error reports** to **On** or **Of
 
 ## Settings
 
-Configure these keys in `settings.yaml`. See [settings.yaml](/reference/settings).
+Configure these keys in `settings.toml`. See [settings.toml](/reference/settings).
 
 | Key | What it does |
 | --- | --- |

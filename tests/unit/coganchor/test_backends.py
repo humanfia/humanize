@@ -868,7 +868,7 @@ def test_broken_is_none_for_a_name_nothing_was_written_under() -> None:
 def test_speaking_reads_an_unreadable_file_as_nothing_added() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
-    at.write_text("clis: [unclosed\n", encoding="utf-8")
+    at.write_text("clis = [unclosed\n", encoding="utf-8")
     assert backends.speaking() == {}
 
 
@@ -876,7 +876,7 @@ def test_speaking_sees_a_change_made_since_it_last_read() -> None:
     backends.remember("my-agent", ["my-agent"])
     assert "my-agent" in backends.speaking()
     settings.where().write_text(
-        "clis:\n  their-agent: [their-agent, --x]\n", encoding="utf-8"
+        'clis.their-agent = ["their-agent", "--x"]\n', encoding="utf-8"
     )
     assert backends.speaking() == {"their-agent": ("their-agent", "--x")}
 
@@ -884,9 +884,9 @@ def test_speaking_sees_a_change_made_since_it_last_read() -> None:
 def test_speaking_reads_another_homes_file_afresh(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    said = {"one": "clis:\n  aaa-agent: [aaa]\n", "two": "clis:\n  bbb-agent: [bbb]\n"}
+    said = {"one": 'clis.aaa-agent = ["aaa"]\n', "two": 'clis.bbb-agent = ["bbb"]\n'}
     for name, text in said.items():
-        at = tmp_path / name / "humanize" / "settings.yaml"
+        at = tmp_path / name / "humanize" / "settings.toml"
         at.parent.mkdir(parents=True)
         at.write_text(text, encoding="utf-8")
         # The same size and the same moment: only the path tells the two apart.

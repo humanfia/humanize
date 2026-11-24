@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-import yaml
+import tomlkit
 from playwright.sync_api import expect
 
 from hmz import config
@@ -143,11 +143,11 @@ def _staged(world: World) -> None:
     flows = world.workspace / ".hmz" / "flows"
     flows.mkdir(parents=True, exist_ok=True)
     (flows / "review_loop.py").write_text(_FLOW)
-    settings = config() / "settings.yaml"
+    settings = config() / "settings.toml"
     assert not settings.exists(), "the made-up home has settings of its own to keep"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text(
-        yaml.safe_dump(
+        tomlkit.dumps(
             {
                 "backup": {
                     "targets": [

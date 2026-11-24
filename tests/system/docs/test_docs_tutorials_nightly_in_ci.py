@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml
+import tomlkit
 
 from hmz import config
 from tests.integration.conftest import FLOWS
@@ -138,11 +138,11 @@ def _target(world: World) -> None:
     """Writes a backup target into settings, as the job's step does: a bare repository."""
     held = world.home / "epics.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(held)], check=True)
-    settings = config() / "settings.yaml"
+    settings = config() / "settings.toml"
     assert not settings.exists(), "the made-up home has settings of its own to keep"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text(
-        yaml.safe_dump(
+        tomlkit.dumps(
             {
                 "backup": {
                     "targets": [

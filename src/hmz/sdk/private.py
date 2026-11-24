@@ -165,13 +165,14 @@ class _Place:
             if self._holding > 1:
                 return
             made = Path(tempfile.mkdtemp(prefix="hmz-private-"))
-            settings = hmz.config() / "settings.yaml"
             flows = hmz.data() / "flows"
             for kind in _HOMES:
                 (made / kind).mkdir()
             (made / "tmp").mkdir()
-            if settings.is_file():
-                shutil.copyfile(settings, made / "config" / "settings.yaml")
+            # The YAML one too, where it is not converted yet: the private home converts it.
+            for name in ("settings.toml", "settings.yaml"):
+                if (hmz.config() / name).is_file():
+                    shutil.copyfile(hmz.config() / name, made / "config" / name)
             if flows.is_dir():
                 (made / "data" / "flows").symlink_to(flows)
             self._made = made

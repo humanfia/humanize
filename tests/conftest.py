@@ -248,7 +248,7 @@ def kept_there() -> dict[str, tuple[int, int]]:
     """What the home of whoever runs the suite holds, each as it was last written.
 
     By path: a directory's entries by name alone (an epic, a chat, a flowverse, a provider), a
-    file by when it was written and how long it is (`settings.yaml`, `history.jsonl`).
+    file by when it was written and how long it is (`settings.toml`, `history.jsonl`).
     """
     held: dict[str, tuple[int, int]] = {}
     for home in _THEIR_HOMES:

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
+import tomlkit
 
 from hmz import config
 from hmz.runtime import Hmz
@@ -65,8 +66,8 @@ def _bare(tmp_path: Path, name: str) -> Path:
 
 def _targets(*targets: dict[str, Any], defaults: tuple[str, ...] = ()) -> None:
     config().mkdir(parents=True, exist_ok=True)
-    (config() / "settings.yaml").write_text(
-        yaml.safe_dump(
+    (config() / "settings.toml").write_text(
+        tomlkit.dumps(
             {"backup": {"targets": list(targets), "defaults": list(defaults)}}
         )
     )
@@ -111,7 +112,7 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await leaves(pilot)
         await shows(pilot, "1 backup target saved")
 
-    saved = yaml.safe_load((config() / "settings.yaml").read_text())["backup"]
+    saved = tomllib.loads((config() / "settings.toml").read_text())["backup"]
     assert saved == {
         "targets": [
             {

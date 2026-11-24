@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import sys
+import tomllib
 from typing import TYPE_CHECKING
 
 import pytest
-import yaml
 from textual.widgets import OptionList
 
 from hmz import config
@@ -51,8 +51,8 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 def kept(tmp_path: Path) -> dict[str, object]:
     """The settings file, as read back, or nothing where none was written."""
-    at = config() / "settings.yaml"
-    return dict(yaml.safe_load(at.read_text()) or {}) if at.exists() else {}
+    at = config() / "settings.toml"
+    return tomllib.loads(at.read_text()) if at.exists() else {}
 
 
 async def into_settings(pilot: Pilot[None], page: str = "") -> Adjusts:

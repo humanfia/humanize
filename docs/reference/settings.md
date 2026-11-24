@@ -1,22 +1,24 @@
 ---
-title: settings.yaml
-description: Look up every key of settings.yaml, with its type, its default and what it does.
+title: settings.toml
+description: Look up every key of settings.toml, with its type, its default and what it does.
 ---
 
-# settings.yaml
+# settings.toml
 
-Humanize stores its settings in `settings.yaml` inside `$HUMANIZE_HOME` (or `~/.hmz` if unset). The interfaces write most keys for you; see [Settings](/user/settings).
+Humanize stores its settings in `~/.config/humanize/settings.toml`: `settings.toml` under `$XDG_CONFIG_HOME/humanize`, or `~/.config/humanize` if `XDG_CONFIG_HOME` is unset. The interfaces write most keys for you; see [Settings](/user/settings).
 
 ## File rules
 
 | Rule | What happens |
 | --- | --- |
 | Created | Created on the first write with mode `0600`. Existing files keep their mode. |
-| Missing, unreadable, invalid YAML, or not a mapping | Read as empty. It never stops `hmz` from starting. |
+| Missing, unreadable, or invalid TOML | Read as empty. It never stops `hmz` from starting. |
 | Wrong value type | Read as absent, so the default applies. |
+| No null | TOML has no null: a key with no value is left out. A change that clears a key removes it. |
 | Unlisted keys | Preserved at the top level and inside workspace entries. |
-| Writing | One change per write. The writer locks `.settings.yaml.lock`, re-reads the file, applies its change, writes a new file, and renames it into place. Concurrent changes are preserved. |
-| Exists but unreadable, invalid YAML, or not a mapping | Never overwritten. Fix or remove the file. |
+| Writing | One change per write. The writer locks `.settings.toml.lock`, re-reads the file, applies its change, writes a new file, and renames it into place. Concurrent changes are preserved, and so are comments beside keys the change leaves alone. |
+| Exists but unreadable or invalid TOML | Never overwritten. Fix or remove the file. |
+| `settings.yaml` from an earlier release | Converted once, on first run, when there is no `settings.toml`: written to `settings.toml` with mode `0600`, nulls dropped, and the YAML file renamed `settings.yaml.migrated`. A YAML file that cannot be parsed is left in place, and the settings read as unreadable until you fix it. If both files exist, `settings.toml` wins and `settings.yaml` is ignored. |
 | Failed write | A change to `nous`, `clis`, `daemons`, `notifications`, `listen`, `ice_servers`, `easytier`, or a runtime is refused with an error naming the file. Any other change stays in effect for the running process only, with no error. |
 | Secrets | Account credentials are never stored here: accounts appear only as names after `@` and live elsewhere in the home; see [Files on disk](/reference/files). The file does hold each `easytier` `secret` and each TURN `credential` in `ice_servers`. |
 
@@ -24,79 +26,82 @@ A writer waits up to 30 seconds for the lock, then writes without it.
 
 ## Example
 
-```yaml
-workspaces:
-  /home/alex/shop:
-    flow: rlar
-    chat:
-      agent: claude/claude-opus-5:high
-    flows:
-      rlar:
-        agents:
-          actor: claude/claude-opus-5:high
-          reviewer: codex@work/gpt-5.6-sol:high
-        envs:
-          box: ssh@gpu-box/home/alex/shop
-        params:
-          rounds: 5
-        budget:
-          duration: PT6H
-          cost: 20.0
-          output_tokens: null
-          graceful: true
-        profile_flow: true
-        backup: [lab]
-enable_sentry: false
-details: true
-harness_sessions: true
-chat:
-  prefer: native
-notifications:
-  kinds: {done: true, failed: true, stopped: true, asked: true, listening: false}
-  system: true
-daemons:
-- name: lab
-  id: ""
-  routes: ["stdio:ssh://lab"]
-listen: ["tcp://0.0.0.0:41817"]
-ice_servers:
-- urls: stun:stun.example.org:3478
-sandbox:
-  backend: auto
-  native: [codex]
-envs:
-  paired_terminals: false
-nous:
-  claude@work/claude-opus-5:
-    tries: 3
-    policy: exponential
-    timeout: 600.0
-    then: [codex/gpt-5.6-sol]
-  smart:
-    graph:
-      start: pool
-      nodes:
-        pool:
-          balance: least-busy
-          among: {claude@work/claude-opus-5: 1, claude@team/claude-opus-5: 2}
-          next: cheap
-        cheap: {use: codex/gpt-5.6-sol}
-clis:
-  my-agent: [my-agent, --acp]
-runtimes:
-  ssh:
-    gpu-box: {host: 10.0.0.2, user: alex}
-  slurm:
-    hpc: {partition: batch, time: '04:00:00', via: tcp, max_jobs: 8}
-backup:
-  targets:
-  - name: lab
-    url: git@github.com:alex/epics.git
-    branch: main
-    policies: [session, end]
-    every: 30
-  defaults: [lab]
-spelling: 2
+```toml
+enable_sentry = false
+details = true
+harness_sessions = true
+listen = ["tcp://0.0.0.0:41817"]
+spelling = 2
+
+[workspaces."/home/alex/shop"]
+flow = "rlar"
+chat = { agent = "claude/claude-opus-5:high" }
+
+[workspaces."/home/alex/shop".flows.rlar]
+agents = { actor = "claude/claude-opus-5:high", reviewer = "codex@work/gpt-5.6-sol:high" }
+envs = { box = "ssh@gpu-box/home/alex/shop" }
+params = { rounds = 5 }
+budget = { duration = "PT6H", cost = 20.0, graceful = true }
+profile_flow = true
+backup = ["lab"]
+
+[chat]
+prefer = "native"
+
+[notifications]
+kinds = { done = true, failed = true, stopped = true, asked = true, listening = false }
+system = true
+
+[[daemons]]
+name = "lab"
+id = ""
+routes = ["stdio:ssh://lab"]
+
+[[ice_servers]]
+urls = "stun:stun.example.org:3478"
+
+[sandbox]
+backend = "auto"
+native = ["codex"]
+
+[envs]
+paired_terminals = false
+
+[nous."claude@work/claude-opus-5"]
+tries = 3
+policy = "exponential"
+timeout = 600.0
+then = ["codex/gpt-5.6-sol"]
+
+[nous.smart.graph]
+start = "pool"
+
+[nous.smart.graph.nodes.pool]
+balance = "least-busy"
+among = { "claude@work/claude-opus-5" = 1, "claude@team/claude-opus-5" = 2 }
+next = "cheap"
+
+[nous.smart.graph.nodes.cheap]
+use = "codex/gpt-5.6-sol"
+
+[clis]
+my-agent = ["my-agent", "--acp"]
+
+[runtimes.ssh]
+gpu-box = { host = "10.0.0.2", user = "alex" }
+
+[runtimes.slurm]
+hpc = { partition = "batch", time = "04:00:00", via = "tcp", max_jobs = 8 }
+
+[backup]
+defaults = ["lab"]
+
+[[backup.targets]]
+name = "lab"
+url = "git@github.com:alex/epics.git"
+branch = "main"
+policies = ["session", "end"]
+every = 30
 ```
 
 ## Machine keys
@@ -220,7 +225,7 @@ Located under `workspaces.<path>.flows.<flow>`.
 | `agents` | mapping of role to string | Agent per role, formatted like `-a` after `<role>=`. | One invalid value makes all of `agents` absent. |
 | `envs` | mapping of role to string | Environment per role, formatted like `-e` after `<role>=`. | One non-string value makes all of `envs` absent. |
 | `params` | mapping | Flow parameters. | Validated against the flow's parameters. Validation failure marks the flow as not set up. |
-| `budget` | mapping | `duration` (ISO 8601 or null), `cost` (number, `"Infinity"`, or null), `output_tokens` (integer or null), and `graceful` (boolean, or a boolean per limit). | Absent. |
+| `budget` | mapping | `duration` (ISO 8601), `cost` (number or `"Infinity"`), `output_tokens` (integer), each left out for no limit, and `graceful` (boolean, or a boolean per limit). | Absent. |
 | `profile_flow` | boolean | Profile the flow's own Python code. Written only as `true`. | Off. |
 | `profile_environment` | boolean | Profile programs started by agents. Written only as `true`. | Off. |
 | `backup` | list of strings | Backup target names for epics of this flow. `[]` means no target. | Absent or non-list uses the default targets. |

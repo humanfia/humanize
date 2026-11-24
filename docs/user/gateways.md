@@ -103,16 +103,15 @@ Add any coding agent that speaks the [Agent Client Protocol](https://github.com/
 
 Humanize saves the CLI immediately for all folders and names it after the executable (`my-agent` here).
 
-### In settings.yaml
+### In settings.toml
 
-Add an entry under `clis` in `~/.hmz/settings.yaml` to also declare what the CLI needs when a flow restricts it:
+Add an entry under `clis` in `~/.config/humanize/settings.toml` to also declare what the CLI needs when a flow restricts it:
 
-```yaml
-clis:
-  my-agent:
-    command: [my-agent, --acp]
-    hosts: [api.my-agent.example]
-    state: [~/.my-agent]
+```toml
+[clis.my-agent]
+command = ["my-agent", "--acp"]
+hosts = ["api.my-agent.example"]
+state = ["~/.my-agent"]
 ```
 
 | Key | Meaning |

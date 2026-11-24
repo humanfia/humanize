@@ -745,7 +745,7 @@ def test_an_archived_chat_of_no_folder_is_listed_put_back_and_deleted_in_setting
 def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
     project: Path, engine: str
 ) -> None:
-    import yaml
+    import tomlkit
 
     from hmz import config
 
@@ -755,8 +755,8 @@ def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
         "policies": [],
     }
     config().mkdir(parents=True, exist_ok=True)
-    (config() / "settings.yaml").write_text(
-        yaml.safe_dump({"backup": {"targets": [target], "defaults": []}})
+    (config() / "settings.toml").write_text(
+        tomlkit.dumps({"backup": {"targets": [target], "defaults": []}})
     )
 
     def stored(name: str, *, here: bool) -> dict[str, Any]:
