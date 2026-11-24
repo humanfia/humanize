@@ -39,6 +39,7 @@ from textual.widgets.option_list import Option
 from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
 from hmz.runtime.watching.monitor import Shape, lasting, short, tallied, thousands
+from hmz.words import t
 
 from . import humanfia
 from .pick import (
@@ -1414,7 +1415,7 @@ class Halts(Popup):
         """
         super().__init__()
         self._force = force
-        self.asked = "Close every session now?" if force else "Stop this epic?"
+        self.asked = t("Close every session now?") if force else t("Stop this epic?")
         self.about = (
             "Each turn under way fails rather than finishing."
             if force
@@ -1426,10 +1427,10 @@ class Halts(Popup):
         return [
             (
                 "yes",
-                "force stop" if self._force else "stop",
+                t("Force stop") if self._force else t("Stop"),
                 "close every session now" if self._force else "stop the epic",
             ),
-            ("no", "cancel", "leave it going"),
+            ("no", t("Cancel"), "leave it going"),
         ]
 
 

@@ -32,7 +32,7 @@ from hmz.tui.shell import View
 from hmz.words import t
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     from textual.app import App
 
@@ -40,6 +40,10 @@ __all__ = ["VIEWS", "Conversations"]
 
 #: What reaching the daemon may fail with, each of which is said rather than raised.
 _REFUSED = (LookupError, OSError, RuntimeError, ValueError)
+
+#: How often the list is asked for again while it is open, in seconds: a conversation made or
+#: said in from the prompt beside it shows without the pane being opened again.
+_EVERY = 3.0
 
 
 class Conversations(OptionList):
@@ -73,6 +77,8 @@ class Conversations(OptionList):
         news: Callable[[], None],
         asks: Callable[..., Any] = ai_chan,
         marks: AiMarks | None = None,
+        followed: Callable[[], int | None] = lambda: None,
+        forgot: Callable[[int], None] = lambda _: None,
     ) -> None:
         """Lists nothing until the daemon has answered.
 
@@ -81,9 +87,12 @@ class Conversations(OptionList):
           news: Starts a new conversation, as **New** of `/ai` does.
           asks: One `aichan.*` call of the daemon, as :func:`hmz.tui.pick.ai_chan` makes it.
           marks: Which are pinned and which unread; this interface's own for None.
+          followed: The id of the conversation the log follows now, or None for none.
+          forgot: Told the id of a conversation deleted from here, once it is.
         """
         super().__init__()
         self._follows, self._news, self._asks = follows, news, asks
+        self._followed, self._forgot = followed, forgot
         self._marks = AI_MARKS if marks is None else marks
         self._listed: list[dict[str, Any]] = []
         #: What is said in place of the conversations: that they are being read, or why not.
@@ -93,10 +102,12 @@ class Conversations(OptionList):
         """Draws the one row there always is, and asks the daemon for the rest."""
         self._draws()
         self.reads()
+        self.set_interval(_EVERY, self.reads)
 
     @work(group="aichan-view", exclusive=True)
     async def reads(self) -> None:
         """Asks the daemon for her conversations, and lists them."""
+        self._marks.following = self._followed()
         try:
             listed = await asyncio.to_thread(self._asks, "list")
         except _REFUSED as why:
@@ -105,8 +116,10 @@ class Conversations(OptionList):
                 "Ai-chan's conversations could not be loaded: {why}", why=str(why)
             )
         else:
-            self._listed = self._marks.ordered(listed.get("conversations") or ())
-            self._said = "" if self._listed else t("No conversations yet")
+            found = listed.get("conversations") or ()
+            self._said = "" if found else t("No conversations yet")
+            self._lists(found)
+            return
         self._draws()
 
     def _row(self, one: Mapping[str, Any]) -> str:
@@ -127,9 +140,16 @@ class Conversations(OptionList):
         title = f"Ai-chan#{number} · {one.get('title') or ''}"
         return f"{pinned}[b]{escape(title)}[/]{unread}\n  {escape(about)}"
 
-    def _draws(self) -> None:
-        """Puts the rows up, the cursor on the row it was on."""
-        was = self.highlighted or 0
+    def _lists(self, listed: Sequence[Mapping[str, Any]]) -> None:
+        """Lists these in their order, the cursor going with the conversation it was on."""
+        under = self.under()
+        self._listed = self._marks.ordered(listed)
+        self._draws(None if under is None else int(under["id"]))
+
+    def _draws(self, on: int | None = None) -> None:
+        """Puts the rows up, the cursor on one conversation, or on the one it is on."""
+        under = self.under()
+        was = on if on is not None else None if under is None else int(under["id"])
         rows = [
             Option(f"[b]+ {t('New conversation')}[/]", id=AI_NEW),
             *(Option(self._row(one), id=str(one["id"])) for one in self._listed),
@@ -137,7 +157,8 @@ class Conversations(OptionList):
         if self._said:
             rows.append(Option(escape(self._said), disabled=True))
         self.set_options(rows)
-        self.highlighted = min(was, len(self._listed))
+        ids = [int(one["id"]) for one in self._listed]
+        self.highlighted = ids.index(was) + 1 if was in ids else 0
 
     def under(self) -> dict[str, Any] | None:
         """The conversation under the cursor, or None on `New conversation`."""
@@ -151,7 +172,7 @@ class Conversations(OptionList):
         if one is None:
             self._news()
             return
-        self._marks.reads(one)
+        self._marks.follows(one)
         self._draws()
         self._follows(one)
 
@@ -165,8 +186,7 @@ class Conversations(OptionList):
             number = int(one["id"])
             pinned = self._marks.pinned
             (pinned.discard if number in pinned else pinned.add)(number)
-            self._listed = self._marks.ordered(self._listed)
-            self._draws()
+            self._lists(self._listed)
 
     def action_read(self) -> None:
         """Marks the conversation under the cursor read, or unread until it is opened."""
@@ -219,6 +239,7 @@ class Conversations(OptionList):
             return
         self._marks.pinned.discard(number)
         self._marks.unread.discard(number)
+        self._forgot(number)
         self.reads()
 
 
@@ -237,7 +258,18 @@ def _made(app: App[None]) -> Conversations:
     def news() -> None:
         app.run_worker(app.run_action("ai"), exclusive=False)
 
-    return Conversations(follows=follows, news=news)
+    def followed() -> int | None:
+        one = cast("Any", app)._ai  # noqa: SLF001
+        return None if one is None or "id" not in one else int(one["id"])
+
+    def forgot(number: int) -> None:
+        # Gone with its host: this directory's own is followed again, as `/ai` leaves it.
+        if followed() == number:
+            host = cast("Any", app)
+            host._moves("", None)  # noqa: SLF001
+            host._draw()  # noqa: SLF001
+
+    return Conversations(follows=follows, news=news, followed=followed, forgot=forgot)
 
 
 VIEWS = (

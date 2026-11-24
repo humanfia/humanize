@@ -190,6 +190,7 @@ class Graph(Sheet[None]):
                     ),
                 ],
                 width,
+                lane=at,
             )
             rows.append(
                 Option(

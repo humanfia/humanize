@@ -785,6 +785,8 @@ class Sheet[T](ModalScreen[T | None]):
         self._page_keys: tuple[Key, ...] = ()
         #: The way across the top as it was last drawn.
         self._crumbed: list[_Crumb] = []
+        #: What the frame of the list is headed with now, as markup, or None before it is.
+        self._headed: str | None = None
         #: How wide the screen was last drawn, which the rows are laid out across.
         self._width = 0
 
@@ -1052,9 +1054,10 @@ class Sheet[T](ModalScreen[T | None]):
 
     def _titled(self) -> None:
         """Writes what this is, in capitals, into the rule of the frame its list is drawn in."""
-        self.query_one("#choices").border_title = _capitals(
-            str(self.query_one("#asked", Label).content)
-        )
+        asked = str(self.query_one("#asked", Label).content)
+        if asked != self._headed:
+            self._headed = asked
+            self.query_one("#choices").border_title = _capitals(asked)
 
     def _holding(self) -> bool:
         """Whether anything is held that saving would land, which only a menu that holds says."""
@@ -3819,8 +3822,13 @@ class Picks(Sheet[str]):
 
     def _ask(self) -> None:
         """Says what is being chosen, and puts the choices up."""
-        self.query_one("#asked", Label).update(t(self.asked))
-        self.query_one("#about", Label).update(t(self.about))
+        # What the class says is a text, said in the language spoken now; what one sheet was
+        # given holds what it is about -- a title somebody wrote -- and is said as it is.
+        mine = vars(self)
+        asked = self.asked if "asked" in mine else t(self.asked)
+        about = self.about if "about" in mine else t(self.about)
+        self.query_one("#asked", Label).update(asked)
+        self.query_one("#about", Label).update(about)
         self._fill()
 
     def added(self) -> None:
@@ -13731,6 +13739,8 @@ class AiMarks:
         self.unread: set[int] = set()
         #: Up to when each conversation was read, by id, as its `updated` said it then.
         self.seen: dict[int, str] = {}
+        #: The id of the conversation on the screen, which is read as it is said in, or None.
+        self.following: int | None = None
 
     def reads(self, one: Mapping[str, Any]) -> None:
         """Takes a conversation as read up to what was last said in it."""
@@ -13738,9 +13748,18 @@ class AiMarks:
         self.unread.discard(number)
         self.seen[number] = str(one.get("updated") or "")
 
+    def follows(self, one: Mapping[str, Any] | None) -> None:
+        """Takes one conversation as the one on the screen, or none of them for None."""
+        self.following = None if one is None else int(one["id"])
+        if one is not None:
+            self.reads(one)
+
     def is_unread(self, one: Mapping[str, Any]) -> bool:
         """Whether one is unread here: marked so, or said in since it was last read."""
         number = int(one["id"])
+        if number == self.following:
+            self.seen[number] = str(one.get("updated") or "")
+            return False
         if number in self.unread:
             return True
         seen = self.seen.get(number)
@@ -13822,7 +13841,7 @@ def _ai_row(one: Mapping[str, Any]) -> str:
             ai_scope(one),
             str(one.get("nous") or ""),
             str(one.get("preset") or ""),
-            t(_AI_STATES.get(state, state)),
+            t(_AI_STATES[state]) if state in _AI_STATES else state,
         ]
     )
 
@@ -14035,7 +14054,7 @@ class AiChans(Picks):
         """Takes the conversation picked as read: it is about to be on the screen."""
         one = self.conversation(str(event.option.id).removeprefix("="))
         if one is not None:
-            self._marks.reads(one)
+            self._marks.follows(one)
 
 
 class AiForgets(Popup):

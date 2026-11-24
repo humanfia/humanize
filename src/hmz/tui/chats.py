@@ -138,6 +138,8 @@ class Deletes(Popup):
 
     CSS = _popup("Deletes")
 
+    PRIMARY: ClassVar = "yes"
+
     def __init__(self, title: str) -> None:
         """Initializes the question.
 

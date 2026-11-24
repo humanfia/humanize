@@ -42,6 +42,7 @@ from textual.widgets import ContentSwitcher, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from hmz.runtime.watching.monitor import thousands
+from hmz.words import t
 
 from . import humanfia
 from .pick import Crumbed, Key, bad, hinted
@@ -1250,10 +1251,12 @@ class Exomyth(ModalScreen[None]):
         padding: 1 0 0 0; height: 2; color: $text-muted; }
     Exomyth #stacks, Exomyth #sliced {
         height: 1fr; padding: 0; background: $background;
-        border: heavy $border-blurred; scrollbar-size: 1 1; }
+        border: heavy $border-blurred; scrollbar-size: 1 1;
+        border-title-color: $text-muted; border-title-style: bold; }
     Exomyth #sliced { text-wrap: nowrap; text-overflow: ellipsis; }
     Exomyth #stacks:focus, Exomyth #sliced:focus {
-        border: heavy $primary; background-tint: $background 0%; }
+        border: heavy $primary; background-tint: $background 0%;
+        border-title-color: $primary; }
     Exomyth OptionList > .option-list--option-highlighted {
         background: $block-cursor-blurred-background;
         color: $block-cursor-blurred-foreground; text-style: none; }
@@ -1397,10 +1400,14 @@ class Exomyth(ModalScreen[None]):
                 with Vertical(id="flame"):
                     yield _Icicle(id="icicle")
                     yield Label(id="heading")
-                    yield OptionList(id="stacks")
+                    stacks = OptionList(id="stacks")
+                    stacks.border_title = t("Flame").upper()
+                    yield stacks
                 with Vertical(id="slices"):
                     yield Label(id="columns")
-                    yield OptionList(id="sliced")
+                    sliced = OptionList(id="sliced")
+                    sliced.border_title = t("Slices").upper()
+                    yield sliced
             yield Input(placeholder="span name", id="seek")
             yield Label(id="tuning")
             yield Label(id="keys")

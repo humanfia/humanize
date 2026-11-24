@@ -167,6 +167,9 @@ async def test_p_pins_and_u_marks_unread_without_asking_the_daemon() -> None:
         await pilot.press("down", "down", "p")
         assert marks.pinned == {2}
         assert "Ai-chan#2" in _rows(app)[1]
+        # The cursor went up with the conversation it was on, not to whatever took its row.
+        listing = app.query_one(Conversations)
+        assert (listing.under() or {})["id"] == 2
 
         await pilot.press("u")
         assert marks.unread
@@ -206,3 +209,42 @@ async def test_r_renames_and_delete_asks_first() -> None:
         await pilot.pause()
         assert ("forget", {"id": 3}) in daemon.asked
         assert _rows(app)[-1] == "No conversations yet"
+
+
+async def test_the_one_the_log_follows_is_read_as_it_is_said_in_and_left_when_deleted() -> (
+    None
+):
+    marks = AiMarks()
+    daemon = _Daemon(_one(3, "new", "2026-01-03"))
+    left: list[int] = []
+    listing = Conversations(
+        follows=lambda _: None,
+        news=lambda: None,
+        asks=daemon,
+        marks=marks,
+        followed=lambda: 3,
+        forgot=left.append,
+    )
+
+    class _Shows(App[None]):
+        def compose(self) -> ComposeResult:
+            yield listing
+
+    app = _Shows()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
+        await pilot.pause()
+        listing.focus()
+        # Said in since: still read, since it is the one on the screen.
+        daemon.listed[0]["updated"] = "2026-01-04"
+        listing.reads()
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
+        await pilot.pause()
+        assert "●" not in str(listing.options[1].prompt)
+
+        await pilot.press("down", "delete")
+        await pilot.pause()
+        await pilot.press("right", "enter")
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
+        await pilot.pause()
+    assert left == [3]

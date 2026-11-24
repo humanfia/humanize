@@ -46,3 +46,18 @@ def test_deleting_says_it_is_permanent_and_keeping_is_the_first_answer() -> None
     assert "permanently removes" in box.about
     assert "cannot be undone" in box.about
     assert [answer for answer, _, _ in box.rows()] == ["no", "yes"]
+
+
+async def test_a_title_holding_what_a_text_s_note_is_marked_with_is_asked_about_whole() -> (
+    None
+):
+    from textual.app import App
+    from textual.widgets import Label
+
+    app: App[None] = App()
+    async with app.run_test(size=(80, 24)) as pilot:
+        app.push_screen(Deletes("fix @@todo parser"))
+        await pilot.pause()
+        asked = app.screen.query_one("#asked", Label)
+        assert str(asked.content) == "Delete fix @@todo parser?"
+    assert Deletes.PRIMARY == "yes"
