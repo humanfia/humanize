@@ -35,6 +35,7 @@ python -m hmz ...
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
 | `devices` | List and revoke the devices paired with this daemon. |
+| `env` | Work in the environments of a chat or an epic: files, git and terminals. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
@@ -398,6 +399,84 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 | `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+
+## hmz env
+
+```text
+hmz env list
+hmz env ls [PATH]
+hmz env stat PATH
+hmz env cat PATH [--offset N] [--length N]
+hmz env find [NAME] [--limit N]
+hmz env search QUERY [--regex] [--case] [--glob GLOB] [--limit N]
+hmz env write PATH [--from FILE] [--if-match ETAG]
+hmz env mkdir PATH
+hmz env mv PATH TO
+hmz env rm PATH [-y]
+hmz env exec [--seconds N] [--env ROLE] -- ARGV...
+hmz env git status
+hmz env git diff [PATH...] [--staged]
+hmz env git log [--limit N]
+hmz env git stage (PATH... | -A)
+hmz env git unstage (PATH... | -A)
+hmz env git discard (PATH... | -A) [-y]
+hmz env git commit -m TEXT [--amend] [-a]
+hmz env git snapshots
+hmz env git rewind REF [-y]
+hmz env term open [--term ID] [--cols N] [--rows N]
+hmz env term list
+hmz env term close TERM
+```
+
+`hmz env` works in the environments of a chat or an epic that is going, as the **Files**, **Changes** and **Terminal** tabs of the app do. It is a [declared command](#declared-commands).
+
+Every command takes these options to name the host and the environment.
+
+| Option | Value | What it does |
+| --- | --- | --- |
+| `-w`, `--workspace` | `DIR` | The folder whose host is asked. Default: the current directory. |
+| `--slot` | `SLOT` | Which host of the folder: `chat:<id>` for a chat, `exec:<id>` for an `hmz exec` epic. Default: the folder's own host. |
+| `--chat` | `ID` | A chat's id. Asks the host that chat is going on, in place of `--workspace` and `--slot`. |
+| `--env` | `ENV` | The environment, by the id, chain or role `hmz env list` prints. Default: the first open environment. `hmz env list` does not take it, and `hmz env exec` takes a role. |
+
+No command starts a host. If no chat or epic is going on the host named, the command exits `1` with the daemon's refusal.
+
+| Command | What it does | Text output | `--json` |
+| --- | --- | --- | --- |
+| `list` | Lists the host's environments. | One line per environment: id, chain, backend, working directory, what it serves, and `closed` or `unavailable`. | `{"workspace", "slot", "envs": [{"id", "role", "chain", "parent", "run", "backend", "provider", "workdir", "available", "open", "caps", "declared", "facts"}]}` |
+| `ls [PATH]` | Lists a directory. | One line per entry: kind (`d`, `-`, `l`, `?`), size, time, name. | `{"path", "entries": [{"name", "kind", "size", "mtime", "target"}]}` |
+| `stat PATH` | Describes one path. | One line, as `ls`, with the absolute path. | `{"path", "name", "kind", "size", "mtime", "target"}` |
+| `cat PATH` | Prints a file, whole unless `--offset` or `--length` is given. | The file's bytes. | `{"path", "text", "size", "mtime", "etag", "eof"}` |
+| `find [NAME]` | Lists the files, or those whose path contains `NAME`. | One path per line. | `{"paths", "truncated"}` |
+| `search QUERY` | Searches the files for text, or with `--regex` a regular expression. | `path:line:column:text` per match. | `{"matches": [{"path", "line", "column", "text"}], "truncated"}` |
+| `write PATH` | Writes standard input, or the local file `--from` names, as the whole file. | `Saved.` | `{"path", "etag", "size", "mtime"}` |
+| `mkdir PATH` | Makes a directory and the directories above it. | `Created` | `{"path"}` |
+| `mv PATH TO` | Moves or renames a path. | `Renamed` | `{"path", "to"}` |
+| `rm PATH` | Deletes a path and everything under it. Asks first. | `Deleted` | `{"path"}` |
+| `exec -- ARGV...` | Runs one command in the environment of a role and waits for it. | The command's standard output and standard error. | `{"code", "stdout", "stderr"}` |
+| `git status` | Shows the branch and the changed files. | The branch, its upstream, then two characters and a path per file. | `{"root", "branch", "head", "upstream", "ahead", "behind", "files": [{"path", "orig", "index", "worktree", "state"}]}` |
+| `git diff [PATH...]` | Shows unstaged changes, or staged ones with `--staged`. | A unified diff. | `{"staged", "files": [{"path", "binary", "diff"}]}` |
+| `git log` | Lists the latest commits. | Short hash, date, author, subject. | `{"commits": [{"hash", "parents", "author", "date", "subject"}]}` |
+| `git stage`, `git unstage`, `git discard` | Stage, unstage or discard the paths named, or every one with `-A`. `discard` asks first. | The paths, one per line. | `{"paths"}` |
+| `git commit -m TEXT` | Commits what is staged. `-a` stages every change first; `--amend` amends the last commit. | The new commit's hash. | `{"head"}` |
+| `git snapshots` | Lists the snapshot refs, oldest first. | One ref per line. | `{"snapshots"}` |
+| `git rewind REF` | Rewinds the environment to a snapshot. Asks first. | `Rewound the environment to <ref>.` | `{"ref"}` |
+| `term open` | Opens a terminal and attaches this terminal to it, or comes back to one with `--term`. | What the terminal prints. | `{"term", "shell", "replay"}` |
+| `term list` | Lists the terminals. | Id, title, size, and `[exited]`. | `{"terms": [{"term", "env", "title", "cols", "rows", "alive"}]}` |
+| `term close TERM` | Closes a terminal and ends its shell. | `Closed.` | `{"term"}` |
+
+`--if-match ETAG` makes `write` succeed only if the file's etag is still the one `hmz env cat --json` printed; `--if-match ''` writes only if the file does not exist yet. A write refused this way leaves the file unchanged.
+
+`rm`, `git discard` and `git rewind` ask `[y/N]` on standard error. `-y`, `--yes` skips the question. With `--json`, or when standard input is not a terminal, nobody can be asked: without `--yes` the command changes nothing and exits `4`.
+
+In `term open`, type `~.` at the start of a line to detach and leave the terminal running; `~~` sends one tilde. When standard input is not a terminal, it is typed into the shell and the output is printed until the shell exits. With `--json`, the command starts the terminal, prints its id and does not attach.
+
+| Status | Command | Meaning |
+| --- | --- | --- |
+| `4` | `rm`, `git discard`, `git rewind` | The question was not answered yes. Nothing was changed. |
+| `5` | `exec` | The command ran and exited with a status other than `0`, or was stopped at its time limit. |
+
+See [Files, changes and terminal](/user/environment-panels) and [Snapshots and rewind](/user/snapshots).
 
 ## hmz internal
 

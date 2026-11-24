@@ -3774,7 +3774,182 @@ This section is reserved for the families of `runs.*`, `backups.*` and `files.*`
 
 ### 4.27. `Client.envs`
 
-This section is reserved for the family of `env.*` and `hosts.env.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Envs(Family):
+    def list(self, workspace: str, *, slot: str | None = None) -> list[Role]: ...
+    def read(self, workspace: str, env: str, path: str, *, slot: str | None = None,
+             offset: int | None = None, length: int | None = None) -> Text: ...
+    def write(self, workspace: str, env: str, path: str, text: str, *,
+              slot: str | None = None, idem: str | None = None) -> int: ...
+    def exec(self, workspace: str, env: str, argv: Sequence[str], *, slot: str | None = None,
+             seconds: int | None = None, idem: str | None = None,
+             wait: float | None = None) -> Ran: ...
+    def grep(self, workspace: str, env: str, pattern: str, *, slot: str | None = None,
+             path: str | None = None, limit: int | None = None) -> Grepped: ...
+    def host(self, chat: str) -> tuple[str, str]: ...
+    def attached(self, workspace: str | None = None, *, slot: str | None = None,
+                 chat: str | None = None, start: bool = False,
+                 wait: float | None = 30.0) -> Attached: ...
+
+class Attached:            # a context manager
+    sub: str; workspace: str; slot: str; gone: str | None
+    def live(self, seconds: float | None = 30.0) -> bool: ...
+    def envs(self, wait: float = 0) -> list[Env]: ...
+    def env(self, name: str | None = None) -> Environment: ...
+    def close(self) -> None: ...
+
+class Environment:
+    env: Env; id: str
+    files: EnvFiles; git: EnvGit; terminals: EnvTerminals
+
+class EnvFiles:
+    def list(self, path: str = ".") -> list[Entry]: ...
+    def stat(self, path: str) -> Entry: ...
+    def read(self, path: str, *, offset: int | None = None,
+             length: int | None = None) -> Read: ...
+    def find(self, *, limit: int | None = None) -> Found: ...
+    def search(self, query: str, *, regex: bool | None = None, case: bool | None = None,
+               glob: str | None = None, limit: int | None = None) -> Searched: ...
+    def write(self, path: str, data: bytes | str, *, if_match: str | None = None,
+              idem: str | None = None) -> Wrote: ...
+    def mkdir(self, path: str, *, idem: str | None = None) -> None: ...
+    def rename(self, path: str, to: str, *, idem: str | None = None) -> None: ...
+    def remove(self, path: str, *, idem: str | None = None) -> None: ...
+
+class EnvGit:
+    def status(self) -> Status: ...
+    def diff(self, path: str, *, staged: bool | None = None) -> Diff: ...
+    def log(self, *, limit: int | None = None) -> list[Commit]: ...
+    def stage(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def unstage(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def discard(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def commit(self, message: str, *, amend: bool | None = None,
+               idem: str | None = None) -> str: ...
+    def snapshots(self) -> list[str]: ...
+    def rewind(self, ref: str, *, idem: str | None = None) -> None: ...
+
+class EnvTerminals:
+    def open(self, *, cols: int = 80, rows: int = 24, term: str | None = None) -> Terminal: ...
+    def list(self) -> list[Shell]: ...
+    def close(self, term: str) -> None: ...
+
+class Terminal:            # a context manager, and an iterator of bytes
+    id: str; shell: tuple[str, ...] | None; replay: bytes; status: int | None
+    def write(self, data: bytes | str) -> None: ...
+    def resize(self, cols: int, rows: int) -> None: ...
+    def read(self, seconds: float | None = None) -> bytes | None: ...
+    def leave(self) -> None: ...
+    def close(self) -> None: ...
+
+ACK_EVERY = 65536
+
+# each frozen
+class Role:     name: str; kind: str; workdir: str; can: tuple[str, ...]
+class Text:     text: str; size: int; eof: bool
+class Ran:      code: int | None; stdout: str; stderr: str
+class Line:     path: str; line: int; text: str
+class Grepped:  matches: tuple[Line, ...]; more: bool
+class Env:      id: str; role: str; chain: str; parent: str | None; run: int; backend: str
+                provider: str; workdir: str; available: bool; open: bool
+                caps: tuple[str, ...]; declared: tuple[str, ...]; facts: dict[str, Any]
+class Entry:    name: str; kind: str; size: int; mtime: float
+                path: str | None; target: str | None
+class Read:     data: bytes; size: int; mtime: float; etag: str; eof: bool
+class Wrote:    etag: str; size: int; mtime: float
+class Found:    paths: tuple[str, ...]; truncated: bool
+class Match:    path: str; line: int; column: int; text: str
+class Searched: matches: tuple[Match, ...]; truncated: bool
+class Change:   path: str; index: str; worktree: str; state: str; orig: str | None
+class Status:   root: str; branch: str | None; head: str | None; upstream: str | None
+                ahead: int; behind: int; files: tuple[Change, ...]
+class Diff:     old: bytes | None; new: bytes | None; binary: bool
+class Commit:   hash: str; parents: tuple[str, ...]; author: str; date: str; subject: str
+class Shell:    term: str; env: str; title: str; cols: int; rows: int; alive: bool
+```
+
+`hmz.sdk.families.envs` holds every name above. `Envs.METHODS` names the methods of Section 4.23 and
+Section 4.24 of [DAEMON]: every `hosts.env.*` and every `env.*`.
+
+**4.27.1** `list`, `read`, `write`, `exec` and `grep` MUST call `hosts.env.list`, `hosts.env.read`,
+`hosts.env.write`, `hosts.env.exec` and `hosts.env.grep` (Section 4.23 of [DAEMON]) with what they
+were given under the names of [OPENRPC], and MUST return: the `envs` answered as `Role`s; a `Text`;
+the `size` answered; a `Ran`; and a `Grepped`. They MUST NOT attach to the host.
+
+**4.27.2** `attached(workspace, slot=...)` MUST call `epic.attach` with `workspace`, `slot` and
+`replay` `false`, and MUST return an `Attached` of the subscription answered, with `sub`,
+`workspace` and `slot` as answered, once the host has sent `live` (Section 4.9.1 of [DAEMON]). The
+client MUST have its listener (Section 4.22.5) before `epic.attach` is called, so that nothing the
+host says to the subscription is lost.
+
+**4.27.3** Where `start` is `False`, `attached` MUST first call `hosts.status` with `workspace` and
+`slot`, and MUST raise what it refuses without calling `epic.attach`, so that no host is started.
+`host(chat)` MUST call `chat.get` and return the `workspace` and `slot` of that chat, and MUST raise
+`Refused` with `This chat has folded away.` and `code` 409 where its `slot` is `""`; with `chat`,
+`attached` MUST attach to what `host(chat)` returns instead.
+
+**4.27.4** `attached` MUST raise `TimeoutError` where the host did not send `live` within `wait`
+seconds, and `Refused` with the `why` of `gone` and `code` 409 where it sent `gone` first; in both
+cases it MUST have called `epic.detach`.
+
+**4.27.5** `Attached.envs()` MUST return the `envs` of the last `envs` snapshot the host sent the
+subscription (Section 4.24.2 of [DAEMON]), in its order, `[]` before the first. With `wait`, where
+that is empty it MUST first wait up to `wait` seconds for one that is not.
+
+**4.27.6** `Attached.env(name)` MUST return an `Environment` of the first of `envs()` whose `id` is
+`name`, else whose `chain` is, else whose `role` is; with `name` `None`, of the first that is
+`available` and `open`, else of the first. It MUST raise `Refused` with `code` 404 where there is
+none: `There is no environment <name>.`, or `No environment is open here yet.` for `None`.
+
+**4.27.7** `Attached.close()`, and leaving its `with` block, MUST call `epic.detach` with `sub` and
+end what is waiting on the subscription; it MUST NOT close a terminal. `gone` MUST be the `why` of
+the host's `gone` once it has sent one, and `live()` MUST then return `False`.
+
+**4.27.8** Each method of `EnvFiles`, `EnvGit` and `EnvTerminals` MUST call the method of Section
+4.24 of [DAEMON] this table gives, with `sub`, the environment's `id` as `env`, and what it was given
+under the names of [OPENRPC], and MUST return its result as the type stated.
+
+| Method | Calls | Method | Calls |
+| --- | --- | --- | --- |
+| `EnvFiles.list` | `env.list` | `EnvGit.status` | `env.git.status` |
+| `EnvFiles.stat` | `env.stat` | `EnvGit.diff` | `env.git.diff` |
+| `EnvFiles.read` | `env.read` | `EnvGit.log` | `env.git.log` |
+| `EnvFiles.find` | `env.find` | `EnvGit.stage` | `env.git.stage` |
+| `EnvFiles.search` | `env.search` | `EnvGit.unstage` | `env.git.unstage` |
+| `EnvFiles.write` | `env.write` | `EnvGit.discard` | `env.git.discard` |
+| `EnvFiles.mkdir` | `env.mkdir` | `EnvGit.commit` | `env.git.commit` |
+| `EnvFiles.rename` | `env.rename` | `EnvGit.snapshots` | `env.git.snapshots` |
+| `EnvFiles.remove` | `env.remove` | `EnvGit.rewind` | `env.git.rewind` |
+| `EnvTerminals.open` | `env.term.open` | `EnvTerminals.list` | `env.term.list` |
+
+**4.27.9** Bytes MUST be given and returned as `bytes`, base64 [RFC4648] on the wire; `str` given
+as `data` MUST be sent as its UTF-8. `EnvFiles.write` MUST send `if_match` exactly where it is not
+`None`, `""` included (Section 4.24.3.6 of [DAEMON]).
+
+**4.27.10** `EnvFiles.read(path)` with neither `offset` nor `length` MUST return the whole file, read
+1048576 bytes a call, with `eof` `True`; where the `etag` answered changes between two calls it
+MUST read again from the start, and after three such readings MUST raise `Refused` with `code` 409.
+With either, it MUST make exactly one call.
+
+**4.27.11** `EnvTerminals.open` MUST return a `Terminal` whose `id`, `shell` and `replay` are the
+`term`, `shell` and `replay` answered. Its `write` and `resize` MUST call `env.term.input` and
+`env.term.resize`. `read(seconds)` MUST return the `data` of the next `term` message of that
+terminal the subscription was sent, the ones sent before `EnvTerminals.open` returned included, or
+`None` where none came within `seconds`, where the terminal was sent `term_exit` -- `status` MUST
+then be its `status` -- where it was left, or where the subscription ended; iterating MUST yield
+what `read()` returns until it returns `None`.
+
+**4.27.12** A `Terminal` MUST call `env.term.ack` with the bytes it has returned since it last did,
+whenever those reach `ACK_EVERY`, and on `leave` where there are any (Section 4.24.4.5 of [DAEMON]);
+a refusal of `env.term.ack` MUST NOT be raised. For a terminal that was left, the `Attached` MUST
+go on calling `env.term.ack` for what the host sends of it, as often, until the terminal ends, is
+come back to or the host is let go, so that a terminal nobody reads is never held up (Section
+4.24.4.6 of [DAEMON]).
+
+**4.27.13** `Terminal.leave()` MUST end the reading and MUST NOT call `env.term.close`.
+`Terminal.close()` MUST do as `leave` does and call `env.term.close`; `EnvTerminals.close(term)` MUST
+call it for any terminal of the host. Leaving the `with` block of a `Terminal` whose `status` is
+`None` and that was not left MUST close it. A `Terminal` made by `EnvTerminals.open(term=...)` MUST NOT
+return what the host sent of that terminal before `EnvTerminals.open` was called.
 
 ### 4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`
 

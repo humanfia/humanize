@@ -154,6 +154,8 @@ hmz exec -f @local/on_box -a builder=claude/claude-haiku-4-5 -e box=ssh@gpu-box/
 
 Valid backends are `local`, `ssh`, `docker`, `swarm`, `apple-container`, and `slurm`. See [Environments and runtimes](/reference/environments) for the complete grammar.
 
+`hmz env list` lists the environments of the chat or epic going in the current directory, and the other `hmz env` commands work in one: files, git and a terminal. See [Files, changes and terminal](/user/environment-panels#from-the-command-line).
+
 ## Good to know
 
 - A chat belongs to its starting folder regardless of where its environment moves.

@@ -507,6 +507,58 @@ with Client.local() as client:
         print(device.name, device.seen)
 ```
 
+#### envs {#client-envs}
+
+`client.envs` reaches a host's environments in two ways. The first five members reach the envs of the epic going on a host by role, without attaching, as the epic's flow would. `workspace` is the host's folder; `slot` defaults to the folder's own host.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace, *, slot=None)` | list of `Role` | The envs of the epic, one per role: `name`, `kind`, `workdir`, `can`. |
+| `read(workspace, env, path, *, slot=None, offset=None, length=None)` | `Text` | Reads a file as text: `text`, `size`, `eof`. |
+| `write(workspace, env, path, text, *, slot=None, idem=None)` | `int` | Writes the whole file and returns the bytes written. |
+| `exec(workspace, env, argv, *, slot=None, seconds=None, idem=None, wait=None)` | `Ran` | Runs a command in the env's workdir: `code` (`None` if stopped at `seconds`), `stdout`, `stderr`. |
+| `grep(workspace, env, pattern, *, slot=None, path=None, limit=None)` | `Grepped` | Searches files for a POSIX extended regular expression: `matches` (`path`, `line`, `text`) and `more`. |
+| `host(chat)` | `(workspace, slot)` | The host a chat is going on, to pass to the members above. Refused if no host holds the chat. |
+| `attached(workspace=None, *, slot=None, chat=None, start=False, wait=30.0)` | `Attached` | Attaches to the host as a frontend. Pass `chat` instead of `workspace` and `slot` to name a chat's host. |
+
+`attached` does what the app's environment tabs do. It refuses a host that is not held unless `start=True`, because a host just started has no environment. Use the result as a context manager; leaving the block detaches and leaves every terminal running.
+
+| `Attached` member | Returns | What it does |
+| --- | --- | --- |
+| `envs(wait=0)` | list of `Env` | The host's environments as it last listed them. `wait` waits that many seconds for a first one. |
+| `env(name=None)` | `Environment` | One environment, by id, chain or role. Default: the first that is available and open. |
+| `sub`, `workspace`, `slot`, `gone` | | The subscription, the host, and why the host let go, once it has. |
+| `close()` | | Detaches. |
+
+An `Environment` has `env` (its `Env`), `id`, and three groups.
+
+| Group | Members |
+| --- | --- |
+| `files` | `list(path=".")`, `stat(path)`, `read(path, *, offset=None, length=None)`, `find(*, limit=None)`, `search(query, *, regex=None, case=None, glob=None, limit=None)`, `write(path, data, *, if_match=None, idem=None)`, `mkdir(path)`, `rename(path, to)`, `remove(path)` |
+| `git` | `status()`, `diff(path, *, staged=None)`, `log(*, limit=None)`, `stage(paths)`, `unstage(paths)`, `discard(paths)`, `commit(message, *, amend=None)`, `snapshots()`, `rewind(ref)` |
+| `terminals` | `open(*, cols=80, rows=24, term=None)`, `list()`, `close(term)` |
+
+`files.read(path)` returns the whole file as a `Read` (`data`, `size`, `mtime`, `etag`, `eof`). Pass its `etag` as `if_match` to `files.write` to write only if the file is unchanged; `if_match=""` writes only if the file does not exist. Bytes are `bytes` throughout; `write` also takes `str`.
+
+`terminals.open` returns a `Terminal`: `write(data)`, `resize(cols, rows)`, `read(seconds=None)`, `leave()` to stop reading and leave it running, `close()` to end it, and `id`, `shell`, `replay` and `status`. Iterate it for what it prints; iteration ends when the shell exits, and `status` is then its exit status. Reading acknowledges output to the host, so an unread terminal pauses instead of filling memory. As a context manager, it closes the terminal on exit if it still runs.
+
+```python
+import sys
+
+from hmz.sdk import Client
+
+with Client.local() as client, client.envs.attached("/path/to/project") as host:
+    env = host.env()
+    read = env.files.read("README.md")
+    env.files.write("README.md", read.data + b"more\n", if_match=read.etag)
+    env.git.stage(["README.md"])
+    env.git.commit("docs: say more")
+    with env.terminals.open(cols=120, rows=40) as terminal:
+        terminal.write("make test; exit\n")
+        for printed in terminal:
+            sys.stdout.buffer.write(printed)
+```
+
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 ## Daemons {#daemons}
