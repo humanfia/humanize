@@ -1184,7 +1184,7 @@ nothing. Each harness MUST be launched as the table states:
 | `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
 | `omp` | `yolo` | `yolo` |
 | `pi` | `edit` and `write` withheld | nothing withheld |
-| `qwen` | `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | nothing withheld |
+| `qwen` | `yolo`, `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | `yolo` |
 | `dsh`, ACP | every request granted | every request granted |
 | `litellm` | nothing said | nothing said |
 
@@ -1241,6 +1241,14 @@ agent when it is configured, naming the file and the setting. Where they run com
 sandbox or keep agy's file tools inside its workspace, hmz MUST run the agent and say so once per
 agent. Where they turn off plugins or MCP servers, hmz MUST refuse to offer that agent tools. hmz
 MUST say what agy reports it refused a confined agent.
+
+**4.6.2.13** Where Qwen Code's folder trust is on and the agent's folder is not trusted, hmz MUST run
+that agent at `default` where the table says `yolo`, with `run_shell_command`, `monitor`, `edit` and
+`write_file` allowed, MUST grant every request it then makes, and MUST say so once per agent.
+
+**4.6.2.14** Where the system settings of `qwen`, or those of a folder it trusts, turn its hooks off
+while a pre-tool-use hook is hung, hmz MUST refuse the turn before starting `qwen`, naming the file
+and the setting.
 
 #### 4.6.3. Web search
 
