@@ -22,13 +22,6 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture(autouse=True)
-def colourless(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Help read plain: a workflow sets `FORCE_COLOR`, which bolds it and colours argparse's."""
-    for name in ("FORCE_COLOR", "NO_COLOR"):
-        monkeypatch.delenv(name, raising=False)
-
-
 def _script() -> ModuleType:
     at = ROOT / "scripts" / "cli_reference.py"
     spec = importlib.util.spec_from_file_location("cli_reference", at)
