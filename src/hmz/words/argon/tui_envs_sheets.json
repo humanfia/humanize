@@ -143,6 +143,11 @@
    "wants": "what the key e does on a file in the list of an environment's files: opens it in the person's own editor, the one $EDITOR names",
    "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
    "text": "External editor"
+  },
+  {
+   "wants": "says that the file {path} edited in the person's own editor was saved back into the environment {name}",
+   "where": "dim line in the log of the terminal interface, one short sentence without a full stop, starts with a capital, keeps {path} and {name}",
+   "text": "Saved {path} back into {name}"
   }
  ],
  "model": "gcp/google/gemini-4-argon"

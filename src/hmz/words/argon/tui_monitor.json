@@ -116,9 +116,9 @@
    "text": "none beyond running here"
   },
   {
-   "wants": "how many of an environment's sessions are working: {working} of {n} sessions",
+   "wants": "how many of the sessions of an environment are working: {working} of its {n} sessions; the text must name sessions, as in `2 of 3 sessions working`",
    "where": "value of the row `status` on the sheet of one environment, keeps {working} and {n}, no full stop",
-   "text": "{working} of {n} working",
+   "text": "{working} of {n} sessions working",
    "one": "{working} of {n} session working"
   },
   {
@@ -431,6 +431,11 @@
    "wants": "how many of the agents of a run are working now: {working} of {total}",
    "where": "one fact on the row of the epic in the monitor of the terminal interface, beside `12 turns`, of the shape `{working} of {total} working`",
    "text": "{working} of {total} working"
+  },
+  {
+   "wants": "name of the row saying what an environment of a given kind is targeted at: the ssh host, the docker runtime or the cluster it is put on, which the product calls the environment's target (not a backup target and not a paired device)",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, beside the rows `kind` and `workdir`, one noun in lower case",
+   "text": "target"
   }
  ],
  "model": "gcp/google/gemini-4-argon"

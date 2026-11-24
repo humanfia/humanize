@@ -140,7 +140,9 @@ async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
 
         # From the first thought to the tool two spans on, held, and summed by category.
         await pilot.press("down", "down", "v", "right", "right", "v")
-        await shows(pilot, "Range", "lasted 6s", "category", "llm", "tool", "v Clear range")
+        await shows(
+            pilot, "Range", "lasted 6s", "category", "llm", "tool", "v Clear range"
+        )
         whole = _ruler(app)
         await pilot.press("f")
         await until(pilot, lambda: _ruler(app) != whole, "the range to fill the window")

@@ -1189,7 +1189,7 @@ class Place(Sheet[str]):
         working = sum(one.working for one in using)
         facts = [
             (t("kind"), place.kind.upper()),
-            (t("Target").lower(), place.target or t("this machine")),
+            (t("target"), place.target or t("this machine")),
             (t("workdir"), place.workdir),
             (t("set up as"), place.given),
             (t("image"), place.image),
@@ -1201,7 +1201,7 @@ class Place(Sheet[str]):
             (t("Harness").lower(), _harnessed(place)),
             (
                 t("status"),
-                t("{working} of {n} working", working=working, n=len(using)),
+                t("{working} of {n} sessions working", working=working, n=len(using)),
             ),
         ]
         at = self.under()
@@ -1574,7 +1574,7 @@ class Details(Sheet[None]):
             for at, one in enumerate(rows):
                 if str(listing.get_option_at_index(at).prompt) != str(one.prompt):
                     listing.replace_option_prompt_at_index(at, one.prompt)
-        self._footed(Key("esc", "back"))
+        self._footed(Key("esc", t("Back")))
 
 
 #: What the row that puts a new line on the board is put up under: the board's own mark with

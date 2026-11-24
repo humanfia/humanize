@@ -2026,7 +2026,7 @@ async def _edits_outside(host: App[Any], desk: Desk, path: str) -> None:
                 "dim",
             )
             return
-        say(f"saved {path} in {desk.named}", "dim")
+        say(t("Saved {path} back into {name}", path=path, name=desk.named), "dim")
         return
 
 
@@ -2076,6 +2076,9 @@ class Editing(ModalScreen[str | None]):
         self._saved = ""
         self._loaded = False
         self._state = t("Reading…")
+        #: Whether what the status line says of saving is that it is saved, which an edit
+        #: takes off it.
+        self._settled = False
         self._timer: Timer | None = None
         self._lock = asyncio.Lock()
         self._conflict = False
@@ -2164,8 +2167,8 @@ class Editing(ModalScreen[str | None]):
     def _edited(self) -> None:
         if not self._loaded:
             return
-        if self._state in (t("Saved"), ""):
-            self._state = ""
+        if self._settled:
+            self._state, self._settled = "", False
         if self._timer is not None:
             self._timer.stop()
         self._timer = (
@@ -2216,7 +2219,7 @@ class Editing(ModalScreen[str | None]):
             self._etag = str(said.get("etag") or "")
             self._saved = text
             self._conflict = False
-            self._state = t("Saved")
+            self._state, self._settled = t("Saved"), True
             self._says()
         if self.dirty():
             # Typed into while it was being written: what was typed is written next.
