@@ -152,6 +152,19 @@ TEXTUAL_THEME=nord hmz
 
 Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
+### Start an epic from one page
+
+Press <kbd>ctrl+e</kbd> at the log to open **New epic**. The page is one form, read top to bottom: Flow, Folder, Task, an agent for each role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens with what this folder last set the flow up with, so starting the same flow again is typing the task and pressing <kbd>ctrl+s</kbd>.
+
+- Type on a row to write it, and press <kbd>enter</kbd> on a row marked `▾` to pick from a list. `More options` at the end of an agent's or an environment's list opens the full sheet, with accounts, efforts and machines.
+- Leave **Folder** empty to start the epic in a temporary directory of its own. An epic started in another folder, or in none, is listed under `/epics`; one started in this folder runs in front of you.
+- <kbd>ctrl+s</kbd> starts the epic. Anything missing or refused is shown in red under the row it is about.
+- <kbd>esc</kbd> closes the page and keeps what you typed for next time.
+
+### Read the epic beside its log
+
+Press <kbd>ctrl+o</kbd> to open the **Epic** pane to the right of the log. It has the app's four tabs: **Details**, **Board**, **People** and **Side questions**. Press <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>4</kbd> to switch tabs; the bottom line lists what the open tab's keys do. The pane reopens on the tab and row you left.
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.

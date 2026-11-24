@@ -61,6 +61,8 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>ctrl+c</kbd> | Takes back the nearest thing. See the next table. |
 | <kbd>ctrl+q</kbd> | Same as `/exit`. |
 | <kbd>f1</kbd> | Opens Keys beside the log. Pressed from elsewhere it goes to Keys; pressed inside Keys it closes it. |
+| <kbd>ctrl+e</kbd> | Opens the New epic page from the log; closes it from the page. Over the monitor or a menu the key is theirs. |
+| <kbd>ctrl+o</kbd> | Opens the Epic pane beside the log: Details, Board, People, Side questions. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
 The bottom line of the screen lists the keys that work where you are, then the key of each pane.
@@ -259,6 +261,37 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Slices | <kbd>o</kbd> | Sorts by the next column. |
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |
+
+### New epic page
+
+One form with everything an epic starts with: Flow, Folder, Task, an agent and an environment per role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens holding what the folder last set the flow up with.
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next row. |
+| typing | Writes the row under the cursor; <kbd>enter</kbd> keeps it and moves to the next row still to answer, or to Start. |
+| <kbd>enter</kbd> | On a row with `▾`, drops its values. `More options` opens the full agent or environment sheet. |
+| <kbd>tab</kbd> | Completes a path in Folder. |
+| <kbd>ctrl+s</kbd> | Start. The daemon checks the set-up first; what it refuses is shown under the row it is about. |
+| <kbd>esc</kbd>, <kbd>ctrl+e</kbd> | Closes the page. What you typed is kept until the terminal closes. |
+
+### Epic pane
+
+| Key | Where | Action |
+| --- | --- | --- |
+| <kbd>←</kbd> <kbd>→</kbd>, <kbd>1</kbd>–<kbd>4</kbd> | Any tab | Previous or next tab; the tab of that number. |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Any tab | Previous or next row. |
+| <kbd>enter</kbd> | Board | Edits the line. |
+| <kbd>a</kbd> | Board | Adds a line. |
+| <kbd>d</kbd> | Board | Removes the line, after asking. |
+| <kbd>enter</kbd> | People | Claim, Take over or Release the role. |
+| <kbd>w</kbd> | People | Away or Back for the role. |
+| <kbd>shift+w</kbd> | People | Away or Back for all roles. |
+| <kbd>enter</kbd> | Side questions | Asks in the side conversation under the cursor. |
+| <kbd>a</kbd> | Side questions | Asks in a new side conversation. |
+| <kbd>d</kbd> | Side questions | Closes the side conversation, after asking. |
+
+The pane reopens on the tab and row you left it on.
 
 ### Mouse
 

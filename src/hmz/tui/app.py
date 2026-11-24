@@ -6537,8 +6537,8 @@ class Humanize(App[None]):
         if record.get("face"):
             where = f": {web}" if web else " (hmz web)"
             drawn.append(
-                "  [dim]a richer view of this question is in the web page"
-                f"{escape(where)}[/dim]"
+                "  [dim]The custom view is in the web page"
+                f"{escape(where)}; Enter answers here with the plain form[/dim]"
             )
         # On the outworlder's own transcript, and on the one being read, which is where it
         # is answered from.
