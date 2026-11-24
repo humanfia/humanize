@@ -12,9 +12,9 @@ from hmz.cli import main, tree
 from hmz.sdk.families.easytier import Network, Node
 from hmz.words import t
 
-LAB = Network("lab", ("tcp://a:1", "udp://b:2"), secret=True)
+LAB = Network("lab", ("tcp://a:1", "udp://b:2"), keyed=True)
 SAID = {
-    "networks": [{"name": "lab", "nodes": ["tcp://a:1", "udp://b:2"], "secret": True}]
+    "networks": [{"name": "lab", "nodes": ["tcp://a:1", "udp://b:2"], "keyed": True}]
 }
 
 

@@ -21,7 +21,7 @@ class Network:
     """What it is called, which an `easytier:<name>` route and listener name."""
     nodes: tuple[str, ...]
     """The shared nodes it meets through, each `<protocol>://<host>:<port>`."""
-    secret: bool
+    keyed: bool
     """Whether a secret is written for it. The secret itself is never answered."""
 
 

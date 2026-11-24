@@ -437,7 +437,7 @@ hmz easytier nodes
 
 | Command | Text output | `--json` |
 | --- | --- | --- |
-| `list` | One line per entry: name, `true` or `false` for whether a secret is saved, and its nodes. | `{"networks": [{"name", "nodes", "secret"}]}`; `secret` is a boolean. |
+| `list` | One line per entry: name, `true` or `false` for whether a secret is saved, and its nodes. | `{"networks": [{"name", "nodes", "keyed"}]}`; `keyed` is a boolean. |
 | `set NAME` | `Saved` | `{"networks": [...]}`, every entry afterwards. |
 | `remove NAME` | `Removed` | `{"networks": [...]}` |
 | `nodes` | One line per shared node: URL, `up` or `down`, uptime over 24 hours, EasyTier version, name. | `{"nodes": [{"url", "name", "version", "up", "uptime"}]}` |

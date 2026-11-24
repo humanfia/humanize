@@ -21,7 +21,7 @@ __all__ = ["COMMANDS"]
 def _all(networks: Sequence[Network]) -> dict[str, Any]:
     return {
         "networks": [
-            {"name": one.name, "nodes": list(one.nodes), "secret": one.secret}
+            {"name": one.name, "nodes": list(one.nodes), "keyed": one.keyed}
             for one in networks
         ]
     }
@@ -33,7 +33,7 @@ def _list(call: Call) -> None:
         _all(networks),
         table(
             [
-                [one.name, str(one.secret).lower(), " ".join(one.nodes)]
+                [one.name, str(one.keyed).lower(), " ".join(one.nodes)]
                 for one in networks
             ]
         ),
@@ -129,7 +129,7 @@ _NETWORKS = (
         "such as tcp://host:port",
     ),
     Field(
-        "networks[].secret",
+        "networks[].keyed",
         "boolean",
         "whether a secret is written for the entry; the secret itself is never printed",
     ),

@@ -123,9 +123,7 @@ def test_an_easytier_entry_is_written_with_a_secret_that_is_never_said(
     said = capsys.readouterr()
     assert said.out == "Saved\n"
     assert _said(capsys, "easytier", "list") == {
-        "networks": [
-            {"name": "lab", "nodes": ["tcp://a.example:11010"], "secret": True}
-        ]
+        "networks": [{"name": "lab", "nodes": ["tcp://a.example:11010"], "keyed": True}]
     }
 
     # Written again with a node alone, it keeps its secret.
@@ -133,7 +131,7 @@ def test_an_easytier_entry_is_written_with_a_secret_that_is_never_said(
     assert after["networks"][0] == {
         "name": "lab",
         "nodes": ["udp://b.example:11010"],
-        "secret": True,
+        "keyed": True,
     }
     assert cli.main(["easytier", "list"]) == 0
     said = capsys.readouterr()

@@ -1564,7 +1564,7 @@ MUST be the result.
 
 **23.3.1** `hmz easytier list` MUST call `easytier.list` and write one line per entry: its name,
 `true` or `false` as a secret is written, and its nodes separated by spaces. Its JSON document MUST
-be `{"networks": [{"name", "nodes", "secret"}]}`, `secret` a boolean.
+be `{"networks": [{"name", "nodes", "keyed"}]}`, `keyed` a boolean.
 
 **23.3.2** `hmz easytier set <name>` MUST call `easytier.set` with `name`, `nodes` and, where one is
 given, `secret`. The secret MUST be read from standard input, less a trailing line end, where

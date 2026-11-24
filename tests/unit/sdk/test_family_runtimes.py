@@ -146,7 +146,7 @@ def test_easytier_entries_are_listed_written_and_removed(client: mock.Mock) -> N
     client.call.return_value = {
         "networks": [{"name": "lab", "nodes": ["tcp://n:1"], "secret": True}]
     }
-    networks = (Network("lab", ("tcp://n:1",), secret=True),)
+    networks = (Network("lab", ("tcp://n:1",), keyed=True),)
 
     assert EasyTier(client).list() == networks
     client.call.assert_called_once_with("easytier.list", {}, idem=None, seconds=None)
