@@ -233,6 +233,13 @@ def test_detached_the_turn_goes_on_and_is_read_afterwards(
     assert cli.main(["chat", "start", "--detach", "-a", AGENT, "hello"]) == 0
     chat = capsys.readouterr().out.strip()
 
+    # The turn it left going is waited out first: a line said while a turn is open is handed
+    # into that turn, and what is answered then is that turn's.
+    with Client.local() as client:
+        held = client.chats.hold(chat)
+        with client.chats.follow(held.workspace, held.slot) as turn:
+            assert turn.wait() == "did: hello"
+
     # Said to the host that still holds it, which the turn before has left between turns.
     assert _json(capsys, "say", chat, "and then?")["answer"] == "did: and then?"
     assert _json(capsys, "show", chat)["state"] == "going"
