@@ -44,7 +44,6 @@ def test_the_commands_are_these_and_the_internal_door() -> None:
         "daemon",
         "relay",
         "update",
-        "backup",
         "internal",
     ]
     assert list(COMMANDS) == commands

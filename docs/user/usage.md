@@ -99,6 +99,14 @@ Run `hmz exec` or `hmz chat` to see a summary line under each turn: tokens by ki
 
 Pass `--json` to `hmz exec` to get token counts in the `result` event of each turn: `tokens` (by model) and `spent` (by kind), with no dollar figure. See [Events and records](/reference/events).
 
+Run `hmz runs usage` to total what chats and epics spent: a table of flows (costliest first), a table of the days something ran, then the total. Each line has the number of epics, cost, output tokens and time working. Chats count under the flow `chat`.
+
+```console
+$ hmz runs usage --days 7 --workspace .
+```
+
+`--days N` sets how many days back to count (1 to 365, default 30), and `--workspace PATH` counts one folder only. Add `--json` for the figures as numbers. See [The hmz command](/reference/cli#hmz-runs).
+
 ## Prices {#prices}
 
 Humanize calculates cost at list price from the OpenLLMPrices list (`openllmprices.com`). It fetches the price list in the background, caches it locally, and refreshes it after 24 hours.

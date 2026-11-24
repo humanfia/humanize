@@ -157,6 +157,24 @@ Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to cycle through the three views: 
 
 The flame view and slices table measure the selected stretch of time, or the visible timeline when no stretch is selected.
 
+## Read a trace from the command line {#from-the-command-line}
+
+`hmz runs timeline NAME` prints what Exomyth draws: one line per process, and under it one line per track with its span count. `NAME` is the epic's name, as `hmz runs list` prints it.
+
+```console
+$ hmz runs timeline 20261012T091500.123Z-1a2b3c --spans
+$ hmz runs span 20261012T091500.123Z-1a2b3c 42
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz runs timeline NAME` | Prints the processes and tracks, with start and end in seconds. |
+| `--spans` | Also prints every span under its track: id, start, duration, category, name. |
+| `hmz runs span NAME ID` | Prints one span whole, with what it carried: a model call's prompt and answer, a tool call's input and output. |
+| `hmz runs trace NAME` | Prints each session and its actions in order, without the layout. |
+
+Span ids hold for one layout of the timeline. While an epic runs, it is laid out again on each read; pass `--layout` with the `layout` of the timeline you read the id from, and the daemon refuses if it has changed. Add `--json` for the whole document. See [The hmz command](/reference/cli#hmz-runs).
+
 ## Export a Chrome trace
 
 You can export a trace as a Chrome JSON file to open in Perfetto or `chrome://tracing`.

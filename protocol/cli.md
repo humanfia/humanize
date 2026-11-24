@@ -87,6 +87,11 @@ It is normative. It is cited by the tag [CLI].
   - [17.2. Behaviour](#172-behaviour)
 - [18. `hmz epic` and `hmz hosts`](#18-hmz-epic-and-hmz-hosts)
 - [19. `hmz runs`](#19-hmz-runs)
+  - [19.1. Synopsis](#191-synopsis)
+  - [19.2. Listing and reading](#192-listing-and-reading)
+  - [19.3. Traces and timelines](#193-traces-and-timelines)
+  - [19.4. Export and import](#194-export-and-import)
+  - [19.5. Usage](#195-usage)
 - [20. `hmz env`](#20-hmz-env)
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
 - [22. `hmz settings`, `hmz accounts` and `hmz nous`](#22-hmz-settings-hmz-accounts-and-hmz-nous)
@@ -140,7 +145,7 @@ Section 2 of [CORE].
 excluding the program name.
 
 **2.2** A **command** is the first argument of a command line where it is one of `exec`, `chat`,
-`web`, `daemon`, `relay`, `update`, `backup` and `internal`.
+`web`, `daemon`, `relay`, `update` and `internal`.
 
 **2.3** A **usage error** is a refusal of a command line in which the refusing parser writes its
 usage text and the line `<prog>: error: <reason>` to standard error and exits with status 2, where
@@ -206,7 +211,6 @@ web       open this machine's epics in a browser on it
 daemon    run, reach, pair and install this machine's daemon
 relay     relay daemons and the devices that reach them
 update    update hmz to its newest release
-backup    back epics up to git repositories, or download them
 internal  internal commands used by Humanize; do not run directly
 ```
 
@@ -322,7 +326,7 @@ interface, and MUST exit with status 1.
 MUST write `hmz: backing epics up` to standard error and wait for them for at most 15 seconds.
 
 **6.2.2** Where a backup has not finished after that wait, `hmz` MUST write ``hmz: a backup took
-longer than 15s and was left; `hmz backup EPIC` sends it again`` to standard error and exit.
+longer than 15s and was left; `hmz backup run EPIC` sends it again`` to standard error and exit.
 
 **6.2.3** `hmz` MUST exit with status 0 where the interface closed normally.
 
@@ -672,7 +676,7 @@ a usage error.
 error and wait for them for at most 60 seconds, staying attached so that its host waits too.
 
 **7.11.5** Where a backup has not finished after that wait, `hmz exec` MUST write ``hmz exec: a
-backup took longer than 60s and was left; `hmz backup EPIC` sends it again`` to standard error, and
+backup took longer than 60s and was left; `hmz backup run EPIC` sends it again`` to standard error, and
 MUST exit as the epic had it.
 
 ### 7.12. Output for a person
@@ -875,87 +879,76 @@ daemon stops` to standard output after Section 9.3.7.
 ### 10.1. Synopsis
 
 ```text
-hmz backup [--to <target>]... <epic>
-hmz backup --list [--to <target>]...
-hmz backup --pull <epic> [--to <target>]...
+hmz backup run <epic> [--to <target>]... [--no-wait] [--timeout <seconds>]
+hmz backup list [--target <target>]
+hmz backup pull <key> --target <target>
 ```
 
-**10.1.1** `--list` and `--pull` MUST be mutually exclusive.
+**10.1.1** `hmz backup` MUST be a group of declared commands (Section 16) with the summary `back
+epics up to git repositories, and download them again`, and Section 16 MUST hold of each of them.
 
-**10.1.2** A positional `<epic>` together with `--list` or `--pull` MUST be a usage error.
-
-**10.1.3** A line with neither `--list`, `--pull` nor a positional `<epic>` MUST be a usage error.
-
-**10.1.4** `--to` MUST name a backup target of the settings file, and MUST be accepted any number of
-times.
+**10.1.2** `--to` MUST be accepted any number of times, and `--timeout` MUST default to 600.
 
 ### 10.2. Backing an epic up
 
-**10.2.1** `hmz backup <epic>` MUST back up the epic of the current workspace whose name is
-`<epic>`, or, where none is, the chat of the current workspace whose id is `<epic>` (Section 8.3.14
-of [CORE]), or, where none is, the epic or the chat at the path `<epic>`.
+**10.2.1** `hmz backup run <epic>` MUST call `runs.backup` with `<epic>` as `name` and each `--to`
+as `to`, where any is given, so that the daemon chooses the targets as Section 11.3.4.1 of [CORE]
+states and refuses as Section 4.16.5 of [DAEMON] states.
 
-**10.2.2** The epic MUST go to the targets `--to` names; without `--to`, to the targets the epic was
-started with; and where it was started with none, to the default targets.
+**10.2.2** Without `--no-wait`, `hmz backup run` MUST then read the epic with `runs.get` until its
+`backed` holds, for every target of `queued`, a record other than the one it held before the call
+whose `why` is `manual`, for at most `--timeout` seconds. A `--timeout` of 0 or less MUST be as
+`--no-wait`.
 
-**10.2.3** An epic that does not exist, a `--to` naming no target, and a line that leaves no target
-at all MUST each be a usage error.
+**10.2.3** For each target whose record has `ok` true, `hmz backup run` MUST write `<target>:
+uploaded <at>` and a line feed to standard output, `<at>` being the record's `at`. Where every
+target has, its JSON document MUST be `{"queued": [<target>...], "backed": {<target>: {"at", "ok",
+"error", "why"}}}`.
 
-**10.2.4** `hmz backup` MUST wait for every backup it started to finish.
+**10.2.4** Where any target's record has `ok` false, `hmz backup run` MUST end as a declared command
+the daemon refused (Section 16.7 to Section 16.9), its message being `<target>: failed, <error>
+<at>` for each such target, joined by ` · `; without `--json` it MUST first write the lines of
+Section 10.2.3 for the targets that took the epic.
 
-**10.2.5** For each target that took the epic, `hmz backup` MUST write `<target>: backed up to
-<url>` to standard output.
+**10.2.5** With `--no-wait`, `hmz backup run` MUST call no method but `runs.backup`; it MUST write `Uploading to
+<targets>` and a line feed to standard output, `<targets>` being `queued` joined by `, `, and its
+JSON document MUST be `{"queued": [<target>...], "backed": {}}`.
 
-**10.2.6** For each target that did not, `hmz backup` MUST write `<target>: failed: <reason>` to
-standard error.
-
-**10.2.7** `hmz backup` MUST exit with status 0 where every target took the epic, and with status 1
-otherwise.
+**10.2.6** Where the wait of Section 10.2.2 ends before every target has a record, `hmz backup run`
+MUST end as a declared command whose daemon did not answer in time, with the message `The backup of
+<epic> did not finish within <seconds> seconds, and carries on in the daemon.`, and MUST NOT stop
+the backup.
 
 ### 10.3. Listing
 
-**10.3.1** `hmz backup --list` MUST read each target `--to` names, or every target without `--to`,
-after fetching it.
+**10.3.1** `hmz backup list` without `--target` MUST call `settings.get` and write one line per
+target of its `backup.targets`, in their order: its name, its URL, its branch, its policies joined
+by `,`, and `default` where `backup.defaults` names it, in columns. Its JSON document MUST be
+`{"targets": [{"name", "url", "branch", "policies", "every"}], "defaults": [<target>...]}`.
 
-**10.3.2** For each target read, `hmz backup --list` MUST write `<target>: <n> epic` or `<target>:
-<n> epics` to standard output, `epic` where `<n>` is 1, followed by one line per epic the target
-holds: two spaces, then its machine, workspace, epic name, how it ended or `unfinished`, and its
-task with white space runs collapsed and cut to 60 characters, separated by two spaces.
+**10.3.2** Where there is no target, `hmz backup list` without `--target` and without `--json` MUST
+write `No backup target.` and a line feed to standard error, and MUST exit with status 0.
 
-**10.3.3** For a target that cannot be read, `hmz backup --list` MUST write `<target>: failed:
-<reason>` to standard error, MUST go on to the next target, and MUST exit with status 1.
-
-**10.3.4** The chats a target holds MUST NOT be counted or written among its epics. Where it holds
-any, `hmz backup --list` MUST write, after the epics of that target, `<target>: <n> chat` or
-`<target>: <n> chats`, `chat` where `<n>` is 1, followed by one line per chat as Section 10.3.2
-states for an epic, the chat's id in place of the epic name and its first message in place of the
-task.
+**10.3.3** `hmz backup list --target <target>` MUST call `backups.epics` and write one line per
+epic or chat the target holds, in the daemon's order: its key, how it ended or `unfinished`, its
+flow or `chat` for a chat, `here` where this machine holds it, and its task with white space runs
+collapsed and cut to 60 characters, in columns. Its JSON document MUST be `{"epics": [...]}`, each
+entry holding what `backups.epics` answers of it (Section 4.16.8.1 of [DAEMON]).
 
 ### 10.4. Downloading
 
-**10.4.1** `<epic>` after `--pull` MUST be an epic's name, a chat's id or
-`<machine>/<workspace>/<name>`; a chat MUST be downloaded as this section states for an epic, into
-this machine's chats (Section 8.3.14 of [CORE]).
+**10.4.1** Where `<key>` holds a `/`, `hmz backup pull <key> --target <target>` MUST call
+`backups.pull` with it as `key`.
 
-**10.4.2** `hmz backup --pull` MUST download the epic from the first target that holds it, in the
-order of Section 10.3.1, into this machine's epics as an import (Section 11 of [CORE]).
+**10.4.2** Where `<key>` holds no `/` it is an epic's name or a chat's: `hmz backup pull` MUST call
+`backups.epics`, and MUST call `backups.pull` with the key of the one entry whose `epic` is
+`<key>`. Where no entry is, it MUST end as a declared command the daemon refused with the message
+`<target> holds no epic or chat <key>.`; where more than one is, with `<target> holds <key> from
+more than one machine, name one of: <keys>.`, `<keys>` being their keys joined by `, `; in neither
+case MUST it call `backups.pull`.
 
-**10.4.3** Once it has downloaded the epic, `hmz backup --pull` MUST write the path the epic now has
-to standard output.
-
-**10.4.4** `hmz backup --pull` MUST exit with status 0 once it has downloaded the epic.
-
-**10.4.5** Where a target holds epics of that name from more than one machine, `hmz backup --pull`
-MUST answer with a usage error that lists each as `<machine>/<workspace>/<name>`.
-
-**10.4.6** Where the epic is already on this machine, `hmz backup --pull` MUST write a diagnostic
-beginning `hmz backup: ` and exit with status 1.
-
-**10.4.7** Where every target answered and none holds the epic, `hmz backup --pull` MUST answer with
-a usage error.
-
-**10.4.8** Where a target could not be read and no other held the epic, `hmz backup --pull` MUST
-write `hmz backup: no target that answered holds <epic>` to standard error and exit with status 1.
+**10.4.3** Once the daemon has downloaded it, `hmz backup pull` MUST write the name `backups.pull`
+answered and a line feed to standard output. Its JSON document MUST be `{"name": <name>}`.
 
 ## 11. `hmz internal`
 
@@ -1416,8 +1409,8 @@ as Section 15.3.2 states, and a daemon that cannot be reached or started as Sect
 
 **16.1** A _declared command_ is a command written as one declaration: its name, its summary, what it
 takes, example lines, what it prints, the fields of its JSON document, its exit statuses and the
-methods of [OPENRPC] it calls. Section 17 onwards specify the declared commands; `exec`, `web`,
-`daemon`, `relay`, `update` and `internal` are not declared commands.
+methods of [OPENRPC] it calls. Section 10 and Section 17 onwards specify the declared commands;
+`exec`, `web`, `daemon`, `relay`, `update` and `internal` are not declared commands.
 
 **16.2** A declared command MUST reach a daemon only as a client of it, through the `Client` of
 Section 4.21 of [PYTHON] with `kind` `cli`, and MUST NOT read or write what a daemon keeps by any
@@ -1496,7 +1489,112 @@ This section is reserved for `hmz epic` and `hmz hosts`, the declared commands o
 
 ## 19. `hmz runs`
 
-This section is reserved for `hmz runs`, the declared commands of `runs.*`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+### 19.1. Synopsis
+
+```text
+hmz runs list [--workspace <path>] [--status <status>] [--flow <name>] [-q <text>]
+              [--offset <n>] [--limit <n>]
+hmz runs show <name>
+hmz runs trace <name>
+hmz runs timeline <name> [--spans]
+hmz runs span <name> <id> [--layout <layout>]
+hmz runs export <name> [-o <file>]
+hmz runs import <file> [--there]
+hmz runs usage [--days <n>] [--workspace <path>]
+```
+
+**19.1.1** `hmz runs` MUST be a group of declared commands (Section 16) with the summary `list, read
+back, export and import epics, and total their spend`.
+
+**19.1.2** `--status` MUST be one of `running`, `done`, `failed`, `stopped` and `unfinished`, and any
+other MUST be a usage error. `-q` MUST also be spelled `--query`, and `-o` `--output`. `--limit`
+MUST default to 50 and `--days` to 30.
+
+**19.1.3** A `--workspace <path>` MUST be told to the daemon as an absolute path: `<path>` with a
+leading `~` expanded and, where it is relative, taken from the working directory.
+
+### 19.2. Listing and reading
+
+**19.2.1** `hmz runs list` MUST call `runs.list` with `--workspace` as `workspace`, `--status` as
+`status`, `--flow` as `flow`, `-q` as `q`, `--offset` as `offset` and `--limit` as `limit`, each
+where it is given, and write one line per epic of `runs`, in the daemon's order: its `name`, `how`,
+`flow`, `began` and `task`, in columns. Its JSON document MUST be what `runs.list` answers: `runs`,
+`total`, `offset`, `limit`, `counts` and `flows` (Section 4.16.1.2 of [DAEMON]).
+
+**19.2.2** Where `offset` plus the number of epics listed is less than `total`, `hmz runs list`
+without `--json` MUST write `<shown> of <total> epics listed; pass `--offset <next>` for the next
+ones.` and a line feed to standard error, `<shown>` being the number listed and `<next>` the
+`offset` of the first epic not listed.
+
+**19.2.3** `hmz runs show <name>` MUST call `runs.get` and write one line per field of its answer
+but `task`, the field's name and its value in columns, in the answer's order, and then `task` on a
+line of its own followed by each line of the task indented by two spaces. A value that is true MUST
+be written `yes`, false `no`, `null` as nothing, a text with its white space runs collapsed, and a
+list or an object as JSON on one line. Its JSON document MUST be what `runs.get` answers (Section
+4.16.3.1 of [DAEMON]).
+
+### 19.3. Traces and timelines
+
+**19.3.1** `hmz runs trace <name>` MUST call `runs.trace` and write, for each session of
+`sessions`, a line of its `key` and its `agent`, then one line per action indented by two spaces:
+its `at`, its `seconds` to three decimal places, its `category` and its `name`, in columns. Its
+JSON document MUST be `{"sessions": [...]}`.
+
+**19.3.2** `hmz runs timeline <name>` MUST call `runs.timeline` and write, for each process, a line
+of its `id`, `kind`, name, label, and its `start` and `end` in seconds to three decimal places,
+leaving out a name or a label that is empty; then, for each of its tracks, a line indented by two
+spaces of the track's name and `<count> span` or `<count> spans`, `span` where `<count>` is 1. Its
+JSON document MUST be the timeline (Section 10.6.2 of [CORE]).
+
+**19.3.3** With `--spans`, `hmz runs timeline` MUST write after each track one line per span of it,
+indented by four spaces: its identifier (Section 10.6.2.9 of [CORE]), its start and its duration in
+seconds to three decimal places, its category and its name, in columns.
+
+**19.3.4** `hmz runs span <name> <id>` MUST call `runs.span` with `--layout` as `layout`; without
+`--layout` it MUST first call `runs.timeline` and give that timeline's `layout`. It MUST write the
+span as Section 19.2.3 writes an epic, `args` in place of `task` and written as JSON indented by two
+spaces. Its JSON document MUST be what `runs.span` answers.
+
+### 19.4. Export and import
+
+**19.4.1** `hmz runs export <name>` MUST call `runs.bundle`, read the whole file of its `handle`
+with `files.read`, and end the handle with `files.close`, however the reading went.
+
+**19.4.2** The file MUST be written in the directory `-o` names, under the `filename` the daemon
+answered, where `-o` is a directory or ends in a path separator, that directory being made where it
+is not there; at `-o` otherwise; and in the working directory under that `filename` without `-o`; a file already there MUST be replaced, and MUST be left as it was where the
+export fails.
+
+**19.4.3** `hmz runs export` MUST write the absolute path of the file and a line feed to standard
+output. Its JSON document MUST be `{"path": <path>, "filename": <filename>, "size": <bytes>}`.
+
+**19.4.4** `hmz runs import <file>` MUST send the file to the daemon with `files.create` and
+`files.write`, `name` being the file's own name, and MUST then call `runs.import` with the handle;
+where the import is refused it MUST end the handle with `files.close`.
+
+**19.4.5** `hmz runs import <file> --there` MUST send nothing, and MUST call `runs.import` with
+`<file>`, as it was written, as `path`.
+
+**19.4.6** `hmz runs import` MUST write `Imported <name>` and a line feed to standard output, and,
+where the answer's `resumable` is false and its `why` is not empty, `Imported · not resumable here:
+<why>` and a line feed after it. Its JSON document MUST be what `runs.import` answers: `name`,
+`workspace`, `resumable` and `why`.
+
+**19.4.7** Where the file of this machine cannot be read or written, `hmz runs export` and `hmz runs
+import` MUST end as a declared command the daemon refused, with what the operating system said as
+the message.
+
+### 19.5. Usage
+
+**19.5.1** `hmz runs usage` MUST call `runs.usage` with `--days` as `days` and `--workspace` as
+`workspace`, where it is given. Its JSON document MUST be what `runs.usage` answers (Section
+4.16.9.1 of [DAEMON]).
+
+**19.5.2** Without `--json`, `hmz runs usage` MUST write one table, in columns: the line `Flow`,
+`Epics`, `Cost`, `Output tokens`, `Time working`; one line per flow of `flows`, its `flow`, `runs`,
+`money`, `tokens` and `worked`; the line `Day`, `Epics`, `Cost`, `Output tokens`, `Time working`;
+one such line per day of `days` whose `runs` is not 0, its `day` first; and the line `Total` with
+those figures of `whole`.
 
 ## 20. `hmz env`
 

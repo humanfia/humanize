@@ -94,24 +94,28 @@ Pass `--backup` when starting an epic to pick its targets. Repeat `--backup` for
 $ hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=1 --backup lab --backup offsite "add a discount code to checkout"
 ```
 
-Use `hmz backup` to back up, list, and download runs:
+Use `hmz backup` to back up, list, and download runs. The daemon does the uploading and downloading.
 
 | Command | What it does |
 | --- | --- |
-| `hmz backup EPIC` | Backs up one epic or chat now and waits. `EPIC` is an epic name in this directory, a chat id, or a path. |
-| `hmz backup --list` | Lists the epics and chats held by every target. |
-| `hmz backup --pull EPIC` | Downloads an epic or chat from the first target that holds it and prints its local path. |
-| `--to NAME` | Restricts the command to this target. Repeatable. Works with all three commands. |
+| `hmz backup run EPIC` | Backs up one epic now and waits to say how each target went. `EPIC` is an epic's name, as `hmz runs list` prints it. |
+| `hmz backup run EPIC --to NAME` | Backs it up to this target instead. Repeatable. |
+| `hmz backup list` | Lists the targets: name, URL, branch, policies, and `default` for a default target. |
+| `hmz backup list --target NAME` | Lists the epics and chats the target holds, from every machine: key, status, flow, `here` if this machine holds it, and task. |
+| `hmz backup pull KEY --target NAME` | Downloads an epic or chat from the target and prints its name. `KEY` is `<machine>/<workspace>/<epic>`, or the name alone. |
 
-![hmz backup with an epic name answers lab: backed up to the repository; --list shows two epics and a chat by machine, workspace, name, ending and task; --pull prints the path of the downloaded epic](/shots/user-backups-cli.svg)
+![hmz backup run with an epic name answers lab: uploaded and when; list --target shows two epics and a chat by key, ending, flow and task; pull prints the name of the downloaded epic](/shots/user-backups-cli.svg)
 
-Without `--to`, `hmz backup EPIC` uses the targets the epic started with, or the defaults. If two machines backed up an epic with the same name, `--pull` lists both. Specify the one you want as `<machine>/<workspace>/<epic>`.
+Without `--to`, `hmz backup run EPIC` uses the targets the epic started with, or the defaults. Pass `--no-wait` to return as soon as the daemon has queued the uploads. If two machines backed up an epic with the same name, `pull` by name lists both keys. Specify the one you want as `<machine>/<workspace>/<epic>`.
+
+Add `--json` to any of them for one JSON document, and run `hmz backup COMMAND --help` for its fields.
 
 | Exit status | Meaning |
 | --- | --- |
-| 0 | Every target succeeded. |
-| 1 | A target failed, or the epic to download is already on this machine. |
-| 2 | No such epic, no such target, or no targets configured. |
+| 0 | Every target succeeded, or the download finished. |
+| 1 | A target failed, there is no such epic or target, no target is configured, or the epic to download is already on this machine. |
+| 2 | The command line could not be read. |
+| 3 | The daemon could not be reached, or the uploads did not finish within `--timeout` seconds. They carry on in the daemon. |
 
 You can also configure targets in `~/.config/humanize/settings.toml`. See [settings.toml](/reference/settings) for all keys.
 
@@ -142,4 +146,4 @@ Humanize replaces secrets with `[redacted]` before committing, matching the beha
 - A downloaded chat lands in this machine's chat list. Continue it with `/resume` in a chat.
 - Starting an epic with an unknown target name fails immediately before the epic runs.
 - Every git command times out after 120 seconds and never prompts. An error like `Permission denied (publickey)` means git could not authenticate; check that `git ls-remote` succeeds on the URL without prompting.
-- If a backup is still running on exit, `hmz exec` waits up to 60 seconds and `hmz` waits up to 15 seconds. Run `hmz backup EPIC` to retry an interrupted backup.
+- If a backup is still running on exit, `hmz exec` waits up to 60 seconds and `hmz` waits up to 15 seconds. Run `hmz backup run EPIC` to retry an interrupted backup.
