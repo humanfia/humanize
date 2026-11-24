@@ -174,6 +174,18 @@ Press <kbd>ctrl+g</kbd> for **Details** of the open chat: its model, effort, per
 ## Pages over the log
 
 Press <kbd>ctrl+n</kbd> for the New chat page: the first message, and above it the chips **Folder**, **Environment**, **Model**, **Effort** and **Permissions** showing what the chat starts with. A page covers the log until you press <kbd>esc</kbd>. See [Chat with an agent](/user/chat) and [Continue sessions from other CLIs](/user/harness-sessions).
+### Start an epic from one page
+
+Press <kbd>ctrl+e</kbd> at the log to open **New epic**. The page is one form, read top to bottom: Flow, Folder, Task, an agent for each role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens with what this folder last set the flow up with, so starting the same flow again is typing the task and pressing <kbd>ctrl+s</kbd>.
+
+- Type on a row to write it, and press <kbd>enter</kbd> on a row marked `▾` to pick from a list. `More options` at the end of an agent's or an environment's list opens the full sheet, with accounts, efforts and machines.
+- Leave **Folder** empty to start the epic in a temporary directory of its own. An epic started in another folder, or in none, is listed under `/epics`; one started in this folder runs in front of you.
+- <kbd>ctrl+s</kbd> starts the epic. Anything missing or refused is shown in red under the row it is about.
+- <kbd>esc</kbd> closes the page and keeps what you typed for next time.
+
+### Read the epic beside its log
+
+Press <kbd>ctrl+o</kbd> to open the **Epic** pane to the right of the log. It has the app's four tabs: **Details**, **Board**, **People** and **Side questions**. Press <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>4</kbd> to switch tabs; the bottom line lists what the open tab's keys do. The pane reopens on the tab and row you left.
 
 ## Good to know
 

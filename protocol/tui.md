@@ -1711,6 +1711,21 @@ states where its row's context holds.
 | 24.1.79 | Harness session page | `↑`, `↓`, `pageup`, `pagedown` | scroll what was said |
 | 24.1.80 | Harness session page | `enter` | `Continue in chat` (Section 28.4.2) |
 | 24.1.81 | New chat or Harness session page | `esc` | close the page |
+| 24.1.73 | log screen | `ctrl+e` | open the New epic page (Section 29.1) |
+| 24.1.74 | New epic page | `ctrl+e` | close the page, keeping what it holds |
+| 24.1.75 | New epic page | `ctrl+s` | Start (Section 29.4) |
+| 24.1.76 | log screen | `ctrl+o` | the Epic view (Section 29.5) |
+| 24.1.77 | Epic view | `←`, `→`, `1`–`4` | previous or next tab, wrapping; the tab of that number |
+| 24.1.78 | Epic view | `↑`, `↓` | row above or below |
+| 24.1.79 | Epic view, Board, a line | `enter` | change what the line says |
+| 24.1.80 | Epic view, Board | `a` | add a line |
+| 24.1.81 | Epic view, Board, a line | `d` | remove the line, once asked |
+| 24.1.82 | Epic view, People, a role | `enter` | claim, take over or release the role |
+| 24.1.83 | Epic view, People, a role | `w` | away or back for the role |
+| 24.1.84 | Epic view, People | `shift+w` | away or back for every role |
+| 24.1.85 | Epic view, Side questions, a side conversation | `enter` | ask in it |
+| 24.1.86 | Epic view, Side questions | `a` | ask in a new side conversation |
+| 24.1.87 | Epic view, Side questions, a side conversation | `d` | close it, once asked |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
@@ -2060,7 +2075,161 @@ page.
 
 ## 29. New epic and the epic's context
 
-This section is reserved for the New epic page and the context views of an epic: Details, Board, People and Side questions. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 29.1. The New epic page
+
+**29.1.1** `ctrl+e` MUST be the key of the _New epic_ page, whose hint is `new epic`. From the log
+screen it MUST open the page; on the page it MUST close it; and while any other screen is over the
+log -- a menu, the monitor, an environment page -- the key MUST be that screen's, as though the page
+had no key (Section 24.1.47 stands).
+
+**29.1.2** The page MUST be one form (Section 15), every row of it on one list in this order, each
+group under its heading in capitals over a heavy rule: `Flow`; under `Environment`, `Folder` and
+one row per environment role the flow does not fill itself; `Task`; under `Agents`, one row per
+agent role the flow does not fill itself; under `Parameters`, one row per property of the flow's
+params schema; under `Budget`, `Cost, $`, `Time, min`, `Output tokens`, then `Cost graceful`, `Time
+graceful` and `Tokens graceful`; under `Backup`, one switch per backup target, where there is one;
+under `Options`, `Profile flow` and `Profile environment`; and `Resume`, for a flow that can be
+picked up. No row MUST be reached through another, and a group with no row MUST NOT be drawn.
+
+**29.1.3** A row MUST be drawn on one line, its value at the far end, and what the row under the
+cursor is for MUST be said under the list.
+
+**29.1.4** The page MUST read what it offers of the daemon and, but for the sheets `More options`
+opens (Section 16), MUST NOT load a flow itself: the
+flows of the folder and the one it last set up (`flows.list`), what the flow declares and what the
+folder last set it up with (`flows.get`), the harnesses and their models (`flows.backends`), every
+virtual nous (`nous.list`), the runtimes (`runtimes.list`), and the backup targets and their
+defaults (`settings.get`).
+
+**29.1.5** The page MUST open on the folder the interface is open in, on the flow that folder last
+set up -- else the first on offer -- with every row holding what `remembered` of `flows.get` holds
+for it: the agents, the environments, the params, the limits of the budget with the time in whole
+minutes, each grace, each profiling switch, and the backup targets, those being the defaults where
+none was remembered. The task MUST open empty, with the cursor on it.
+
+**29.1.6** Where no flow is on offer the page MUST say `No flow installed yet.` under the list,
+and Start MUST be refused on the `Flow` row with `Install a flow first, from Flows.`
+
+### 29.2. Rows
+
+**29.2.1** `Flow` MUST drop every flow on offer under the heading of whose it is, each with what it
+is for; picking one MUST set every row below as Section 29.1.5 states for that flow.
+
+**29.2.2** `Folder` MUST be written as a path, completed as Section 15 completes one. Kept, it MUST
+read the page again for that folder as Section 29.1.4 and 29.1.5 state. Left empty it MUST read `No
+folder`, and the epic MUST start in a folderless workspace (Section 4.7.1.3 of [DAEMON]).
+
+**29.2.3** An agent role's row MUST drop, in this order: what it holds, where the list has it not;
+every virtual nous under `Virtual`; under each harness that can fill the role, up to six models of
+that machine's own sign-in, each as `<cli>/<model>:auto`; and `More options`, which MUST open the
+agent sheet of Section 16 on what the row holds and hold what it is saved with. A role nothing
+installed can fill MUST say `No harness installed here can fill it.` An empty row MUST read `Pick
+a nous`.
+
+**29.2.4** A harness that can fill a role and has never been asked what it runs MUST be asked
+(`accounts.models`) once the page has drawn, without the page waiting for it.
+
+**29.2.5** An environment role's row MUST drop `Folder`, which is the row left empty; each runtime
+saved, as `<backend>@<name>`; and `More options`, which MUST open the environment sheet of Section
+16 and hold what it answers.
+
+**29.2.6** A param MUST be asked as the form of Section 10 asks a field of that schema: a choice
+dropped under its row, a list or JSON written over several lines, a secret drawn as bullets, a
+default written as it opens.
+
+**29.2.7** A switch MUST be `on` or `off`, dropped under its row as Section 15 drops one.
+
+**29.2.8** `Resume` MUST drop `None` and up to twelve of the folder's latest epics of the flow that
+can be picked up and are not going. Picking one MUST set the rows as that epic ran (`runs.get`),
+put its task in an empty `Task`, and have Start pick it up.
+
+### 29.3. Leaving
+
+**29.3.1** `esc` MUST close the page without asking. What the page held MUST be kept for as long as
+the interface is open, and the page opened again MUST hold it where the same flow is picked.
+
+### 29.4. Start
+
+**29.4.1** The page MUST have one button, `Start`, apart at the far end of its bar, and `ctrl+s`
+MUST press it from any row. `enter` keeping a written row MUST move to the next row still to be
+answered, and to `Start` where none is.
+
+**29.4.2** Start MUST first be refused, with no call of the daemon, for: no flow (`Pick a flow
+first.`), an empty task (`Describe the task`), a required agent role with nothing picked (`Pick an
+agent for <role>.`), a param the form of Section 10 refuses, a limit that is not a number, and no
+limit at all (`Set at least one limit of the budget.`). Each MUST be said in red under the row it
+is about, and the cursor MUST go to the first of them.
+
+**29.4.3** Start MUST then have the daemon check the set-up (`flows.check`) and MUST start nothing
+it refuses. A refusal that names a role, a param, the budget or the epic picked up MUST be said
+under that row, the cursor going to it; any other MUST be said under the list.
+
+**29.4.4** In the folder the interface is open in, Start MUST start the epic as saving `/flow` and
+a `$` line do (Sections 16 and 8): the set-up written down for the folder, and the epic followed on
+the log screen. It MUST be refused under the list while an epic is going there, and while an epic
+of another daemon is followed.
+
+**29.4.5** In any other folder, and in none, Start MUST start the epic on that folder's own host
+(`epic.attach`, `epic.start` with `remember`), let go of it, and say in the transcript where it
+started and that `/epics` lists it.
+
+**29.4.6** `backup` MUST be sent absent while the folder remembered none and no switch was moved,
+so that the epic follows the defaults; `graceful` MUST be one flag where the three agree.
+
+### 29.5. The Epic view
+
+**29.5.1** `ctrl+o` MUST be the key of the _Epic_ view, which opens in the context and whose hint
+is `epic panel`. While a screen is over the log the key MUST do nothing.
+
+**29.5.2** The view MUST have four tabs, `Details`, `Board`, `People` and `Side questions`, drawn
+across its top each after its number, the open one in the colour of what has the keys. `←` and `→`
+MUST turn to the tab before and after, wrapping, and `1` to `4` to the tab of that number.
+
+**29.5.3** The tab open and the row each tab's cursor is on MUST be kept for as long as the
+interface is open: the view closed and opened again MUST be on that tab and that row.
+
+**29.5.4** While the view has the keys the hint line MUST show, in place of Section 25.2.1's keys
+of the view: `←/→` `tab`, `↑/↓` `move`, then every key the open tab takes on the row under the
+cursor, each with the web interface's word for what it does there now.
+
+**29.5.5** With no epic on the log screen -- none started, or a chat -- every tab MUST say `No epic
+is going here.`
+
+**29.5.6** `Details` MUST say `Running`, `Stopping` or `Ended` with the epic's name, then what
+the epic page of Section 20 says under `Figures`, `Budget`, `Setup` and `Flows`, read again at
+least every second.
+
+**29.5.7** `Board` MUST list each line of the board with what it says, and under it what it is for,
+who wrote it and whose it is. `enter` MUST open the board entry of Section 20 on the line and `a`
+on a new one; `d` MUST remove the line. Removing a line -- by `d`, or by saving it empty -- MUST
+first ask `Remove <key>?`. A line the flow owns MUST NOT be changed or removed, and MUST say `Only
+the flow changes this line`. An epic with no board MUST say `This flow keeps no board.`, and an
+empty board `Nothing is on the board yet.`
+
+**29.5.8** `People` MUST list each role a person fills with who holds it -- `You`, the name of the
+frontend holding it, or `Anyone` -- and `Away` where nobody is there for it. `enter` MUST claim a
+role nobody holds, take over one another frontend holds, and release one this interface holds
+(`epic.claim`, `epic.release`); `w` MUST set the role away or back and `shift+w` every role
+(`epic.afk`). An epic with no such role MUST say `This flow has no role for a person.`
+
+**29.5.9** `Side questions` MUST list each side conversation the daemon holds about the epic
+(`btw.list` of the epic by name, read again at least every two seconds while the tab is open) as
+`btw · <agent>/<n>`,
+with each question asked in it and its answer, and `Answering…` under one not answered yet.
+
+**29.5.10** `a` MUST ask in a new side conversation and `enter` in the one under the cursor
+(`btw.ask`): on a form of two rows, `Ask it of` -- every session of the epic, newest first, absent
+for a side conversation already open -- and `Side question`. A refusal MUST be said under the
+list. `d` MUST close the side conversation under the cursor (`btw.leave`), first asking.
+
+**29.5.11** A side question asked here MUST NOT enter btw mode (Section 12), and MUST NOT reach
+the epic.
+
+### 29.6. Faces
+
+**29.6.1** The line of Section 10.17 MUST read `The custom view is in the web page<where>; Enter
+answers here with the plain form`, `<where>` being `: <address>` where the address is known and
+` (hmz web)` otherwise.
 
 ## 30. Environment panes
 

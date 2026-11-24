@@ -85,12 +85,21 @@ Each interface uses your login name and its type, such as `alex@tui` or `alex@we
 
 Every interface sees every line. A line, an answer or an epic started from another interface carries that interface's name. Each question takes one answer: the first answer wins, and other interfaces see who answered. Stopping the epic stops it everywhere.
 
+## Hold a role, or step away
+
+A role a person fills can be held by one interface, so that only it answers that role's questions.
+
+- In the app, open the epic panel and select **People**. Click **Claim**, **Take over** or **Release** beside a role, **Away** or **Back** to say whether anybody is there for it, and **Away for all** for every role.
+- In the terminal, press <kbd>ctrl+o</kbd> and then <kbd>3</kbd>. <kbd>enter</kbd> claims, takes over or releases the role under the cursor, <kbd>w</kbd> sets it away or back, and <kbd>shift+w</kbd> does so for every role. `/claim` and `/afk` do the same from the prompt.
+
+While a role is away, a question asked of it is answered at once with nothing, and the epic carries on.
+
 ## Use the board
 
 Some runs keep a board of key-value pairs that both you and the run can edit. Nothing waits on the board. It appears only when the run uses one.
 
 - In the app, open the epic panel and select **Board**. Click **Edit** then **Save** to change a value, or **Remove** twice to delete a line. Fill in **Key** and **Value** and click **Add** to create a line.
-- In the terminal, press <kbd>←</kbd> at an empty prompt to open the monitor and find the board under the graph. Press <kbd>enter</kbd> on `+ add entry` to add a line, or on an existing line to edit it. Save an empty line to remove it.
+- In the terminal, press <kbd>ctrl+o</kbd> and then <kbd>2</kbd> to open **Board** beside the log. Press <kbd>a</kbd> to add a line, <kbd>enter</kbd> to edit the line under the cursor and <kbd>d</kbd> to remove it; removing asks first. The monitor (<kbd>←</kbd> at an empty prompt) shows the same board under the graph.
 
 Lines tagged **Flow** in the app or `flow's` in the terminal belong to the run and are read-only.
 
