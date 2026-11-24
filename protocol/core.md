@@ -1197,7 +1197,12 @@ holds the session at another, hmz MUST fail the session before the prompt is sen
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
-withheld, and MUST say so once per agent.
+withheld, and MUST say so once per agent. hmz MUST read the managed settings of the machine it runs
+`claude` on before launching it, without running it: where they forbid `bypassPermissions`, the
+agent MUST be launched at `acceptEdits` from its first turn; where they keep hooks off its command
+line, the pre-tool-use hook (Section 4.9.2.1) MUST be registered over its stream instead; and where
+they drop the flow's callbacks, or the allowed tools of an agent hmz does not confine, hmz MUST
+refuse the agent before launching it, naming the setting and where it is set.
 
 **4.6.2.6** hmz MUST read the requirements Codex runs under on the harness machine before it opens a
 thread. Where they forbid the sandbox or the approval policy Section 4.6.2.3, Section 4.6.2.4 or

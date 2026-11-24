@@ -97,6 +97,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 ## Good to know
 
 - If Humanize cannot enforce a permission, the session fails to open with `HarnessSandboxed`. An agent never runs with wider access than its permission allows.
+- Humanize reads Claude Code's managed settings before starting it. If they forbid `bypassPermissions`, the agent starts at `acceptEdits`. If they allow only managed hooks, Humanize registers its tool-call hook over the CLI's stream instead. If they would drop a flow's callbacks (`disableSideloadFlags`, `managed-mcp.json`) or an unconfined agent's `allowed_tools` (`allowManagedPermissionRulesOnly`), the turn fails before the CLI starts, naming the setting and its file.
 - A Cursor team admin can turn off **Run Everything** or headless use in the Cursor dashboard. `cursor-agent` then cannot run without prompts, so its first turn fails, before any model call, with an error that names the setting. Ask the admin to turn it back on, or pick another CLI for that agent. A managed opencode or mimocode config cannot forbid the settings Humanize sends.
 - No managed policy can forbid Oh My Pi's `yolo`, MiniMax Code's `full` or DeepSeek Harness's `danger-full-access`, so these CLIs need no fallback.
 - When an agent reports a refused write, the permission is working. Start the chat in the folder you want changed, or select a wider preset.
