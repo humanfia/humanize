@@ -1203,6 +1203,14 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
+**4.6.2.9** Before `agy` runs a confined agent on the machine hmz runs on, hmz MUST read, without
+writing, the admin settings agy reads there. Where they hold every command for review, or every
+command outside agy's terminal sandbox on a machine that cannot start it, hmz MUST refuse the
+agent when it is configured, naming the file and the setting. Where they run commands in that
+sandbox or keep agy's file tools inside its workspace, hmz MUST run the agent and say so once per
+agent. Where they turn off plugins or MCP servers, hmz MUST refuse to offer that agent tools. hmz
+MUST say what agy reports it refused a confined agent.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
