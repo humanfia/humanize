@@ -3778,7 +3778,128 @@ This section is reserved for the family of `env.*` and `hosts.env.*`. It states 
 
 ### 4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`
 
-This section is reserved for the families of `flows.*`, `flowverses.*`, `workspaces.*` and `paths.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Flows(Family):
+    def list(self, workspace: str | None = None) -> Offered: ...
+    def get(self, name: str, workspace: str | None = None) -> Declared: ...
+    def backends(self) -> Backends: ...
+    def setup(self, workspace: str, flow: str, *, agents: Mapping[str, str] | None = None,
+              envs: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None,
+              budget: Mapping[str, Any] | None = None, profile_flow: bool | None = None,
+              profile_environment: bool | None = None, backup: Sequence[str] | None = None,
+              idem: str | None = None) -> Declared: ...
+    def check(self, workspace: str, flow: str, *, agents: Mapping[str, str] | None = None,
+              envs: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None,
+              budget: Mapping[str, Any] | None = None, profile_flow: bool | None = None,
+              profile_environment: bool | None = None, resume: bool | str | None = None,
+              backup: Sequence[str] | None = None) -> Checked: ...
+    def fork(self, workspace: str, flow: str, *, idem: str | None = None) -> Forked: ...
+
+class Flowverses(Family):
+    def list(self) -> Kept: ...
+    def get(self, name: str) -> Index: ...
+    def add(self, url: str, name: str | None = None, *, idem: str | None = None) -> Kept: ...
+    def fetch(self, name: str, *, idem: str | None = None) -> Kept: ...
+    def remove(self, name: str, *, idem: str | None = None) -> Kept: ...
+    def install(self, flow: str, version: str | None = None, *,
+                idem: str | None = None) -> Kept: ...
+    def uninstall(self, flow: str, *, idem: str | None = None) -> Kept: ...
+
+class Workspaces(Family):
+    def list(self, here: str | None = None) -> Known: ...
+    def add(self, workspace: str, here: str | None = None, *,
+            idem: str | None = None) -> Known: ...
+    def forget(self, workspace: str, here: str | None = None, *,
+               idem: str | None = None) -> Known: ...
+
+class Paths(Family):
+    def list(self, at: str | None = None, *, files: bool | None = None,
+             hidden: bool | None = None, env: str | None = None) -> Directory: ...
+    def complete(self, typed: str) -> list[str]: ...
+
+# hmz.sdk.families.flows -- each frozen
+class Offered:   flows: tuple[Flow, ...]; flow: str; running: tuple[Running, ...]; answer: dict
+class Flow:      whose: str; name: str; about: str
+class Running:   ref: str; name: str; depth: int; since: str; task: str
+class Declared:  name: str; ref: str; description: str; resumable: bool; resumes: bool
+                 agents: tuple[AgentRole, ...]; envs: tuple[EnvRole, ...]
+                 params: dict; remembered: dict; answer: dict
+class AgentRole: name: str; required: bool; auto: bool; harness: str; permission: dict
+                 skills: tuple[str, ...]; clis: tuple[str, ...]
+class EnvRole:   name: str; required: bool; auto: bool; cpu: Any; memory: Any; gpu: Any; image: Any
+class Checked:   flow: str; ref: str; declared: Declared; names: dict[str, str]
+                 budget: dict | None; backup: tuple[str, ...]; unreadable: str; answer: dict
+class Backends:  clis: dict[str, tuple[Account, ...]]; installable: dict[str, tuple[Model, ...]]
+                 envs: tuple[str, ...]; answer: dict
+class Account:   name: str; models: tuple[Model, ...]; asked: str
+class Model:     name: str; efforts: tuple[str, ...]
+class Forked:    said: str; at: str
+
+# hmz.sdk.families.flowverses -- each frozen
+class Kept:      verses: tuple[Verse, ...]; installed: tuple[Installed, ...]
+                 updates: tuple[Update, ...]; said: str; answer: dict
+class Verse:     name: str; url: str; fetched: bool; fixed: bool; edited: bool; installed: int
+class Installed: flow: str; verse: str; listed: str; version: str; repo: str; ref: str
+class Update:    flow: str; was: str; to: str
+class Index:     name: str; url: str; fetched: bool; fixed: bool; edited: bool
+                 flows: tuple[Listed, ...]; skipped: tuple[Skipped, ...]; answer: dict
+class Listed:    listed: str; flow: str; installed: str; releases: tuple[Release, ...]
+class Release:   version: str; description: str; prerelease: bool; license: str; repo: str
+                 dependencies: Any
+class Skipped:   at: str; why: str
+
+# hmz.sdk.families.workspaces and hmz.sdk.families.paths -- each frozen
+class Known:     here: str; workspaces: tuple[Workspace, ...]; kept: str; answer: dict
+class Workspace: path: str; name: str; epics: int; chats: int; last: str
+                 running: bool; here: bool; there: bool
+class Directory: at: str; whole: str; up: str; entries: tuple[Entry, ...]; more: int; answer: dict
+class Entry:     name: str; dir: bool
+```
+
+The families of this section are the daemon's view of flows, flowverses, workspaces and
+directories. They are not the `Flows` and `Flowverses` of Section 4.7 and Section 4.8, which read
+this machine's files in the calling process and which `hmz.sdk` exports under those names.
+
+**4.28.1** Each method of this section MUST call the method of [OPENRPC] of its family's group and
+its own name -- `Flows.list` `flows.list`, `Flows.get` `flows.get`, `Paths.complete`
+`paths.complete`, and so on -- once, with each argument under its parameter's name, the first
+argument of `Flowverses.get`, `fetch` and `remove` as `name`.
+
+**4.28.2** A result type of this section that has `answer` MUST hold in it the whole result of the
+call, unchanged, and in its other fields that result's fields of the same names, each list as a
+tuple of the type shown, in the daemon's order.
+
+**4.28.3** `Flows.list(workspace)` MUST return what Section 4.17.1 of [DAEMON] answers;
+`workspace` `None` MUST be sent as no workspace.
+
+**4.28.4** `Flows.get(name, workspace)`, and `Flows.setup`, MUST return a `Declared` of what Section
+4.17.2 of [DAEMON] answers, `params` being the flow's JSON schema and `remembered` what the
+workspace last set the flow up with, each as the daemon answered it.
+
+**4.28.5** `Flows.backends()` MUST return a `Backends` whose `clis` holds, for each CLI of the
+result, an `Account` for each of its `accounts`, in order, and whose `installable` holds, for each
+CLI, a `Model` for each model.
+
+**4.28.6** `Flows.setup` and `Flows.check` MUST send `agents` and `envs` as objects of role to text,
+`params` and `budget` as objects, and `backup` as a list, and MUST send none of the arguments given
+as `None`. `Flows.check` MUST return a `Checked` of what Section 4.17.8.2 of [DAEMON] answers,
+`declared` being a `Declared`.
+
+**4.28.7** `Flows.fork(workspace, flow)` MUST return a `Forked` of the result's `said` and `at`.
+
+**4.28.8** `Flowverses.list()` and each of `add`, `fetch`, `remove`, `install` and `uninstall` MUST
+return a `Kept` of what Section 4.17.6 of [DAEMON] answers: `said` being the result's `said`, `""`
+from `list`, and an `Update`'s `was` being the result's `from`.
+
+**4.28.9** `Flowverses.get(name)` MUST return an `Index` of what Section 4.17.6.2 of [DAEMON]
+answers.
+
+**4.28.10** `Workspaces.list(here)`, `add(workspace, here)` and `forget(workspace, here)` MUST
+return a `Known` of what Section 4.17.5 of [DAEMON] answers, `kept` being the result's `kept` from
+`add` and `""` from the others.
+
+**4.28.11** `Paths.list(at, files, hidden, env)` MUST return a `Directory` of what Section 4.17.7.1
+of [DAEMON] answers, and `Paths.complete(typed)` the result's `paths` as a list.
 
 ### 4.29. `Client.settings`, `Client.accounts` and `Client.nous`
 

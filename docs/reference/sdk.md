@@ -488,7 +488,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | `runtimes`, `easytier` | `runtimes.*`, `easytier.*` |
 | `btw`, `aichan`, `notices` | `btw.*`, `aichan.*`, `notices.*` |
 
-Every family has `METHODS`, the daemon methods it calls. Only `devices` has calls so far; the others are being added.
+Every family has `METHODS`, the daemon methods it calls. `devices`, `flows`, `flowverses`, `workspaces` and `paths` have calls so far; the others are being added.
 
 #### devices {#client-devices}
 
@@ -506,6 +506,66 @@ with Client.local() as client:
     for device in client.devices.list():
         print(device.name, device.seen)
 ```
+
+#### flows {#client-flows}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace=None)` | `Offered` | The flows on offer in a workspace. `flows` holds a `Flow` (`whose`, `name`, `about`) for each, `flow` the flow last set up there, `running` the flows running now. Without a workspace, project flows are left out. |
+| `get(name, workspace=None)` | `Declared` | What a flow declares: `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each an `AgentRole`), `envs` (each an `EnvRole`), `params` (a JSON schema) and `remembered` (the workspace's last set-up). |
+| `backends()` | `Backends` | `clis` maps each installed harness to its `Account`s (`name`, `models`, `asked`), `installable` maps each harness that can be installed to its `Model`s (`name`, `efforts`), and `envs` lists the environment backends. |
+| `check(workspace, flow, *, agents=None, envs=None, params=None, budget=None, profile_flow=None, profile_environment=None, resume=None, backup=None)` | `Checked` | Checks an epic as `hmz exec` does, without starting it. Returns `flow`, `ref`, `declared`, `names` (the agent for each role), `budget`, `backup` and `unreadable`. |
+| `setup(workspace, flow, *, agents=None, envs=None, params=None, budget=None, profile_flow=None, profile_environment=None, backup=None, idem=None)` | `Declared` | Saves what the workspace runs the flow with. Needs an agent for every required role and at least one budget limit. |
+| `fork(workspace, flow, *, idem=None)` | `Forked` | Copies a flow into the workspace. Returns `said` and `at`, the path of the copy. |
+
+`agents` and `envs` map a role to the text `-a` and `-e` take after `ROLE=`. `budget` is a mapping such as `{"cost": 5}`.
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    flow = client.flows.get("ralph_loop", "/home/me/app")
+    print([role.name for role in flow.agents if role.required and not role.auto])
+    client.flows.check(
+        "/home/me/app",
+        "ralph_loop",
+        agents={"coder": "claude/claude-opus-5:high"},
+        budget={"cost": 5},
+    )
+```
+
+These are not the file-based `Flows` and `Flowverses` that `hmz.sdk` exports. Those read this machine's files in your process; the families ask the daemon.
+
+#### flowverses {#client-flowverses}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Kept` | `verses` (each a `Verse`: `name`, `url`, `fetched`, `fixed`, `edited`, `installed`), `installed` (each an `Installed`: `flow`, `verse`, `listed`, `version`, `repo`, `ref`) and `updates` (each an `Update`: `flow`, `was`, `to`). |
+| `get(name)` | `Index` | One flowverse: `flows` holds a `Listed` (`listed`, `flow`, `installed`, `releases`) for each flow, each `Release` having `version`, `description`, `prerelease`, `license`, `repo` and `dependencies`. `skipped` holds what the index could not read. |
+| `add(url, name=None, *, idem=None)` | `Kept` | Adds a flowverse by `owner/repo` or a git URL. |
+| `fetch(name, *, idem=None)` | `Kept` | Fetches the index again. |
+| `remove(name, *, idem=None)` | `Kept` | Removes a flowverse and every flow installed from it. |
+| `install(flow, version=None, *, idem=None)` | `Kept` | Installs the newest release or the one named. Updates or switches a flow already installed. |
+| `uninstall(flow, *, idem=None)` | `Kept` | Uninstalls a flow. |
+
+A change returns the flowverses as they are after it, with `said`, what was done in the daemon's words. `install`, `uninstall` and `remove` raise `Refused` with code `409` while an epic is running.
+
+#### workspaces {#client-workspaces}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(here=None)` | `Known` | Every workspace. `workspaces` holds a `Workspace` (`path`, `name`, `epics`, `chats`, `last`, `running`, `here`, `there`) for each; `here` is listed first. |
+| `add(workspace, here=None, *, idem=None)` | `Known` | Adds a folder of the daemon's machine as a workspace. `kept` is its absolute path. |
+| `forget(workspace, here=None, *, idem=None)` | `Known` | Forgets what the workspace was set up with. |
+
+#### paths {#client-paths}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(at=None, *, files=None, hidden=None, env=None)` | `Directory` | Lists one directory of the daemon's machine, or of a runtime's machine with `env`. Returns `at`, `whole`, `up`, `entries` (each an `Entry`: `name`, `dir`) and `more`, how many were left out past 500. |
+| `complete(typed)` | list of `str` | The folders a partly typed path could become, at most 50. |
+
+Every result that has `answer` keeps the daemon's whole answer there as a `dict`.
 
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 

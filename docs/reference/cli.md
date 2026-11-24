@@ -35,10 +35,13 @@ python -m hmz ...
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
 | `devices` | List and revoke the devices paired with this daemon. |
+| `flows` | List flows, show what one declares, check and set up an epic. |
+| `flowverses` | Add flowverses and install, update and uninstall their flows. |
+| `workspaces` | List, add and forget workspaces, and browse the daemon's folders. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices`, `devices`, `flows`, `flowverses` and `workspaces` start the daemon if none runs. `relay`, `update` and `backup` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -398,6 +401,95 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 | `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+
+## hmz flows
+
+```text
+hmz flows list [-w PATH]
+hmz flows show NAME [-w PATH]
+hmz flows backends
+hmz flows check FLOW [-a ROLE=AGENT]... [-e ROLE=ENV]... [-p KEY=VALUE]... [--profile-flow] [--profile-environment] [--backup NAME]... [--resume] [-w PATH]
+hmz flows setup FLOW [-a ROLE=AGENT]... [-e ROLE=ENV]... [-p KEY=VALUE]... [--profile-flow] [--profile-environment] [--backup NAME]... [-w PATH]
+hmz flows fork FLOW [-w PATH]
+```
+
+`-w`, `--workspace` names the workspace, a folder on the daemon's machine. Without it, the workspace is the current directory. A relative path is taken from the current directory.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per flow: its name, where it came from, and what it does. With no flow, nothing on standard output and a note on standard error. | `{"flows": [{"whose", "name", "about"}], "flow", "running": [{"ref", "name", "depth", "since", "task"}]}`; `flow` is the flow last set up in the workspace, or empty. |
+| `show NAME` | The flow's name, description and ref, whether it is resumable, each agent role, environment role and param, the options the workspace last set it up with, and an `hmz exec` line to fill in. | `{"name", "ref", "description", "resumable", "resumes", "agents", "envs", "params", "remembered"}`; `params` is a JSON schema. |
+| `backends` | Under `Installed`, one line per harness, account and model, written as `-a` takes it, then the model's efforts. Under `Not installed`, the same for harnesses that can be installed. Under `environments`, the backends `-e` takes. | `{"clis": {<harness>: {"accounts": [{"name", "models", "asked"}]}}, "installable", "envs"}` |
+| `check FLOW` | `An epic set up like this can start.`, then the ref, the agent filling each role, the budget, the backup targets, and any budget limit that cannot be enforced. | `{"flow", "ref", "declared", "names", "budget", "backup", "unreadable"}` |
+| `setup FLOW` | One line saying the set-up was saved. | The same fields as `show`. |
+| `fork FLOW` | What was copied and where to. | `{"said", "at"}` |
+
+`show` prints each agent role with whether it is required, the installed harnesses that can fill it, and what it may touch. A role filled by a person, and the environment that is the workspace itself, take no `-a` or `-e`. Each param is printed with its type and its default, or `required`. The last line is the `hmz exec` line with a placeholder for every required role and param:
+
+```text
+Start the flow
+  hmz exec -f ralph_loop -a coder=HARNESS/MODEL -p budget.cost=USD TASK
+```
+
+`backends` prints an agent as `HARNESS/MODEL` for the machine's own sign-in and `HARNESS@ACCOUNT/MODEL` for an account. Add `:EFFORT` for one of the efforts listed.
+
+`check` and `setup` read `-a`, `-e`, `-p`, `--profile-flow`, `--profile-environment` and `--backup` as [`hmz exec`](#hmz-exec) does. `check` runs every check `hmz exec` runs before an epic starts, except whether an environment can be reached, and starts nothing. `--resume` checks resuming the newest epic of the flow instead of starting a new one. `setup` saves the set-up for the workspace, so a new epic of that flow opens with it filled in. It needs an agent for every required agent role and at least one budget limit. The line is the whole set-up: a role, param or profiling flag it leaves out is no longer kept. Without `--backup`, the backup targets stay as they were.
+
+An `-a` or `-e` item that is not `ROLE=VALUE`, a role given twice, a `-p` that cannot be read, or `--backup none` with another target is a usage error: status `2`, and with `--json` the document `{"error": {"code": 400, "message": <message>}}`.
+
+`fork` copies a flow into `.hmz/flows/` of the workspace, where you can edit it.
+
+## hmz flowverses
+
+```text
+hmz flowverses list
+hmz flowverses show NAME
+hmz flowverses add URL [--name NAME]
+hmz flowverses fetch NAME
+hmz flowverses remove NAME [-y]
+hmz flowverses install FLOW [--version VERSION]
+hmz flowverses uninstall FLOW [-y]
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | Under `Flowverses`, one line per flowverse: its name, its URL, how many flows are installed from it. Under `Installed`, one line per installed flow: its name, its release, its flowverse, and the newer release if there is one. | `{"verses": [{"name", "url", "fetched", "fixed", "edited", "installed"}], "installed": [{"flow", "verse", "listed", "version", "repo", "ref"}], "updates": [{"flow", "from", "to"}]}` |
+| `show NAME` | The flowverse's name and URL, then one line per release, newest first under each flow: the flow as `install` takes it, the release, `Installed` or `-`, and its description. Then what the index skipped and why. | `{"name", "url", "fetched", "fixed", "edited", "flows": [{"listed", "flow", "installed", "releases"}], "skipped"}` |
+| `add URL` | What was done, in one line. | `said` and the fields of `list`. |
+| `fetch NAME` | What was done, in one line. | `said` and the fields of `list`. |
+| `remove NAME` | What was done, in one line. | `said` and the fields of `list`. |
+| `install FLOW` | The flow and release installed. | `said` and the fields of `list`. |
+| `uninstall FLOW` | What was done, in one line. | `said` and the fields of `list`. |
+
+`add` takes `owner/repo` on GitHub or a git URL. `--name` sets the name the flowverse is kept under. `fetch` reloads the index, so `list` shows newer releases. It resets anything written into the index.
+
+`install` installs the newest release, or the release `--version` names. For a flow already installed, it updates the flow or switches its release. `FLOW` is the name `show` prints: bare for the official flowverse, `@FLOWVERSE/FLOW` for another.
+
+`remove` and `uninstall` ask first. Answer `y` or `yes` to go on. Any other answer changes nothing and exits `1`. `-y`, `--yes` skips the question. Without `-y`, the command is a usage error (status `2`) when standard input is not a terminal or `--json` is given.
+
+`install`, `uninstall` and `remove` are refused while an epic is running: `An epic is running: flows change once none is.`
+
+## hmz workspaces
+
+```text
+hmz workspaces list
+hmz workspaces add PATH
+hmz workspaces forget PATH
+hmz workspaces browse [PATH] [--files] [--hidden] [--env ENV]
+hmz workspaces complete TYPED
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per workspace: its path, its number of epics, its number of chats, when the latest began or `-`, and `running` or `missing`. The current directory comes first. With no workspace, nothing on standard output and a note on standard error. | `{"here", "workspaces": [{"path", "name", "epics", "chats", "last", "running", "here", "there"}]}` |
+| `add PATH` | The absolute path of the workspace added. | `kept` and the fields of `list`. |
+| `forget PATH` | `Forgotten` | The fields of `list`. |
+| `browse [PATH]` | One absolute path per line, folders first and ending in `/`. At most 500; how many were left out goes to standard error. | `{"at", "whole", "up", "entries": [{"name", "dir"}], "more"}` |
+| `complete TYPED` | One folder per line that the typed text could become, at most 50. | `{"paths": [<path>]}` |
+
+`add` takes a folder that exists on the daemon's machine. `forget` forgets the settings kept for a workspace, including the set-up of each flow. A workspace nothing ran in leaves the list. The folder, its epics and its chats are not touched.
+
+`browse` lists one directory of the daemon's machine, the home directory by default. `--files` lists files too, and `--hidden` lists names that start with a dot. `--env ENV` lists the directory on the machine of a runtime, written as `-e` writes one with no directory, such as `ssh@box`. `complete` completes a partly typed path, such as `~/co`.
 
 ## hmz internal
 
