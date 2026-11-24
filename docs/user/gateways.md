@@ -38,10 +38,10 @@ The account list shows the variable names it sets, and never shows their values 
 
 ### In the terminal
 
-1. Type `/settings accounts` and press <kbd>enter</kbd> on **Add an account**.
-2. Set `cli` and `way`, fill in the added rows, and choose **Done**.
+1. Type `/settings accounts` and press <kbd>enter</kbd> on **Add account**.
+2. Set `CLI` and `Sign-in method`, fill in the added rows, and choose **Done**.
 
-![The terminal's Add an account form with the way anthropic-gateway, which adds the rows ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN](/shots/user-gateways-terminal-form.svg)
+![The terminal's New account form with the sign-in method anthropic-gateway, which adds the rows ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN](/shots/user-gateways-terminal-form.svg)
 
 You must create `mcode` gateway accounts in the terminal, because they run an `mcode` command.
 
@@ -59,7 +59,7 @@ For most CLIs, Humanize reads the model list from the endpoint itself.
 
 Use a LiteLLM account to run a CLI on a vendor it does not natively support, such as Claude Code on an OpenAI key. Humanize starts a local LiteLLM proxy for the agent, passes your real key only to the proxy, and gives the CLI a random key. The proxy stops when the agent stops.
 
-Find these methods at the bottom of **Sign-in method** under **LiteLLM** (or under `LiteLLM` in `way` in the terminal):
+Find these methods at the bottom of **Sign-in method** under **LiteLLM** (or under `LiteLLM` in `Sign-in method` in the terminal):
 
 | Method | What it asks for |
 | --- | --- |
@@ -96,10 +96,10 @@ Add any coding agent that speaks the [Agent Client Protocol](https://github.com/
 ### In the terminal
 
 1. Type `/settings accounts`.
-2. Select **Add a custom CLI** and press <kbd>enter</kbd>.
-3. Type the start command in the `command` row, such as `my-agent --acp`, and choose **Done**.
+2. Select **Add CLI** and press <kbd>enter</kbd>.
+3. Type the start command in the `Command` row, such as `my-agent --acp`, and choose **Done**.
 
-![The terminal interface: Add a custom CLI is chosen on the Accounts page, the command my-agent --acp is typed, and the page says my-agent added as a backend](/shots/user-gateways-custom-cli.svg)
+![The terminal interface: Add CLI is chosen on the Accounts page, the command my-agent --acp is typed, and the page says my-agent added as a backend](/shots/user-gateways-custom-cli.svg)
 
 Humanize saves the CLI immediately for all folders and names it after the executable (`my-agent` here).
 

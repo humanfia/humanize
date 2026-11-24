@@ -207,7 +207,9 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await shows(pilot, "Resume epic")
         await pilot.press("enter")
         await on(pilot, Epics)
-        await shows(pilot, "this epic ran in the folder ~/elsewhere; resume it from hmz there")
+        await shows(
+            pilot, "this epic ran in the folder ~/elsewhere; resume it from hmz there"
+        )
 
         await pilot.press("escape")
         await typed(pilot, "/epics")

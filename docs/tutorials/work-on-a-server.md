@@ -31,7 +31,7 @@ A runtime is a machine saved under a name.
 
 ![Settings, Runtimes: Read SSH config lists the hosts, gpu-box is ticked and imported, and Check answers with a tick and 18 cpu](/shots/tutorials-work-on-a-server-import.svg)
 
-In the terminal interface, open `/settings runtimes` and use **Import ~/.ssh/config** and **Add a runtime…** at the bottom.
+In the terminal interface, open `/settings runtimes` and use **Read SSH config** and **Add runtime…** at the bottom.
 
 ![The terminal interface's Runtimes page, listing gpu-box under ssh and sandbox under docker](/shots/tutorials-work-on-a-server-tui.svg)
 

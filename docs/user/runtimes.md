@@ -83,17 +83,17 @@ In a new chat's environment chip, pick a runtime saved without a **Workdir**, or
 
 Run `/settings runtimes` (or `/settings environments`) to list saved runtimes grouped by backend.
 
-- Press <kbd>enter</kbd> on a runtime to `edit`, `check`, or **Remove** it.
-- Select **Add a runtime…** to pick a backend and fill out its form. Humanize checks the runtime as soon as you save it.
-- Select **Import ~/.ssh/config** to import hosts from your SSH config or another config file.
+- Press <kbd>enter</kbd> on a runtime to `Edit`, `Check`, or **Remove** it.
+- Select **Add runtime…** to pick a backend and fill out its form. Humanize checks the runtime as soon as you save it.
+- Select **Read SSH config** to import hosts from your SSH config or another config file.
 
-![The terminal's Runtimes page lists two ssh hosts and a docker daemon; enter on gpu-box offers edit, check and Remove](/shots/user-runtimes-tui.svg)
+![The terminal's Runtimes page lists two ssh hosts and a docker daemon; enter on gpu-box offers Edit, Check and Remove](/shots/user-runtimes-tui.svg)
 
-On the form of a Docker host, a Docker swarm, or an Apple container runtime, press <kbd>tab</kbd> and choose **Detect** to ask the daemon, or this Mac, what it has. Humanize fills in `cpus` and `memory`, plus `gpus` on a Docker host, and you can type over them before **Done**.
+On the form of a Docker host, a Docker swarm, or an Apple container runtime, press <kbd>tab</kbd> and choose **Detect** to ask the daemon, or this Mac, what it has. Humanize fills in `CPUs` and `Memory`, plus `GPUs` on a Docker host, and you can type over them before **Done**.
 
-![On the form of the docker runtime sandbox, tab reaches Detect; enter fills cpus with 8 and the form says detected 8 CPUs, 16G: auto-filled](/shots/user-runtimes-detect.svg)
+![On the form of the docker runtime sandbox, tab reaches Detect; enter fills CPUs with 8 and the form says detected 8 CPUs, 16G; filled in](/shots/user-runtimes-detect.svg)
 
-In the form, enter a comma-separated list in `falls back to`, such as `ssh:build-1, docker:sandbox`. In `harness runs on`, enter `env`, `local`, or a runtime such as `ssh:build-1`.
+In the form, enter a comma-separated list in `Falls back to`, such as `ssh:build-1, docker:sandbox`. In `Harness runs on`, enter `env`, `local`, or a runtime such as `ssh:build-1`.
 
 ## From the command line
 

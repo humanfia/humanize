@@ -120,7 +120,7 @@ A run waiting for your input is not stalled: see [Answer a flow's questions](/us
 Check a saved runtime before running work on it.
 
 - In the app, open **Settings → Runtimes** and click **Check** on its row.
-- In the terminal, run `/settings runtimes`, press <kbd>enter</kbd> on the runtime and choose `check`.
+- In the terminal, run `/settings runtimes`, press <kbd>enter</kbd> on the runtime and choose `Check`.
 
 | What you see | Cause | Fix |
 | --- | --- | --- |

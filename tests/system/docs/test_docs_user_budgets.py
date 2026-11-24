@@ -228,7 +228,7 @@ async def test_a_budget_is_set_and_read_in_the_terminal(world: World) -> None:
         await pilot.pause(0.3)
         reel.tui(app, hold=1.6, keys="down enter 2000 enter", caption="2,000 tokens")
         await pilot.press("tab")
-        await shows(pilot, "enter set")
+        await shows(pilot, "enter Set")
         reel.tui(app, hold=1.0, keys="tab", caption="to Set")
         await pilot.press("enter")
         await on(pilot, Flows)

@@ -66,6 +66,7 @@ from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import to_json
+from rich.cells import cell_len
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
@@ -576,16 +577,18 @@ def _chip(
         dot = "●" if value == _YES else "○"
         word = t("On") if value == _YES else t("Off") if value == _NO else value
         if value == _YES and not here:
-            return f"[$success]{dot}[/] {word} [$text-muted]{_DROPS}[/]", len(word) + 4
+            return f"[$success]{dot}[/] {word} [$text-muted]{_DROPS}[/]", cell_len(
+                word
+            ) + 4
         said = f"{dot} {word} {_DROPS}"
-        return _shade("$text-muted", said, here=here), len(said)
+        return _shade("$text-muted", said, here=here), cell_len(said)
     if not value and not moves and not caret:
         return _shade("$text-muted", "—", here=here), 1
     tail = (f" {moves}" if value else moves) if moves else ""
     shown = escape(value) if here else f"[$secondary]{escape(value)}[/]"
     return (
         f"{shown}{caret}{_shade('$text-muted', tail, here=here) if tail else ''}",
-        len(value) + (1 if caret else 0) + len(tail),
+        cell_len(value) + (1 if caret else 0) + cell_len(tail),
     )
 
 
@@ -1793,7 +1796,7 @@ class Sheet[T](ModalScreen[T | None]):
             + (f" {_shade('$success', _INFORCE, here=here)}" if inforce else "")
             + (f" {_shade('$accent', _UNREAD, here=here)}" if unread else "")
         )
-        shown = len(label) + (2 if inforce else 0) + (2 if unread else 0)
+        shown = cell_len(label) + (2 if inforce else 0) + (2 if unread else 0)
         pad = " " * max(1, _LABEL - shown)
         # Wrapped here rather than by the list, so that a second line starts under the first
         # rather than under the name: the column of what each thing is stays a column.
@@ -1833,7 +1836,7 @@ class Sheet[T](ModalScreen[T | None]):
         """
         width = self._width_of(self.query_one("#choices", OptionList))
         said, cells = chip
-        shown = len(named) + (2 if inforce else 0)
+        shown = cell_len(named) + (2 if inforce else 0)
         pad = max(2, width - 2 - shown - cells)
         if here:
             self._values_at = 1 + shown + pad
@@ -1874,7 +1877,7 @@ class Sheet[T](ModalScreen[T | None]):
         width = self._width_of(self.query_one("#choices", OptionList))
         unsaved = f"● {t('Unsaved')}"
         said = f"{summary}  {unsaved}" if pending else summary
-        pad = " " * max(2, width - 5 - len(title) - len(said))
+        pad = " " * max(2, width - 5 - cell_len(title) - cell_len(said))
         right = _shade("$text-muted", summary, here=here) + (
             f"  {_shade('$warning', unsaved, here=here)}" if pending else ""
         )
@@ -12508,20 +12511,6 @@ class Doing(NamedTuple):
     start: dict[str, Any] | None = None
 
 
-def _many(count: int, thing: str) -> str:
-    """How many of something there were, said as English says it.
-
-    Args:
-      count: How many.
-      thing: What they are, in the singular.
-
-    Returns:
-      The two words -- `1 session`, `3 sessions` -- since a sheet is prose and `1 sessions`
-      is a sheet that reads as a template somebody forgot to finish.
-    """
-    return f"{count} {thing}" if count == 1 else f"{count} {thing}s"
-
-
 def _asked_for(task: str) -> str:
     """What a run was asked to do, as much of it as a row has room for.
 
@@ -13896,10 +13885,11 @@ def daemon_names() -> list[str]:
 
 def _stands(said: dict[str, str]) -> str:
     """How one daemon stands, as a row says it: its state, and what was said last."""
-    word = _worded(said.get("state", ""))
+    state = said.get("state", "")
+    word = _worded(state)
     if said.get("detail"):
         word += f": {said['detail']}"
-    elif word == "up" and said.get("version"):
+    elif state == "up" and said.get("version"):
         word += f", hmz {said['version']}"
     return word
 

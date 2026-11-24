@@ -246,7 +246,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         await pilot.press("enter")
         await pilot.pause(0.3)
         await pilot.press("tab")
-        await shows(pilot, "enter set")
+        await shows(pilot, "enter Set")
         reel.tui(app, hold=1.2, keys="enter tab", caption="to Set")
         await pilot.press("enter")
         await on(pilot, Flows)
@@ -285,7 +285,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
 
         # -- and read back ----------------------------------------------------------
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory", "stopped")
+        await shows(pilot, "Every epic in this folder", "stopped")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-epics")
         await pilot.press("enter")

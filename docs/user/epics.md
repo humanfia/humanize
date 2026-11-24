@@ -64,14 +64,14 @@ Select a row with the arrow keys and press <kbd>enter</kbd> to open it.
 
 | Row | What opens |
 | --- | --- |
-| An agent role | A sheet with `cli`, `account`, `model`, `effort`, and `swarm` (if the model supports it). |
-| An environment role | A form with `backend`, the machine when the backend is not `local` (`host`, `daemon`, `swarm` or `cluster`), `workdir`, and `as -e` (where you can type the spec in `hmz exec` format). |
+| An agent role | A sheet with `CLI`, `Account`, `Model`, `Effort`, and `Swarm` (if the model supports it). |
+| An environment role | A form with `Backend`, the machine when the backend is not `local` (`Host`, `Daemon`, `Docker swarm` or `Slurm cluster`), `Workdir`, and `As -e` (where you can type the spec in `hmz exec` format). |
 | `params` | A form with one row per param. The main row shows only modified values. |
 | `budget` | `duration`, `cost`, `output_tokens`, and a `graceful_` switch for each. Type durations as `30m`, `1h30m` or `PT2H`. |
-| `profile flow`, `profile environment` | `on` or `off`. |
+| `profile flow`, `profile environment` | `On` or `Off`. |
 | `backup` | A switch per backup target. |
 
-![The sheet of one agent role: cli, account, model and effort](/shots/user-epics-agent-sheet.svg)
+![The sheet of one agent role: CLI, Account, Model and Effort](/shots/user-epics-agent-sheet.svg)
 
 ![The budget sheet with thirty minutes and five dollars typed in](/shots/user-epics-budget-sheet.svg)
 

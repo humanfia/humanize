@@ -38,9 +38,9 @@ To choose an epic from the current directory:
 
 1. Type `/epics`.
 2. Press <kbd>enter</kbd> on a row ending with `resumable`.
-3. Choose `resume epic`.
+3. Choose `Resume epic`.
 
-![Opening /epics, choosing an epic and then resume epic](/shots/user-resuming-terminal-epics.svg)
+![Opening /epics, choosing an epic and then Resume epic](/shots/user-resuming-terminal-epics.svg)
 
 To resume the newest epic immediately, type `/resume` while a flow is on the screen, such as right after it stops. `/resume` takes no argument.
 
@@ -79,7 +79,7 @@ If the flow is not resumable, or no epic in the directory can be picked up, `hmz
 
 ## Troubleshoot resume errors
 
-When `/resume` or `resume epic` cannot run, it shows one of these messages:
+When `/resume` or `Resume epic` cannot run, it shows one of these messages:
 
 | Message | Meaning |
 | --- | --- |
@@ -99,7 +99,7 @@ On the command line, `hmz exec --resume` prints `hmz exec: error: <flow> does no
 
 `/resume` checks only the newest epic of a resumable flow. If that epic cannot be resumed, it tells you why and does not fall back to an older epic. Use `/epics` to pick an older one. Outside a chat, `/resume` is hidden from the `/` menu when there is nothing to resume in the current directory.
 
-`resume epic` refuses to run an epic from another directory, saying `this epic ran in <dir>; resume it from hmz there`. Open `hmz` in that directory first.
+`Resume epic` refuses to run an epic from another directory, saying `this epic ran in the folder <dir>; resume it from hmz there`. Open `hmz` in that directory first.
 
 An [imported](/user/export) epic resumes only if its folder exists on this machine at the same path and, for a git repository, contains the recorded commit. Otherwise, its page shows `Imported · not resumable here: <why>`.
 

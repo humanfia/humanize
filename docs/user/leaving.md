@@ -57,9 +57,9 @@ hmz
 
 ![hmz run again in the folder: the whole epic so far, still working](/shots/user-leaving-back.svg)
 
-Type `/epics` to list every epic in the folder. Active epics say `is still going`. Press <kbd>ctrl+t</kbd> in that view to list every folder on the machine.
+Type `/epics` to list every epic in the folder. Active epics say `still going`. Press <kbd>ctrl+t</kbd> in that view to list every folder on the machine.
 
-![The /epics list with one epic marked is still going](/shots/user-leaving-epics.svg)
+![The /epics list with one epic marked still going](/shots/user-leaving-epics.svg)
 
 If the epic ended while you were away, `hmz` shows the final state. Run `/resume` to continue a resumable flow. See [Resume a run](/user/resuming).
 

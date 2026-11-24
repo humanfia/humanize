@@ -70,7 +70,7 @@ async def _budgeted(pilot: Pilot[None], flow: str) -> None:
     await pilot.press("enter")
     await pilot.pause(0.3)
     await pilot.press("tab")
-    await shows(pilot, "enter set")
+    await shows(pilot, "enter Set")
     await pilot.press("enter")
     await on(pilot, Flows)
     await shows(pilot, "stops at 30m")
@@ -146,7 +146,7 @@ async def test_a_flow_is_left_running_and_found_again(world: World) -> None:
         shots.tui(app, f"{_PAGE}-back")
 
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory")
+        await shows(pilot, "Every epic in this folder")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-epics")
         await pilot.press("escape")

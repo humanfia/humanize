@@ -146,7 +146,7 @@ async def test_an_epic_is_budgeted_left_and_found_again(world: World) -> None:
         await pilot.press("enter")
         await pilot.pause(0.3)
         await pilot.press("tab")
-        await shows(pilot, "enter set")
+        await shows(pilot, "enter Set")
         reel.tui(app, hold=1.0, keys="enter tab", caption="to Set")
         await pilot.press("enter")
         await on(pilot, Flows)
@@ -204,7 +204,7 @@ async def test_an_epic_is_budgeted_left_and_found_again(world: World) -> None:
 
         # -- and read back ----------------------------------------------------------
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory")
+        await shows(pilot, "Every epic in this folder")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-epics")
         await pilot.press("enter")

@@ -71,7 +71,7 @@ When **System** is on, `hmz` also asks your terminal to show a desktop notificat
 
 Once your terminal has reported that its window gained or lost focus, `hmz` sends these only while the window is not focused. A terminal that never reports focus is sent every notice.
 
-To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd> on a row, select `on` or `off`, and choose **Save**.
+To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd> on a row, select `On` or `Off`, and choose **Save**.
 
 ![The Notifications page of /settings in the terminal: Done, Failed, Stopped, Questions, Waiting and System, each on](/shots/user-notifications-terminal-settings.svg)
 
