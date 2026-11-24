@@ -115,7 +115,13 @@ class Zone(Vertical):
     Zone:focus-within > .zone-rule { color: $primary; }
     #navigator { border-right: heavy $hmz-line; }
     #context { border-left: heavy $hmz-line; width: 48; }
+    Zone#context { width: 48; }
+    Zone.wide, Zone#context.wide { width: 50%; }
+    Zone.widest, Zone#context.widest { width: 80%; }
     """
+
+    #: How wide a zone can be made, narrowest first: as it opens, half the screen, most of it.
+    WIDTHS: ClassVar = ("", "wide", "widest")
 
     #: The view open here, or None.
     view: View | None = None
@@ -159,6 +165,19 @@ class Zone(Vertical):
             event.stop()
             for prompt in self.screen.query(Shell.HOME):
                 prompt.focus()
+
+    def widens(self) -> str:
+        """Makes the zone one step wider, and as narrow as it opens after the widest.
+
+        Returns:
+          How wide it is now: one of :attr:`WIDTHS`.
+        """
+        now = next((one for one in self.WIDTHS if one and self.has_class(one)), "")
+        going = self.WIDTHS[(self.WIDTHS.index(now) + 1) % len(self.WIDTHS)]
+        for one in self.WIDTHS:
+            if one:
+                self.set_class(one == going, one)
+        return going
 
     async def empties(self) -> None:
         """Closes the zone, and lets go of what was in it."""

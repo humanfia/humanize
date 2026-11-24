@@ -284,6 +284,44 @@ Run `/env` to open an environment's panels. Press <kbd>tab</kbd> and <kbd>shift+
 
 Letter shortcuts in Files and Changes are disabled while the search box is open.
 
+#### Panes beside the log
+
+Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open Files, Changes or Terminal to the right of the log, for the environment of the chat or epic you are in. The same key closes the pane; <kbd>esc</kbd> returns to the prompt and leaves it open. Each pane lists its keys at its foot.
+
+| Pane | Key | Action |
+| --- | --- | --- |
+| All | <kbd>ctrl+w</kbd> | Widens the pane: 48 columns, half the screen, four fifths, then 48 again. |
+| All | <kbd>tab</kbd> | Turns to the next environment, when there are several. |
+| Files | <kbd>enter</kbd> | Opens or shuts the folder, or shows the file read-only in the pane. |
+| Files | <kbd>backspace</kbd> | Back from the file to the tree. |
+| Files | <kbd>e</kbd> | Opens the file in the built-in editor. |
+| Files | <kbd>n</kbd> | New file. |
+| Files | <kbd>shift+n</kbd> | New folder. |
+| Files | <kbd>r</kbd> | Rename. |
+| Files | <kbd>d</kbd> | Delete, after a box. |
+| Files | <kbd>ctrl+p</kbd> | Go to file by name. |
+| Files | <kbd>/</kbd> | Search in files. |
+| Changes | <kbd>↑</kbd> <kbd>↓</kbd> | Moves the cursor; the diff under the list follows it. |
+| Changes | <kbd>enter</kbd> | Gives the keys to the diff, to scroll it. <kbd>backspace</kbd> returns to the list. |
+| Changes | <kbd>s</kbd> | Stage. |
+| Changes | <kbd>u</kbd> | Unstage. |
+| Changes | <kbd>x</kbd> | Discard, after a box. |
+| Changes | <kbd>shift+s</kbd> | Stage all changes. |
+| Changes | <kbd>shift+u</kbd> | Unstage all changes. |
+| Changes | <kbd>c</kbd> | Commit, or amend the last commit. |
+| Changes | <kbd>l</kbd> | Lists the commits. <kbd>backspace</kbd> returns to the changes. |
+| Changes | <kbd>p</kbd> | Lists the snapshots. <kbd>enter</kbd> rewinds to one, after a box. |
+| Changes | <kbd>r</kbd> | Refresh. |
+| Terminal, tabs | <kbd>enter</kbd> | Gives the keys to the terminal shown. |
+| Terminal, tabs | <kbd>←</kbd> <kbd>→</kbd> | Previous or next terminal. |
+| Terminal, tabs | <kbd>n</kbd> | New terminal. |
+| Terminal, tabs | <kbd>x</kbd> | Closes the terminal, after a box. |
+| Terminal, typing | `~.` at the start of a line | Returns the keys to the tabs and leaves the terminal running. |
+| Terminal, typing | `~~` at the start of a line | Sends one `~`. |
+| Terminal, typing | Any other key | Goes to the terminal, <kbd>esc</kbd> included. |
+
+<kbd>ctrl+c</kbd>, <kbd>ctrl+q</kbd> and the keys that open panes stay with `hmz` while you type in a terminal pane.
+
 ### Exomyth
 
 Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomyth](/user/tracing).

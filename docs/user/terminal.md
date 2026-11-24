@@ -168,6 +168,7 @@ To search instead, press <kbd>ctrl+k</kbd> and type. <kbd>tab</kbd> switches bet
 Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installed** lists the flows you can run, with any that has a newer release first and marked `↑`. **Flowverses** lists the indexes more flows are installed from, with when each was fetched. <kbd>tab</kbd> turns from one to the other, the bottom line lists the keys of the list you are in, and <kbd>esc</kbd> goes back one list and then closes the page. See [Find and install flows](/user/flows#the-flows-page).
 
 The Download, Import and Export pages move epics between machines. A transfer goes on when you close its page with <kbd>esc</kbd>; open any of the three again to see where it stands. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
+Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open the Files, Changes or Terminal of the environment you are working in beside the log, and <kbd>ctrl+w</kbd> inside one to widen it. The pane stays open while you type at the prompt. See [Files, changes and terminal](/user/environment-panels#keep-a-pane-open-beside-the-chat).
 
 ## Good to know
 
