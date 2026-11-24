@@ -283,8 +283,8 @@ Run `/env` to open an environment's panels. Press <kbd>tab</kbd> and <kbd>shift+
 | Changes | <kbd>x</kbd> | Discard, after a box. |
 | Changes | <kbd>c</kbd> | Commit. |
 | Changes | <kbd>r</kbd> | Refresh. |
-| Shell | `~.` at the start of a line | Leaves the shell running and returns to `hmz`. |
-| Shell | `~~` at the start of a line | Sends one `~`. |
+| Terminal | `~.` at the start of a line | Leaves the shell running and returns to `hmz`. |
+| Terminal | `~~` at the start of a line | Sends one `~`. |
 | Snapshots | <kbd>enter</kbd> | Rewinds to the snapshot, after a box. |
 
 Letter shortcuts in Files and Changes are disabled while the search box is open.
@@ -359,14 +359,14 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Timeline | <kbd>d</kbd> or <kbd>shift+→</kbd> | Pan on. |
 | Timeline | <kbd>enter</kbd> | Opens or shuts the pane of the span. |
 | Timeline | <kbd>p</kbd> | Opens or shuts the pane of the process. |
-| Timeline | <kbd>v</kbd> | Begins a range, then holds it, then drops it. |
+| Timeline | <kbd>v</kbd> | **Mark range**, then **Hold range**, then **Clear range**. |
 | Timeline | <kbd>f</kbd> | Fits the range, or the span. |
 | Timeline | <kbd>0</kbd> | Shows the whole epic. |
 | Timeline | <kbd>space</kbd> | Folds or opens the process. |
 | Timeline | <kbd>/</kbd> | Searches spans by name. <kbd>enter</kbd> finds. |
 | Timeline | <kbd>n</kbd> <kbd>N</kbd> | Next or previous span found. |
 | Flame | <kbd>t</kbd> | Next weight: time, tokens in, tokens out, count. |
-| Flame | <kbd>m</kbd> | Sessions merged or apart. |
+| Flame | <kbd>m</kbd> | **Merge sessions**, or **Split sessions**. |
 | Slices | <kbd>o</kbd> | Sorts by the next column. |
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |

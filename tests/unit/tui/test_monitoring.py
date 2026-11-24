@@ -178,8 +178,8 @@ def test_the_board_hands_out_a_copy_of_its_lines() -> None:
 @pytest.mark.parametrize(
     ("key", "label", "about"),
     [
-        ("", "next", "name the entry, then say what it is"),
-        ("goal", "save", "write the entry on the board; an empty one is taken off"),
+        ("", "Next", "name the line first, then type what it says"),
+        ("goal", "Save", "write the line to the board, or remove it if empty"),
     ],
 )
 def test_an_entry_names_a_line_first_unless_it_has_one(
@@ -189,7 +189,7 @@ def test_an_entry_names_a_line_first_unless_it_has_one(
 
     [action] = entry.actions()
 
-    assert entry.crumb() == "board entry"
+    assert entry.crumb() == "Board line"
     assert (action.key, action.label, action.about) == ("onward", label, about)
 
 
@@ -299,7 +299,7 @@ def test_a_fleet_hangs_under_a_box_and_is_cut_when_long() -> None:
     assert lines[0] == "  ┣╸◆ task 0"
     assert lines[1] == "  ┣╸◇ task 1"
     assert len(lines) == 5
-    assert lines[-1] == "  ┗╸◇ and 2 more"
+    assert lines[-1] == "  ┗╸◇ 2 more"
 
 
 def test_a_short_fleet_ends_its_branch_and_none_draws_nothing() -> None:
@@ -343,7 +343,7 @@ def test_a_place_row_says_its_role_and_where_it_is() -> None:
 def test_the_list_has_its_columns_named() -> None:
     said = _plain(columns(120))
 
-    for name in ("node", "runs · where", "turns", "time", "tokens"):
+    for name in ("node", "model · runtime", "turns", "time", "tokens"):
         assert name in said
 
 
@@ -452,7 +452,7 @@ def test_the_epic_says_which_limits_cut_a_turn_off_at_once() -> None:
     # The duration it does not set cuts nothing off.
     assert said["Budget"][-1] == (
         "when spent",
-        "cut off at once by cost, else the last turn finishes",
+        "cost cut off at once; otherwise the last turn finishes",
     )
 
 
@@ -479,7 +479,7 @@ def test_the_epic_says_what_it_was_set_up_with() -> None:
         ("task", "make it so"),
         ("agents", "ScreW · coder=claude/opus"),
         ("", "critic=codex/gpt"),
-        ("envs", "workspace=local:."),
+        ("environments", "workspace=local:."),
         ("params", "rounds=3"),
         ("profiled", "environment"),
     ]

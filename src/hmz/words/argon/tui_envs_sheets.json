@@ -1,0 +1,149 @@
+{
+ "entries": [
+  {
+   "wants": "says that a file could not be read because it kept changing while it was being read; {path} is the file",
+   "where": "error line under a list of files in the terminal interface, one short sentence without a full stop, keeps {path}",
+   "text": "{path} kept changing while it was being read"
+  },
+  {
+   "wants": "says that a shell in the environment {name} cannot be opened because hmz is not running in a terminal",
+   "where": "red line in the log of the terminal interface, one sentence, keeps {name}",
+   "text": "A shell in {name} cannot be opened because hmz is not running in a terminal."
+  },
+  {
+   "wants": "how a shell ended: the person left it with ~. and it keeps running in the environment",
+   "where": "said after `Shell in {name}: ` in the log of the terminal interface, a short phrase with a capital and a full stop",
+   "text": "Left; it keeps running."
+  },
+  {
+   "wants": "how a shell ended: the connection or the terminal failed, {why} is the reason in the host's words",
+   "where": "said after `Shell in {name}: ` in the log of the terminal interface, short, keeps {why} at the end after a colon",
+   "text": "Failed: {why}"
+  },
+  {
+   "wants": "names the shell that just ended and says how: {name} is the environment, {ended} is a phrase such as `Left; it keeps running.`",
+   "where": "line in the log of the terminal interface, of the shape `Shell in {name}: {ended}`",
+   "text": "Shell in {name}: {ended}"
+  },
+  {
+   "wants": "says what the list of environments holds: every environment that the chat or epic on screen uses",
+   "where": "the line under the title Environments of a sheet of the terminal interface, one sentence with a full stop",
+   "text": "Every environment that this chat or epic uses."
+  },
+  {
+   "wants": "what the tab key does on a sheet of one environment that has several pages (Files, Changes, Terminal, Snapshots): goes to the next page",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Next page"
+  },
+  {
+   "wants": "says what the list of terminals is for: come back to a terminal left running in this environment, or open a new one",
+   "where": "the line under the title Terminals of a sheet of the terminal interface, one sentence with a full stop",
+   "text": "Come back to a terminal left running in this environment, or open a new one."
+  },
+  {
+   "wants": "what the row `New terminal` opens: a new login shell of its own in the environment",
+   "where": "the muted line beside the row New terminal in a list of the terminal interface, a short phrase in lower case with no full stop",
+   "text": "a new login shell of its own in this environment"
+  },
+  {
+   "wants": "what choosing the confirming answer of a yes-or-cancel question does: it does what was asked",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "does what was asked"
+  },
+  {
+   "wants": "what choosing Cancel in a yes-or-cancel question does: nothing is changed",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "changes nothing"
+  },
+  {
+   "wants": "says why the person is asked about a file they edited: since they read it, something else wrote the file on disk",
+   "where": "the line under the question in a small box of the terminal interface, one sentence with a full stop",
+   "text": "Something else wrote this file on disk since you read it."
+  },
+  {
+   "wants": "what choosing Reload does when a file changed on disk under an edit: the person's edit is thrown away and the file is read again",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "throws away your edit and reads the file again"
+  },
+  {
+   "wants": "what choosing Keep mine does when a file changed on disk under an edit: the person's edit is written over what is on disk",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "writes your edit over what is on disk"
+  },
+  {
+   "wants": "what choosing Show the diff does when a file changed on disk under an edit: shows what is on disk compared with the person's edit",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "compares what is on disk with your edit"
+  },
+  {
+   "wants": "tells the person that pressing the key e on a file opens it in their own editor ($VISUAL or $EDITOR), said after a sentence saying the file is not opened here",
+   "where": "error line under a list of files in the terminal interface, one sentence with a full stop, names the key e",
+   "text": "Press e to open it in your own editor."
+  },
+  {
+   "wants": "says that the file {name} is not text and so is not opened in the editor here",
+   "where": "error line under a list of files in the terminal interface, one sentence with a full stop, keeps {name}",
+   "text": "{name} is not text and cannot be opened here."
+  },
+  {
+   "wants": "how many files of the environment are listed to pick one from: {n} files",
+   "where": "the line under the title Go to file of a sheet of the terminal interface, a count with no full stop, keeps {n}",
+   "text": "{n} files",
+   "one": "{n} file"
+  },
+  {
+   "wants": "how many files of the environment are listed to pick one from, {n} files, when the environment has more than were listed",
+   "where": "the line under the title Go to file of a sheet of the terminal interface, a count with no full stop, keeps {n}",
+   "text": "{n} files, and more not shown",
+   "one": "{n} file, and more not shown"
+  },
+  {
+   "wants": "how many lines a search of the environment's files found: {n} lines that contain {query}",
+   "where": "the line under the title of a sheet of search results in the terminal interface, a count with no full stop, keeps {n} and {query}",
+   "text": "{n} lines with {query}",
+   "one": "{n} line with {query}"
+  },
+  {
+   "wants": "how many lines a search of the environment's files found, {n} lines that contain {query}, when there are more matches than were listed",
+   "where": "the line under the title of a sheet of search results in the terminal interface, a count with no full stop, keeps {n} and {query}",
+   "text": "{n} lines with {query}, and more not shown",
+   "one": "{n} line with {query}, and more not shown"
+  },
+  {
+   "wants": "title of a diff that compares the file {path} as it is on disk with the person's own edit of it",
+   "where": "title line of a diff in the terminal interface, keeps {path} first, short, no full stop",
+   "text": "{path} · on disk and your edit"
+  },
+  {
+   "wants": "says that for the file {path} what is on disk was kept and the person's edit was dropped",
+   "where": "dim line in the log of the terminal interface, one short sentence without a full stop, keeps {path} first",
+   "text": "{path}: kept what is on disk and dropped your edit"
+  },
+  {
+   "wants": "what the button Stage All Changes does: stages every change",
+   "where": "the muted line beside a button of a sheet of the terminal interface, a short phrase in lower case starting with a verb, no full stop",
+   "text": "stage every change"
+  },
+  {
+   "wants": "what the button Unstage All Changes does: unstages everything that is staged",
+   "where": "the muted line beside a button of a sheet of the terminal interface, a short phrase in lower case starting with a verb, no full stop",
+   "text": "unstage everything staged"
+  },
+  {
+   "wants": "says what rewinding to a snapshot does: the environment's files are put back as they were at that snapshot",
+   "where": "the line under the title Snapshots of a sheet of the terminal interface, one sentence with a full stop",
+   "text": "Rewinding puts the environment's files back as they were at that snapshot."
+  },
+  {
+   "wants": "says that `/env {name}` names no environment here, and lists the roles that can be chosen: {roles}",
+   "where": "error line in the terminal interface, begins with `/env {name}:`, keeps {name} and {roles}",
+   "text": "/env {name}: no such environment here; choose {roles}."
+  },
+  {
+   "wants": "what the key e does on a file in the list of an environment's files: opens it in the person's own editor, the one $EDITOR names",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "External editor"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

@@ -41,6 +41,9 @@ SAID_THROUGH_T = (
     "src/hmz/tui/complete.py",
     "src/hmz/tui/asking.py",
     "src/hmz/tui/epic.py",
+    "src/hmz/tui/envs.py",
+    "src/hmz/tui/monitoring.py",
+    "src/hmz/tui/exomyth.py",
 )
 
 

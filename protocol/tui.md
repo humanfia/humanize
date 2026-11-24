@@ -2635,6 +2635,17 @@ quotes such a word in lower case is to be read with the word as it is here.
 | 14 | the box `A flow is running.` offering `stop the flow and exit`, and `detach and exit` or `cancel` | the same box offering **Stop the flow and quit**, and **Detach and quit** or **Cancel** |
 | 19.13 | the box `Report errors to Humanize?` offering `yes` and `no` | the box `Send error reports to Humanize?` offering **Yes** and **No** |
 | 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
+| 7.20.3, 7.20.8, 7.20.9 | the page `Shell` | `Terminal` |
+| 7.20.5 | a box offering to keep the user's text or to read the file again | the box `<path> changed in the environment since you opened it.` offering **Reload**, **Keep mine** and **Show the diff** |
+| 7.20.5 | the editor's states `● edited`, `conflict: changed on disk`, `not saved: <why>` | `● Unsaved`, `Conflict`, `Not saved: <why>` |
+| 7.20.7 | the buttons `stage all`, `unstage all`, `commit…` | **Stage All Changes**, **Unstage All Changes**, **Commit** |
+| 20 | the board's sheet `Board entry`, its buttons `next` and `save`, and the row `add entry` | `Board line`, **Next** and **Save**, and `new entry` |
+| 20 | the switch and the keys line saying `graph` and `list` | **Graph** and **List**; the status line keeps `monitor · graph` and `monitor · list` |
+| 20 | the epic's sheet saying `Running.`, `Stopping.`, `Over.` | `Running`, `Stopping`, `Ended` |
+| 21 | the keys `merge` and `apart`, and `range`, `hold`, `drop` | **Merge sessions** and **Split sessions**, and **Mark range**, **Hold range**, **Clear range** |
+| 24.1.49 | write, delete | **Write**, **Delete** |
+| 24.1.50 | on to the value, then save | **Type value**, then **Save or remove** |
+| 24.1.109 | stage all, unstage all | **Stage All Changes**, **Unstage All Changes** |
 
 ## 34. Security Considerations
 

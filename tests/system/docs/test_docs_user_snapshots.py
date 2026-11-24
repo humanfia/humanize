@@ -217,7 +217,7 @@ async def test_an_environment_is_rewound_in_the_terminal(world: World) -> None:
         await pilot.press("enter")
         await on(pilot, Envs)
         await pilot.press("escape")
-        await shows(pilot, "rewound workspace")
+        await shows(pilot, "Rewound the environment to")
         await _settled(pilot, 1.0)
         reel.tui(
             app,
