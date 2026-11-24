@@ -1203,6 +1203,9 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
+**4.6.2.9** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
+it, and hmz MUST launch each at that mode without reading any policy first.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one

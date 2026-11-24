@@ -100,5 +100,6 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 - Under **Edit this folder**, the agent can also write to `/tmp`, `/var/tmp` and `$TMPDIR`.
 - Under any preset, every agent can write to its own settings, sign-in and session files.
 - Path rules do not accept globs like `*.env` or `..` segments.
+- No managed policy can forbid Oh My Pi's `yolo`, MiniMax Code's `full` or DeepSeek Harness's `danger-full-access`, so these CLIs need no fallback.
 - **Full access** with network enabled imposes no limits. Use it only when the task requires it.
 - Third-party flows use the permissions set by their authors. Read [Security](/user/security) before running them.
