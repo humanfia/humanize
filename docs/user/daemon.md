@@ -87,7 +87,9 @@ Run `hmz daemon uninstall` to stop the service and remove its file.
 | System | Service | File |
 | --- | --- | --- |
 | macOS | launchd agent | `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` |
-| Linux | systemd user unit | `~/.config/systemd/user/hmz-daemon.service` |
+| Linux | systemd user unit | `$XDG_CONFIG_HOME/systemd/user/hmz-daemon.service`, or `~/.config/systemd/user/hmz-daemon.service` when `XDG_CONFIG_HOME` is unset or not an absolute path |
+
+Earlier versions of Humanize always wrote the Linux unit to `~/.config/systemd/user/`. If `XDG_CONFIG_HOME` now points somewhere else, `hmz daemon install` and `hmz daemon uninstall` also remove that old unit once they succeed, so you never have two.
 
 Each command prints the file it wrote or removed: `hmz daemon: installed <path>` or `hmz daemon: uninstalled <path>`.
 
@@ -136,6 +138,7 @@ Let the runs finish or stop them, then stop the process with `kill <pid>`. Run `
 
 - Each user on a machine has one daemon. Two users on the same machine have separate daemons.
 - `hmz daemon install` runs on macOS and Linux only.
+- On Linux, systemd looks for user units under its own `XDG_CONFIG_HOME`. If you set `XDG_CONFIG_HOME` only in your shell, also set it for systemd (for example in `~/.config/environment.d/`), or `hmz daemon install` fails because systemd cannot find the unit.
 - The service records the absolute path of the `hmz` binary that ran `hmz daemon install`. If you move `hmz`, uninstall and reinstall the service.
 - Running `hmz daemon uninstall` when no service is installed prints `hmz: no service is installed at <path>` and exits with status 1.
 - `daemon.log` is never rotated or truncated.
