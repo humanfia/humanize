@@ -759,7 +759,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         for group, pages in GROUPS:
             if options:
                 options.append(Option("", disabled=True))
-            options.append(self._headed(headed[group]))
+            options.append(self._heading(headed[group]))
             for page in pages:
                 title, blurb = cards[page]
                 options.append(
@@ -877,7 +877,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         rows = [f"{_MODE}{one}" for one in own.APPEARANCES]
         rows += [f"{_PAIR}{one}" for one in humanfia.PRESETS]
         landing = self._lands(rows)
-        options = [self._headed(t("Appearance"))]
+        options = [self._heading(t("Appearance"))]
         for mode, (named, about) in self._modes().items():
             held, on_ = f"{_MODE}{mode}", kept.appearance == mode
             here = held == landing
@@ -893,7 +893,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                     id=f"={held}",
                 )
             )
-        options += [Option("", disabled=True), self._headed(t("Presets"))]
+        options += [Option("", disabled=True), self._heading(t("Presets"))]
         side, width = self._side(), self._across()
         for key, pair in humanfia.PRESETS.items():
             held, on_ = f"{_PAIR}{key}", kept.theme == key
@@ -1110,7 +1110,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                     options.append(Option("", disabled=True))
                 group = one.group
                 if group:
-                    options.append(self._headed(group))
+                    options.append(self._heading(group))
             here = one.held == landing
             options.append(
                 Option(

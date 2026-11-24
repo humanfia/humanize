@@ -229,7 +229,7 @@ class Spends(Pages):
             here = held == landing
             if not held:
                 options.append(Option("", disabled=True))
-                options.append(self._headed(named))
+                options.append(self._heading(named))
             elif value:
                 said, cells = _chip(value, _DROPS, here=here)
                 # Counted there in letters: a value two cells a letter is as much wider.
@@ -260,7 +260,7 @@ class Spends(Pages):
         """How many cells across the list has to lay its rows out in."""
         return self._width_of(self.query_one("#choices", OptionList))
 
-    def _headed(self, said: str) -> Option:
+    def _heading(self, said: str) -> Option:
         """A heading the arrows step over: its words in capitals, ruled out to the far end."""
         title = said.upper()
         rule = humanfia.RULE * max(self._across() - cell_len(title) - 3, 0)
