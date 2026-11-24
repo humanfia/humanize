@@ -117,7 +117,7 @@ _AT = re.compile(r'("at": ?")(\d{4}-\d{2}-\d{2})(T)')
 def _earlier(world: World, name: str, days: int) -> None:
     """Writes a chat or an epic that has ended down as begun some days earlier."""
     back = datetime.timedelta(days=days)
-    (at,) = [one for one in (world.home / ".hmz").rglob(name) if one.is_dir()]
+    (at,) = [one for one in world.data.rglob(name) if one.is_dir()]
     # Its last lines are written a moment after it is said to have ended: none is lost.
     deadline = time.monotonic() + 60
     while not any('"ended"' in one.read_text() for one in at.glob("*.jsonl")):
@@ -353,7 +353,7 @@ async def test_the_tally_of_an_epic_and_the_usage_page_in_the_terminal(
 
         # -- /settings usage --------------------------------------------------------
         await pilot.press(*"/settings usage", "enter")
-        await shows(pilot, "By flow", "rlar")
+        await shows(pilot, "BY FLOW", "rlar")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-terminal-page")
         await pilot.press("escape")

@@ -225,8 +225,8 @@ If you leave a menu with unsaved changes, `Save changes?` opens with **Save** an
 
 | List | Row menu |
 | --- | --- |
-| `/flow`, Installed | `open`, `update`, `uninstall`, `copy here`, `copy name` |
-| `/flow`, Flowverses | `open`, `fetch` or `fetch again`, `remove`, `copy URL` |
+| `/flow`, Installed | `Open`, `Update`, `Uninstall`, `Copy here`, `Copy name` |
+| `/flow`, Flowverses | `Open`, `Fetch`, `Remove`, `Copy URL` |
 | `/resume` in a chat | `Rename`, `Fork`, `Archive`, `Upload`, `Delete`, `Copy ID` |
 | `/ai` | `Rename`, `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, `Delete` |
 | `/settings daemons` | `Connect`, `Edit`, `Remove`, `Copy name`, and on a daemon that is up `Pair a device` and `Devices`. `Local` has only the last two. |

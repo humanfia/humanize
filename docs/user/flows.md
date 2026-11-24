@@ -67,7 +67,7 @@ An unfetched flowverse displays `Not fetched yet.` with a **Fetch** button. If t
 
 ## In the terminal
 
-Type `/flow` and press <kbd>enter</kbd>. The menu opens on **Installed**, grouping ready-to-run flows by source and marking available updates with `↑`. Press <kbd>enter</kbd> to open a row, <kbd>tab</kbd> to focus buttons, <kbd>/</kbd> to search, <kbd>m</kbd> to open the row menu (open, update, uninstall, copy here and copy name for a flow; open, fetch, remove and copy URL for a flowverse), and <kbd>esc</kbd> to go back.
+Type `/flow` and press <kbd>enter</kbd>. The menu opens on **Installed**, grouping ready-to-run flows by source and marking available updates with `↑`. Press <kbd>enter</kbd> to open a row, <kbd>tab</kbd> to focus buttons, <kbd>/</kbd> to search, <kbd>m</kbd> to open the row menu (**Open**, **Update**, **Uninstall**, **Copy here** and **Copy name** for a flow; **Open**, **Fetch**, **Remove** and **Copy URL** for a flowverse), and <kbd>esc</kbd> to go back.
 
 ### Install a flow
 
@@ -75,7 +75,7 @@ Type `/flow` and press <kbd>enter</kbd>. The menu opens on **Installed**, groupi
 2. Press <kbd>enter</kbd> on a flowverse, then on a flow. Releases appear newest first with their tag, commit, and licence.
 3. Press <kbd>enter</kbd> on a release to install it and its dependencies immediately.
 
-![The terminal: /flow, Install more, the official flowverse, rlar's releases, installed](/shots/user-flows-terminal.svg)
+![The terminal: /flow, Browse Flowverses, the official flowverse, rlar's releases, installed](/shots/user-flows-terminal.svg)
 
 Press <kbd>enter</kbd> on a different release of an installed flow to switch versions.
 
@@ -89,7 +89,7 @@ Select a flow on the **Installed** screen and use the action buttons.
 | **Update** | Installs the newest available release, if one exists. |
 | **Uninstall** | Removes the installed flow. |
 | **Copy here** | Copies the flow into the project's `.hmz/flows/` folder for editing. Disabled for project flows, and refused if the project already has a flow of that name. |
-| **Search…** | Filters the list. |
+| **Search** | Filters the list. |
 
 ![The Installed page in the terminal with a newer release marked](/shots/user-flows-terminal-installed.svg)
 

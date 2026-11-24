@@ -275,7 +275,7 @@ async def test_native_input_in_the_terminal(world: World) -> None:
         reel = shots.Reel(f"{_PAGE}-terminal")
         reel.tui(app, hold=1.2)
         await pilot.press("/")
-        await shows(pilot, "tab select")
+        await shows(pilot, "tab Choose")
         await _settled(pilot, 0.2)
         reel.tui(app, hold=2.0, keys="/", cut=True, caption="Humanize's commands first")
         await pilot.press("r", "e")

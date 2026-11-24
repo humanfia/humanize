@@ -42,11 +42,11 @@ Under **Setup**, the **Budget** line states the limits and what happens at each:
 ## In the terminal
 
 1. Type `/flow` followed by the flow's name, and press <kbd>enter</kbd>.
-2. Select the `budget` row and press <kbd>enter</kbd>.
+2. Select the `Budget` row and press <kbd>enter</kbd>.
 3. Fill in the rows, then choose **Set**.
 4. Choose **Save**.
 
-![The budget sheet in the terminal: a duration, a cost and output tokens are typed, then Set, and the budget row reads what the epic stops at](/shots/user-budgets-sheet.svg)
+![The budget sheet in the terminal: a duration, a cost and output tokens are typed, then Set, and the Budget row reads what the epic stops at](/shots/user-budgets-sheet.svg)
 
 | Row | Value |
 | --- | --- |
@@ -55,7 +55,7 @@ Under **Setup**, the **Budget** line states the limits and what happens at each:
 | `output_tokens` | a count; `0` for no limit |
 | `graceful_duration`, `graceful_cost`, `graceful_output_tokens` | `On` lets the turn under way finish; `Off` cuts it off at once |
 
-The `budget` row then shows the stop conditions, such as `stops at 30m, 2.0k out, $20.00`. A flow with no budget reads `none set; an epic needs one`, and choosing **Save** fails with `this flow requires a budget: set the budget first`. Humanize remembers the budget for the flow in this folder.
+The `Budget` row then shows the stop conditions, such as `stops at 30m, 2.0k out, $20.00`. A flow with no budget reads `none set; an epic needs one`, and choosing **Save** fails with `This flow needs a budget; set the budget first.` Humanize remembers the budget for the flow in this folder.
 
 While the epic runs, the first row of the monitor shows each limit as spent out of allowed. Press <kbd>enter</kbd> on that row to open the epic's page. The `Budget` section shows a meter for each limit, and `when spent` states whether the last turn finishes or is cut off. See [Watch a run](/user/watch-a-run) for details on the monitor. When the budget ends the epic, the transcript reads `hmz: stopped --` and the limit name.
 

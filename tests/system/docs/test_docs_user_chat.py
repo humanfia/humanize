@@ -147,7 +147,7 @@ async def test_a_chat_in_the_terminal(world: World) -> None:
             await pilot.pause()
             reel.tui(app, hold=0.2, cut=True)
         await pilot.press("enter")
-        await shows(pilot, "running")
+        await shows(pilot, "Running")
         reel.tui(app, hold=1.2, keys="enter")
         await shows(pilot, "WELCOME10")
         await shows(pilot, "Worked for")

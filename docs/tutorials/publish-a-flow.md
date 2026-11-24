@@ -183,7 +183,7 @@ Open the **Flowverses** tab, select `team`, pick `0.1.0` in the release list nex
 
 In `hmz`, run `/flow` and press <kbd>enter</kbd>.
 
-1. Press <kbd>tab</kbd> to reach the buttons, then press <kbd>enter</kbd> on **Install more…**.
+1. Press <kbd>tab</kbd> to reach the buttons, then press <kbd>enter</kbd> on **Browse Flowverses**.
 2. Press <kbd>tab</kbd> and press <kbd>enter</kbd> on **Add flowverse…**.
 3. Type the repository, press <kbd>enter</kbd>, type the name, and press <kbd>enter</kbd> twice.
 
@@ -191,7 +191,7 @@ In `hmz`, run `/flow` and press <kbd>enter</kbd>.
 
 To install, update, or switch versions, press <kbd>enter</kbd> on the flowverse, the flow, and the target release. A tick marks the installed release.
 
-![In the terminal: /flow lists @team/review at 0.1.0 with 0.2.0 available; Install more… opens the flowverses, then team, then the releases of review, and enter on 0.2.0 installs it](/shots/tutorials-publish-a-flow-terminal.svg)
+![In the terminal: /flow lists @team/review at 0.1.0 with 0.2.0 available; Browse Flowverses opens the flowverses, then team, then the releases of review, and enter on 0.2.0 installs it](/shots/tutorials-publish-a-flow-terminal.svg)
 
 ## What you did
 

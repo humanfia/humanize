@@ -292,7 +292,7 @@ def test_a_role_is_claimed_and_left_in_the_app(world: World) -> None:
 
 async def test_a_question_is_answered_in_the_terminal(world: World) -> None:
     _asked(world)
-    async with world.tui(size=(100, 46)) as (app, pilot):
+    async with world.tui(size=(100, 43)) as (app, pilot):
         await shows(pilot, "Enter opens it")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-terminal")

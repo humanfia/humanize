@@ -319,7 +319,7 @@ async def test_a_flow_is_stopped_and_forced_in_the_terminal(world: World) -> Non
         _seen(app, "t2-first")
         reel.tui(app, hold=1.8, keys="ctrl+c", caption="the first press only warns")
         await pilot.press("ctrl+c")
-        await shows(pilot, "ctrl+c force stop")
+        await shows(pilot, "ctrl+c Force stop")
         await _settled(pilot, 0.6)
         _seen(app, "t3-stopping")
         reel.tui(app, hold=2.2, keys="ctrl+c", caption="the second stops the flow")

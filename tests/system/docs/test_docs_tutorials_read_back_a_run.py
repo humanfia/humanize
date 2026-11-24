@@ -256,7 +256,7 @@ def test_the_epic_is_exported_and_imported_again(world: World) -> None:
     assert archive.name == f"{name}.hmzepic"
 
     # Another machine has the archive and not the epic: here, the epic is taken away.
-    (kept,) = (world.home / ".hmz").rglob(name)
+    (kept,) = world.data.rglob(name)
     shutil.rmtree(kept)
     with world.page(desktop=True) as page:
         go(page, "/new/chat")

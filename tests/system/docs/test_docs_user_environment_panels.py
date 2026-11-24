@@ -404,7 +404,7 @@ async def test_the_environment_in_the_terminal_interface(world: World) -> None:
     async with world.tui() as (app, pilot):
         await shows(pilot, MODEL)
         await pilot.press(*_TASK, "enter")
-        await shows(pilot, "README", "done")
+        await shows(pilot, "README", "Done")
         await _settled(pilot)
 
         # -- /env: the list, an environment's files, and its changes -------------------

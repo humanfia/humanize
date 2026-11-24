@@ -135,7 +135,7 @@ async def test_btw_mode_in_the_terminal(world: World) -> None:
             await pilot.pause()
             reel.tui(app, hold=0.2, cut=True)
         await pilot.press("enter")
-        await shows(pilot, "each line is a question")
+        await shows(pilot, "Every line is a side question")
         await _settled(pilot, 0.2)
         reel.tui(app, hold=1.6, keys="enter", caption="btw mode is on")
         await shows(pilot, "Nothing is committed yet.")

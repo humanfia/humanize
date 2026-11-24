@@ -263,7 +263,8 @@ async def test_lines_wait_pinned_above_the_prompt(world: World) -> None:
         await pilot.pause(0.5)
         with _frontend(world, "alex@web", "web") as asks:
             asks("epic.say", text="Keep the old prices", to="")
-            await shows(pilot, "by alex@web")
+            # The first line is in the agent's turn, the third said from the page.
+            await shows(pilot, "· with", "by alex@web")
             await pilot.pause(0.5)
             shots.tui(app, f"{_PAGE}-pinned")
         await pilot.press(*"/stop", "enter")

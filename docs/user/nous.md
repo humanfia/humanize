@@ -100,7 +100,7 @@ Run `/settings nous` to list each nous you have written down, its retries and it
 
 ![The Nous page of the terminal interface, a row per nous](/shots/user-nous-terminal.svg)
 
-Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. **Search…** or <kbd>/</kbd> narrows the list. To configure a concrete nous, type its ID in `Name` or pick it with `Choose`. The form of a saved nous has **Remove**, and editing `Name` renames a virtual nous.
+Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. **Search** or <kbd>/</kbd> narrows the list. To configure a concrete nous, type its ID in `Name` or pick it with `Choose`. The form of a saved nous has **Remove**, and editing `Name` renames a virtual nous.
 
 | Row | What it sets |
 | --- | --- |

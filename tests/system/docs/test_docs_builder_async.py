@@ -212,7 +212,7 @@ async def test_three_sessions_in_the_terminal_monitor(world: World) -> None:
         reel = shots.Reel(f"{_PAGE}-monitor")
         reel.tui(app, hold=1.8, caption="three turns start")
         await pilot.press("left")
-        await shows(pilot, "monitor · graph", "3 sessi")
+        await shows(pilot, "monitor · graph", "3 sess")
         await _settled(pilot, 1.0)
         reel.tui(app, hold=2.0, keys="left", caption="the monitor")
         await pilot.press("space")

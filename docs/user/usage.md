@@ -82,12 +82,12 @@ Press <kbd>left</kbd> to open the monitor. Under the graph, `Tokens` lists each 
 
 Type `/settings usage`.
 
-![The terminal's usage page: Range and Workspace rows, the total spent, one bar per day and one row per flow](/shots/user-usage-terminal-page.svg)
+![The terminal's usage page: Range and Folder rows, the total spent, one bar per day and one row per flow](/shots/user-usage-terminal-page.svg)
 
 | Row | Choices |
 | --- | --- |
-| `Range` | `7 days`, `30 days`, `90 days` or `365 days`. Opens on 30 days. |
-| `Workspace` | `this directory` or `every directory`. Opens on this directory. |
+| `Range` | `7d`, `30d`, `90d` or `365d`. Opens on `30d`. |
+| `Folder` | `This folder` or `Every folder`. Opens on `This folder`. |
 
 Below the options, you see the total (cost, epics, output tokens, time worked, and how they ended), each UTC day with an epic (newest first), and each flow with its share (costliest first). This page counts epics only, not chats, and has no save button because it stores no settings.
 

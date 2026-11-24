@@ -196,7 +196,9 @@ def test_notifications_are_allowed_in_settings(world: World) -> None:
 
 
 def test_a_chat_answered_elsewhere_is_marked_unread(world: World) -> None:
-    world.says({"discount": {"text": _ANSWER, "after": 2.5}})
+    # Long enough to leave the chat before it answers, beside every other scene: an answer
+    # that comes while the chat is still on the page is read, and never marked.
+    world.says({"discount": {"text": _ANSWER, "after": 6.0}})
     with world.page(width=_PHONE[0], height=_PHONE[1]) as page:
         go(page, "/new/chat")
         box = _ready(page)

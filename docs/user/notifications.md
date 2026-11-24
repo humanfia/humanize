@@ -57,7 +57,7 @@ In a browser, look next to **System** for `Not asked`, `Allowed` or `Blocked`. C
 
 ## In the terminal
 
-`hmz` notifies you about epics and chats on the local machine. A notice briefly shows a corner card titled `Done`, `Failed`, `Stopped`, `Question` or `Waiting` with the flow, folder and text. In `/epics`, the epic's row shows `●` until you open it.
+`hmz` notifies you about epics and chats on this machine and on every other daemon it reaches. A notice briefly shows a corner card titled `Done`, `Failed`, `Stopped`, `Question` or `Waiting` with the flow, folder and text. In `/epics`, the epic's row shows `●` until you open it.
 
 ![In a menu of the terminal interface, an epic ends: a Done card appears in the corner, then /epics shows a dot on the epic's row](/shots/user-notifications-terminal-card.svg)
 

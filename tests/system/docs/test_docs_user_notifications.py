@@ -138,7 +138,7 @@ async def test_the_kinds_are_chosen_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await _settled(pilot)
         await pilot.press(*"/settings notifications", "enter")
-        await shows(pilot, "Which epics on this machine you are told of", "Shown")
+        await shows(pilot, "Of every daemon, as they happen.", "System")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-terminal-settings")
 
@@ -151,7 +151,7 @@ async def test_an_epic_ending_under_a_menu_is_told_by_a_card(world: World) -> No
     async with _tui(_SIZE) as (app, pilot):
         await shows(pilot, "is working")
         await pilot.press(*"/settings", "enter")
-        await shows(pilot, "Every setting Humanize keeps")
+        await shows(pilot, "Every setting is here.")
         await _settled(pilot)
         reel = shots.Reel(f"{_PAGE}-terminal-card")
         reel.tui(

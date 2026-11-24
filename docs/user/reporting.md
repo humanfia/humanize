@@ -46,11 +46,11 @@ Open **Settings**, then **General** under **Daemon**. Set **Error reports** to *
 
 `hmz` prompts you the first time you open it. Press <kbd>enter</kbd> to answer **Yes**, or press <kbd>→</kbd> then <kbd>enter</kbd> to answer **No**. Press <kbd>esc</kbd> to skip; `hmz` will ask again next time.
 
-![The question hmz asks at first start: Report errors to Humanize?, with what is sent and never sent, and Yes and No](/shots/user-reporting-question.svg)
+![The question hmz asks at first start: Send error reports to Humanize?, with what is sent and never sent, and Yes and No](/shots/user-reporting-question.svg)
 
-To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `On` or `Off`, and select **Save**. The change applies immediately. An unanswered setting reads `not set`.
+To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `On` or `Off`, and select **Save**. The change applies immediately. An unanswered setting reads `Not set`.
 
-![The General page of /settings in the terminal, with the cursor on Error reports, set to off](/shots/user-reporting-terminal.svg)
+![The General page of /settings in the terminal, with the cursor on Error reports, set to Off](/shots/user-reporting-terminal.svg)
 
 Select **What is sent** below it to view what a report includes without changing the setting.
 

@@ -32,12 +32,12 @@ Press **Stop** before leaving if you want to end the epic. See [Stop a run](/use
 
 Type `/exit`, `/quit`, or press <kbd>ctrl+q</kbd> while a flow runs in `hmz`. A box titled `A flow is running.` asks what to do.
 
-![The leave box in the terminal: /exit, then down to Detach and exit](/shots/user-leaving-box.svg)
+![The leave box in the terminal: /exit, then down to Detach and quit](/shots/user-leaving-box.svg)
 
 | Choice | Effect |
 | --- | --- |
-| **Stop the flow and exit** | Focused by default. Stops the epic for everyone attached, waits up to 10 seconds, then exits. |
-| **Detach and exit** | Press <kbd>down</kbd> or <kbd>tab</kbd>, then <kbd>enter</kbd>. Exits while the epic keeps running. |
+| **Stop the flow and quit** | Focused by default. Stops the epic for everyone attached, waits up to 10 seconds, then exits. |
+| **Detach and quit** | Press <kbd>down</kbd> or <kbd>tab</kbd>, then <kbd>enter</kbd>. Exits while the epic keeps running. |
 | <kbd>esc</kbd> | Stays in `hmz`. |
 
 Closing the terminal window or dropping an ssh connection detaches and exits.

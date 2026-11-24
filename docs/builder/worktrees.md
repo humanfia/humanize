@@ -169,11 +169,11 @@ Humanize stores derived directories under `envs/` in its state directory, `~/.lo
 
 While the flow runs, all three directories exist on disk:
 
-![find lists three directories under .hmz/envs while the flow runs: a clone try-1, a scratch directory notes and a worktree](/shots/builder-worktrees-kept-running.svg)
+![find lists three directories under envs in the state directory while the flow runs: a clone try-1, a scratch directory notes and a worktree](/shots/builder-worktrees-kept-running.svg)
 
 When the flow ends, only the worktree remains:
 
-![find lists one directory under .hmz/envs after the flow ended: the worktree](/shots/builder-worktrees-kept-after.svg)
+![find lists one directory under envs in the state directory after the flow ended: the worktree](/shots/builder-worktrees-kept-after.svg)
 
 Clones and scratch directories stay until the flow call that created them and all child flows finish, or until you stop the epic. The flow waits up to 30 seconds for this cleanup; a slower one finishes in the background.
 

@@ -107,7 +107,7 @@ Open **Flows**, select the **Flowverses** tab, and click your flowverse to see i
 
 ### In the terminal
 
-Type `/flow` and press <kbd>enter</kbd>. Press <kbd>tab</kbd>, then <kbd>enter</kbd> on **Install more…**. Select the flowverse and then the flow to see its releases listed newest first with their ref, commit, license, and dependencies.
+Type `/flow` and press <kbd>enter</kbd>. Press <kbd>tab</kbd>, then <kbd>enter</kbd> on **Browse Flowverses**. Select the flowverse and then the flow to see its releases listed newest first with their ref, commit, license, and dependencies.
 
 ![The releases of review in the terminal: 0.3.0-rc.1 marked prerelease, 0.2.0 installed and needing lint, and 0.1.0](/shots/builder-publishing-releases.svg)
 

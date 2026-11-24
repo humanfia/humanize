@@ -37,7 +37,7 @@ On **New epic**, tick **Profile flow**, **Profile environment** or both, then st
 ### In the terminal {#profile-in-the-terminal}
 
 1. Type `/flow` followed by the flow's name.
-2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `On`. A switch that is off reads `traced only`.
+2. Select `Profile flow` or `Profile environment` and press <kbd>enter</kbd> twice to set it to `On`. A switch that is off reads `traced only`.
 3. Choose **Save**.
 
 ![The page of a flow in the terminal with both profiling rows on](/shots/user-tracing-terminal-switches.svg)

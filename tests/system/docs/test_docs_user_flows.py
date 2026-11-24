@@ -380,7 +380,7 @@ async def test_an_installed_flow_is_updated_or_copied_in_the_terminal(
         # -- and one of the official ones copied into the project, to be changed ---------
         await onto(pilot, "rlar")
         await pilot.click("#act-copy")
-        await shows(pilot, "copied to")
+        await shows(pilot, "Copied to")
         await _settled(pilot)
         assert (world.workspace / ".hmz" / "flows" / "rlar" / "__init__.py").exists()
         shots.tui(app, f"{_PAGE}-terminal-copied")

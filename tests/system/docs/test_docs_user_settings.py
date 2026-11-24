@@ -15,7 +15,8 @@ from typing import TYPE_CHECKING
 
 from playwright.sync_api import expect
 
-from tests.integration.doubles_tui import shows, until
+from hmz.tui.dropdown import Dropdown
+from tests.integration.doubles_tui import on, onto, shows, trail, until
 from tests.system.docs import shots
 from tests.system.docs.conftest import AGENT, MODEL
 from tests.system.web.doubles_browser import go
@@ -101,24 +102,26 @@ async def test_settings_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await _settled(pilot)
         await pilot.press(*"/settings", "enter")
-        await shows(pilot, "Every setting Humanize keeps")
+        await shows(pilot, "Every setting is here", "WORKSPACE")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-terminal")
 
         reel = shots.Reel(f"{_PAGE}-terminal-held")
         reel.tui(app, hold=2.0, keys="/settings", caption="a card per page")
+        await onto(pilot, "general")
         await pilot.press("enter")
-        await shows(pilot, "How Humanize behaves on this machine")
+        await shows(pilot, trail("hmz", "/settings", "General"), "Harness sessions")
         await _settled(pilot)
         reel.tui(app, hold=2.0, keys="enter", caption="General, a row per setting")
         await pilot.press("enter")
-        await shows(pilot, "show turn responses only")
+        await on(pilot, Dropdown)
         await _settled(pilot)
         reel.tui(app, hold=2.2, keys="enter", caption="a row's values drop under it")
         await pilot.press("enter")
+        await shows(pilot, "● Unsaved")
         await _settled(pilot)
         await pilot.press("escape")
-        await shows(pilot, "Every setting Humanize keeps")
+        await shows(pilot, "Every setting is here", "■ Unsaved")
         await _settled(pilot)
         reel.tui(
             app,
@@ -127,13 +130,19 @@ async def test_settings_in_the_terminal(world: World) -> None:
             caption="held, and marked on its card, until saved",
             poster=True,
         )
+        # The reel is held to its size: tab's own frame, the cards again, is left out.
         await pilot.press("tab")
-        await _settled(pilot)
-        reel.tui(app, hold=2.4, keys="tab", caption="tab reaches the Save button")
+        await shows(pilot, "enter Save")
         await pilot.press("enter")
         await until(pilot, lambda: len(app.screen_stack) == 1, "the menu to close")
+        await shows(pilot, "Details are on")
         await _settled(pilot)
-        reel.tui(app, hold=3.0, keys="enter", caption="saved: the menu closes")
+        reel.tui(
+            app,
+            hold=3.0,
+            keys="tab enter",
+            caption="tab reaches Save, enter saves: the menu closes",
+        )
         reel.save()
 
 
@@ -143,6 +152,8 @@ async def test_the_workspace_page_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await _settled(pilot)
         await pilot.press(*"/settings workspace", "enter")
-        await shows(pilot, "Default flow", "Forget")
+        await shows(
+            pilot, trail("hmz", "/settings", "Workspace"), "Default agent", "Forget"
+        )
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-terminal-workspace")

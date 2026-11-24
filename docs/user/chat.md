@@ -112,7 +112,7 @@ Press <kbd>ctrl+g</kbd> for **Details** of the open chat, to the right of the lo
 
 **Usage** shows what the chat has spent and what the folder spent over the last 7 days. Press <kbd>esc</kbd> to return to the prompt and <kbd>ctrl+g</kbd> twice to close the pane.
 
-The line above the prompt names the agent. The status line shows `Running…` during a turn and `Done` when it finishes. Turn on **Details** in `/settings general` to show tool calls and reasoning. Use **Chat agent** in `/settings workspace` to change the agent the next chat here starts with.
+The line above the prompt names the agent. The status line shows `Running…` during a turn and `Done` when it finishes. Turn on **Details** in `/settings general` to show tool calls and reasoning. Use **Default agent** in `/settings workspace` to change the agent the next chat here starts with.
 
 ## From the command line
 

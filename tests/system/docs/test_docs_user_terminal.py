@@ -1,7 +1,7 @@
 """The pictures of `docs/user/terminal.md`: the terminal interface itself.
 
 Its screen as it opens, a command completed out of the offer list, a menu with a dropdown, a
-held change and the `Save?` box, and the views of a running flow stepped through. Run it by
+held change and the `Save changes?` box, and the views of a running flow stepped through. Run it by
 naming it: `uv run pytest tests/system/docs/test_docs_user_terminal.py`.
 """
 
@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import Confirms
-from tests.integration.doubles_tui import on, shows, until
+from tests.integration.doubles_tui import on, screen, shows, until
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
 
@@ -49,7 +49,7 @@ async def test_a_command_is_completed_and_a_menu_holds_a_change(world: World) ->
         reel = shots.Reel(f"{_PAGE}-commands")
         reel.tui(app, hold=1.0)
         await pilot.press("/")
-        await shows(pilot, "tab select")
+        await shows(pilot, "tab Choose")
         reel.tui(
             app, hold=2.0, keys="/", cut=True, caption="the commands that work now"
         )
@@ -57,7 +57,15 @@ async def test_a_command_is_completed_and_a_menu_holds_a_change(world: World) ->
         await _settled(pilot, 0.2)
         reel.tui(app, hold=1.2, keys="/se", cut=True)
         await pilot.press("tab")
-        await shows(pilot, "notifications", "workspace")
+        # The pages, a row each: the command's own row names them too, all on one line.
+        await until(
+            pilot,
+            lambda: (
+                {"themes", "notifications"}
+                <= {line.strip() for line in screen(app).splitlines()}
+            ),
+            "the pages of /settings to be offered",
+        )
         reel.tui(app, hold=1.8, keys="tab", caption="then what it takes")
         await pilot.press("n")
         await _settled(pilot, 0.2)
@@ -66,7 +74,7 @@ async def test_a_command_is_completed_and_a_menu_holds_a_change(world: World) ->
         await _settled(pilot, 0.2)
         reel.tui(app, hold=1.4, keys="tab")
         await pilot.press("enter")
-        await shows(pilot, "Which epics on this machine you are told of")
+        await shows(pilot, "Of every daemon, as they happen.")
         await _settled(pilot)
         reel.tui(app, hold=3.5, keys="enter", poster=True)
         reel.save()
@@ -81,10 +89,10 @@ async def test_a_command_is_completed_and_a_menu_holds_a_change(world: World) ->
         reel.tui(app, hold=1.8, keys="enter", caption="a row ending ▾ drops its values")
         await pilot.press("enter")
         await until(pilot, lambda: app.screen is not dropped, "the list to close")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         reel.tui(app, hold=2.0, keys="enter", caption="held, not saved yet")
         await pilot.press("escape")
-        await shows(pilot, "Every setting Humanize keeps")
+        await shows(pilot, "Every setting is here.")
         await pilot.press("escape")
         await on(pilot, Confirms)
         await _settled(pilot, 0.2)

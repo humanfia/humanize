@@ -132,7 +132,11 @@ def test_a_stopped_run_is_picked_up_at_its_round(world: World) -> None:
     shots.cli(_exec(_SHORT), f"{_PAGE}-stopped", columns=92)
     # What it wrote down, with the staged home said as a person would say it.
     shots.cli(
-        ["sh", "-c", 'cat ~/.hmz/epics/*/*/resume.jsonl | sed "s#$HOME#~#"'],
+        [
+            "sh",
+            "-c",
+            'cat ~/.local/share/humanize/epics/*/*/resume.jsonl | sed "s#$HOME#~#"',
+        ],
         f"{_PAGE}-journal",
         columns=118,
     )

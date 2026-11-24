@@ -109,7 +109,7 @@ The bottom row shows the equivalent `-e` flag syntax. You can also type a full s
 
 Press <kbd>enter</kbd> on the machine row to list that backend's saved runtimes. Choose **Add runtime** to save a new runtime to `/settings` and select it. For `ssh`, choose **Other host…** to enter an unsaved `[user@]host[:port]` or ssh config alias for this role only.
 
-![The terminal list Choose SSH host: the saved host gpu-box, and the buttons Add runtime, Other host… and Search…](/shots/user-environments-terminal-host.svg)
+![The terminal list Choose SSH host: the saved host gpu-box, and the buttons Add runtime, Other host… and Search](/shots/user-environments-terminal-host.svg)
 
 ## From the command line
 
@@ -129,7 +129,7 @@ hmz chat start --worktree -a claude/claude-haiku-4-5 "Try the discount as a perc
 
 Git lists the worktree alongside your main checkout:
 
-![git worktree list shows the folder on main and a second worktree under .hmz/envs with a detached HEAD](/shots/user-environments-cli-worktrees.svg)
+![git worktree list shows the folder on main and a second worktree under Humanize's state directory with a detached HEAD](/shots/user-environments-cli-worktrees.svg)
 
 Pass the chat ID and the new environment to move a chat:
 
