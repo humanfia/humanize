@@ -590,7 +590,26 @@ for line in sys.stdin:
         note(method + " " + json.dumps(params, sort_keys=True))
     if "id" not in call:
         continue
+    # Requirements an administrator set, as `configRequirements/read` answers them; a call
+    # naming what they forbid is refused in codex-cli 0.163.0's words, and never run.
+    required = pathlib.Path(sys.argv[0]).with_name("requirements")
+    required = json.loads(required.read_text()) if required.exists() else None
+    refused = next((
+        "invalid value for `%s`: `%s` is not in the allowed set %s (set by %s)"
+        % (name, params[key], required[allowed], "/etc/codex/requirements.toml")
+        for key, name, allowed in (("approvalPolicy", "approval_policy",
+                                    "allowedApprovalPolicies"),
+                                   ("sandbox", "sandbox_mode", "allowedSandboxModes"))
+        if required and key in params and allowed in required
+        and params[key] not in required[allowed]), None)
+    if refused:
+        note("refused " + method)
+        send({"jsonrpc": "2.0", "id": call["id"],
+              "error": {"code": -32600, "message": refused}})
+        continue
     result = {}
+    if method == "configRequirements/read":
+        result = {"requirements": required}
     if method in ("thread/start", "thread/fork"):
         result = {"thread": {"id": "t-%d" % next(threads)}}
     elif method == "thread/resume":

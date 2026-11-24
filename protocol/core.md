@@ -1190,7 +1190,8 @@ nothing. Each harness MUST be launched as the table states:
 
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
-`untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
+`untrusted` where the table says `never` (Section 4.9.3.3), or `on-request` where its requirements
+forbid `untrusted` (Section 4.6.2.6). While a permission-request hook or an ask-user hook is hung, `kimi`
 MUST run at `yolo` where the table says `auto`. Where Kimi Code refuses the mode it is told, or
 holds the session at another, hmz MUST fail the session before the prompt is sent, naming the mode.
 
@@ -1198,9 +1199,16 @@ holds the session at another, hmz MUST fail the session before the prompt is sen
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
 withheld, and MUST say so once per agent.
 
-**4.6.2.6** Where Codex refuses `danger-full-access` on the harness machine, hmz MUST run that agent
-with sandbox `workspace-write` and the approval policy `on-request`, granting every request, and
-MUST say so once per agent.
+**4.6.2.6** hmz MUST read the requirements Codex runs under on the harness machine before it opens a
+thread. Where they forbid the sandbox or the approval policy Section 4.6.2.3, Section 4.6.2.4 or
+Section 4.6.4.19 names, hmz MUST run that agent at the allowed sandbox nearest it, wider only where
+confinement and not Codex's own sandbox holds the grant, and at `never` where allowed, else
+`on-request`, else `untrusted`, with requests reviewed by the user; it MUST grant every request,
+except one to leave a sandbox that alone holds the grant, which it MUST refuse unless a
+permission-request hook decides it; and it MUST say so once per agent. Where no allowed combination
+runs the agent within its grant, with any write the grant permits, with a hung permission-request
+hook asked, and with no model reviewing requests, opening the thread MUST fail, naming what the
+requirements allow.
 
 **4.6.2.7** hmz MUST NOT write what it tells a harness into any configuration file of the user.
 

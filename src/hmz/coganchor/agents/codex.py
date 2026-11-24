@@ -235,24 +235,38 @@ _READING = {"approvalPolicy": "never", "sandbox": "read-only"}
 #: Codex's sandbox cannot start at all (:func:`_abroad`).
 _WRITING = {"approvalPolicy": "never", "sandbox": "danger-full-access"}
 
-#: What Codex is run under in place of :data:`_WRITING` where this machine's Codex refuses
-#: `danger-full-access` (:data:`_FORBIDDEN`): `workspace-write`, with the asking turned on, so
-#: that whatever the agent wants past the workspace is put to this client -- which grants it
-#: unless a hook refuses (:meth:`_AppServer._approve`). The same freedom, the fence still
-#: holding it, and said once per agent (:meth:`CodexSession._steps`).
-_ASKING = {"approvalPolicy": "on-request", "sandbox": "workspace-write"}
-
 #: What a thread is opened under in place of :data:`_WRITING` where Codex's own sandbox holds
 #: the fence (:meth:`CodexAgent.holds`): that sandbox rather than none, which each turn then
 #: says the whole of (:func:`_held`), and nothing asked. An approval granted is a command run
-#: outside Codex's sandbox, and there nothing else is around it -- so such a thread never asks
-#: for the full access an installation may forbid, and is never stepped down to
-#: :data:`_ASKING` either.
+#: outside Codex's sandbox, and there nothing else is around it -- so such a thread is never
+#: opened in a wider sandbox than this, and where requirements forbid `never` it asks and is
+#: refused whatever would leave the sandbox (:meth:`CodexAgent.grants`).
 _HOLDING = {"approvalPolicy": "never", "sandbox": "workspace-write"}
 
-#: The sandbox an installation's requirements may forbid, and the one this driver steps down
-#: from to :data:`_ASKING`.
+#: The sandbox a fence that writes somewhere asks for, and the widest there is.
 _FULL = _WRITING["sandbox"]
+
+#: Codex's sandboxes, narrowest first.
+_WIDTHS = ("read-only", "workspace-write", _FULL)
+
+#: The approval policies that put what the agent asks for to this client, in the order one is
+#: taken where `never` may not be: `on-request` asks only for what its sandbox would refuse,
+#: `untrusted` for every command besides. Asked under either, a request is put to the user --
+#: this client -- and never to a model Codex would have review it (`approvalsReviewer`), which
+#: no grant is held by. codex-cli 0.163.0 has no `on-failure` to take.
+_ASKING = ("on-request", "untrusted")
+
+#: Who a request is put to under :data:`_ASKING`: this client, rather than a model.
+_REVIEWER = {"approvalsReviewer": "user"}
+
+#: The permission profiles of Codex's own that are its three sandboxes, which requirements
+#: may name in place of the sandboxes themselves -- and where they do, codex-cli 0.163.0 says
+#: the sandboxes they list are ignored.
+_PROFILES = {
+    "read-only": ":read-only",
+    "workspace-write": ":workspace",
+    _FULL: ":danger-full-access",
+}
 
 #: The one of those a turn does not take. `thread/start` and `thread/resume` take `sandbox` as
 #: one of Codex's three mode names; `turn/start` has no `sandbox` at all -- its field is
@@ -711,21 +725,234 @@ def turning(settings: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in settings.items() if key not in _THREAD_ONLY}
 
 
-#: What a Codex somebody else settled the rules for says when it will not run in the sandbox
-#: it was asked for. An installation can be given requirements -- an enterprise policy
-#: delivered with the account, a `requirements.toml` the platform the machine belongs to put
-#: there -- and one that forbids a sandbox refuses the whole call rather than running it
-#: tighter: `approval_policy = "never"` cannot be used because requirements do not allow
-#: `sandbox_mode = "danger-full-access"`. Which is every turn of a fence that writes somewhere
-#: failing on such a machine (:data:`_WRITING`). An agent with no fence is the one turn this
-#: cannot happen to, since it asks for no sandbox at all: there is nothing there for
-#: requirements to forbid, and nothing to step down from either.
-#:
-#: Still word for word what codex-cli 0.153.4 says: that whole sentence is in the binary this
-#: machine has, and the fragment matched here is the part of it that names no sandbox -- what
-#: was refused is read off the call rather than off the text, and only `danger-full-access`
-#: is stepped down from (:meth:`_AppServer._stepped`): `read-only` has nothing below it.
-_FORBIDDEN = "requirements do not allow"
+#: What a Codex somebody else settled the rules for says when a call names a setting its
+#: requirements forbid -- an enterprise policy delivered with the account, a
+#: `requirements.toml` or `managed_config.toml` under `/etc/codex`, a profile a Mac's device
+#: management put there. It refuses the whole call rather than running it otherwise, in one
+#: of two sentences, word for word what codex-cli 0.163.0 says: ``invalid value for
+#: `approval_policy`: `never` is not in the allowed set [...] (set by <where>)``, the same of
+#: `sandbox_mode`, and ``\`approval_policy = "never"\` cannot be used because requirements do
+#: not allow \`sandbox_mode = "danger-full-access"\` ...``, which is the sandbox refused.
+_DISALLOWED = re.compile(
+    r"invalid value for `(approval_policy|sandbox_mode)`: `([^`]+)` is not in the allowed set"
+    r"|requirements do not allow `(sandbox_mode) = \"([^\"]+)\"`"
+)
+
+#: Where a refusal says the requirement came from.
+_SET_BY = re.compile(r"\(set by ([^)]+)\)")
+
+#: What each setting a refusal names is called in a call.
+_SETTINGS = {"approval_policy": "approvalPolicy", "sandbox_mode": "sandbox"}
+
+
+#: Each value a call may name, by what is left of it once a refusal's spelling is set aside:
+#: a refusal may name a value as Codex's own code does, where `untrusted` is `UnlessTrusted`.
+_NAMED = {re.sub(r"[^a-z]", "", one): one for one in (*_WIDTHS, *_ASKING, "never")} | {
+    "unlesstrusted": "untrusted"
+}
+
+
+def _plain(value: str) -> str:
+    """A setting's value as a call names it, however a refusal spelled it."""
+    return _NAMED.get(re.sub(r"[^a-z]", "", value.lower()), value)
+
+
+@dataclass
+class _Requirements:
+    """What the requirements a Codex runs under let a thread be opened at.
+
+    Read from the server itself as it starts (`configRequirements/read`, which reads no file
+    and runs no model), and added to by whatever a call is refused after: a Codex too old to
+    be asked, or requirements that changed under a running server.
+
+    Attributes:
+      allowed: The values each setting -- `approvalPolicy`, `sandbox`, `approvalsReviewer` --
+        may take, or None for one the requirements say nothing of.
+      refused: The values of each a call was refused, as :func:`_plain` says them.
+      source: Where the requirements come from, where something said.
+      reviews: Whether this Codex was asked them, and so is new enough to be told who
+        reviews a request (:data:`_REVIEWER`): one that predates the asking is not told.
+    """
+
+    allowed: dict[str, frozenset[str] | None] = field(
+        default_factory=dict[str, "frozenset[str] | None"]
+    )
+    refused: collections.defaultdict[str, set[str]] = field(
+        default_factory=lambda: collections.defaultdict(set)
+    )
+    source: str = ""
+    reviews: bool = False
+
+    @classmethod
+    def read(cls, answer: object) -> _Requirements:
+        """What `configRequirements/read` answered, which is None where nothing is required.
+
+        Args:
+          answer: The answer's result.
+
+        Returns:
+          What they allow.
+        """
+        said: object = (
+            cast("dict[str, Any]", answer).get("requirements")
+            if isinstance(answer, dict)
+            else None
+        )
+        if not isinstance(said, dict):
+            return cls(reviews=True)
+        said = cast("dict[str, Any]", said)
+        profiles: object = said.get("allowedPermissionProfiles")
+        sandboxes = (
+            [
+                mode
+                for mode, name in _PROFILES.items()
+                if cast("dict[str, Any]", profiles).get(name)
+            ]
+            if isinstance(profiles, dict)
+            else said.get("allowedSandboxModes")
+        )
+
+        def named(values: object) -> frozenset[str] | None:
+            if not isinstance(values, list):
+                return None
+            # A granular policy is a table rather than a name, and nothing this asks for.
+            return frozenset(
+                _plain(one)
+                for one in cast("list[object]", values)
+                if isinstance(one, str)
+            )
+
+        return cls(
+            allowed={
+                "approvalPolicy": named(said.get("allowedApprovalPolicies")),
+                "sandbox": named(sandboxes),
+                "approvalsReviewer": named(said.get("allowedApprovalsReviewers")),
+            },
+            source="configRequirements/read",
+            reviews=True,
+        )
+
+    def allows(self, settings: Mapping[str, Any]) -> bool:
+        """Whether a thread may be opened under these settings.
+
+        Args:
+          settings: What it would be opened under.
+
+        Returns:
+          Whether none of them is forbidden.
+        """
+        for key, value in settings.items():
+            allowed = self.allowed.get(key)
+            if allowed is not None and value not in allowed:
+                return False
+            if value in self.refused.get(key, ()):
+                return False
+        return True
+
+    def learns(self, refused: Failed) -> bool:
+        """Notes what a refused call says these requirements forbid.
+
+        Args:
+          refused: The refusal.
+
+        Returns:
+          Whether it said something not known already -- and so whether the call is worth
+          making again under what is left.
+        """
+        try:
+            said = str(json.loads(str(refused.stderr or "{}")).get("message", ""))
+        except (ValueError, AttributeError):
+            return False
+        learnt = False
+        for found in _DISALLOWED.finditer(said):
+            setting, value = (str(one) for one in found.groups() if one)
+            held = self.refused[_SETTINGS[setting]]
+            learnt |= _plain(value) not in held
+            held.add(_plain(value))
+        if learnt and (by := _SET_BY.search(said)) is not None:
+            self.source = by.group(1)
+        return learnt
+
+    def choose(
+        self, wanted: Mapping[str, Any], outside: Callable[[str], bool]
+    ) -> dict[str, Any] | None:
+        """The most a thread asked for at `wanted` may be opened at, where nothing reviews it.
+
+        The sandbox asked for where it is allowed, else the next wider -- only where a fence
+        around Codex holds it rather than Codex's own sandbox, which a wider one would hold
+        less of -- and then the next narrower. In each, `never` first, then :data:`_ASKING`,
+        whose requests this client grants (:meth:`CodexAgent.grants`). But asking first in a
+        sandbox narrower than asked for, where what the agent asks for is what the narrowing
+        took from it -- and only where it is granted; and `never` there only where a fence
+        holds that sandbox, Codex's own then being left out of its turns (:data:`_EXTERNAL`):
+        elsewhere either is writes the fence grants refused. Not `untrusted` where the agent's
+        requests are refused, which would be every command refused; and where a hook hung on
+        `PERMISSION_REQUEST` asks for it, only ever something that also asks: a hook that is
+        never asked is a hook nothing obeys.
+
+        Args:
+          wanted: What :func:`sandboxing` says, with the policy the agent asks for.
+          outside: Whether a fence around Codex, rather than its own sandbox, holds the
+            agent at a sandbox (:meth:`CodexAgent.outside`).
+
+        Returns:
+          The settings, or None where nothing allowed will do -- and for an agent with no
+          fence, which names nothing to forbid, `wanted` as it stands.
+        """
+        sandbox = wanted.get("sandbox")
+        if sandbox not in _WIDTHS:
+            return dict(wanted)
+        policy = str(wanted.get("approvalPolicy") or "never")
+        at = _WIDTHS.index(sandbox)
+        granting = outside(sandbox)
+        wider = [one for one in _WIDTHS[at + 1 :] if outside(one)]
+        for one in [sandbox, *wider, *reversed(_WIDTHS[:at])]:
+            if policy != "never":
+                policies: tuple[str, ...] = (
+                    policy,
+                    *(p for p in _ASKING if p != policy),
+                )
+            elif _WIDTHS.index(one) < at:
+                policies = (*(_ASKING if granting else ()),) + (
+                    ("never",) if outside(one) else ()
+                )
+            elif granting:
+                policies = ("never", *_ASKING)
+            else:
+                policies = ("never", _ASKING[0])
+            for asked in policies:
+                settings = {"sandbox": one, "approvalPolicy": asked}
+                if asked != "never" and self.reviews:
+                    settings |= _REVIEWER
+                if self.allows(settings):
+                    return dict(wanted) | settings
+        return None
+
+    def forbidding(self, wanted: Mapping[str, Any]) -> str:
+        """Why no thread asked for at `wanted` can be opened, in a line a person can act on.
+
+        Args:
+          wanted: What was asked for.
+
+        Returns:
+          The line.
+        """
+
+        def listed(key: str) -> str:
+            allowed = self.allowed.get(key)
+            said = "any" if allowed is None else ", ".join(sorted(allowed)) or "none"
+            refused = sorted(self.refused.get(key, ()))
+            return said + (f" (refused: {', '.join(refused)})" if refused else "")
+
+        return (
+            f"codex: the requirements this machine's Codex runs under"
+            f" ({self.source or 'requirements'}) allow approval policies"
+            f" {listed('approvalPolicy')}, sandboxes {listed('sandbox')} and approvals"
+            f" reviewers {listed('approvalsReviewer')}; none of them runs an agent asked"
+            f" for sandbox {wanted.get('sandbox')} with approval"
+            f" {wanted.get('approvalPolicy')} within its permission, with no model"
+            " reviewing what it asks"
+        )
 
 
 #: How long a server being taken down is given to go before it is left to the operating system,
@@ -855,10 +1082,10 @@ class _AppServer:
         self._draining.start()
         self._pending = itertools.count(1)
         self._writing = threading.Lock()  # a line is written whole or not at all
-        #: Whether this machine's Codex has refused `danger-full-access`, so that every call
-        #: after the one that found out asks for :data:`_ASKING` in its place. Written the
-        #: once, by the call that found out.
-        self._forbids = False
+        #: What the requirements this Codex runs under allow, read as it is introduced to and
+        #: added to by every call refused for them after, so that one refusal is the whole
+        #: cost of finding out rather than one per turn.
+        self.requires = _Requirements()
         #: What each thread has spent so far, by kind, as the server counts it: a running
         #: total, so what one turn cost is the rise across it.
         self._counted: dict[str, Counter[str]] = {}
@@ -916,6 +1143,13 @@ class _AppServer:
                 "initialize", {"clientInfo": {"name": "humanize", "version": "0"}}
             )
             self._write({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+            with contextlib.suppress(Failed):
+                # What its requirements allow, asked before any thread is opened rather than
+                # found out by one refused. A Codex too old to have the call is left to say
+                # it as it refuses (:meth:`learns`).
+                self.requires = _Requirements.read(
+                    self.call("configRequirements/read", None)
+                )
         except BaseException:
             # Reaped before its home is dropped, rather than the home pulled out from under a
             # process that is still up.
@@ -1013,85 +1247,43 @@ class _AppServer:
         self._holding[thread] = dict(settings)
         self._owners[thread] = weakref.ref(session)
 
-    def permitted(self, fence: Fence | None, service_tier: str) -> dict[str, Any]:
-        """What a call of this server is told an agent held to that fence may do.
+    def chooses(
+        self, wanted: Mapping[str, Any], outside: Callable[[str], bool]
+    ) -> dict[str, Any]:
+        """What a call of this server is told an agent that wants that may do.
 
-        What :func:`sandboxing` reads off the fence, until this machine's Codex has refused
-        `danger-full-access`: an installation given requirements that forbid it takes none of
-        the calls that ask for it, and :data:`_ASKING` is asked for in its place from then on
-        -- so one refusal is the whole cost of finding out, rather than one per turn.
+        The most of it the requirements this Codex runs under allow
+        (:meth:`_Requirements.choose`).
 
         Args:
-          fence: The agent's fence, or None for an agent with none, which names no sandbox to
-            be stepped down from and is sent as it stands.
-          service_tier: The common provider service tier requested for this agent.
+          wanted: What the agent wants, read off its fence.
+          outside: Whether a fence around Codex holds the agent at a sandbox.
 
         Returns:
           The settings to send, as this Codex will take them.
-        """
-        settings = sandboxing(fence, service_tier)
-        if self._forbids and settings.get("sandbox") == _FULL:
-            settings |= _ASKING
-        return settings
-
-    def call(self, method: str, params: dict[str, Any]) -> Any:
-        """Makes one call and reads until it is answered.
-
-        A call asking for `danger-full-access` on a machine whose Codex will not take it is
-        made again under :data:`_ASKING`: the same freedom with the asking turned back on,
-        which this client grants. So a flow nobody was asked about goes on running unattended
-        there.
-
-        Args:
-          method: The method to call.
-          params: What to call it with.
-
-        Returns:
-          What the server answered with.
 
         Raises:
-          subprocess.CalledProcessError: If it refused the call for anything but the sandbox
-            it named, or stopped before answering.
+          Unrecoverable: Where nothing they allow will do, before any thread is opened under
+            it: no other try comes out otherwise while the requirements stand.
         """
-        while True:
-            try:
-                return self._called(method, params)
-            except Failed as refused:
-                if (instead := self._stepped(params, refused)) is None:
-                    raise
-                params = instead
+        chosen = self.requires.choose(wanted, outside)
+        if chosen is None:
+            raise Unrecoverable(1, self._argv, "", self.requires.forbidding(wanted))
+        return chosen
 
-    def _stepped(
-        self, params: dict[str, Any], refused: Failed
-    ) -> dict[str, Any] | None:
-        """The same call under :data:`_ASKING`, where Codex refused the full access it named.
+    def learns(self, refused: Failed) -> bool:
+        """Notes what a refused call says the requirements this Codex runs under forbid.
 
         Args:
-          params: What the call was made with.
-          refused: What the server said about it.
+          refused: The refusal.
 
         Returns:
-          Those parameters stepped down, or None where the refusal was about something else
-          or the call named no `danger-full-access` to step down from -- `read-only` has
-          nothing below it, and a call that named no sandbox was refused something it was
-          never asked, which is Codex's own error to report.
+          Whether that was news, and the call is to be made again under what is left.
         """
-        if (
-            _FORBIDDEN not in str(refused.stderr or "")
-            or params.get("sandbox") != _FULL
-        ):
-            return None
-        self._forbids = True
-        stepped = params | _ASKING
-        if params.get("approvalPolicy", "") not in ("", _WRITING["approvalPolicy"]):
-            # An approval policy the caller said in place of `never` goes down with it:
-            # `untrusted` while a hook is hung on `PERMISSION_REQUEST` is every command put to
-            # that hook, in whichever sandbox this Codex will take.
-            stepped["approvalPolicy"] = params["approvalPolicy"]
-        return stepped
+        return self.requires.learns(refused)
 
-    def _called(self, method: str, params: dict[str, Any]) -> Any:
-        """Makes that one call, exactly as it stands, and reads until it is answered.
+    def call(self, method: str, params: dict[str, Any] | None) -> Any:
+        """Makes one call, exactly as it stands, and reads until it is answered.
 
         Args:
           method: The method to call.
@@ -1922,10 +2114,11 @@ class _AppServer:
         """Answers something the agent asked to be allowed to do, as its grant says.
 
         For an agent held to a fence the answer is yes: the server asks at all only where it
-        was told to -- :data:`_ASKING` on a machine that forbids full access, `untrusted`
-        while a hook is hung on `PERMISSION_REQUEST` -- and the fence, not the asking, is what
-        holds the grant: a fence held from outside, since an agent whose fence Codex's own
-        sandbox holds is never asked (:data:`_HOLDING`, :meth:`CodexAgent.holds`). The one
+        was told to -- one of :data:`_ASKING` on a machine whose requirements forbid what the
+        agent wants, `untrusted` while a hook is hung on `PERMISSION_REQUEST` -- and the fence,
+        not the asking, is what holds the grant: a fence held from outside. Where Codex's own
+        sandbox is all that holds it and the asking is only the requirements', the answer is
+        no, a yes being a command run outside that sandbox (:meth:`CodexAgent.grants`). The one
         place a refusal actually stops an agent doing something is the moment the backend
         waits on, which is this one, so a hook hung on `PERMISSION_REQUEST` gets it first and
         may say no.
@@ -1972,7 +2165,7 @@ class _AppServer:
         # A hook's no, or an agent with no fence -- and where there are no agents left to
         # ask, the grant is unreadable too, which is a request nothing here is driving and so
         # one more thing not to grant.
-        granted = bool(self._agents) and self._agents[0].config.fence is not None
+        granted = bool(self._agents) and cast("CodexAgent", self._agents[0]).grants()
         refused = not granted or (asking is not None and asking.refused)
         if message["method"] == _APPROVALS[2]:
             answer: dict[str, Any] = (
@@ -2770,23 +2963,30 @@ class CodexSession(SessionBase):
         match served.method:
             case "turn/start":
                 text = {"type": "text", "text": served.line}
-                yield from server.turn(
-                    params
-                    | {
-                        "input": self._inputs(served.line, text)
-                        if served.native
-                        else [text],
-                        "model": self.model,
-                        **_thinking(self.effort),
-                    }
-                    | (
-                        {"outputSchema": strict(schema.model_json_schema())}
-                        if schema is not None
-                        else {}
-                    )
-                    | turned,
-                    self._running,
-                )
+                started = params | {
+                    "input": self._inputs(served.line, text)
+                    if served.native
+                    else [text],
+                    "model": self.model,
+                    **_thinking(self.effort),
+                }
+                if schema is not None:
+                    started["outputSchema"] = strict(schema.model_json_schema())
+                while True:
+                    try:
+                        yield from server.turn(started | turned, self._running)
+                        break
+                    except Unrecoverable:
+                        raise
+                    except Failed as refused:
+                        # Refused for requirements that changed under a running server: the
+                        # thread is picked up under what they leave, and the turn taken again.
+                        if self._running.answered or not server.learns(refused):
+                            raise
+                        self._thread(server)
+                        self._steps(server)
+                        turned = self._turned(server)
+                        policy = json.dumps(turned.get("sandboxPolicy"), sort_keys=True)
                 # Kept by the thread for every turn after, a review's among them.
                 self._policed = (server, thread, policy)
             case "review/start" if "sandboxPolicy" in turned and self._policed != (
@@ -2845,38 +3045,42 @@ class CodexSession(SessionBase):
     def _permitted(self, server: _AppServer) -> dict[str, Any]:
         """What this session's calls tell the server the agent may do, and who is asked.
 
-        What the fence says (:meth:`_AppServer.permitted`), as the server will take it, with
-        the approval policy the config says in place of `never` where it says one: the
-        sandbox is the fence's, and whether the server asks before a command is something a
-        flow may want a say in without the sandbox moving. A config saying `never` says what
-        the fence is told already, and is read as saying nothing -- so that on a machine that
-        forbids full access every turn asks as :data:`_ASKING` does, the first that found
-        out (:meth:`_AppServer._stepped`) and every one after it alike.
-
-        But where Codex's own sandbox holds the fence (:meth:`CodexAgent.holds`): there the
-        thread is opened in that sandbox and never asks (:data:`_HOLDING`), whatever this
-        machine's Codex forbids.
+        What the agent wants (:meth:`CodexAgent.wants`), as the requirements the server runs
+        under allow it (:meth:`_AppServer.chooses`).
 
         Args:
           server: The server the call is made on.
 
         Returns:
           The settings to send.
+
+        Raises:
+          Unrecoverable: Where those requirements allow nothing that will do.
         """
-        config = self._agent.config
-        if config.fence is not None and self._agent.holds(config.fence):
-            settings = sandboxing(config.fence, config.service_tier)
-            if settings.get("sandbox") == _FULL:
-                settings |= _HOLDING
-            return settings
-        settings = server.permitted(config.fence, config.service_tier)
-        asked = str(getattr(config, "approvals", ""))
-        if (
-            asked not in ("", _WRITING["approvalPolicy"])
-            and "approvalPolicy" in settings
-        ):
-            settings["approvalPolicy"] = asked
-        return settings
+        return server.chooses(self._agent.wants(), self._agent.outside)
+
+    def _under(self, server: _AppServer, call: Callable[[dict[str, Any]], Any]) -> Any:
+        """Makes a call carrying what the agent may do, again each time Codex refuses that.
+
+        Each refusal for the requirements it runs under is noted (:meth:`_AppServer.learns`)
+        and the call made again under what they leave, until it is taken, refused for
+        something else, or nothing is left (:meth:`_permitted`).
+
+        Args:
+          server: The server the call is made on.
+          call: Makes it, given the settings.
+
+        Returns:
+          What it answered.
+        """
+        while True:
+            try:
+                return call(self._permitted(server))
+            except Unrecoverable:
+                raise
+            except Failed as refused:
+                if not server.learns(refused):
+                    raise
 
     def _turned(self, server: _AppServer) -> dict[str, Any]:
         """What a turn of this session tells the server the agent may do.
@@ -2932,64 +3136,80 @@ class CodexSession(SessionBase):
 
         Returns:
           The thread's id, which is also the session's.
+
+        Raises:
+          Unrecoverable: Where the requirements Codex runs under allow nothing that will do,
+            before the thread is asked for.
         """
-        settings = self._permitted(server)
         # A thread opened for a turn that failed is still this conversation, though no turn
         # has landed on it yet: taken again on it rather than on another -- a fork's child
         # rather than another child -- so that what that turn did is still in it.
         if (thread := self._id or self._running.thread) is None:
-            opened = {
-                "cwd": self._workspace(),
-                "model": self.model,
-                **settings,
-            }
-            started = str(
-                server.call(
-                    # Forked rather than started, for a session cut from another: the server
-                    # loads that thread and answers with a thread of its own holding what it
-                    # had got to, which is this session.
-                    "thread/fork",
-                    {"threadId": self._forked_from, **opened},
-                )["thread"]["id"]
-                if self._forked_from is not None
-                else server.call("thread/start", opened)["thread"]["id"]
-            )
+
+            def opening(settings: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+                opened = {"cwd": self._workspace(), "model": self.model, **settings}
+                return str(
+                    server.call(
+                        # Forked rather than started, for a session cut from another: the
+                        # server loads that thread and answers with a thread of its own
+                        # holding what it had got to, which is this session.
+                        "thread/fork",
+                        {"threadId": self._forked_from, **opened},
+                    )["thread"]["id"]
+                    if self._forked_from is not None
+                    else server.call("thread/start", opened)["thread"]["id"]
+                ), settings
+
+            started, settings = self._under(server, opening)
             server.holding(started, settings, self)
             self._listed = None  # a conversation opens: its skills are asked for afresh
             return started
-        if server.holds(thread, settings):
+        if server.holds(thread, self._permitted(server)):
             # Already open here, under exactly what this turn asks for -- which is the whole
             # of what `holds` says, so there is nothing left to tell it. Picking a thread up
             # reads it off the disk again, minutes of conversation read back to say what it
             # already says, and saying it again here would change nothing but the wait.
             return thread
+
+        def resuming(settings: dict[str, Any]) -> dict[str, Any]:
+            server.call("thread/resume", {"threadId": thread, **settings})
+            return settings
+
         # Said again on the way back in: a thread picked up is picked up under the settings it
         # was left with, and this session's are what its agent's fence says now.
-        server.call("thread/resume", {"threadId": thread, **settings})
-        server.holding(thread, settings, self)
+        server.holding(thread, self._under(server, resuming), self)
         self._listed = None
         return thread
 
     def _steps(self, server: _AppServer) -> None:
-        """Says, once for the agent, that this machine's Codex will not give it full access.
+        """Says, once for the agent, that this machine's Codex will not run it as it wants.
 
-        Where the server has stepped the agent down from `danger-full-access` to
-        :data:`_ASKING` -- for this call or for another agent's on it -- and nobody has said
-        so for this agent yet: on a server it started before, or one it starts after, the
-        agent is told once and no more.
+        Where the requirements the server runs under have it run the agent at another sandbox
+        or approval policy than it wants -- found for this call or for another agent's on it
+        -- and nobody has said so for this agent yet: on a server it started before, or one
+        it starts after, the agent is told once and no more.
 
         Args:
           server: The server the thread was just opened or picked up on.
         """
-        fence = self._agent.config.fence
-        if fence is not None and self._agent.holds(fence):
-            return  # Opened in Codex's own sandbox (`_HOLDING`): never stepped down.
-        wanted = sandboxing(fence).get("sandbox")
-        if wanted == _FULL and server._forbids and self._agent._stepped(_FULL):
-            self._narrates(
-                f"codex: this machine will not run an agent at {_FULL}, so it runs at "
-                f"{_ASKING['sandbox']}, where what it asks for is granted"
-            )
+        wanted = self._agent.wants()
+        if "sandbox" not in wanted:
+            return  # No fence, so nothing asked of Codex for it to forbid.
+        chosen = self._permitted(server)
+        was = f"sandbox {wanted['sandbox']} with approval {wanted['approvalPolicy']}"
+        now = f"sandbox {chosen['sandbox']} with approval {chosen['approvalPolicy']}"
+        if now == was or not self._agent._stepped(now):
+            return
+        if chosen["approvalPolicy"] == wanted["approvalPolicy"]:
+            asked = ""
+        elif not self._agent.grants():
+            asked = ", where what it asks for beyond that sandbox is refused"
+        else:
+            asked = ", where what it asks for is granted"
+        self._narrates(
+            f"codex: this machine's requirements will not run an agent at {was}, so it runs"
+            f" at {now}{asked}"
+        )
 
     def _lets_go(self) -> None:
         """Takes down the app server, which is what a wedged turn here is waiting on.
@@ -3033,17 +3253,29 @@ class CodexSession(SessionBase):
                 if watched:
                     self._heard(Event(kind="begins", text=objective))
                 try:
-                    answer = server.pursue(
-                        {
-                            "threadId": thread,
-                            "input": [{"type": "text", "text": objective}],
-                            "model": self.model,
-                            **_thinking(self.effort),
-                            **self._turned(server),
-                        },
-                        self._spends,
-                        self._heard if watched else None,
-                    )
+                    while True:
+                        try:
+                            answer = server.pursue(
+                                {
+                                    "threadId": thread,
+                                    "input": [{"type": "text", "text": objective}],
+                                    "model": self.model,
+                                    **_thinking(self.effort),
+                                    **self._turned(server),
+                                },
+                                self._spends,
+                                self._heard if watched else None,
+                            )
+                            break
+                        except Unrecoverable:
+                            raise
+                        except Failed as refused:
+                            # As for a turn (:meth:`_served_on`): requirements that changed,
+                            # where the goal was refused before it said anything.
+                            if refused.output or not server.learns(refused):
+                                raise
+                            self._thread(server)
+                            self._steps(server)
                     if watched:
                         self._heard(Event(kind="result", text=answer))
                     else:
@@ -3104,8 +3336,9 @@ class CodexAgent(AgentBase):
     """Codex, driven over the app server so that a turn can be steered while it runs.
 
     Every moment a turn passes through, and one more: where the agent may ask for more than
-    it has -- approval `untrusted` while a hook is hung on `PERMISSION_REQUEST`, or
-    :data:`_ASKING` on a machine that forbids full access -- the server asks and waits for the
+    it has -- approval `untrusted` while a hook is hung on `PERMISSION_REQUEST`, or one of
+    :data:`_ASKING` on a machine whose requirements forbid `never` or the sandbox the agent
+    wants (:meth:`_Requirements.choose`) -- the server asks and waits for the
     answer, so that is the one place a hook here can say no to something and have the agent
     hear it. Everywhere else it is never asked, and a hook hung on that moment never fires.
     """
@@ -3426,7 +3659,8 @@ class CodexAgent(AgentBase):
         `PERMISSION_REQUEST` -- puts commands to this client, which grants them, and a command
         Codex was granted it runs outside its own sandbox, which then holds nothing. Otherwise
         the fence is held from outside, as though nothing had been named: never wider than
-        the person asked for.
+        the person asked for. Requirements that forbid `never` leave it held so, asking: what
+        the agent then asks for is what would leave the sandbox, and is refused (:meth:`grants`).
 
         Args:
           fence: The fence.
@@ -3441,10 +3675,83 @@ class CodexAgent(AgentBase):
             and self.config.machine is None
             and not (fence.keep or fence.deny)
             and not fence.open
-            and getattr(self.config, "approvals", "")
-            in ("", _HOLDING["approvalPolicy"])
+            and not self._asks()
             and _starts()
         )
+
+    def _asks(self) -> bool:
+        """Whether the config asks for an approval policy of its own in place of `never`.
+
+        `untrusted`, while a hook is hung on `PERMISSION_REQUEST`. A config saying `never`
+        says what the fence is told already, and is read as saying nothing.
+        """
+        return getattr(self.config, "approvals", "") not in ("", "never")
+
+    def wants(self) -> dict[str, Any]:
+        """What this agent's threads would be opened under, were nothing forbidden.
+
+        What :func:`sandboxing` reads off the fence, with the approval policy the config says
+        in place of `never` where it says one: the sandbox is the fence's, and whether the
+        server asks before a command is something a flow may want a say in without the
+        sandbox moving. Where Codex's own sandbox holds the fence (:meth:`holds`), that
+        sandbox in place of full access (:data:`_HOLDING`).
+
+        Returns:
+          The settings.
+        """
+        config = self.config
+        settings = sandboxing(config.fence, config.service_tier)
+        if config.fence is not None and self.holds(config.fence):
+            if settings.get("sandbox") == _FULL:
+                settings |= _HOLDING
+        elif self._asks() and "approvalPolicy" in settings:
+            settings["approvalPolicy"] = str(getattr(config, "approvals", ""))
+        return settings
+
+    def outside(self, sandbox: str) -> bool:
+        """Whether a fence around Codex, rather than its own sandbox, holds it at a sandbox.
+
+        Never where Codex's own sandbox holds the fence (:meth:`holds`). At `read-only` and
+        `workspace-write` where a turn leaves Codex's sandbox to the fence (:func:`_abroad`);
+        at full access, which Codex holds nothing of, wherever the fence is put up at all --
+        around Codex on this Linux or Mac, or drawn on the machine its turns land on.
+
+        Args:
+          sandbox: The sandbox.
+
+        Returns:
+          Whether it is held so.
+        """
+        fence = self.config.fence
+        if fence is None or fence.open or self.holds(fence):
+            return False
+        if sandbox in _SANDBOXED:
+            return _abroad(self.config, sandbox)
+        if self.config.machine is None:
+            return sys.platform in ("darwin", "linux")
+        return bool(fence.drawn)
+
+    def confines(self) -> bool:
+        """Whether Codex's own sandbox is all that holds this agent's fence.
+
+        Where it holds it natively (:meth:`holds`), and where the sandbox the agent wants is
+        one no fence around Codex holds (:meth:`outside`) -- a `read-only` thread on another
+        machine the fence is not drawn on. Then no wider sandbox will do, and nothing it asks
+        to leave that sandbox for is granted (:meth:`grants`).
+        """
+        return self.config.fence is not None and not self.outside(
+            str(self.wants().get("sandbox"))
+        )
+
+    def grants(self) -> bool:
+        """Whether what this agent asks for is granted, unless a hook refuses it.
+
+        Where it has a fence, which holds what is granted -- but not where Codex's own sandbox
+        is the only thing holding it (:meth:`confines`) and Humanize asked only because the
+        requirements forbid `never`: there a yes is a command run outside everything that
+        holds the fence. A policy the config asks for is the flow's, whose hook decides.
+        """
+        return self.config.fence is not None and (self._asks() or not self.confines())
 
     def _native(self) -> bool:
         """Whether this agent's turns are taken by the target's own Codex, asked without starting.

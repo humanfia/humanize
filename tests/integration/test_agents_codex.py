@@ -317,6 +317,57 @@ def test_an_approval_asked_of_an_agent_with_no_fence_is_refused(
     assert json.loads(CodexAgent(CONFIG).new()("approve")) == {"decision": "decline"}
 
 
+def test_requirements_forbidding_never_run_it_asking_and_grant_what_it_asks(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Read from the server before any thread, so nothing is refused on the way."""
+    (codex.bin / "requirements").write_text(
+        json.dumps({"allowedApprovalPolicies": ["on-request", "untrusted"]})
+    )
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
+    told: list[str] = []
+    agent.watch(
+        lambda _who, _session, event: (
+            told.append(event.text) if event.kind == "notice" else None
+        )
+    )
+
+    assert json.loads(agent.new()("approve")) == {"decision": "accept"}
+
+    assert not [one for one in codex.said() if one.startswith("refused ")]
+    (opened,) = _told(codex, "thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (
+        "danger-full-access",
+        "on-request",
+    )
+    assert opened["approvalsReviewer"] == "user"
+    assert any("with approval on-request" in one for one in told)
+
+
+def test_requirements_nothing_will_do_under_fail_the_session_before_a_thread(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`never` forbidden and every request reviewed by a model: no grant is held by that."""
+    (codex.bin / "requirements").write_text(
+        json.dumps(
+            {
+                "allowedApprovalPolicies": ["on-request", "untrusted"],
+                "allowedApprovalsReviewers": ["auto_review"],
+            }
+        )
+    )
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
+
+    with pytest.raises(Failed, match="approvals reviewers auto_review") as failed:
+        agent.new()("hello")
+
+    assert failed.value.__class__.__name__ == "Unrecoverable"
+    assert not _told(codex, "thread/start")
+    assert "hello" not in codex.said()
+
+
 def test_a_question_is_put_to_whoever_drives_the_agent(codex: Standins) -> None:
     agent = CodexAgent(CONFIG)
     asked: list[Question] = []
