@@ -280,7 +280,9 @@ A value is either a command (list of strings) or a mapping:
 | `hosts` | list of strings | Hosts the CLI may reach when a flow blocks network access: hostname, `name:port`, `*.suffix`, IP address, or URL (host part kept). Edited by hand. |
 | `state` | list of strings | Extra writable paths for the CLI. Edited by hand. |
 
-Entries without a command are ignored. Editing a CLI in the interfaces preserves `hosts` and `state`.
+Editing a CLI in the interfaces preserves `hosts` and `state`.
+
+When the file is read, Humanize fixes two kinds of mistakes in it and logs each fix: a key one typo away from `command`, `hosts` or `state` (such as `host`) is renamed, and a `hosts` or `state` written as one string becomes a list of that string. Any other mistake is not fixed: a command that is not a non-empty list (a command written as one string included), an unknown key, or a `hosts` or `state` that is not a list. That entry is ignored and logged as an error, and naming that CLI, as in `-a my-agent/MODEL`, fails with an error that names the file and the mistake.
 
 ## `runtimes`
 

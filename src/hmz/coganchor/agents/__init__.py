@@ -113,6 +113,7 @@ def driver(backend: str) -> tuple[type[AgentBase], type[AgentConfig]]:
 
     Raises:
       KeyError: If nothing here drives it and nobody has added it.
+      ValueError: If it was written down as an added CLI that cannot be read as one.
     """
     from hmz.coganchor import backends
 
@@ -121,6 +122,9 @@ def driver(backend: str) -> tuple[type[AgentBase], type[AgentConfig]]:
         return held
     if backend in backends.speaking():
         return (AcpAgent, AcpAgentConfig)
+    why = backends.broken(backend)
+    if why is not None:
+        raise ValueError(why)
     raise KeyError(backend)
 
 

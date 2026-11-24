@@ -19,10 +19,13 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 from __future__ import annotations
 
 import base64
+import copy
+import difflib
 import ipaddress
 import logging
 import os
 import re
+import shlex
 import shutil
 import time
 import urllib.parse
@@ -55,6 +58,7 @@ __all__ = [
     "Sign",
     "Way",
     "alike",
+    "broken",
     "declared",
     "elsewhere",
     "forget",
@@ -4498,6 +4502,11 @@ _added: dict[str, tuple[str, ...]] | None = None
 _added_at: tuple[str, int, int] | None = None
 #: What each of those was declared to reach and to keep, read in the same pass.
 _declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+#: Why each entry written down that is not an added CLI is not one, read in the same pass.
+_broken: dict[str, str] = {}
+
+#: The keys a mapping entry may have (files.md 3.7.1.1).
+_KEYS = ("command", "hosts", "state")
 
 
 def _strings(said: object) -> tuple[str, ...]:
@@ -4528,6 +4537,76 @@ def _hosts(said: object, name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(kept))
 
 
+def _mend(entries: dict[str, object]) -> list[str]:
+    """Fixes, in place, what a hand-written entry has one obvious fix for.
+
+    A key one typo away from one of :data:`_KEYS`, such as `host`, and a `hosts` or `state`
+    written as one string rather than a list of them. A command is never mended: an entry
+    whose command is not a non-empty list is ignored when read (files.md 3.7.1.5).
+
+    Args:
+      entries: The `clis` mapping, as the file holds it.
+
+    Returns:
+      What was fixed, one line each; nothing where nothing was.
+    """
+    fixed: list[str] = []
+    for name, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        said = cast("dict[object, object]", entry)
+        for key in [one for one in said if one not in _KEYS]:
+            close = difflib.get_close_matches(str(key), _KEYS, n=1, cutoff=0.6)
+            if close and close[0] not in said:
+                said[close[0]] = said.pop(key)
+                fixed.append(f"clis.{name}: {key!r} renamed to {close[0]!r}")
+        for key in ("hosts", "state"):
+            one = said.get(key)
+            if isinstance(one, str):
+                said[key] = [one]
+                fixed.append(f"clis.{name}.{key}: {one!r} made a list")
+    return fixed
+
+
+def _fault(entry: object) -> str | None:
+    """What is wrong with one entry, or None where it is an added CLI as written."""
+    if isinstance(entry, list):
+        said: dict[object, object] = {"command": cast("object", entry)}
+    elif isinstance(entry, dict):
+        said = cast("dict[object, object]", entry)
+    else:
+        return "expected a command as a list, such as [my-agent, --acp], or a mapping"
+    unknown = [str(one) for one in said if one not in _KEYS]
+    if unknown:
+        return f"unknown key {unknown[0]!r}; expected command, hosts and state"
+    argv = said.get("command")
+    if isinstance(argv, str):
+        return f"command must be a list, such as {shlex.split(argv)!r}"
+    if not isinstance(argv, list) or not argv:
+        return "command must be a non-empty list"
+    for key in ("hosts", "state"):
+        if key in said and not isinstance(said[key], list):
+            return f"{key} must be a list"
+    return None
+
+
+def broken(name: str) -> str | None:
+    """Why the entry written down under a name is not an added CLI, or None where it is one.
+
+    Args:
+      name: What it was written down under.
+
+    Returns:
+      What is wrong with it, naming the settings file, or None where nothing is or nothing
+      was written down under that name.
+    """
+    from hmz.coganchor import settings
+
+    speaking()
+    why = _broken.get(name)
+    return None if why is None else f"clis.{name} in {settings.where()}: {why}"
+
+
 def speaking() -> dict[str, tuple[str, ...]]:
     """Every CLI somebody has added, and the command that starts each one.
 
@@ -4538,43 +4617,74 @@ def speaking() -> dict[str, tuple[str, ...]]:
     """
     # Read where it is asked, never at import: the settings are YAML, which is not the
     # standard library's to read.
+    import yaml
+
     from hmz.coganchor import settings
 
-    global _added, _added_at, _declared
+    global _added, _added_at, _declared, _broken
     at = settings.where()
-    try:
-        moved = at.stat()
+
+    def stamped() -> tuple[str, int, int] | None:
+        try:
+            moved = at.stat()
+        except OSError:
+            return None
         # The file as well as its moment: another home's file can carry the same one.
-        stamp = (str(at), moved.st_mtime_ns, moved.st_size)
-    except OSError:
+        return (str(at), moved.st_mtime_ns, moved.st_size)
+
+    stamp = stamped()
+    if stamp is None:
         # No file is an answer, and a cheap one: nothing has been added.
-        _added, _added_at, _declared = {}, None, {}
+        _added, _added_at, _declared, _broken = {}, None, {}, {}
         return {}
     if _added is not None and stamp == _added_at:
         return _added
     held = settings.read().get(_SPOKEN)
+    if isinstance(held, dict) and _mend(copy.deepcopy(cast("dict[str, object]", held))):
+        # Fixed in the file rather than only in what is read, so that what the file says
+        # is what runs, and said so once rather than on every read.
+        fixed: list[str] = []
+
+        def mending(settled: dict[str, Any]) -> None:
+            entries = settled.get(_SPOKEN)
+            if isinstance(entries, dict):
+                fixed.extend(_mend(cast("dict[str, object]", entries)))
+
+        try:
+            held = settings.changes(mending).get(_SPOKEN)
+        except (OSError, yaml.YAMLError) as why:
+            log.warning("clis in %s could not be fixed: %s", at, why)
+        else:
+            for one in fixed:
+                log.warning("%s in %s", one, at)
+            stamp = stamped() or stamp
     if not isinstance(held, dict):
-        _added, _added_at, _declared = {}, stamp, {}
+        _added, _added_at, _declared, _broken = {}, stamp, {}, {}
         return {}
     found: dict[str, tuple[str, ...]] = {}
     declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    faults: dict[str, str] = {}
     for name, entry in cast("dict[str, object]", held).items():
+        fault = _fault(entry)
+        if fault is not None:
+            # Ignored, as the protocol has it, and said why: wherever it is named it is
+            # refused with this rather than taken for a CLI nobody added.
+            faults[str(name)] = fault
+            log.error("clis.%s in %s: %s; ignored", name, at, fault)
+            continue
         said = (
             cast("dict[str, object]", entry)
             if isinstance(entry, dict)
             else {"command": entry}
         )
-        argv = said.get("command")
-        if not isinstance(argv, list):
-            continue
-        given = tuple(str(one) for one in cast("list[object]", argv))
-        if given:
-            found[str(name)] = given
-            declared[str(name)] = (
-                _hosts(said.get("hosts"), str(name)),
-                _strings(said.get("state")),
-            )
-    _added, _added_at, _declared = found, stamp, declared
+        found[str(name)] = tuple(
+            str(one) for one in cast("list[object]", said["command"])
+        )
+        declared[str(name)] = (
+            _hosts(said.get("hosts"), str(name)),
+            _strings(said.get("state")),
+        )
+    _added, _added_at, _declared, _broken = found, stamp, declared, faults
     return found
 
 
@@ -5324,6 +5434,9 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     if profile is None and not slash and ":" in backend:
         profile = named(backend.partition(":")[0].strip())
     if profile is None:
+        why = broken(backend)
+        if why is not None:
+            raise ValueError(why)
         raise ValueError(
             f"unknown CLI {backend!r}; see the CLI reference for supported names"
         )
