@@ -399,6 +399,79 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
 
+## hmz epic
+
+```text
+hmz epic start FLOW [TASK] [-a ROLE=SPEC]... [-e ROLE=SPEC]... [-p KEY=VALUE]...
+               [--resume | --resume-from EPIC] [--backup NAME]... [--no-backup]
+               [--profile-flow] [--profile-environment] [--remember] [--scratch]
+               [--away] [--follow]
+hmz epic attach [--no-replay]
+hmz epic say TEXT [--to WHO]
+hmz epic answer [TEXT] [-q ID] [--value JSON]
+hmz epic stop [--force]
+hmz epic board [KEY [VALUE]] [--remove]
+hmz epic claim [ROLE]... [--take] [--no-replay]
+hmz epic release ROLE
+hmz epic afk [ROLE] [--back]
+hmz epic status
+```
+
+Starts, follows and steers an epic the daemon holds. Unlike [`hmz exec`](#hmz-exec), `hmz epic start` returns as soon as the epic has started, and the other commands reach an epic started anywhere: by this command, by `hmz exec`, the app or the terminal interface.
+
+Every command takes `-w DIR` (`--workspace`), the epic's workspace, by default the current directory, and `--slot SLOT`, the slot of the host that holds it, by default the workspace's own host. `hmz epic start` prints both, and [`hmz hosts list`](#hmz-hosts) lists them. An epic started by `hmz exec` is on a slot `exec:<id>`. Only `start` starts a host: the other commands are refused with `no runs are held in <workspace>` where none is held.
+
+| Command | What it does | `--json` |
+| --- | --- | --- |
+| `start FLOW [TASK]` | Starts the flow as a new epic and returns. `-a`, `-e` and `-p` are written as for [`hmz exec`](#hmz-exec), the budget included. `--slot exec:` gives the epic a host of its own beside the workspace's other epics. | `{"run", "slot", "workspace"}` |
+| `attach` | Writes what the epic has done and then what it does, until it ends. `--no-replay` skips what it has done. | One message of the host per line; see below. |
+| `say TEXT` | Says a line to the epic. `--to` names an agent, a session `<agent>/<n>` or `outworlder:<role>`. | `{"text", "to"}` |
+| `answer [TEXT]` | Answers the only question waiting, or the one `-q ID` names. `--value JSON` answers a question that has a schema. | `{"question"}` |
+| `stop` | Stops the epic. `--force` also closes every session still in a turn. | `{"forced", "closed"}` |
+| `board` | Prints the board; with `KEY`, that line. `KEY VALUE` writes a line, `KEY --remove` removes it. | `{"items": [...]}` when reading (`null` if the epic has no board), `{"key", "value"}` when writing. |
+| `claim ROLE...` | Claims the roles while it runs, follows the epic as `attach` does, and answers the oldest question of those roles with each line read from standard input. `--take` takes a role another frontend claims. | As `attach`. |
+| `release ROLE` | Takes a role from whichever frontend claims it and releases it. | `{"role"}` |
+| `afk [ROLE]` | Sets the role, or every role, away; `--back` sets it back. | `{"away", "role"}` |
+| `status` | Prints the host's state, flow, epic and task, then one line per waiting question: id, role, text. Attaches to nothing. | The host's [status](/reference/daemon): `state`, `run`, `flow`, `epic`, `task`, `pending`, `ended`, `budget`, `usage` and more. |
+
+`hmz epic start` options:
+
+| Option | What it does |
+| --- | --- |
+| `--resume` | Picks up the newest epic of the flow in the workspace. |
+| `--resume-from EPIC` | Picks up the named epic. |
+| `--backup NAME` | Sends the epic to this backup target instead of the defaults. Repeatable. |
+| `--no-backup` | Backs the epic up nowhere. |
+| `--profile-flow`, `--profile-environment` | Profile the flow's Python, and the programs its agents start. |
+| `--remember` | Keeps the roles, params and budget as the workspace's set-up of the flow. |
+| `--scratch` | Runs in a new folderless workspace instead of `-w`. |
+| `--away` | Sets every role away first, so the epic never waits on a person. |
+| `--follow` | Stays attached and writes the epic as `attach` does until it ends. With `--json`, the start document comes first on a line of its own. |
+
+`attach`, `claim` and `start --follow` write each agent event as `hmz exec` does, answers on standard output and the rest on standard error, with a line for each question (`<role> asks (<id>): <text>`), answer and line said, and for how the epic ended. With `--json` they write every [message of the host](/reference/events) unchanged, one JSON object per line: `welcome`, the history records, the snapshots, `live`, and what follows.
+
+They exit `0` when the epic ends done, stopped or out of budget, or when no epic is going; `1` when it failed or the host let go; and `130` when interrupted. Leaving does not stop the epic.
+
+```bash
+hmz epic start goal 'fix the failing test' -a worker=claude/claude-haiku-4-5:low -p budget.cost=2
+hmz epic status --json | jq -r '.pending[] | "\(.question) \(.text)"'
+hmz epic answer -q q1 yes
+```
+
+## hmz hosts
+
+```text
+hmz hosts list [--running]
+hmz hosts stop [-w DIR] [--slot SLOT]
+```
+
+A host is the process the daemon holds one workspace's epic, or one chat, in.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per host: workspace, slot, state, flow and task. `--running` lists only hosts whose epic or chat is running or stopping. | `{"hosts": [{"workspace", "slot", "pid", "started", "state", "kind", "flow", "epic", "chat", "task", "asking"}]}`; `state` is `idle` for a host running nothing, and `asking` lists the questions it waits on as `<run>:<question>`. |
+| `stop` | One line once the daemon has taken the request. Closes the host, stopping what it runs. | `{"workspace", "slot"}` |
+
 ## hmz internal
 
 Humanize spawns these six internal commands for its own processes. Use this reference to diagnose failures; do not run them directly.

@@ -84,6 +84,17 @@ A second <kbd>ctrl+c</kbd> while the epic is stopping forces it and ends the com
 
 Sending a signal to `hmz chat` does not stop the turn. The command detaches from the chat, leaves it running in the daemon, and exits with 128 plus the signal number.
 
+`hmz epic stop` stops an epic the command line did not start, or one started with `hmz epic start`:
+
+```bash
+hmz epic stop                        # the epic of this directory
+hmz epic stop --force                # also close turns that are still open
+hmz hosts list --running             # find the workspace and slot of another epic
+hmz epic stop -w ~/work/app --slot exec:1f2e
+```
+
+`hmz hosts stop` closes the whole host instead, stopping the epic or chat it runs.
+
 ## What a stop leaves {#what-a-stop-leaves}
 
 A stopped epic is recorded as `stopped`, and its sessions and figures remain readable. Files stay as they were when interrupted, without rolling back partial writes. You cannot restart a stopped epic, so [resume it](/user/resuming) if the flow supports resuming, or start a new epic.

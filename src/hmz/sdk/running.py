@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
     from hmz.sdk.client import Client
+    from hmz.sdk.families.epics import Frontend
     from hmz.sdk.private import Fakes
 
 __all__ = ["BACKING", "Hmz", "Opened", "Run", "Runner", "backed"]
@@ -614,20 +615,16 @@ class Run:
             client = self._attaches(self._runner.client())
             outworlder = self._outworlder
             if outworlder is None:
-                self._asks(client, "epic.afk", on=True)
+                self._asks(client).afk(on=True, **_once())
             else:
                 for role in self._outworlders():
-                    self._asks(client, "epic.claim", role=role)
+                    self._asks(client).claim(role, **_once())
                     self._claimed.add(role)
                     if outworlder.away_for(role):
-                        self._asks(client, "epic.afk", on=True, role=role)
+                        self._asks(client).afk(on=True, role=role, **_once())
             # As long as loading the flow takes, a fetch of it included.
-            self._asks(
-                client,
-                "epic.start",
-                seconds=None,
-                task=self._task,
-                **self._runner.started,
+            self._asks(client).start(
+                task=self._task, idem=_key(), **self._runner.started
             )
         except BaseException:
             with self._lock:
@@ -660,9 +657,9 @@ class Run:
         def claims() -> None:
             try:
                 for role in new:
-                    self._asks(client, "epic.claim", role=role)
+                    self._asks(client).claim(role, **_once())
                     if outworlder.away_for(role):
-                        self._asks(client, "epic.afk", on=True, role=role)
+                        self._asks(client).afk(on=True, role=role, **_once())
             except (OSError, Refused, TimeoutError):
                 return
             finally:
@@ -694,23 +691,13 @@ class Run:
             self._sub = str(said["sub"])
         return client
 
-    def _asks(
-        self,
-        client: Client,
-        method: str,
-        *,
-        seconds: float | None = _ANSWERING,
-        **params: Any,
-    ) -> Any:
-        """Makes one write to the epic of this run's subscription."""
+    def _asks(self, client: Client) -> Frontend:
+        """The calls to the epic of this run's subscription, made through a session."""
+        from hmz.sdk.families.epics import Epics
+
         with self._lock:
             sub = self._sub
-        return client.call(
-            method,
-            {"sub": sub, **params},
-            idem=secrets.token_urlsafe(12),
-            seconds=seconds,
-        )
+        return Epics(client).of(sub)
 
     def _follows(self) -> None:
         """Attaches again where the session ends before the `ended` record (Section 3.6)."""
@@ -725,7 +712,7 @@ class Run:
                 try:
                     again = self._attaches(self._runner.client())
                     for role in sorted(self._claimed):
-                        self._asks(again, "epic.claim", role=role)
+                        self._asks(again).claim(role, **_once())
                 except (OSError, Refused, TimeoutError) as error:
                     self._ends(RuntimeError(str(error)), None)
                     return
@@ -866,11 +853,8 @@ class Run:
                     if said is None:
                         break
                     try:
-                        self._asks(
-                            client,
-                            "epic.answer",
-                            question=message.get("question"),
-                            **said,
+                        self._asks(client).answer(
+                            str(message.get("question") or ""), **said, **_once()
                         )
                     except Refused as refused:
                         errors = _misfits(refused)
@@ -884,9 +868,9 @@ class Run:
                         return
             # Nothing said, or nothing that fits, is the question answered as an away role's.
             with contextlib.suppress(Refused, TimeoutError):
-                self._asks(client, "epic.afk", on=True, role=role)
+                self._asks(client).afk(on=True, role=role, **_once())
                 if not outworlder.away_for(role):
-                    self._asks(client, "epic.afk", on=False, role=role)
+                    self._asks(client).afk(on=False, role=role, **_once())
 
         threading.Thread(target=answers, daemon=True, name="hmz-answers").start()
 
@@ -915,9 +899,7 @@ class Run:
         if client is not None and not named:
             # Named by the `run` snapshot that follows; asked now, before letting go.
             with contextlib.suppress(Refused, TimeoutError):
-                said = client.call(
-                    "epic.status", {"sub": self._sub}, seconds=_ANSWERING
-                )
+                said = self._asks(client).status(wait=_ANSWERING)
                 with self._lock:
                     self._epic = str(said.get("epic") or "")
         fakes = self._runner.fakes
@@ -995,7 +977,7 @@ class Run:
             client = self._client
         if client is not None:
             with contextlib.suppress(Refused, TimeoutError):
-                self._asks(client, "epic.stop")
+                self._asks(client).stop(**_once())
 
     def close(self) -> None:
         """Stops the epic, forces it where it is stopping, and lets go of the daemon."""
@@ -1004,10 +986,20 @@ class Run:
             client = self._client
         if client is not None and not self._ended.is_set():
             with contextlib.suppress(Refused, TimeoutError):
-                self._asks(client, "epic.force")
+                self._asks(client).force(**_once())
         # Let go of before its end came: it ended, for this run, as a stopped one does.
         self._ends(asyncio.CancelledError(), None)
         self._lets_go()
+
+
+def _key() -> str:
+    """A key one write is made once under."""
+    return secrets.token_urlsafe(12)
+
+
+def _once() -> dict[str, Any]:
+    """What a write to the epic is made with: a key of its own, and how long it is given."""
+    return {"idem": _key(), "wait": _ANSWERING}
 
 
 def _object(said: Any) -> dict[str, Any] | None:

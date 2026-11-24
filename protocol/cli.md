@@ -86,6 +86,12 @@ It is normative. It is cited by the tag [CLI].
   - [17.1. Synopsis](#171-synopsis)
   - [17.2. Behaviour](#172-behaviour)
 - [18. `hmz epic` and `hmz hosts`](#18-hmz-epic-and-hmz-hosts)
+  - [18.1. Synopsis](#181-synopsis)
+  - [18.2. `hmz epic start`](#182-hmz-epic-start)
+  - [18.3. `hmz epic attach`](#183-hmz-epic-attach)
+  - [18.4. `hmz epic say`, `answer`, `stop` and `board`](#184-hmz-epic-say-answer-stop-and-board)
+  - [18.5. `hmz epic claim`, `release`, `afk` and `status`](#185-hmz-epic-claim-release-afk-and-status)
+  - [18.6. `hmz hosts`](#186-hmz-hosts)
 - [19. `hmz runs`](#19-hmz-runs)
 - [20. `hmz env`](#20-hmz-env)
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
@@ -1485,7 +1491,171 @@ be `{"code": <code>, "expires": <seconds since the epoch>}`.
 
 ## 18. `hmz epic` and `hmz hosts`
 
-This section is reserved for `hmz epic` and `hmz hosts`, the declared commands of `epic.*` and `hosts.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 18.1. Synopsis
+
+```text
+hmz epic start <flow> [<task>] [-a <agents>]... [-e <envs>]... [-p <params>]...
+               [--resume | --resume-from <epic>] [--backup <target>]... [--no-backup]
+               [--profile-flow] [--profile-environment] [--remember] [--scratch]
+               [--away] [--follow] [-w <dir>] [--slot <slot>]
+hmz epic attach [--no-replay] [-w <dir>] [--slot <slot>]
+hmz epic say <text> [--to <who>] [-w <dir>] [--slot <slot>]
+hmz epic answer [<text>] [-q <id>] [--value <json>] [-w <dir>] [--slot <slot>]
+hmz epic stop [--force] [-w <dir>] [--slot <slot>]
+hmz epic board [<key> [<value>]] [--remove] [-w <dir>] [--slot <slot>]
+hmz epic claim [<role>]... [--take] [--no-replay] [-w <dir>] [--slot <slot>]
+hmz epic release <role> [-w <dir>] [--slot <slot>]
+hmz epic afk [<role>] [--back] [-w <dir>] [--slot <slot>]
+hmz epic status [-w <dir>] [--slot <slot>]
+hmz hosts list [--running]
+hmz hosts stop [-w <dir>] [--slot <slot>]
+```
+
+**18.1.1** `hmz epic` and `hmz hosts` MUST each be a group of declared commands (Section 16), with
+the summaries `start, follow and steer an epic held by this daemon` and `list and close the hosts
+this daemon holds epics and chats in`.
+
+**18.1.2** `-w` and `--workspace` MUST be the same option. Every command that takes it MUST name a
+host (Section 4.6 of [DAEMON]) by `workspace`, the directory `-w` gives as a whole path with its
+links followed, or the current directory where it is absent, and by `slot`, what `--slot` gives, or `""` where it is absent.
+
+**18.1.3** A command of `hmz epic` other than `status` MUST attach to that host as one frontend
+(`epic.attach` with `replay` false but where its paragraph states otherwise, Section 4.7.1 of
+[DAEMON]), make its calls on the epic subscription that opens, and let the frontend go
+(`epic.detach`) before it exits, however it ends. `hmz epic status` and the commands of `hmz hosts`
+MUST NOT attach to a host.
+
+**18.1.4** A command of `hmz epic` other than `start` and `status` MUST first call `hosts.status`
+for that host and MUST NOT attach where it is refused: only `hmz epic start` starts a host.
+
+**18.1.5** `hmz epic start`, `hmz epic attach` and `hmz epic claim` MUST exit with status 130 where
+they are interrupted, and MUST NOT stop the epic by it.
+
+**18.1.6** A refusal of the daemon or of the host MUST be written and exited with as Section 16
+states, in the words it was refused with.
+
+### 18.2. `hmz epic start`
+
+**18.2.1** `hmz epic start` MUST call `epic.start` (Section 4.8.2 of [DAEMON]) with `flow`
+`<flow>`, `task` `<task>`, or `""` where it is absent, and what its options give, and MUST exit as
+soon as the call is answered unless `--follow` is given; the epic MUST go on without it. It MUST
+write one line naming the epic's number, its workspace and, where it is not `""`, its slot. Its JSON
+document MUST be `{"run": <n>, "slot": <slot>, "workspace": <path>}`, as `epic.start` answered them.
+
+**18.2.2** `-a` and `--agents`, `-e` and `--envs`, and `-p` and `--params` MUST each be the same
+option, each accepted any number of times. Each `-a` and `-e` value MUST be one or more
+`<role>=<spec>` items, separated by a comma that a role and `=` follow, and MUST be sent as `agents`
+and `envs`, each `<spec>` unchanged under its `<role>`; an item that is not `<role>=<spec>`, and a
+role given twice by one of the two options, MUST be a usage error. Each `-p` value MUST be read as Section 7.6 states: the params that are not `budget.`
+limits MUST be sent as `params`, each value as text, and the limits as `budget`; a `-p` Section 7.6
+makes a usage error MUST be one here. Where no `-p` gives a param, `params` MUST NOT be sent, and
+where none gives a limit, `budget` MUST NOT be sent.
+
+**18.2.3** `--resume` MUST send `resume` true and `--resume-from <epic>` MUST send `resume`
+`<epic>`; `--backup`, accepted any number of times, MUST send `backup` the targets given, and
+`--no-backup` MUST send `backup` `[]`; `--profile-flow`, `--profile-environment` and `--remember`
+MUST send `profile_flow`, `profile_environment` and `remember` true. What no option gives MUST NOT
+be sent.
+
+**18.2.4** `--scratch` MUST attach with `scratch` true and no `workspace` (Section 4.7.1.3 of
+[DAEMON]). `--slot exec:` MUST attach to a new exec slot (Section 4.7.1.2 of [DAEMON]).
+
+**18.2.5** `--away` MUST call `epic.afk` with `on` true and no `role` before `epic.start`, unless
+the `away` snapshot sent on attach says every role is away already; where `epic.start` is then
+refused, it MUST call `epic.afk` with `on` false if it had called it with `on` true.
+
+**18.2.6** With `--follow`, `hmz epic start` MUST, once the epic has started, write what Section
+18.3 states of every message from then on until the epic's `ended`, and exit as Section 18.3.4
+states. Under `--json` it MUST first write the JSON document of Section 18.2.1 on a line of its own.
+
+**18.2.7** A usage error of Section 18.2.2 under `--json` MUST be written as the document
+`{"error": {"code": 400, "message": <what is wrong>}}`.
+
+### 18.3. `hmz epic attach`
+
+**18.3.1** `hmz epic attach` MUST attach with `replay` true, or false where `--no-replay` is given,
+and MUST write each message of the host (Section 4.9 of [DAEMON]) as it comes: the history records
+kept first, and then what happens.
+
+**18.3.2** Under `--json`, in place of the one document of Section 16.7, it MUST write every
+message as one JSON object and a line feed to standard output, unchanged and in the order the host
+sent them, and nothing to standard error.
+
+**18.3.3** Without `--json`, it MUST write each `event` as `hmz exec` writes it (Section 7.12), each
+`printed` line to standard output, and to standard error a line for each `started`, `asked`,
+`answered`, `said`, `withdrawn`, `stopping`, `notice`, `ended` and `gone`; the line of an `asked`
+MUST name its role and its question id and be followed by each option, numbered from 1, and by its
+schema as JSON where it has one, and the line of an `ended` MUST say how it ended, followed by
+its `why` where that is not empty.
+
+**18.3.4** It MUST exit once `live` has come where the `run` snapshot says no epic is going or
+stopping, with status 0; otherwise at the first `ended` after `live`, with status 1 where its `how`
+is `failed`, `crashed` or `refused` and 0 otherwise; with status 1 at `gone`, and where the session
+ends first; and with status 130 where it is interrupted. Its exiting MUST NOT stop the epic.
+
+### 18.4. `hmz epic say`, `answer`, `stop` and `board`
+
+**18.4.1** `hmz epic say <text>` MUST call `epic.say` with `text` and, where `--to` is given, `to`.
+Its JSON document MUST be `{"text": <text>, "to": <who or "">}`.
+
+**18.4.2** `hmz epic answer` MUST call `epic.answer` with `question` the id `-q` or `--question`
+gives, `text` `<text>` where it is given, and `value` the JSON `--value` gives where it is given; a
+`--value` that is not JSON MUST be a usage error. Where no id is given it MUST read `pending` of
+`epic.status` and answer the one question there; it MUST refuse, with status 1 and code 409, where
+none waits and where more than one does, naming their ids. Its JSON document MUST be `{"question":
+<id>}`.
+
+**18.4.3** `hmz epic stop` MUST call `epic.stop`, or with `--force` `epic.force`. Its JSON document
+MUST be `{"forced": <boolean>, "closed": <n>}`, `closed` being what `epic.force` answered, and 0
+without `--force`.
+
+**18.4.4** `hmz epic board <key> <value>` MUST call `epic.board` with `key` and `value`, and `hmz
+epic board <key> --remove` with `value` `""`; the JSON document of each MUST be `{"key": <key>,
+"value": <value or "">}`. `--remove` with no `<key>` MUST be a usage error. Otherwise `hmz epic
+board` MUST read the messages sent on attach up to `live`, refusing with status 1 where the host
+lets go before it, and write the `items` of the `board` snapshot among them, those whose `key` is `<key>`
+where one is given: one line each with its key, its value, whose it is and who wrote it, in
+columns. Its JSON document MUST then be `{"items": [...]}`, each item as the snapshot holds it,
+or `{"items": null}` for an epic with no board.
+
+### 18.5. `hmz epic claim`, `release`, `afk` and `status`
+
+**18.5.1** `hmz epic claim <role>...` MUST call `epic.claim` for each role, with `take` true where
+`--take` is given, and MUST then write the host's messages as `hmz epic attach` does, with
+`--no-replay` as there, until the first `ended` after `live`, exiting as Section 18.3.4 states
+except that it MUST NOT exit for no epic going. While it runs, each line read from standard input
+that is not empty MUST answer (`epic.answer` with `text`) the oldest question of the last `pending`
+snapshot whose role is one it claimed and which it has not answered, the lines in the order read;
+an answer refused with code 400 MUST leave its question to the next line, and one refused
+otherwise MUST leave it to the next `pending` snapshot to say whether it still waits. The claims end with the
+command (Section 4.10.2.2 of [DAEMON]).
+
+**18.5.2** `hmz epic release <role>` MUST call `epic.claim` with `take` true and then
+`epic.release`, so that no frontend claims the role. Its JSON document MUST be `{"role": <role>}`.
+
+**18.5.3** `hmz epic afk [<role>]` MUST call `epic.afk` with `on` true, or false where `--back` is
+given, and `role` where one is given. Its JSON document MUST be `{"away": <boolean>, "role": <role
+or "">}`.
+
+**18.5.4** `hmz epic status` MUST call `hosts.status` and write one line with the host's `state`,
+`flow`, `epic` and `task`, and then one line for each question of `pending`: its id, its role and
+its text. Its JSON document MUST hold `workspace`, `slot`, `pid`, `started`, `state`, `run`,
+`epic_kind`, `flow`, `epic`, `chat`, `task`, `pending`, `ended`, `attached`, `clients`, `budget`,
+`usage`, `flows` and `calls`, each as `hosts.status` answered it (Section 4.6.4 of [DAEMON]), or
+`null` where it answered none.
+
+### 18.6. `hmz hosts`
+
+**18.6.1** `hmz hosts list` MUST call `hosts.list` and `hosts.running` and write one line per host
+of `hosts.list`, in its order: its workspace, its slot, its state, its flow and its task, in
+columns. Its JSON document MUST be `{"hosts": [{"workspace", "slot", "pid", "started", "state",
+"kind", "flow", "epic", "chat", "task", "asking"}]}`: `state`, `kind`, `flow`, `epic`, `chat`,
+`task` and `asking` as `hosts.running` says them of that workspace and slot, and `idle`, `""` and
+`[]` for a host it does not name. With `--running`, only the hosts `hosts.running` names MUST be
+written.
+
+**18.6.2** `hmz hosts stop` MUST call `hosts.stop` with the workspace and slot of Section 18.1.2.
+Its JSON document MUST be `{"workspace": <path>, "slot": <slot>}`.
 
 ## 19. `hmz runs`
 

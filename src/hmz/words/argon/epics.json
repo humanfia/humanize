@@ -1,0 +1,901 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz epic`: start, follow and steer an epic held by this daemon",
+   "where": "command summary in a --help listing",
+   "text": "start, follow and steer an epic held by this daemon"
+  },
+  {
+   "wants": "paragraph for `hmz epic`: An epic is one run of a flow, held by the daemon on a host of its workspace. These commands start one, follow it, say lines to its agents, answer its questions and stop it. Each names the epic by `--workspace` and `--slot`; without them, the epic of the current directory's own host. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "An epic is one run of a flow, held by the daemon on a host of its workspace. These commands start one, follow it, say lines to its agents, answer its questions and stop it. Each names the epic by `--workspace` and `--slot`; without them, the epic of the current directory's own host."
+  },
+  {
+   "wants": "summary of `hmz epic start`: start an epic on the daemon and return at once",
+   "where": "command summary in a --help listing",
+   "text": "start an epic on the daemon and return at once"
+  },
+  {
+   "wants": "paragraph for `hmz epic start`: Starts a flow as a new epic held by the daemon, and returns as soon as it has started; the epic runs on without this command. Roles, environments, params and the budget are written as `hmz exec` takes them. Questions the epic asks wait for `hmz epic answer`, unless `--away` is given. `--slot exec:` gives it a host of its own, beside any other epic of the workspace. `--follow` stays and writes the epic as `hmz epic attach` does, and exits with status 1 where the epic failed. -- keep every `{name}` in braces and everything in backticks exactly; up to 90 words",
+   "where": "paragraph of --help",
+   "text": "Starts a flow as a new epic held by the daemon, and returns as soon as it has started; the epic runs on without this command. Roles, environments, params and the budget are written as `hmz exec` takes them. Questions the epic asks wait for `hmz epic answer`, unless `--away` is given. `--slot exec:` gives it a host of its own, beside any other epic of the workspace. `--follow` stays and writes the epic as `hmz epic attach` does, and exits with status 1 where the epic failed."
+  },
+  {
+   "wants": "what `hmz epic start` prints as text: One line naming the epic's number, workspace and slot. With `--follow`, that line and then what `hmz epic attach` prints. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line naming the epic's number, workspace and slot. With `--follow`, that line and then what `hmz epic attach` prints."
+  },
+  {
+   "wants": "the `flow` argument of `hmz epic start`: the flow to run: an installed flow's name, a path or a ref",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the flow to run: an installed flow's name, a path or a ref"
+  },
+  {
+   "wants": "the `task` argument of `hmz epic start`: what the epic is to do",
+   "where": "argument description, lower case start, no full stop",
+   "text": "what the epic is to do"
+  },
+  {
+   "wants": "the `-a, --agents ROLE=SPEC` argument of `hmz epic start`: what an agent role runs, as `<harness>[@<account>]/<model>[:<effort>]` or a nous name -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "what an agent role runs, as `<harness>[@<account>]/<model>[:<effort>]` or a nous name"
+  },
+  {
+   "wants": "the `-e, --envs ROLE=SPEC` argument of `hmz epic start`: where an environment role is, as `<backend>[@<runtime>][/<directory>]` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "where an environment role is, as `<backend>[@<runtime>][/<directory>]`"
+  },
+  {
+   "wants": "the `-p, --params KEY=VALUE` argument of `hmz epic start`: a param of the flow, or a limit of the budget as `budget.cost=5`, `budget.duration=30m` or `budget.output_tokens=200k` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "a param of the flow, or a limit of the budget as `budget.cost=5`, `budget.duration=30m` or `budget.output_tokens=200k`"
+  },
+  {
+   "wants": "the `--resume` argument of `hmz epic start`: pick up the newest epic of this flow in the workspace",
+   "where": "argument description, lower case start, no full stop",
+   "text": "pick up the newest epic of this flow in the workspace"
+  },
+  {
+   "wants": "the `--resume-from EPIC` argument of `hmz epic start`: pick up this epic, named as `hmz runs list` prints it -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "pick up this epic, named as `hmz runs list` prints it"
+  },
+  {
+   "wants": "the `--backup NAME` argument of `hmz epic start`: a backup target the epic goes to, in place of the defaults",
+   "where": "argument description, lower case start, no full stop",
+   "text": "a backup target the epic goes to, in place of the defaults"
+  },
+  {
+   "wants": "the `--no-backup` argument of `hmz epic start`: back the epic up to no target",
+   "where": "argument description, lower case start, no full stop",
+   "text": "back the epic up to no target"
+  },
+  {
+   "wants": "the `--profile-flow` argument of `hmz epic start`: sample the flow's own Python as it runs",
+   "where": "argument description, lower case start, no full stop",
+   "text": "sample the flow's own Python as it runs"
+  },
+  {
+   "wants": "the `--profile-environment` argument of `hmz epic start`: profile the programs the agents start",
+   "where": "argument description, lower case start, no full stop",
+   "text": "profile the programs the agents start"
+  },
+  {
+   "wants": "the `--remember` argument of `hmz epic start`: keep these roles, params and budget as the workspace's set-up of the flow",
+   "where": "argument description, lower case start, no full stop",
+   "text": "keep these roles, params and budget as the workspace's set-up of the flow"
+  },
+  {
+   "wants": "the `--scratch` argument of `hmz epic start`: run in a new folderless workspace instead of `--workspace` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "run in a new folderless workspace instead of `--workspace`"
+  },
+  {
+   "wants": "the `--away` argument of `hmz epic start`: set every role away first, so that no question waits on a person",
+   "where": "argument description, lower case start, no full stop",
+   "text": "set every role away first, so that no question waits on a person"
+  },
+  {
+   "wants": "the `--follow` argument of `hmz epic start`: stay attached and write the epic until it ends",
+   "where": "argument description, lower case start, no full stop",
+   "text": "stay attached and write the epic until it ends"
+  },
+  {
+   "wants": "the `-w, --workspace DIR` argument of `hmz epic start`: the workspace of the epic, a directory of the daemon's machine, or the current directory",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the workspace of the epic, a directory of the daemon's machine, or the current directory"
+  },
+  {
+   "wants": "the `--slot SLOT` argument of `hmz epic start`: the slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host"
+  },
+  {
+   "wants": "what the example line `hmz epic start goal 'fix the failing test' -a worker=claude/claude-haiku-4-5:low -p budget.cost=2` does: start the flow `goal` in the current directory and return -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "start the flow `goal` in the current directory and return"
+  },
+  {
+   "wants": "what the example line `hmz epic start goal 'fix it' -p budget.cost=2 --slot exec: --away --follow --json` does: start it on a new slot beside other epics, with nobody to ask, and write its messages as JSON lines until it ends",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "start it on a new slot beside other epics, with nobody to ask, and write its messages as JSON lines until it ends"
+  },
+  {
+   "wants": "what the example line `hmz epic start goal --resume -p budget.duration=1h` does: pick up the newest epic of `goal` here with an hour more -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "pick up the newest epic of `goal` here with an hour more"
+  },
+  {
+   "wants": "JSON field `run` (integer) of `hmz epic start --json`: the epic's number on its host",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the epic's number on its host"
+  },
+  {
+   "wants": "JSON field `slot` (string) of `hmz epic start --json`: the slot of the host that holds it, to pass as `--slot` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the slot of the host that holds it, to pass as `--slot`"
+  },
+  {
+   "wants": "JSON field `workspace` (string) of `hmz epic start --json`: the workspace it runs in, to pass as `--workspace` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the workspace it runs in, to pass as `--workspace`"
+  },
+  {
+   "wants": "exit status 130 of `hmz epic start`: interrupted while following; the epic goes on",
+   "where": "meaning of an exit status, lower case start, no full stop",
+   "text": "interrupted while following; the epic goes on"
+  },
+  {
+   "wants": "summary of `hmz epic attach`: follow an epic as it runs",
+   "where": "command summary in a --help listing",
+   "text": "follow an epic as it runs"
+  },
+  {
+   "wants": "paragraph for `hmz epic attach`: Writes what the epic has done so far and then what it does, until it ends. Leaving with Ctrl-C does not stop the epic. Exits with status 1 where the epic failed. With `--json`, writes one JSON object a line, each a message of the host told apart by its `type`. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Writes what the epic has done so far and then what it does, until it ends. Leaving with Ctrl-C does not stop the epic. Exits with status 1 where the epic failed. With `--json`, writes one JSON object a line, each a message of the host told apart by its `type`."
+  },
+  {
+   "wants": "what `hmz epic attach` prints as text: What each agent does on standard error and each answer on standard output, as `hmz exec` prints them, with the questions asked and how the epic ended. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "What each agent does on standard error and each answer on standard output, as `hmz exec` prints them, with the questions asked and how the epic ended."
+  },
+  {
+   "wants": "the `--no-replay` argument of `hmz epic attach`: write only what happens from now on, not what the epic has done",
+   "where": "argument description, lower case start, no full stop",
+   "text": "write only what happens from now on, not what the epic has done"
+  },
+  {
+   "wants": "what the example line `hmz epic attach` does: follow the epic of this directory",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "follow the epic of this directory"
+  },
+  {
+   "wants": "what the example line `hmz epic attach --slot exec:1f2e --no-replay --json : print each question an epic on another slot asks from now on",
+   "where": " jq -c 'select(.type == \"asked\")'` does|what an example line does, lower case start, no full stop",
+   "text": "print each question an epic on another slot asks from now on"
+  },
+  {
+   "wants": "JSON field `type` (string) of `hmz epic attach --json`: what the message is: `welcome`, `live`, `gone`, a history record such as `started`, `event`, `asked`, `answered` or `ended`, or a snapshot such as `run`, `pending` or `board` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the message is: `welcome`, `live`, `gone`, a history record such as `started`, `event`, `asked`, `answered` or `ended`, or a snapshot such as `run`, `pending` or `board`"
+  },
+  {
+   "wants": "JSON field `seq` (integer) of `hmz epic attach --json`: of a history record, its place in the host's history",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "of a history record, its place in the host's history"
+  },
+  {
+   "wants": "JSON field `run` (integer) of `hmz epic attach --json`: of a history record, the epic's number",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "of a history record, the epic's number"
+  },
+  {
+   "wants": "JSON field `question` (string) of `hmz epic attach --json`: of `asked`, the id to answer it by with `hmz epic answer` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "of `asked`, the id to answer it by with `hmz epic answer`"
+  },
+  {
+   "wants": "JSON field `how` (string) of `hmz epic attach --json`: of `ended`: `done`, `stopped`, `budget`, `refused`, `failed` or `crashed` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "of `ended`: `done`, `stopped`, `budget`, `refused`, `failed` or `crashed`"
+  },
+  {
+   "wants": "summary of `hmz epic say`: say a line to an agent of the epic",
+   "where": "command summary in a --help listing",
+   "text": "say a line to an agent of the epic"
+  },
+  {
+   "wants": "paragraph for `hmz epic say`: Says a line to the epic that is going. Without `--to` it answers a question that is listening, or else goes to the first agent with a turn open; a line that cannot go in yet waits for the agent's next turn. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Says a line to the epic that is going. Without `--to` it answers a question that is listening, or else goes to the first agent with a turn open; a line that cannot go in yet waits for the agent's next turn."
+  },
+  {
+   "wants": "what `hmz epic say` prints as text: One line once the host has taken it.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line once the daemon has taken it."
+  },
+  {
+   "wants": "the `text` argument of `hmz epic say`: the line to say",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the line to say"
+  },
+  {
+   "wants": "the `--to WHO` argument of `hmz epic say`: who the line is for: an agent's name, a session as `<agent>/<n>`, or `outworlder:<role>` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "who the line is for: an agent's name, a session as `<agent>/<n>`, or `outworlder:<role>`"
+  },
+  {
+   "wants": "what the example line `hmz epic say 'use the staging database'` does: say a line to the agent working now",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "say a line to the agent working now"
+  },
+  {
+   "wants": "what the example line `hmz epic say --to NeiKos 'skip the migration'` does: say a line to the agent named NeiKos",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "say a line to the agent named NeiKos"
+  },
+  {
+   "wants": "JSON field `text` (string) of `hmz epic say --json`: the line said",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the line said"
+  },
+  {
+   "wants": "JSON field `to` (string) of `hmz epic say --json`: who it was said to, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "who it was said to, or empty"
+  },
+  {
+   "wants": "summary of `hmz epic answer`: answer a question the epic is waiting on",
+   "where": "command summary in a --help listing",
+   "text": "answer a question the epic is waiting on"
+  },
+  {
+   "wants": "paragraph for `hmz epic answer`: Answers a question the epic asked a person. Without `--question` it answers the only one waiting. The answer is text, the number of an offered option, or for a question with a schema a JSON value given as `--value`; one that does not fit is refused and the question stays. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Answers a question the epic asked a person. Without `--question` it answers the only one waiting. The answer is text, the number of an offered option, or for a question with a schema a JSON value given as `--value`; one that does not fit is refused and the question stays."
+  },
+  {
+   "wants": "what `hmz epic answer` prints as text: One line once the answer is taken.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line once the answer is taken."
+  },
+  {
+   "wants": "the `text` argument of `hmz epic answer`: the answer in words",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the answer in words"
+  },
+  {
+   "wants": "the `-q, --question ID` argument of `hmz epic answer`: the id of the question, as `hmz epic status` prints it -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the id of the question, as `hmz epic status` prints it"
+  },
+  {
+   "wants": "the `--value JSON` argument of `hmz epic answer`: the answer as a JSON value of the question's schema, in place of the text",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the answer as a JSON value of the question's schema, in place of the text"
+  },
+  {
+   "wants": "what the example line `hmz epic answer yes` does: answer the only question waiting",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "answer the only question waiting"
+  },
+  {
+   "wants": "what the example line `hmz epic answer -q q3 --value '{\"verdict\": \"approve\"}'` does: answer question q3 with a value of its schema",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "answer question q3 with a value of its schema"
+  },
+  {
+   "wants": "JSON field `question` (string) of `hmz epic answer --json`: the id of the question answered",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the id of the question answered"
+  },
+  {
+   "wants": "summary of `hmz epic stop`: stop the epic",
+   "where": "command summary in a --help listing",
+   "text": "stop the epic"
+  },
+  {
+   "wants": "paragraph for `hmz epic stop`: Stops the epic: the turn under way is interrupted and the flow unwinds. `--force` also closes every session still in a turn, for an epic that does not stop. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Stops the epic: the turn under way is interrupted and the flow unwinds. `--force` also closes every session still in a turn, for an epic that does not stop."
+  },
+  {
+   "wants": "what `hmz epic stop` prints as text: One line; with `--force`, how many sessions were closed. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line; with `--force`, how many sessions were closed."
+  },
+  {
+   "wants": "the `--force` argument of `hmz epic stop`: stop it and close every session that has a turn open",
+   "where": "argument description, lower case start, no full stop",
+   "text": "stop it and close every session that has a turn open"
+  },
+  {
+   "wants": "what the example line `hmz epic stop` does: stop the epic of this directory",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "stop the epic of this folder"
+  },
+  {
+   "wants": "what the example line `hmz epic stop --force --slot exec:1f2e` does: force an epic on another slot that is still stopping",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "force an epic on another slot that is still stopping"
+  },
+  {
+   "wants": "JSON field `forced` (boolean) of `hmz epic stop --json`: whether `--force` was given -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether `--force` was given"
+  },
+  {
+   "wants": "JSON field `closed` (integer) of `hmz epic stop --json`: how many sessions `--force` closed -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many sessions `--force` closed"
+  },
+  {
+   "wants": "summary of `hmz epic board`: read the epic's board, or write a line of it",
+   "where": "command summary in a --help listing",
+   "text": "read the epic's board, or write a line of it"
+  },
+  {
+   "wants": "paragraph for `hmz epic board`: The board is the lines an epic keeps for its agents and its user. With no argument this prints it; with a key, that line; with a key and a value it writes the line as the user; `--remove` removes it. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "The board is the lines an epic keeps for its agents and its person. With no argument this prints it; with a key, that line; with a key and a value it writes the line as the person; `--remove` removes it."
+  },
+  {
+   "wants": "what `hmz epic board` prints as text: One line per board line: key, value, whose it is and who wrote it. After writing or removing, one line saying so.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line per board line: key, value, whose it is and who wrote it. After writing or removing, one line saying so."
+  },
+  {
+   "wants": "the `key` argument of `hmz epic board`: the key of one line",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the key of one line"
+  },
+  {
+   "wants": "the `value` argument of `hmz epic board`: what to write on that line",
+   "where": "argument description, lower case start, no full stop",
+   "text": "what to write on that line"
+  },
+  {
+   "wants": "the `--remove` argument of `hmz epic board`: remove the line instead of writing it",
+   "where": "argument description, lower case start, no full stop",
+   "text": "remove the line instead of writing it"
+  },
+  {
+   "wants": "what the example line `hmz epic board` does: print the board",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the board"
+  },
+  {
+   "wants": "what the example line `hmz epic board deadline 'ship by Friday'` does: write the line `deadline` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write the line `deadline`"
+  },
+  {
+   "wants": "what the example line `hmz epic board deadline --remove` does: remove that line",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "remove that line"
+  },
+  {
+   "wants": "JSON field `items` (list: when reading: the board's lines, or null where the epic has no board",
+   "where": "null) of `hmz epic board --json`|description of one field of a JSON document, lower case start, no full stop",
+   "text": "when reading: the board's lines, or null where the epic has no board"
+  },
+  {
+   "wants": "JSON field `items[].key` (string) of `hmz epic board --json`: the key of the line",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the key of the line"
+  },
+  {
+   "wants": "JSON field `items[].value` (string) of `hmz epic board --json`: what the line says",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the line says"
+  },
+  {
+   "wants": "JSON field `items[].about` (string) of `hmz epic board --json`: what the line is about",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the line is about"
+  },
+  {
+   "wants": "JSON field `items[].whose` (string) of `hmz epic board --json`: whose line it is: the user's or the flow's",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whose line it is: the person's or the flow's"
+  },
+  {
+   "wants": "JSON field `items[].by` (string) of `hmz epic board --json`: who last wrote it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "who last wrote it"
+  },
+  {
+   "wants": "JSON field `items[].at` (number) of `hmz epic board --json`: when it was last written, seconds since the Unix epoch",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when it was last written, seconds since the Unix epoch"
+  },
+  {
+   "wants": "JSON field `key` (string) of `hmz epic board --json`: when writing: the key of the line",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when writing: the key of the line"
+  },
+  {
+   "wants": "JSON field `value` (string) of `hmz epic board --json`: when writing: what was written, empty where removed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when writing: what was written, empty where removed"
+  },
+  {
+   "wants": "summary of `hmz epic claim`: claim roles and answer their questions from standard input",
+   "where": "command summary in a --help listing",
+   "text": "claim roles and answer their questions from standard input"
+  },
+  {
+   "wants": "paragraph for `hmz epic claim`: Claims one or more roles for as long as this command runs, so that no other frontend answers for them, and follows the epic as `hmz epic attach` does. Each line typed on standard input answers the oldest question waiting on those roles. The roles are released when the command ends. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Claims one or more roles for as long as this command runs, so that no other frontend answers for them, and follows the epic as `hmz epic attach` does. Each line typed on standard input answers the oldest question waiting on those roles. The roles are released when the command ends."
+  },
+  {
+   "wants": "what `hmz epic claim` prints as text: What `hmz epic attach` prints. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "What `hmz epic attach` prints."
+  },
+  {
+   "wants": "the `role` argument of `hmz epic claim`: a role to claim",
+   "where": "argument description, lower case start, no full stop",
+   "text": "a role to claim"
+  },
+  {
+   "wants": "the `--take` argument of `hmz epic claim`: take a role from the frontend that claims it now",
+   "where": "argument description, lower case start, no full stop",
+   "text": "take a role from the frontend that claims it now"
+  },
+  {
+   "wants": "what the example line `hmz epic claim reviewer` does: answer for `reviewer` from this terminal until the epic ends -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "answer for `reviewer` from this terminal until the epic ends"
+  },
+  {
+   "wants": "what the example line `printf 'approve\\n' : take `reviewer`, answer its next question with `approve`, and write the epic's messages as JSON lines -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": " hmz epic claim reviewer --take --json` does|what an example line does, lower case start, no full stop",
+   "text": "take `reviewer`, answer its next question with `approve`, and write the epic's messages as JSON lines"
+  },
+  {
+   "wants": "JSON field `type` (string) of `hmz epic claim --json`: what the message is, as `hmz epic attach --json` writes it -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the message is, as `hmz epic attach --json` writes it"
+  },
+  {
+   "wants": "summary of `hmz epic release`: release a role another frontend claims",
+   "where": "command summary in a --help listing",
+   "text": "release a role another frontend claims"
+  },
+  {
+   "wants": "paragraph for `hmz epic release`: Takes a role from whichever frontend claims it and releases it, so that any frontend may answer its questions again.",
+   "where": "paragraph of --help",
+   "text": "Takes a role from whichever frontend claims it and releases it, so that any frontend may answer its questions again."
+  },
+  {
+   "wants": "what `hmz epic release` prints as text: One line naming the role released.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line naming the role released."
+  },
+  {
+   "wants": "the `role` argument of `hmz epic release`: the role to release",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the role to release"
+  },
+  {
+   "wants": "what the example line `hmz epic release reviewer` does: free `reviewer` from a window that was left open -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "free `reviewer` from a window that was left open"
+  },
+  {
+   "wants": "JSON field `role` (string) of `hmz epic release --json`: the role released",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the role released"
+  },
+  {
+   "wants": "summary of `hmz epic afk`: set a role, or every role, away or back",
+   "where": "command summary in a --help listing",
+   "text": "set a role, or every role, away or back"
+  },
+  {
+   "wants": "paragraph for `hmz epic afk`: A role that is away is not asked: its questions are answered with nothing at once, so the epic does not wait on a person. Away stays set after this command ends, until `--back`. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "A role that is away is not asked: its questions are answered with nothing at once, so the epic does not wait on a person. Away stays set after this command ends, until `--back`."
+  },
+  {
+   "wants": "what `hmz epic afk` prints as text: One line: away or back.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line: away or back."
+  },
+  {
+   "wants": "the `role` argument of `hmz epic afk`: the role, or every role",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the role, or every role"
+  },
+  {
+   "wants": "the `--back` argument of `hmz epic afk`: set it back instead of away",
+   "where": "argument description, lower case start, no full stop",
+   "text": "set it back instead of away"
+  },
+  {
+   "wants": "what the example line `hmz epic afk` does: set every role away",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "set every role away"
+  },
+  {
+   "wants": "what the example line `hmz epic afk reviewer --back` does: set `reviewer` back -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "set `reviewer` back"
+  },
+  {
+   "wants": "JSON field `away` (boolean) of `hmz epic afk --json`: whether it was set away",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether it was set away"
+  },
+  {
+   "wants": "JSON field `role` (string) of `hmz epic afk --json`: the role, or empty for every role",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the role, or empty for every role"
+  },
+  {
+   "wants": "summary of `hmz epic status`: show what the epic's host is doing and which questions wait",
+   "where": "command summary in a --help listing",
+   "text": "show what the epic's host is doing and which questions wait"
+  },
+  {
+   "wants": "paragraph for `hmz epic status`: Reads the status of the host without attaching to it: whether an epic is running, stopping or idle, which flow and task, and every question waiting on a person.",
+   "where": "paragraph of --help",
+   "text": "Reads the status of the host without attaching to it: whether an epic is running, stopping or idle, which flow and task, and every question waiting on a person."
+  },
+  {
+   "wants": "what `hmz epic status` prints as text: One line with the state, flow, epic and task, then one line per waiting question: its id, role and text.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line with the state, flow, epic and task, then one line per waiting question: its id, role and text."
+  },
+  {
+   "wants": "what the example line `hmz epic status` does: show the epic of this directory",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "show the epic of this folder"
+  },
+  {
+   "wants": "what the example line `hmz epic status --json : print the ids of the questions waiting",
+   "where": " jq -r '.pending[].question'` does|what an example line does, lower case start, no full stop",
+   "text": "print the ids of the questions waiting"
+  },
+  {
+   "wants": "JSON field `workspace` (string) of `hmz epic status --json`: the host's workspace",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host's workspace"
+  },
+  {
+   "wants": "JSON field `slot` (string) of `hmz epic status --json`: the host's slot",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host's slot"
+  },
+  {
+   "wants": "JSON field `pid` (integer) of `hmz epic status --json`: the host's process id",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host's process id"
+  },
+  {
+   "wants": "JSON field `started` (string) of `hmz epic status --json`: when the host started, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when the host started, ISO 8601"
+  },
+  {
+   "wants": "JSON field `state` (string) of `hmz epic status --json`: `running`, `stopping` or `idle` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`running`, `stopping` or `idle`"
+  },
+  {
+   "wants": "JSON field `run` (integer) of `hmz epic status --json`: the number of the epic going, else of the last, or 0",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the number of the epic going, else of the last, or 0"
+  },
+  {
+   "wants": "JSON field `epic_kind` (string) of `hmz epic status --json`: `flow` for an epic, `chat` for a chat, or empty for none -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`flow` for an epic, `chat` for a chat, or empty for none"
+  },
+  {
+   "wants": "JSON field `flow` (string) of `hmz epic status --json`: the epic's flow, as it was named",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the epic's flow, as it was named"
+  },
+  {
+   "wants": "JSON field `epic` (string) of `hmz epic status --json`: the name the epic is recorded under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the epic is recorded under"
+  },
+  {
+   "wants": "JSON field `chat` (string) of `hmz epic status --json`: the chat's name, on a chat's host",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's name, on a chat's host"
+  },
+  {
+   "wants": "JSON field `task` (string) of `hmz epic status --json`: the epic's task",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the epic's task"
+  },
+  {
+   "wants": "JSON field `pending` (list) of `hmz epic status --json`: the questions waiting on a person",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the questions waiting on a person"
+  },
+  {
+   "wants": "JSON field `pending[].question` (string) of `hmz epic status --json`: the question's id",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the question's id"
+  },
+  {
+   "wants": "JSON field `pending[].role` (string) of `hmz epic status --json`: the role it is asked of",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the role it is asked of"
+  },
+  {
+   "wants": "JSON field `pending[].text` (string) of `hmz epic status --json`: what is asked",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what is asked"
+  },
+  {
+   "wants": "JSON field `pending[].mode` (string) of `hmz epic status --json`: `ask` for a question, `listen` for one any line answers -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`ask` for a question, `listen` for one any line answers"
+  },
+  {
+   "wants": "JSON field `ended` (object: how the last epic on this host ended, with `how` and `why`, or null -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "null) of `hmz epic status --json`|description of one field of a JSON document, lower case start, no full stop",
+   "text": "how the last epic on this host ended, with `how` and `why`, or null"
+  },
+  {
+   "wants": "JSON field `attached` (integer) of `hmz epic status --json`: how many frontends are attached",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many frontends are attached"
+  },
+  {
+   "wants": "JSON field `clients` (list) of `hmz epic status --json`: the frontends attached, each with `client`, `name` and `kind` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the frontends attached, each with `client`, `name` and `kind`"
+  },
+  {
+   "wants": "JSON field `budget` (object: the budget of the epic going, or null",
+   "where": "null) of `hmz epic status --json`|description of one field of a JSON document, lower case start, no full stop",
+   "text": "the budget of the epic going, or null"
+  },
+  {
+   "wants": "JSON field `usage` (object: what the epic going has spent, or null",
+   "where": "null) of `hmz epic status --json`|description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the epic going has spent, or null"
+  },
+  {
+   "wants": "JSON field `flows` (list) of `hmz epic status --json`: the refs of the flow calls in progress",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the refs of the flow calls in progress"
+  },
+  {
+   "wants": "JSON field `calls` (list) of `hmz epic status --json`: the flow calls in progress, oldest first",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flow calls in progress, oldest first"
+  },
+  {
+   "wants": "summary of `hmz hosts`: list and close the hosts this daemon holds epics and chats in",
+   "where": "command summary in a --help listing",
+   "text": "list and close the hosts this daemon holds epics and chats in"
+  },
+  {
+   "wants": "paragraph for `hmz hosts`: A host is the process the daemon holds one workspace's epic, or one chat, in. It is named by its workspace and its slot: empty for the workspace's own host, `exec:<id>` for an epic beside it, `chat:<id>` for a chat. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "A host is the process the daemon holds one workspace's epic, or one chat, in. It is named by its workspace and its slot: empty for the workspace's own host, `exec:<id>` for an epic beside it, `chat:<id>` for a chat."
+  },
+  {
+   "wants": "summary of `hmz hosts list`: list the hosts and what each is running",
+   "where": "command summary in a --help listing",
+   "text": "list the hosts and what each is running"
+  },
+  {
+   "wants": "what `hmz hosts list` prints as text: One line per host: workspace, slot, state, flow and task.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line per host: workspace, slot, state, flow and task."
+  },
+  {
+   "wants": "the `--running` argument of `hmz hosts list`: list only hosts whose epic or chat is running or stopping",
+   "where": "argument description, lower case start, no full stop",
+   "text": "list only hosts whose epic or chat is running or stopping"
+  },
+  {
+   "wants": "what the example line `hmz hosts list` does: list every host of this daemon",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list every host of this daemon"
+  },
+  {
+   "wants": "what the example line `hmz hosts list --running --json : print the workspaces whose epics wait on an answer",
+   "where": " jq -r '.hosts[] | select(.asking != []) | .workspace'` does|what an example line does, lower case start, no full stop",
+   "text": "print the workspaces whose epics wait on an answer"
+  },
+  {
+   "wants": "JSON field `hosts` (list) of `hmz hosts list --json`: the hosts, in the order they started",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the hosts, in the order they started"
+  },
+  {
+   "wants": "JSON field `hosts[].slot` (string) of `hmz hosts list --json`: the host's slot, empty for the workspace's own host",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host's slot, empty for the workspace's own host"
+  },
+  {
+   "wants": "JSON field `hosts[].kind` (string) of `hmz hosts list --json`: `flow` for an epic, `chat` for a chat, empty when idle -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`flow` for an epic, `chat` for a chat, empty when idle"
+  },
+  {
+   "wants": "JSON field `hosts[].flow` (string) of `hmz hosts list --json`: the flow of the epic going",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flow of the epic going"
+  },
+  {
+   "wants": "JSON field `hosts[].epic` (string) of `hmz hosts list --json`: the name the epic going is recorded under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the epic going is recorded under"
+  },
+  {
+   "wants": "JSON field `hosts[].chat` (string) of `hmz hosts list --json`: the name of the chat going",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the chat going"
+  },
+  {
+   "wants": "JSON field `hosts[].task` (string) of `hmz hosts list --json`: the epic's task, or the chat's first message",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the epic's task, or the chat's first message"
+  },
+  {
+   "wants": "JSON field `hosts[].asking` (list) of `hmz hosts list --json`: the questions it waits on, each `<run>:<question>` -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the questions it waits on, each `<run>:<question>`"
+  },
+  {
+   "wants": "summary of `hmz hosts stop`: close a host, stopping what it runs",
+   "where": "command summary in a --help listing",
+   "text": "close a host, stopping what it runs"
+  },
+  {
+   "wants": "paragraph for `hmz hosts stop`: Closes the host of a workspace and slot. An epic or chat it is running is stopped first. To stop an epic and keep its host, use `hmz epic stop`. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "paragraph of --help",
+   "text": "Closes the host of a workspace and slot. An epic or chat it is running is stopped first. To stop an epic and keep its host, use `hmz epic stop`."
+  },
+  {
+   "wants": "what `hmz hosts stop` prints as text: One line once the daemon has taken the request.",
+   "where": "sentence(s) in the Output section of --help",
+   "text": "One line once the daemon has taken the request."
+  },
+  {
+   "wants": "the `-w, --workspace DIR` argument of `hmz hosts stop`: the host's workspace, a directory of the daemon's machine, or the current directory",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the host's workspace, a directory of the daemon's machine, or the current directory"
+  },
+  {
+   "wants": "the `--slot SLOT` argument of `hmz hosts stop`: the host's slot, as `hmz hosts list` prints it, or the workspace's own host -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the host's slot, as `hmz hosts list` prints it, or the workspace's own host"
+  },
+  {
+   "wants": "what the example line `hmz hosts stop` does: close the host of this directory",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "close the host of this directory"
+  },
+  {
+   "wants": "what the example line `hmz hosts stop -w ~/work/app --slot exec:1f2e` does: close the host of one epic of another workspace",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "close the host of one epic of another workspace"
+  },
+  {
+   "wants": "JSON field `workspace` (string) of `hmz hosts stop --json`: the workspace of the host closed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the workspace of the host closed"
+  },
+  {
+   "wants": "JSON field `slot` (string) of `hmz hosts stop --json`: the slot of the host closed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the slot of the host closed"
+  },
+  {
+   "wants": "message: Epic {run} started in {workspace}, slot {slot}. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Epic {run} started in {workspace}, slot {slot}."
+  },
+  {
+   "wants": "message: Epic {run} started in {workspace}. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Epic {run} started in {workspace}."
+  },
+  {
+   "wants": "message: Sent.",
+   "where": "a line the command prints",
+   "text": "Sent."
+  },
+  {
+   "wants": "message: `--remove` takes the key of a line. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "`--remove` takes the key of a line."
+  },
+  {
+   "wants": "message: Released {role}. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Released {role}."
+  },
+  {
+   "wants": "message: `{item}` is not written as `ROLE=SPEC`. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "`{item}` is not written as `ROLE=SPEC`."
+  },
+  {
+   "wants": "message: `--value` takes JSON. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "`--value` takes JSON."
+  },
+  {
+   "wants": "message: No question is waiting.",
+   "where": "a line the command prints",
+   "text": "No question is waiting."
+  },
+  {
+   "wants": "message: {n} questions are waiting: name one with `--question` ({ids}). -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "{n} questions are waiting: name one with `--question` ({ids})."
+  },
+  {
+   "wants": "message: Force stopped ({n} sessions closed). -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Force stopped ({n} sessions closed).",
+   "one": "Force stopped ({n} session closed)."
+  },
+  {
+   "wants": "message: Removed {key} from the board. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Removed {key} from the board."
+  },
+  {
+   "wants": "message: Wrote {key} on the board. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Wrote {key} on the board."
+  },
+  {
+   "wants": "message: {who} started {flow}: {task} -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "{who} started {flow}: {task}"
+  },
+  {
+   "wants": "message: {role} asks ({question}): {text} -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "{role} asks ({question}): {text}"
+  },
+  {
+   "wants": "message: {who} said: {text} -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "{who} said: {text}"
+  },
+  {
+   "wants": "message: Question {question} was withdrawn ({why}). -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "Question {question} was withdrawn ({why})."
+  },
+  {
+   "wants": "message: {who} is stopping the epic. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "{who} is stopping the epic."
+  },
+  {
+   "wants": "message: The epic ended: {how}. -- keep every `{name}` in braces and everything in backticks exactly",
+   "where": "a line the command prints",
+   "text": "The epic ended: {how}."
+  },
+  {
+   "wants": "message: Host closed.",
+   "where": "a line the command prints",
+   "text": "Host closed."
+  },
+  {
+   "wants": "usage error of `hmz epic start` when the same role is written twice across `-a` (or `-e`) options: `{role}` is given twice. -- keep `{role}` in braces and backticks exactly",
+   "where": "a line the command prints",
+   "text": "`{role}` is given twice."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

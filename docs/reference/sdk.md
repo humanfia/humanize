@@ -507,6 +507,56 @@ with Client.local() as client:
         print(device.name, device.seen)
 ```
 
+#### epics {#client-epics}
+
+`client.epics.attach(...)` attaches to a host as one frontend and returns an `Attached`: the calls of that epic subscription, and the messages the host sends it.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `attach(workspace=None, *, slot=None, replay=None, since=None, figures=None, scratch=None)` | `Attached` | Attaches to the host of a workspace and slot, starting the host if the slot has none. `slot="exec:"` makes a new exec slot; `scratch=True` a folderless workspace; `replay=False` skips the history. |
+| `of(sub)` | `Frontend` | The calls of a subscription opened by `Client.call`, for a client that listens through `heard`. |
+
+An `Attached` has `sub`, `client` (this frontend's id), `workspace`, `slot`, `events` (the `Subscription`) and `over`. Iterate it for each [message](/reference/events) as a `dict`; the iteration ends after `gone` or when the session ends. `next(seconds)` returns one message or `None`. It is a context manager: leaving the block detaches the frontend and leaves the epic running.
+
+| Call | Returns | What it does |
+| --- | --- | --- |
+| `start(flow, task=None, *, agents, envs, params, budget, profile_flow, profile_environment, resume, backup, remember)` | `Started` | Starts an epic on the host. `Started` has `run`, `slot` and `workspace`. |
+| `say(text, *, to=None)` | `None` | Says a line to the epic. |
+| `answer(question, text=None, *, value=None)` | `None` | Answers a waiting question in words, or with a value of its schema. An answer that does not fit raises `Refused` with code 400 and `data["errors"]`. |
+| `stop()` / `force()` | `None` / `int` | Stops the epic; `force` also closes sessions in a turn and returns how many. |
+| `afk(on, role=None)` | `None` | Sets a role, or every role, away or back. |
+| `claim(role, *, take=None)` / `release(role)` | `None` | Claims a role for this frontend, or releases it. |
+| `board(key, value=None)` | `None` | Writes a line of the board; no value removes it. |
+| `face(digest)` | `Face` | Reads a face by its hash: `html` and `title`. |
+| `aside(...)` / `unaside(side)` | `dict` / `None` | Opens or asks a side conversation, and closes one. |
+| `status()` | `dict` | The host's status. |
+| `detach()` / `quit()` | `None` | Lets this frontend go; closes the host. |
+
+Every write also takes `idem`, and every call `wait`, the seconds to wait for the answer.
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client, client.epics.attach("/work/app", slot="exec:") as epic:
+    epic.start("goal", "fix the failing test", budget={"cost": 2})
+    for said in epic:
+        if said["type"] == "asked":
+            epic.answer(said["question"], "yes")
+        if said["type"] == "ended":
+            break
+```
+
+#### hosts {#client-hosts}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | list of `Host` | Every host the daemon holds: `pid`, `workspace`, `started`, `slot`. |
+| `running()` | list of `Running` | Every host whose epic or chat is running or stopping: `workspace`, `slot`, `state`, `run`, `kind`, `flow`, `epic`, `chat`, `task`, `asking`, `turn`. |
+| `open(workspace, slot=None)` | `dict` | Starts the host of a workspace and slot without attaching. |
+| `status(workspace, slot=None)` | `dict` | One host's status. Raises `Refused` with code 404 if no host is held there. |
+| `detach(workspace, slot=None)` | `int` | Lets every frontend of a host go and returns how many. |
+| `stop(workspace, slot=None, *, idem=None)` | `None` | Closes a host, stopping what it runs. |
+
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 ## Daemons {#daemons}

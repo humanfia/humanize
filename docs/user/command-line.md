@@ -101,6 +101,24 @@ A redirected stderr is plain. Set `FORCE_COLOR=1` for CI logs that render colour
 
 `hmz chat` runs one turn, keeps the chat, and exits. Pass `--resume` to continue it.
 
+## Start an epic and come back to it
+
+`hmz exec` stays until its epic ends. `hmz epic start` starts the same epic in the daemon and returns at once, so a script can start it, do something else, and steer it later:
+
+```bash
+hmz epic start goal 'fix the failing test' -a worker=claude/claude-haiku-4-5:low -p budget.cost=2
+hmz epic status          # running, stopping or idle, and the questions waiting
+hmz epic attach          # follow it; ctrl+c leaves it running
+hmz epic say 'use the staging database'
+hmz epic stop
+```
+
+Roles, params and the budget are written as for `hmz exec`. Unlike `hmz exec`, roles are not away: a question waits until you answer it with `hmz epic answer`, in the app or in the terminal. Pass `--away` to have nobody asked, and `--follow` to stay until the epic ends.
+
+Each command reaches the epic of the current directory. Pass `-w DIR` for another workspace and `--slot SLOT` for an epic that is not on the workspace's own host, such as one started by `hmz exec` or with `--slot exec:`. `hmz hosts list` prints every workspace and slot, and `hmz hosts stop` closes one.
+
+Every `hmz epic` and `hmz hosts` command takes `--json` and documents itself under `--help`. See [`hmz epic`](/reference/cli#hmz-epic).
+
 ## Stop a run with a signal
 
 | Signal | `hmz exec` | `hmz chat` |
