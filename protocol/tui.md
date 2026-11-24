@@ -1673,59 +1673,59 @@ states where its row's context holds.
 | 24.1.87 | Search | `f5` | clear what was typed and the filters |
 | 24.1.88 | Search | `pgdn`, `pgup` | an older page, a newer page |
 | 24.1.89 | Search | `esc` | close Search |
-| 24.1.73 | Flows page | `tab` | the other tab (Section 31.1.1) |
-| 24.1.74 | Flows page, installed flow | `enter`, `n`, `u`, `s`, `x` | open, new epic, update, switch release, uninstall (Section 31.1.3) |
-| 24.1.75 | Flows page, flowverse | `enter`, `a`, `f`, `x` | open, add, fetch, remove (Section 31.1.4) |
-| 24.1.76 | Flows page, flow of a flowverse | `enter`, `i`, `x`, `f` | releases, install, uninstall, fetch (Section 31.1.5) |
-| 24.1.77 | Flows page, release | `enter`, `x` | install or switch to, uninstall (Section 31.1.5) |
-| 24.1.78 | Download page | `enter`, `f`, `t` | download, fetch again, next target (Section 31.2.3) |
-| 24.1.79 | Import page | `enter` | ask for the file (Section 31.2.4) |
-| 24.1.80 | Export page | `enter` | export the epic (Section 31.2.5) |
-| 24.1.81 | a page | `esc` | back one list, then close (Section 25.1.5) |
-| 24.1.73 | environment pane | `ctrl+w` | widen the context (Section 30.1.7) |
-| 24.1.74 | environment pane, several envs | `tab` | turn to the next env (Section 30.1.3) |
-| 24.1.75 | Files pane, tree | `enter` | open or shut the directory, or show the file |
-| 24.1.76 | Files pane | `e` | open the file in the editor (Section 30.2.3) |
-| 24.1.77 | Files pane, tree | `n`, `shift+n` | new file, new directory |
-| 24.1.78 | Files pane, tree | `r`, `d` | rename, delete after a box |
-| 24.1.79 | Files pane | `ctrl+p`, `/` | show a file by name, search in files |
-| 24.1.80 | Files pane, file shown | `backspace` | back to the tree |
-| 24.1.81 | Changes pane, changes | `enter` | the keys to the diff |
-| 24.1.82 | Changes pane, changes | `s`, `u`, `x` | stage, unstage, discard after a box |
-| 24.1.83 | Changes pane, changes | `shift+s`, `shift+u` | stage all, unstage all |
-| 24.1.84 | Changes pane, changes | `c`, `l`, `p` | commit, the commits, the snapshots |
-| 24.1.85 | Changes pane | `r` | read again |
-| 24.1.86 | Changes pane, snapshots | `enter` | rewind after a box |
-| 24.1.87 | Changes pane, diff, commits or snapshots | `backspace` | back to the changes |
-| 24.1.88 | Terminal pane, tabs | `enter` | the keys to the terminal |
-| 24.1.89 | Terminal pane, tabs | `left`, `right` | previous or next terminal |
-| 24.1.90 | Terminal pane, tabs | `n`, `x` | new terminal, close after a box |
-| 24.1.91 | Terminal pane, terminal | `~.` at the start of a line | the keys to the tabs |
-| 24.1.92 | Terminal pane, terminal | any other key | typed into the terminal |
-| 24.1.73 | New chat page | `tab`, `shift+tab` | next or previous of chips, box, list (Section 28.2.5) |
-| 24.1.74 | New chat page, chip | `enter`, click | drop the list its value is picked from |
-| 24.1.75 | New chat page, box | `enter` | start the chat (Section 28.2.6) |
-| 24.1.76 | New chat page, list | `↑`, `↓`, `enter` | move; open the chat or the harness session |
-| 24.1.77 | Details view | `↑`, `↓` | previous or next chip or action |
-| 24.1.78 | Details view | `enter`, click | change the chip, or do the action (Section 28.3) |
-| 24.1.79 | Harness session page | `↑`, `↓`, `pageup`, `pagedown` | scroll what was said |
-| 24.1.80 | Harness session page | `enter` | `Continue in chat` (Section 28.4.2) |
-| 24.1.81 | New chat or Harness session page | `esc` | close the page |
-| 24.1.73 | log screen | `ctrl+e` | open the New epic page (Section 29.1) |
-| 24.1.74 | New epic page | `ctrl+e` | close the page, keeping what it holds |
-| 24.1.75 | New epic page | `ctrl+s` | Start (Section 29.4) |
-| 24.1.76 | log screen | `ctrl+o` | the Epic view (Section 29.5) |
-| 24.1.77 | Epic view | `←`, `→`, `1`–`4` | previous or next tab, wrapping; the tab of that number |
-| 24.1.78 | Epic view | `↑`, `↓` | row above or below |
-| 24.1.79 | Epic view, Board, a line | `enter` | change what the line says |
-| 24.1.80 | Epic view, Board | `a` | add a line |
-| 24.1.81 | Epic view, Board, a line | `d` | remove the line, once asked |
-| 24.1.82 | Epic view, People, a role | `enter` | claim, take over or release the role |
-| 24.1.83 | Epic view, People, a role | `w` | away or back for the role |
-| 24.1.84 | Epic view, People | `shift+w` | away or back for every role |
-| 24.1.85 | Epic view, Side questions, a side conversation | `enter` | ask in it |
-| 24.1.86 | Epic view, Side questions | `a` | ask in a new side conversation |
-| 24.1.87 | Epic view, Side questions, a side conversation | `d` | close it, once asked |
+| 24.1.90 | Flows page | `tab` | the other tab (Section 31.1.1) |
+| 24.1.91 | Flows page, installed flow | `enter`, `n`, `u`, `s`, `x` | open, new epic, update, switch release, uninstall (Section 31.1.3) |
+| 24.1.92 | Flows page, flowverse | `enter`, `a`, `f`, `x` | open, add, fetch, remove (Section 31.1.4) |
+| 24.1.93 | Flows page, flow of a flowverse | `enter`, `i`, `x`, `f` | releases, install, uninstall, fetch (Section 31.1.5) |
+| 24.1.94 | Flows page, release | `enter`, `x` | install or switch to, uninstall (Section 31.1.5) |
+| 24.1.95 | Download page | `enter`, `f`, `t` | download, fetch again, next target (Section 31.2.3) |
+| 24.1.96 | Import page | `enter` | ask for the file (Section 31.2.4) |
+| 24.1.97 | Export page | `enter` | export the epic (Section 31.2.5) |
+| 24.1.98 | a page | `esc` | back one list, then close (Section 25.1.5) |
+| 24.1.99 | environment pane | `ctrl+w` | widen the context (Section 30.1.7) |
+| 24.1.100 | environment pane, several envs | `tab` | turn to the next env (Section 30.1.3) |
+| 24.1.101 | Files pane, tree | `enter` | open or shut the directory, or show the file |
+| 24.1.102 | Files pane | `e` | open the file in the editor (Section 30.2.3) |
+| 24.1.103 | Files pane, tree | `n`, `shift+n` | new file, new directory |
+| 24.1.104 | Files pane, tree | `r`, `d` | rename, delete after a box |
+| 24.1.105 | Files pane | `ctrl+p`, `/` | show a file by name, search in files |
+| 24.1.106 | Files pane, file shown | `backspace` | back to the tree |
+| 24.1.107 | Changes pane, changes | `enter` | the keys to the diff |
+| 24.1.108 | Changes pane, changes | `s`, `u`, `x` | stage, unstage, discard after a box |
+| 24.1.109 | Changes pane, changes | `shift+s`, `shift+u` | stage all, unstage all |
+| 24.1.110 | Changes pane, changes | `c`, `l`, `p` | commit, the commits, the snapshots |
+| 24.1.111 | Changes pane | `r` | read again |
+| 24.1.112 | Changes pane, snapshots | `enter` | rewind after a box |
+| 24.1.113 | Changes pane, diff, commits or snapshots | `backspace` | back to the changes |
+| 24.1.114 | Terminal pane, tabs | `enter` | the keys to the terminal |
+| 24.1.115 | Terminal pane, tabs | `left`, `right` | previous or next terminal |
+| 24.1.116 | Terminal pane, tabs | `n`, `x` | new terminal, close after a box |
+| 24.1.117 | Terminal pane, terminal | `~.` at the start of a line | the keys to the tabs |
+| 24.1.118 | Terminal pane, terminal | any other key | typed into the terminal |
+| 24.1.119 | New chat page | `tab`, `shift+tab` | next or previous of chips, box, list (Section 28.2.5) |
+| 24.1.120 | New chat page, chip | `enter`, click | drop the list its value is picked from |
+| 24.1.121 | New chat page, box | `enter` | start the chat (Section 28.2.6) |
+| 24.1.122 | New chat page, list | `↑`, `↓`, `enter` | move; open the chat or the harness session |
+| 24.1.123 | Details view | `↑`, `↓` | previous or next chip or action |
+| 24.1.124 | Details view | `enter`, click | change the chip, or do the action (Section 28.3) |
+| 24.1.125 | Harness session page | `↑`, `↓`, `pageup`, `pagedown` | scroll what was said |
+| 24.1.126 | Harness session page | `enter` | `Continue in chat` (Section 28.4.2) |
+| 24.1.127 | New chat or Harness session page | `esc` | close the page |
+| 24.1.128 | log screen | `ctrl+e` | open the New epic page (Section 29.1) |
+| 24.1.129 | New epic page | `ctrl+e` | close the page, keeping what it holds |
+| 24.1.130 | New epic page | `ctrl+s` | Start (Section 29.4) |
+| 24.1.131 | log screen | `ctrl+o` | the Epic view (Section 29.5) |
+| 24.1.132 | Epic view | `←`, `→`, `1`–`4` | previous or next tab, wrapping; the tab of that number |
+| 24.1.133 | Epic view | `↑`, `↓` | row above or below |
+| 24.1.134 | Epic view, Board, a line | `enter` | change what the line says |
+| 24.1.135 | Epic view, Board | `a` | add a line |
+| 24.1.136 | Epic view, Board, a line | `d` | remove the line, once asked |
+| 24.1.137 | Epic view, People, a role | `enter` | claim, take over or release the role |
+| 24.1.138 | Epic view, People, a role | `w` | away or back for the role |
+| 24.1.139 | Epic view, People | `shift+w` | away or back for every role |
+| 24.1.140 | Epic view, Side questions, a side conversation | `enter` | ask in it |
+| 24.1.141 | Epic view, Side questions | `a` | ask in a new side conversation |
+| 24.1.142 | Epic view, Side questions, a side conversation | `d` | close it, once asked |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 

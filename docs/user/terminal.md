@@ -163,6 +163,7 @@ The navigator on the left lists every chat and epic on this machine. It is open 
 Press <kbd>p</kbd> to pin a row, <kbd>u</kbd> to mark it unread, <kbd>g</kbd> to group by folder, date or as one list, and <kbd>.</kbd> for everything else you can do with it.
 
 To search instead, press <kbd>ctrl+k</kbd> and type. <kbd>tab</kbd> switches between all, chats and epics; <kbd>enter</kbd> opens the row; <kbd>esc</kbd> closes Search. See [the key tables](/reference/tui#navigator).
+
 ## Flows page
 
 Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installed** lists the flows you can run, with any that has a newer release first and marked `↑`. **Flowverses** lists the indexes more flows are installed from, with when each was fetched. <kbd>tab</kbd> turns from one to the other, the bottom line lists the keys of the list you are in, and <kbd>esc</kbd> goes back one list and then closes the page. See [Find and install flows](/user/flows#the-flows-page).
@@ -174,6 +175,7 @@ Press <kbd>ctrl+g</kbd> for **Details** of the open chat: its model, effort, per
 ## Pages over the log
 
 Press <kbd>ctrl+n</kbd> for the New chat page: the first message, and above it the chips **Folder**, **Environment**, **Model**, **Effort** and **Permissions** showing what the chat starts with. A page covers the log until you press <kbd>esc</kbd>. See [Chat with an agent](/user/chat) and [Continue sessions from other CLIs](/user/harness-sessions).
+
 ### Start an epic from one page
 
 Press <kbd>ctrl+e</kbd> at the log to open **New epic**. The page is one form, read top to bottom: Flow, Folder, Task, an agent for each role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens with what this folder last set the flow up with, so starting the same flow again is typing the task and pressing <kbd>ctrl+s</kbd>.

@@ -392,6 +392,7 @@ These three pages have no key of their own. Each lists the transfers under way a
 | Import | <kbd>enter</kbd> | Asks for the `.hmzepic` to import; <kbd>tab</kbd> finishes the path. |
 | Export | <kbd>enter</kbd> | Asks where the epic under the cursor goes, and writes its archive there. |
 | Any | <kbd>esc</kbd> | Closes the page. |
+
 ### New chat page
 
 | Where | Key | Action |
@@ -418,6 +419,7 @@ These three pages have no key of their own. Each lists the transfers under way a
 | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>pageup</kbd> <kbd>pagedown</kbd> | Scroll what was said. |
 | <kbd>enter</kbd> | **Continue in chat**, for a session that can be continued. |
 | <kbd>esc</kbd> | Closes the page. |
+
 ### New epic page
 
 One form with everything an epic starts with: Flow, Folder, Task, an agent and an environment per role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens holding what the folder last set the flow up with.

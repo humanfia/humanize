@@ -113,9 +113,8 @@ class Zone(Vertical):
     Zone:focus-within > .zone-title { color: $primary; }
     Zone > .zone-rule { height: 1; color: $hmz-line-strong; }
     Zone:focus-within > .zone-rule { color: $primary; }
-    #navigator { border-right: heavy $hmz-line; }
-    #context { border-left: heavy $hmz-line; width: 48; }
-    Zone#context { width: 48; }
+    Zone#navigator { border-right: heavy $hmz-line; }
+    Zone#context { border-left: heavy $hmz-line; width: 48; }
     Zone.wide, Zone#context.wide { width: 50%; }
     Zone.widest, Zone#context.widest { width: 80%; }
     """
