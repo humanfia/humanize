@@ -130,6 +130,8 @@ class _Server:
         self.output: tuple[str, int] = ("", 0)
         #: Whether an operation's turn is preceded by a stray completion of another turn.
         self.stray = False
+        #: What `configRequirements/read` answers with, as codex-cli 0.163.0 shapes it.
+        self.requirements: dict[str, Any] | None = None
         self._threads = 0
         self._turned = 0
         spawner.replying(self._heard)
@@ -157,6 +159,8 @@ class _Server:
             proc.say({"id": ident, "result": {"turn": {"id": turn}}})
             answer = self.turns.pop(0) if self.turns else _says(_message("done"))
             answer(proc, str(params["threadId"]), turn)
+        elif method == "configRequirements/read":
+            proc.say({"id": ident, "result": {"requirements": self.requirements}})
         elif method == "skills/list":
             listed = {"cwd": params["cwds"][0], "skills": self.skills, "errors": []}
             proc.say({"id": ident, "result": {"data": [listed]}})
@@ -736,29 +740,40 @@ def test_a_refused_call_is_a_failed_turn(
         _agent().new(tmp_path)("hi")
 
 
+#: What codex-cli 0.163.0 refuses a call with, word for word, where its requirements forbid
+#: the sandbox or the approval policy the call names.
+_FORBIDS = {
+    "code": -32600,
+    "message": '`approval_policy = "never"` cannot be used because requirements do not'
+    ' allow `sandbox_mode = "danger-full-access"`; choose a different approval policy',
+}
+_NEVER_FORBIDDEN = {
+    "code": -32600,
+    "message": "invalid value for `approval_policy`: `never` is not in the allowed set"
+    " [OnRequest, UnlessTrusted] (set by /etc/codex/requirements.toml)",
+}
+_READ_ONLY_FORBIDDEN = {
+    "code": -32600,
+    "message": "invalid value for `sandbox_mode`: `read-only` is not in the allowed set"
+    " [workspace-write] (set by MDM com.openai.codex:requirements_toml_base64)",
+}
+
+
 def test_full_access_the_installation_forbids_is_stepped_down_and_remembered(
     spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
-    server.refusing["thread/start"] = {
-        "code": -1,
-        "message": "approval_policy cannot be used because requirements do not allow it",
-    }
+    server.refusing["thread/start"] = dict(_FORBIDS)
     agent = _agent(fence=fenced(tmp_path))
     agent.new(tmp_path)("hi")
     refused, stepped = server.called("thread/start")
     assert refused["sandbox"] == "danger-full-access"
-    assert (stepped["sandbox"], stepped["approvalPolicy"]) == (
-        "workspace-write",
-        "on-request",
-    )
+    assert (
+        stepped["sandbox"],
+        stepped["approvalPolicy"],
+        stepped["approvalsReviewer"],
+    ) == ("workspace-write", "on-request", "user")
     agent.new(tmp_path)("again")
     assert server.called("thread/start")[-1]["sandbox"] == "workspace-write"
-
-
-_FORBIDS = {
-    "code": -1,
-    "message": "approval_policy cannot be used because requirements do not allow it",
-}
 
 
 def test_forbidden_full_access_is_stepped_down_under_an_approval_policy_of_its_own(
@@ -799,15 +814,178 @@ def test_never_said_as_its_own_asks_alike_on_every_turn_once_stepped_down(
     }
 
 
-def test_a_refused_read_only_sandbox_is_not_stepped_down(
+def test_requirements_read_as_the_server_starts_choose_before_any_thread_is_refused(
     spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
-    """`read-only` has nothing below it: the refusal is the turn's."""
-    server.refusing["thread/start"] = dict(_FORBIDS)
-    with pytest.raises(Failed, match="requirements do not allow"):
-        _agent(fence=fenced(tmp_path, READ)).new(tmp_path)("hi")
-    (refused,) = server.called("thread/start")
+    """`never` forbidden: full access asking, where this client grants what it asks."""
+    server.requirements = {"allowedApprovalPolicies": ["on-request", "untrusted"]}
+    _agent(fence=fenced(tmp_path)).new(tmp_path)("hi")
+    assert [method for method, _ in server.calls][:3] == [
+        "initialize",
+        "initialized",
+        "configRequirements/read",
+    ]
+    (opened,) = server.called("thread/start")
+    assert (
+        opened["sandbox"],
+        opened["approvalPolicy"],
+        opened["approvalsReviewer"],
+    ) == ("danger-full-access", "on-request", "user")
+    (turned,) = server.called("turn/start")
+    assert turned["approvalPolicy"] == "on-request"
+
+
+def test_permission_profiles_the_requirements_name_are_read_as_the_sandboxes(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    server.requirements = {
+        "allowedSandboxModes": ["danger-full-access"],
+        "allowedPermissionProfiles": {":workspace": True, ":danger-full-access": False},
+    }
+    _agent(fence=fenced(tmp_path)).new(tmp_path)("hi")
+    (opened,) = server.called("thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (
+        "workspace-write",
+        "on-request",
+    )
+
+
+@pytest.mark.parametrize(
+    ("requirements", "approvals"),
+    [
+        ({"allowedSandboxModes": []}, ""),
+        ({"allowedApprovalPolicies": ["never"]}, "untrusted"),
+        (
+            {
+                "allowedApprovalPolicies": ["on-request"],
+                "allowedApprovalsReviewers": ["auto_review"],
+            },
+            "",
+        ),
+    ],
+)
+def test_requirements_nothing_will_do_under_fail_before_a_thread_is_opened(
+    spawner: Spawner,
+    server: _Server,
+    fenced: Callable[..., Fence],
+    tmp_path: Path,
+    requirements: dict[str, Any],
+    approvals: str,
+) -> None:
+    """No sandbox at all, a hook never asked, or a model reviewing: none is run at all."""
+    server.requirements = requirements
+    agent = _agent(fence=fenced(tmp_path), approvals=approvals)
+    with pytest.raises(Failed, match="configRequirements/read") as failed:
+        agent.new(tmp_path)("hi")
+    assert "allow approval policies" in str(failed.value)
+    assert not server.called("thread/start")
+    assert not server.called("turn/start")
+
+
+def test_a_refused_read_only_sandbox_is_widened_where_the_fence_holds_it(
+    spawner: Spawner,
+    server: _Server,
+    fenced: Callable[..., Fence],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Around Codex here, the fence holds the writes the wider sandbox would allow."""
+    monkeypatch.setattr("sys.platform", "linux")
+    server.refusing["thread/start"] = dict(_READ_ONLY_FORBIDDEN)
+    _agent(fence=fenced(tmp_path, READ)).new(tmp_path)("hi")
+    refused, widened = server.called("thread/start")
     assert refused["sandbox"] == "read-only"
+    assert (widened["sandbox"], widened["approvalPolicy"]) == (
+        "workspace-write",
+        "never",
+    )
+
+
+def test_a_turn_refused_for_requirements_picks_its_thread_up_under_what_they_leave(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """Requirements that changed under a running server, or one too old to be asked."""
+    session = _agent(fence=fenced(tmp_path)).new(tmp_path)
+    session("hi")
+    server.refusing["turn/start"] = dict(_NEVER_FORBIDDEN)
+    assert session("again") == "done"
+    (resumed,) = server.called("thread/resume")
+    assert (resumed["sandbox"], resumed["approvalPolicy"]) == (
+        "danger-full-access",
+        "on-request",
+    )
+    *_, refused, taken = server.called("turn/start")
+    assert (refused["approvalPolicy"], taken["approvalPolicy"]) == (
+        "never",
+        "on-request",
+    )
+
+
+def test_a_refusal_that_leaves_nothing_fails_naming_where_it_was_set(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """Requirements that changed after they were read, said as Codex's own code names them."""
+    server.requirements = {"allowedApprovalPolicies": ["never", "untrusted"]}
+    server.refusing["thread/start"] = {
+        "code": -32600,
+        "message": "invalid value for `approval_policy`: `UnlessTrusted` is not in the"
+        " allowed set [Never] (set by /etc/codex/requirements.toml)",
+    }
+    with pytest.raises(Failed, match=r"/etc/codex/requirements\.toml") as failed:
+        _agent(fence=fenced(tmp_path), approvals="untrusted").new(tmp_path)("hi")
+    assert "refused: untrusted" in str(failed.value)
+    assert len(server.called("thread/start")) == 1
+
+
+def test_a_thread_codex_s_sandbox_holds_asks_where_never_is_forbidden_and_is_refused(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A yes is a command run outside the one sandbox that holds the fence."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    server.requirements = {"allowedApprovalPolicies": ["on-request"]}
+
+    def asks(proc: Process, thread: str, turn: str) -> None:
+        proc.say(
+            {
+                "id": 901,
+                "method": "item/commandExecution/requestApproval",
+                "params": {"threadId": thread, "turnId": turn, "command": "curl x"},
+            }
+        )
+        server.after[901] = lambda: _says(_message("done"))(proc, thread, turn)
+
+    server.turns = [asks]
+    held = Fence.of(
+        rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
+    )
+    _agent(fence=held).new(tmp_path)("hi")
+    (opened,) = server.called("thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (
+        "workspace-write",
+        "on-request",
+    )
+    (reply,) = [one for one in server.replies if one.get("id") == 901]
+    assert reply["result"] == {"decision": "decline"}
+
+
+def test_a_thread_codex_s_sandbox_holds_is_never_opened_wider_or_writing_less(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Full access steps outside the one sandbox; `read-only` refuses what the fence writes."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    server.requirements = {"allowedSandboxModes": ["read-only", "danger-full-access"]}
+    held = Fence.of(
+        rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
+    )
+    with pytest.raises(Failed, match="sandbox workspace-write"):
+        _agent(fence=held).new(tmp_path)("hi")
+    assert not server.called("thread/start")
 
 
 def test_a_step_down_is_told_once_to_each_agent_watching(
@@ -827,8 +1005,9 @@ def test_a_step_down_is_told_once_to_each_agent_watching(
         agent.new(tmp_path)("hi")
         agent.new(tmp_path)("again")
     said = (
-        "codex: this machine will not run an agent at danger-full-access, so it runs"
-        " at workspace-write, where what it asks for is granted"
+        "codex: this machine's requirements will not run an agent at sandbox"
+        " danger-full-access with approval never, so it runs at sandbox workspace-write"
+        " with approval on-request, where what it asks for is granted"
     )
     assert told == {agent.id: [said] for agent in agents}
 

@@ -89,6 +89,8 @@ This is a trade, not a default. Codex's sandbox limits what the commands it runs
 
 Humanize honors only `codex` and fences any other name in the list as usual. Codex still runs in the Humanize fence when the permission takes a path back under a wider rule, when Codex's sandbox cannot start on this machine, when the work is on another machine, or when a flow checks each permission request. When Codex uses its own sandbox, its session shows a notice, once per agent, starting with `codex: held to its permission by Codex's own sandbox`.
 
+If your organization's Codex requirements forbid approval `never`, Codex keeps its own sandbox and runs with approval `on-request`. Humanize refuses every request to run outside that sandbox. If the requirements forbid the sandbox the permission needs, the session fails before its first turn.
+
 ## Work on another machine
 
 Work in a container or on an SSH host follows the same permission. Each machine fences its own workdir and home. Humanize checks the remote machine's capabilities before opening the session and refuses to start if it cannot fence.

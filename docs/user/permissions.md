@@ -88,7 +88,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 
 | What | How it is held |
 | --- | --- |
-| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits`, Codex uses `workspace-write` with approval `on-request`, and Humanize approves every request. |
+| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits` and Humanize approves every request. Codex reports its enterprise requirements (`requirements.toml`, MDM or cloud) before any turn. Humanize then picks the allowed sandbox and approval policy nearest what the permission needs, such as approval `on-request`, and approves every request. When Codex's own sandbox is the only limit, Humanize refuses requests that would leave it. If no allowed combination fits the permission, the session fails before its first turn with an error that names the allowed values. |
 | Read-only roles | File-writing tools are disabled when the CLI supports it. The shell stays enabled, and the fence blocks any file writes it attempts. |
 | `network=False` | The fence cuts the network, and Humanize disables the CLI's web search where supported. `cursor-agent` and `mcode` run searches on vendor servers, so they are refused for offline roles. Any CLI added over ACP must declare its hosts. |
 | Hooks | A flow can attach a hook to approve or reject each tool call. Claude Code, Codex and Kimi Code are then configured to ask, and the hook answers. See [Hooks](/builder/hooks). |
