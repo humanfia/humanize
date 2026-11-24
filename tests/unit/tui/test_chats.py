@@ -28,7 +28,7 @@ def test_the_archived_chats_say_they_are_being_read_until_they_are() -> None:
     sheet = Archived("/w")
 
     assert sheet.rows() == []
-    assert sheet.nothing() == "reading the archived chats…"
+    assert sheet.nothing() == "Reading archived chats…"
 
 
 def test_a_title_is_asked_for_on_one_row_until_it_says_something() -> None:
@@ -43,6 +43,6 @@ def test_deleting_says_it_is_permanent_and_keeping_is_the_first_answer() -> None
     box = Deletes("the [parser]")
 
     assert box.asked == r"Delete the \[parser]?"
-    assert "Permanent" in box.about
-    assert "cannot be brought back" in box.about
+    assert "permanently removes" in box.about
+    assert "cannot be undone" in box.about
     assert [answer for answer, _, _ in box.rows()] == ["no", "yes"]

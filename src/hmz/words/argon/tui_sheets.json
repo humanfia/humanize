@@ -1,0 +1,150 @@
+{
+ "entries": [
+  {
+   "wants": "where an archived chat is put back from: the Workspace page of `/settings` puts it back",
+   "where": "clause appended after a semicolon to a line about archiving a chat, lower-case start, no full stop; keep `/settings` in backticks out, write it as /settings",
+   "text": "the Workspace page of /settings puts it back"
+  },
+  {
+   "wants": "what a chat's title is for: it is what the chat is listed by",
+   "where": "quiet hint beside the one field of the rename form, lower-case start, no full stop",
+   "text": "what the chat is listed by"
+  },
+  {
+   "wants": "what pressing Done on the rename form does: renames the chat",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "renames the chat"
+  },
+  {
+   "wants": "title of the form that renames a chat",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Rename chat"
+  },
+  {
+   "wants": "a chat is listed by its title, which is the first line said in it until it is given another",
+   "where": "one sentence under the title of the rename form",
+   "text": "A chat is listed by its title, which is the first line said in it until it is given another."
+  },
+  {
+   "wants": "refusal: a chat's title cannot be empty",
+   "where": "error line under a form, one short sentence",
+   "text": "A chat's title cannot be empty."
+  },
+  {
+   "wants": "what the Cancel button of the delete question does: keeps the chat",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "keeps the chat"
+  },
+  {
+   "wants": "what the Delete button of the delete question does: deletes the chat for good",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "deletes the chat for good"
+  },
+  {
+   "wants": "title of the list of earlier chats of this folder, one of which is picked to carry on",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Resume chat"
+  },
+  {
+   "wants": "the chats of this folder, newest first; the one picked is carried on",
+   "where": "one sentence under the title of the list of chats to resume",
+   "text": "The chats of this folder, newest first; the one picked is carried on."
+  },
+  {
+   "wants": "what the Rename row of a chat's menu does: gives the chat another title",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "gives the chat another title"
+  },
+  {
+   "wants": "what the Fork row of a chat's menu does: makes a new chat that goes on from this one, and goes to it",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "makes a new chat that goes on from this one, and goes to it"
+  },
+  {
+   "wants": "what the Archive row of a chat's menu does: takes the chat out of this list",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "takes the chat out of this list"
+  },
+  {
+   "wants": "what the Upload row of a chat's menu does: backs the chat up to its backup targets, or to the default ones",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "backs the chat up to its backup targets, or to the default ones"
+  },
+  {
+   "wants": "what the Delete row of a chat's menu does: removes the chat for good, after asking",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "removes the chat for good, after asking"
+  },
+  {
+   "wants": "the chat was renamed and is now called {name}",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Renamed`, no full stop",
+   "text": "Renamed to {name}"
+  },
+  {
+   "wants": "the chat {name} was archived",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Archived`, no full stop",
+   "text": "Archived {name}"
+  },
+  {
+   "wants": "the chat is being backed up to the backup targets {targets}",
+   "where": "one quiet line under a list after an action, no full stop",
+   "text": "Backing up to {targets}"
+  },
+  {
+   "wants": "the chat {name} was deleted",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Deleted`, no full stop",
+   "text": "Deleted {name}"
+  },
+  {
+   "wants": "the chats of this folder that were archived, newest first; the one picked is put back among the others, where /resume in a chat lists it",
+   "where": "one or two sentences under the title of the list of archived chats",
+   "text": "The chats of this folder that were archived, newest first. The one picked is put back among the others, where /resume in a chat lists it."
+  },
+  {
+   "wants": "the archived chats are being read",
+   "where": "placeholder line of a list while it loads, in the manner of the page's `Reading the list…`, ends with an ellipsis character",
+   "text": "Reading archived chats…"
+  },
+  {
+   "wants": "no chat of this folder is archived",
+   "where": "empty-state line of a list, one short sentence in the manner of the page's `No archived chats.`",
+   "text": "No archived chats."
+  },
+  {
+   "wants": "the archived chat {name} was put back among the others",
+   "where": "one quiet line under a list after an action, no full stop",
+   "text": "Put {name} back"
+  },
+  {
+   "wants": "a `$` name that is both a skill and a flow: it runs {picked}, and /flow {name} starts the flow",
+   "where": "quiet description beside a completion offered under the prompt, lower-case start, no full stop, one line",
+   "text": "skill and flow: runs {picked}; /flow {name} starts the flow"
+  },
+  {
+   "wants": "the skill (as the object of `runs`)",
+   "where": "two words filling {picked} in `skill and flow: runs {picked}`, lower case",
+   "text": "the skill"
+  },
+  {
+   "wants": "the flow (as the object of `runs`)",
+   "where": "two words filling {picked} in `skill and flow: runs {picked}`, lower case",
+   "text": "the flow"
+  },
+  {
+   "wants": "a `$` name that is a skill, followed by what the skill says it does: skill · {about}",
+   "where": "quiet description beside a completion, lower case `skill`, a middle dot, then {about}",
+   "text": "skill · {about}"
+  },
+  {
+   "wants": "a `$` name is a skill",
+   "where": "one lower-case word beside a completion",
+   "text": "skill"
+  },
+  {
+   "wants": "a `$` name is a flow",
+   "where": "one lower-case word beside a completion",
+   "text": "flow"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

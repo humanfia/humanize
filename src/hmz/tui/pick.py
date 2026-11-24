@@ -1027,7 +1027,9 @@ class Sheet[T](ModalScreen[T | None]):
 
     def _titled(self) -> None:
         """Writes what this is, in capitals, into the rule of the frame its list is drawn in."""
-        self.query_one("#choices").border_title = _capitals(self.crumb())
+        self.query_one("#choices").border_title = _capitals(
+            str(self.query_one("#asked", Label).content)
+        )
 
     def _holding(self) -> bool:
         """Whether anything is held that saving would land, which only a menu that holds says."""
