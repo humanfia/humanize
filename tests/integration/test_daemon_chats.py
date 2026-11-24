@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
+import tomlkit
 
 from hmz import daemon, home
 from hmz.daemon import where
@@ -892,8 +892,8 @@ def test_a_chat_is_backed_up_as_a_run_is(
         409,
         "There is no backup target: add one in Settings.",
     )
-    (home() / "settings.yaml").write_text(
-        yaml.safe_dump({"backup": {"targets": [{"name": "t", "url": str(bare)}]}})
+    (home() / "settings.toml").write_text(
+        tomlkit.dumps({"backup": {"targets": [{"name": "t", "url": str(bare)}]}})
     )
     code, why = _refused(user, "chat.backup", chat=name, to=["nowhere"])
     assert (code, "nowhere" in why) == (400, True)

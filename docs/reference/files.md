@@ -17,7 +17,7 @@ Every file and directory Humanize writes: the home, the machine directory, a wor
 | Your flows | `~/.hmz/flows/` | Flows of the flowverse `user`. Always under `~`, whatever `HUMANIZE_HOME` is. |
 | Workspace directory | `<workspace>/.hmz/` | Flows of the flowverse `local`. |
 | Machine directory | `<tmp>/humanize-<uid>/` | The daemon's socket and log, caches, scratch. `<tmp>` is the first of `$TMPDIR`, `$TEMP`, `$TMP` that exists and is writable, else the first of `/tmp`, `/var/tmp` and `/usr/tmp` that is. `<uid>` is your numeric user id. |
-| Cache directory | `~/.cache/humanize/` | Mirror records and LiteLLM sessions. Does not follow `HUMANIZE_HOME`. |
+| State directory | `$XDG_STATE_HOME/humanize/`, else `~/.local/state/humanize/` | Mirror records and LiteLLM sessions. `XDG_STATE_HOME` counts only as an absolute path. |
 
 Placeholders on this page:
 
@@ -39,8 +39,9 @@ See [Desktop app](/reference/desktop) for files specific to Humanize Desktop.
 
 ```text
 <home>/
-├── settings.yaml
-├── .settings.yaml.lock
+├── settings.toml
+├── .settings.toml.lock
+├── settings.yaml.migrated
 ├── history.jsonl
 ├── web-port
 ├── providers/<cli>/<name>/
@@ -57,8 +58,9 @@ See [Desktop app](/reference/desktop) for files specific to Humanize Desktop.
 
 | Path | Holds | Mode | If you delete it |
 | --- | --- | --- | --- |
-| `settings.yaml` | Every setting. See [settings.yaml](/reference/settings). | `0600` | Every setting takes its default. |
-| `.settings.yaml.lock` | An empty file each writer of `settings.yaml` locks. | `0600` | Made again. |
+| `settings.toml` | Every setting. See [settings.toml](/reference/settings). | `0600` | Every setting takes its default. |
+| `.settings.toml.lock` | An empty file each writer of `settings.toml` locks. | `0600` | Made again. |
+| `settings.yaml.migrated` | The YAML settings file an earlier release kept, left after its conversion to `settings.toml`. Never read. | As it was | Nothing changes. |
 | `history.jsonl` | Lines you submitted at the prompt of `hmz`. One JSON object a line: `at` (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), `workdir`, `text`. Appended, never trimmed. | umask | Prompt history is empty. |
 | `web-port` | The port the last `hmz web` listened on, as digits. | umask | `hmz web` has no remembered port. |
 | `providers/<cli>/<name>/` | One account. See [The account directory](#account-directory). | `0700` | The account no longer exists. |
@@ -254,7 +256,7 @@ Never delete `daemon.sock`, `daemon.json`, or `daemon.lock` while the daemon run
 | `<tmp>/hmz-dsh-<random>/`, `hmz-gateway-<random>/`, `hmz-homes-<random>/` | The configuration of one `dsh` process, of one LiteLLM gateway process (with its account's credentials, mode `0600`), and the homes of turns run on another machine. Mode `0700`. | When the agent or session ends |
 | `<tmp>/hmz-sessions-<random>/` | Sessions a flow stored in its state, for an epic with no resume journal. | When the epic ends |
 | `<tmp>/hmz-env-<random>/` | A copy of a file of an environment while your editor has it open from the terminal interface. | When the editor closes |
-| `<tmp>/hmz-private-<random>/` | The home and the temporary directory of the private daemons of one Python process, with a copy of `settings.yaml`. | When the last of them closes |
+| `<tmp>/hmz-private-<random>/` | The home and the temporary directory of the private daemons of one Python process, with a copy of `settings.toml`. | When the last of them closes |
 | `<tmp>/humanize-<random>/` | The container id and a mirror for one container, service or job of an environment. | With the container, service or job |
 | `${XDG_RUNTIME_DIR:-<tmp>}/humanize-ssh-<uid>/` | Shared ssh connections. Mode `0700`. Under `/tmp` when the path would be too long for a socket. | Each socket, 120 seconds after its last use |
 | `/dev/shm/hmz-<pid>-<16 hex digits>-<random>/` | Linux only. Copies of an account's credential files staged for one CLI process. Mode `0700`. | When that process ends |
@@ -274,15 +276,17 @@ Humanize never adds `.hmz/` to `.gitignore`. Snapshots exclude `.hmz/` at the ro
 
 Humanize never writes CLI skills, hooks, commands, or instruction files into a workspace—including anything under `.claude/`, `.agents/`, `.cursor/`, `.codex/`, `.gemini/`, `.qwen/`, or `.grok/`, and any `AGENTS.md`, `CLAUDE.md`, or `.mcp.json`. It never writes epic records, sessions, traces, or archives there unless you specify that path as the destination.
 
-## The cache directory
+## The state directory
 
 | Path | Holds |
 | --- | --- |
-| `~/.cache/humanize/shadows/<sha16>.json` | `{"shadow": "<path>", "target": "<machine>"}`: one mirror on this machine and the machine it mirrors. `HUMANIZE_SHADOWS` names another directory. |
-| `~/.cache/humanize/shadows/<sha16>.journal`, `<sha16>.live` | What the CLI processes using that mirror know of its files, and a marker that it is in use. Mode `0600`. |
-| `~/.cache/humanize/litellm/sessions/<id>.jsonl` | A session of the `litellm` agent that is not kept in an epic. |
+| `<state>/shadows/<sha16>.json` | `{"shadow": "<path>", "target": "<machine>"}`: one mirror on this machine and the machine it mirrors. `HUMANIZE_SHADOWS` names another directory. |
+| `<state>/shadows/<sha16>.journal`, `<sha16>.live` | What the CLI processes using that mirror know of its files, and a marker that it is in use. Mode `0600`. |
+| `<state>/litellm/sessions/<id>.jsonl` | A session of the `litellm` agent that is not kept in an epic. |
 
-Humanize never removes these files. You can delete them when no `hmz` process or daemon is running.
+`<state>` is the state directory. Humanize never removes these files. You can delete them when no `hmz` process or daemon is running.
+
+Earlier releases kept these under `~/.cache/humanize/`. The first process that looks for `shadows/` (unless `HUMANIZE_SHADOWS` is set), `litellm/` or `displaced/` in the state directory and finds none moves the old one there. It never merges into a directory that already exists, and leaves the old one where it is if it cannot be moved.
 
 ## A backup target
 
@@ -320,14 +324,16 @@ Humanize creates only the following files on remote machines running an environm
 
 | Path | Holds | Removed |
 | --- | --- | --- |
-| `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | As [Environment state](#environment-state), for environments on that machine. | As there |
-| `$HOME/.cache/humanize/coganchor-<digest16>` | The `coganchor` binary for that machine. Mode `0700`. `/tmp/humanize/coganchor-<digest16>` in a container. | By a later install, once unused for 14 days |
-| `$HOME/.cache/humanize-mirrors/<sha16>/` | A CLI's mirror of the workspace, when the CLI runs on another machine than the environment. `/tmp/humanize-mirrors/<sha16>/` in a container. | Never |
+| `${XDG_STATE_HOME:-$HOME/.local/state}/humanize/envs/` | As [Environment state](#environment-state), for environments on that machine. A relative `XDG_STATE_HOME` is ignored. | As there |
+| `${XDG_CACHE_HOME:-$HOME/.cache}/humanize/coganchor-<digest16>` | The `coganchor` binary for that machine. Mode `0700`. `/tmp/humanize/coganchor-<digest16>` in a container. | By a later install, once unused for 14 days |
+| `${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors/<sha16>/` | A CLI's mirror of the workspace, when the CLI runs on another machine than the environment. `/tmp/humanize-mirrors/<sha16>/` in a container. | Never |
 | `/tmp/humanize-slurm-<job id>.out` | Output of a Slurm job reached over TCP, on its node. | Never |
 | A `mktemp -d` directory | An account's credential files for one turn of a CLI running there. Mode `0700`, files `0600`. | When the turn ends |
 | `<file>.humanize-<pid>-<n>.tmp` beside a file | A file being written, before it is renamed into place. | On rename |
 | The directories of a CLI process, in that machine's temporary directory | As [Other temporary files](#other-temporary-files). | As there, except `hmz-fence-<random>/`, which is never removed |
-| `~/.cache/humanize/shadows/` | The records of the mirrors on that machine, as [The cache directory](#the-cache-directory). | Never |
+| `shadows/` in that machine's state directory | The records of the mirrors on that machine, as [The state directory](#the-state-directory). | Never |
+
+Each variable is read from the environment Humanize's commands run with on that machine. On a Slurm node that environment has only `HOME` and `USER`. When Humanize first reaches an SSH host, and when a Slurm job starts, it moves the `envs/` an earlier version kept on that machine into the state directory above: the one in `$HUMANIZE_HOME` or `~/.hmz`, else the one in `~/.humanize`. It moves nothing if the state directory already has `envs/` or is on another filesystem. After moving, it removes the old directory if that leaves it empty and runs `git worktree repair` in each worktree it moved.
 
 Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-<hex8>`, or `<name_prefix>-<role>-<hex8>` if the runtime sets `name_prefix`. Each has the labels `humanize=<uid>`, `humanize.provider`, `humanize.role`, `humanize.host`, and `humanize.pid`, and is removed when the environment closes. See [Environments and runtimes](/reference/environments).
 
@@ -340,8 +346,8 @@ Humanize never prunes these paths; delete them manually when you no longer need 
 - worktrees under `<home>/envs/`
 - `refs/hmz/snapshots/` in your repositories
 - `<mdir>/daemon.log`, `<mdir>/pinned/`, `<mdir>/skills/` and `<mdir>/backup/`
-- `~/.cache/humanize/`
+- the state directory
 
 Humanize reads `~/.ssh/config` and its included files, and never writes to them.
 
-`hmz daemon install` writes one file outside these places: `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` on macOS, or `~/.config/systemd/user/hmz-daemon.service` on Linux. `hmz daemon uninstall` removes it. See [Daemon and wire](/reference/daemon).
+`hmz daemon install` writes one file outside these places: `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` on macOS, or `$XDG_CONFIG_HOME/systemd/user/hmz-daemon.service` on Linux, with the `XDG_CONFIG_HOME` of your systemd user manager (`~/.config/systemd/user/hmz-daemon.service` when it is unset or relative). `hmz daemon uninstall` removes it. See [Daemon and wire](/reference/daemon).

@@ -12,7 +12,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
-import yaml
+import tomlkit
 
 from hmz import home
 from hmz.runtime import Hmz
@@ -232,8 +232,8 @@ def _target(tmp_path: Path) -> Path:
     lab = tmp_path / "lab.git"
     subprocess.run(["git", "init", "-q", "--bare", str(lab)], check=True)
     home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.yaml").write_text(
-        yaml.safe_dump(
+    (home() / "settings.toml").write_text(
+        tomlkit.dumps(
             {
                 "backup": {
                     "targets": [{"name": "lab", "url": str(lab)}],

@@ -321,7 +321,7 @@ epics apart from every frontend, and serves every frontend over the sessions of 
 **2.6.2** A **frontend** is a way for a user to start, watch and steer epics: the command line, the
 terminal interface (TUI), the web interface, or the desktop application for macOS or for Windows.
 
-**2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
+**2.6.3** The **settings file** is the file `settings.toml` in the home (Section 3 of [FILES]).
 
 **2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
 client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
@@ -725,7 +725,7 @@ Out of scope:
 - The flow-facing API through which a flow declares roles, permissions, hooks, tools and budgets:
   Section 3 of [PYTHON].
 - The `-a` command-line option and exit statuses: [CLI].
-- The `nous` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
+- The `nous` and `clis` keys of `settings.toml`: Section 3 of [FILES].
 - Where an epic keeps the sessions of its agents: Section 3.
 - How usage and cost are displayed while an epic runs: Section 10.
 
@@ -1187,7 +1187,8 @@ nothing. Each harness MUST be launched as the table states:
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
 `untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
-MUST run at `yolo` where the table says `auto`.
+MUST run at `yolo` where the table says `auto`. Where Kimi Code refuses the mode it is told, or
+holds the session at another, hmz MUST fail the session before the prompt is sent, naming the mode.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
@@ -1203,7 +1204,11 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
-**4.6.2.9** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
+**4.6.2.9** Where a Cursor team's admin has switched off Run Everything or headless use, no
+`cursor-agent` launch of the table is unattended and granted, so hmz MUST fail the agent's turn as
+one no retry changes, naming the harness, the team's admin and the setting.
+
+**4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
 it, and hmz MUST launch each at that mode without reading any policy first.
 
 #### 4.6.3. Web search
@@ -1809,7 +1814,7 @@ removed.
 
 **4.14.1.1** The user MUST be able to add as a harness any command that speaks the Agent Client
 Protocol, under the name of the program it runs, and hmz MUST record it under `clis` in
-`settings.yaml`, as Section 3 of [FILES] states.
+`settings.toml`, as Section 3 of [FILES] states.
 
 **4.14.1.2** hmz MUST refuse to add a command whose program is a built-in harness under any alias, a
 command that is empty, and a name other than the program's own.

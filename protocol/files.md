@@ -74,7 +74,7 @@ It is normative. It is cited by the tag [FILES].
   - [7.6. The daemon](#76-the-daemon)
   - [7.7. Scratch directories in the machine directory](#77-scratch-directories-in-the-machine-directory)
   - [7.8. Other process-private temporary directories](#78-other-process-private-temporary-directories)
-  - [7.9. The cache directory](#79-the-cache-directory)
+  - [7.9. The state directory](#79-the-state-directory)
   - [7.10. Files hmz reads and never writes](#710-files-hmz-reads-and-never-writes)
 - [8. Harness Homes](#8-harness-homes)
   - [8.1. Scope](#81-scope)
@@ -154,8 +154,8 @@ top-level mapping, joined by `.`; `<x>` in a key path stands for any key of that
 
 **3.2.4** A **flow entry** is the value at `workspaces.<path>.flows.<flow>`.
 
-**3.2.5** An **unreadable** settings file is one that exists but cannot be read, is not valid YAML,
-or does not hold a mapping at its top level.
+**3.2.5** An **unreadable** settings file is one that exists but cannot be read or is not valid
+TOML.
 
 **3.2.6** A **writer** is any hmz process that changes the settings file.
 
@@ -173,11 +173,15 @@ an `-a` item after `<role>=` (Section 7.4 of [CLI]).
 
 #### 3.3.1. Location and format
 
-**3.3.1.1** The settings file MUST be the file `settings.yaml` in the home.
+**3.3.1.1** The settings file MUST be the file `settings.toml` in the home.
 
-**3.3.1.2** The settings file MUST hold one YAML mapping.
+**3.3.1.2** The settings file MUST be one TOML v1.0.0 document, whose top-level table is the
+mapping Section 3 specifies.
 
 **3.3.1.3** hmz MUST NOT create the settings file, or the home, until it writes a setting.
+
+**3.3.1.4** TOML having no null, hmz MUST write a value Section 3 gives as null by leaving its key
+out, and MUST read a key left out as that null.
 
 #### 3.3.2. Reading
 
@@ -200,7 +204,7 @@ the whole value of `nous`, of `clis`, of `backup`, of `daemons`, of `notificatio
 `listen`, of `ice_servers` or of `easytier`, or one runtime.
 
 **3.3.3.2** A writer MUST guard, read and replace the settings file as Section 4.5 states for
-`<home>/settings.yaml`.
+`<home>/settings.toml`.
 
 **3.3.3.3** A writer MUST apply its change to the content the file holds at the time of the write,
 and MUST NOT write back any other value it read earlier.
@@ -816,7 +820,7 @@ hmz learns the newest release; `off`, `0`, `no`, `none` or the empty string MUST
 scan a daemon makes of its installed harnesses as it starts (Section 3.9.8.1 of [DAEMON]).
 
 **3.11.2.9** `HUMANIZE_SHADOWS` MUST name the directory in which hmz keeps the records of mirrors,
-defaulting to `~/.cache/humanize/shadows` (Section 7).
+defaulting to `shadows/` in the state directory (Section 7.9.1).
 
 **3.11.2.10** `HUMANIZE_SSH_REUSE` set to `off`, `0`, `no`, `false` or the empty string MUST stop
 hmz from sharing one ssh connection between the ssh commands it runs to one destination.
@@ -875,7 +879,7 @@ Out of scope:
 
 - The epic directories under `<home>/epics/`: Section 6.
 - The chat directories under `<home>/chats/`: Section 6.12.
-- The keys and values of `settings.yaml`: Section 3.
+- The keys and values of `settings.toml`: Section 3.
 - The content of the account directories under `<home>/providers/`: Section 8.4.
 - Directories outside the **home** on **this machine**: Section 7.
 - The state directory of **hmz** on a **machine** other than **this machine**: Section 9.
@@ -953,35 +957,52 @@ Section 4.16.
 
 ### 4.5. Settings
 
-**4.5.1** `<home>/settings.yaml` holds the settings of **hmz**, as a YAML mapping whose keys and
+**4.5.1** `<home>/settings.toml` holds the settings of **hmz**, as a TOML document whose keys and
 values are specified in Section 3.
 
-**4.5.2** `hmz` MUST create `<home>/settings.yaml` when it first writes a setting, with mode `0600`,
+**4.5.2** `hmz` MUST create `<home>/settings.toml` when it first writes a setting, with mode `0600`,
 and MUST keep the mode of an existing file.
 
-**4.5.3** `hmz` MUST write `<home>/settings.yaml` by atomic replacement.
+**4.5.3** `hmz` MUST write `<home>/settings.toml` by atomic replacement.
 
-**4.5.4** Each writer of `<home>/settings.yaml` MUST, by `<home>/.settings.yaml.lock`, keep every
+**4.5.4** Each writer of `<home>/settings.toml` MUST, by `<home>/.settings.toml.lock`, keep every
 other writer out while it reads the file, makes one change and writes the file.
 
 **4.5.5** A writer that cannot keep the other writers out within 30 seconds, or cannot open
-`<home>/.settings.yaml.lock`, MUST proceed without keeping them out.
+`<home>/.settings.toml.lock`, MUST proceed without keeping them out.
 
-**4.5.6** `hmz` MUST create `<home>/.settings.yaml.lock` empty, with mode `0600`, and MUST NOT
+**4.5.6** `hmz` MUST create `<home>/.settings.toml.lock` empty, with mode `0600`, and MUST NOT
 remove it.
 
-**4.5.7** A reader of `<home>/settings.yaml` MUST NOT wait for a writer.
+**4.5.7** A reader of `<home>/settings.toml` MUST NOT wait for a writer, other than while it
+converts the file of Section 4.5.12.
 
-**4.5.8** `hmz` MUST treat a `<home>/settings.yaml` that is missing, unreadable, not valid YAML or
-not a mapping as holding no settings.
+**4.5.8** `hmz` MUST treat a `<home>/settings.toml` that is missing, unreadable or not valid TOML as
+holding no settings.
 
-**4.5.9** `hmz` MUST NOT overwrite a `<home>/settings.yaml` that is unreadable, not valid YAML or
-not a mapping.
+**4.5.9** `hmz` MUST NOT overwrite a `<home>/settings.toml` that is unreadable or not valid TOML.
 
-**4.5.10** `hmz` MUST NOT remove `<home>/settings.yaml`.
+**4.5.10** `hmz` MUST NOT remove `<home>/settings.toml`.
 
-**4.5.11** The **user** MAY delete `<home>/settings.yaml` and `<home>/.settings.yaml.lock` while
+**4.5.11** The **user** MAY delete `<home>/settings.toml` and `<home>/.settings.toml.lock` while
 **hmz** is not running; every setting then takes its default.
+
+**4.5.12** Where `<home>/settings.toml` does not exist and `<home>/settings.yaml`, the settings file
+of an earlier release, does, the first `hmz` process to read or write a setting MUST, keeping the
+other writers out as Section 4.5.4 states, write `<home>/settings.toml` with mode `0600`, holding
+the YAML mapping `<home>/settings.yaml` holds with every null value's key left out, every key a
+string and a key YAML reads as true or false written `on` or `off`; and MUST then rename
+`<home>/settings.yaml` to `<home>/settings.yaml.migrated`, without printing any message.
+
+**4.5.13** `hmz` MUST NOT convert a `<home>/settings.yaml` that is unreadable, not valid YAML or not
+a mapping, and MUST treat the settings file as unreadable (Section 3.2.5) until the **user**
+corrects or removes it.
+
+**4.5.14** Where the conversion of Section 4.5.12 cannot be written, `hmz` MUST read the settings as
+it would have converted them, and MUST NOT report an error.
+
+**4.5.15** Where `<home>/settings.toml` exists, `hmz` MUST NOT read, modify or remove
+`<home>/settings.yaml` or `<home>/settings.yaml.migrated`.
 
 ### 4.6. Prompt history
 
@@ -1842,8 +1863,8 @@ destination exists.
 ### 7.1. Scope
 
 Section 7 specifies every file and directory **hmz** creates on **this machine** outside the
-**home** and outside any **workspace**: the machine directory in the temporary directory, the cache
-directory `~/.cache/humanize/`, the files of the **daemon**, the directories of ssh connection
+**home** and outside any **workspace**: the machine directory in the temporary directory, the state
+directory, the cache directory, the files of the **daemon**, the directories of ssh connection
 sharing, and the temporary directories **hmz** creates for one process. For each it states the path,
 the creator, the format, the mode, the lifetime and when the **user** MAY delete it.
 
@@ -1867,10 +1888,14 @@ otherwise the first of `/tmp`, `/var/tmp` and `/usr/tmp` that is.
 **7.2.2** **Machine directory** (`<mdir>`): the directory `<tmp>/humanize-<uid>`, where `<uid>` is
 the numeric user identifier of the process.
 
-**7.2.3** **Cache directory**: the directory `~/.cache/humanize/`.
+**7.2.3** **Cache directory**: the directory `humanize/` in the directory `XDG_CACHE_HOME` names
+where it is set to an absolute path, and `~/.cache/humanize/` otherwise.
 
 **7.2.4** **Process-private temporary directory**: a directory that **hmz** creates in `<tmp>` with
 a name of the stated prefix followed by `<random>`, with mode `0700`.
+
+**7.2.5** **State directory**: the directory `humanize/` in the directory `XDG_STATE_HOME` names
+where it is set to an absolute path, and `~/.local/state/humanize/` otherwise.
 
 ### 7.3. The machine directory
 
@@ -2075,11 +2100,10 @@ writable.
 sharing off, MUST NOT remove it, and MUST NOT share connections where it is not a directory owned
 by the **user** that no other user is permitted to read, write or enter.
 
-### 7.9. The cache directory
+### 7.9. The state directory
 
 **7.9.1** The location of the mirror records MUST be the directory `HUMANIZE_SHADOWS` names, `~`
-expanded, where it is set and not empty, and `~/.cache/humanize/shadows/` otherwise; it MUST NOT
-follow `HUMANIZE_HOME`.
+expanded, where it is set and not empty, and `shadows/` in the state directory otherwise.
 
 **7.9.2** For each **mirror** on **this machine**, the directory of Section 7.9.1 MUST hold
 `<sha16>.json`, where `<sha16>` is the first 16 lowercase hexadecimal digits of the SHA-256 of the
@@ -2103,13 +2127,22 @@ describe.
 
 **7.9.8** The **user** MAY delete the files of Section 7.9 while **hmz** is not running.
 
-**7.9.9** `~/.cache/humanize/litellm/sessions/<id>.jsonl` MUST hold a **session** of the **harness**
-`litellm` that is not kept in an **epic**, as JSON Lines whose first line is `{"type": "session",
+**7.9.9** `litellm/sessions/<id>.jsonl` in the state directory MUST hold a **session** of the
+**harness** `litellm` that is not kept in an **epic**, as JSON Lines whose first line is `{"type": "session",
 "id", "parent", "cwd", "model", "timestamp"}` and whose following lines are `{"type": "message",
 "timestamp", "message": {"role", "content", ...}}`.
 
 **7.9.10** `hmz` MUST NOT remove a file of Section 7.9.9, and the **user** MAY delete it at any
 time.
+
+**7.9.11** Where a directory of the state directory listed below does not exist, `hmz` MUST move to
+it the directory of the cache directory of an earlier release that it replaces, the first time a
+process locates it: `shadows/` from `~/.cache/humanize/shadows/`, only where `HUMANIZE_SHADOWS` is
+unset or empty; `litellm/` from `~/.cache/humanize/litellm/`; and `displaced/` from
+`~/.cache/humanize/displaced/`.
+
+**7.9.12** `hmz` MUST NOT move a directory of Section 7.9.11 into one that exists, nor merge the
+two, and MUST leave it where it is where it cannot be moved.
 
 ### 7.10. Files hmz reads and never writes
 
@@ -2177,7 +2210,8 @@ stated, and the default applies under `$HOME` otherwise:
 - `cursor-agent`: `CURSOR_CONFIG_DIR`, default `~/.cursor`;
 - `mcode`: `MINIMAX_DATA_DIR`, default `~/.minimax`;
 - `agy`: no variable, default `~/.gemini/antigravity-cli`;
-- `litellm`: no variable, default `~/.cache/humanize/litellm`.
+- `litellm`: `XDG_STATE_HOME` with sub-directory `humanize/litellm`, default
+  `~/.local/state/humanize/litellm` (Section 7.9.9).
 
 **8.3.2** `hmz` MUST NOT create, modify, replace or remove any user configuration file, on any
 **machine**.
@@ -2409,18 +2443,19 @@ host, a docker or Apple container, a swarm service, a Slurm job, a server reache
 **this machine**.
 
 **9.2.2** **State directory** (`<state>`): on **this machine**, `<home>`; on an ssh host or a Slurm
-node, `${HUMANIZE_HOME:-$HOME/.hmz}` as the login shell of the **user** there expands it, a relative
-value taken under `$HOME`.
+node, `<xdg-state>/humanize`, where `<xdg-state>` is `XDG_STATE_HOME` as the shell **hmz** runs there
+has it where that is an absolute path, and `$HOME/.local/state` otherwise.
 
 **9.2.3** **Binary cache** (`<cache>`): the directory on a **target** that holds the `coganchor`
-binary: `$HOME/.cache/humanize` on an ssh host and on a Slurm node; `/tmp/humanize` in a container;
-`/tmp/humanize-<user>` in a docker container whose **runtime** names the user `<user>` to execute
-as.
+binary: `${XDG_CACHE_HOME:-$HOME/.cache}/humanize` as the shell **hmz** runs there expands it on
+an ssh host and on a Slurm node; `/tmp/humanize` in a container; `/tmp/humanize-<user>` in a docker
+container whose **runtime** names the user `<user>` to execute as.
 
 **9.2.4** **Mirror root** (`<mirrors>`): the directory on a **harness machine** other than **this
-machine** that holds **mirrors**: `$HOME/.cache/humanize-mirrors` on an ssh host and on a Slurm
-node; `/tmp/humanize-mirrors` in a container; `/tmp/humanize-mirrors-<user>` in a docker container
-whose **runtime** names the user `<user>`.
+machine** that holds **mirrors**: `${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors` as the shell
+**hmz** runs there expands it on an ssh host and on a Slurm node; `/tmp/humanize-mirrors` in a
+container; `/tmp/humanize-mirrors-<user>` in a docker container whose **runtime** names the user
+`<user>`.
 
 **9.2.5** **Workdir digest**: lowercase hexadecimal digits of a BLAKE2b digest of the absolute path
 of a working directory.
@@ -2430,9 +2465,15 @@ of a working directory.
 **9.3.1** `hmz` MUST create on a **target** only the entries Section 9 and Section 8 specify,
 besides the files the **agents** and the **flow** write as their work.
 
-**9.3.2** Where `HUMANIZE_HOME` is not set on an ssh host, `$HOME/.hmz` does not exist there and
-`$HOME/.humanize` is a directory there, `hmz` MUST rename `$HOME/.humanize` to `$HOME/.hmz` when it
-first probes that host.
+**9.3.2** Where `<state>/envs` does not exist on an ssh host or a Slurm node, `hmz` MUST, when it
+first probes that host and when the batch step of a Slurm job reached over TCP starts there, rename
+to `<state>/envs` the first of these that is a directory: `<old>/envs`, where `<old>` is
+`HUMANIZE_HOME` as the shell **hmz** runs there has it, a relative value taken under `$HOME`,
+and `$HOME/.hmz` where it is unset or empty; then `$HOME/.humanize/envs`. It MUST rename it only
+where `df -P` names one filesystem for it and `<state>`, MUST NOT merge it into a `<state>/envs`
+that exists, and a rename that fails MUST leave it where it was and MUST NOT fail the probe or the
+job. Once it is renamed, `hmz` MUST remove the directory it was in where that is empty, and MUST
+run `git worktree repair` in each worktree of Section 9.4 under it.
 
 **9.3.3** `hmz` MUST NOT create on a **target** other than **this machine** any entry of `<state>`
 other than `envs/`.
@@ -2604,7 +2645,7 @@ document on which the security of a user's machine, credentials and work depends
 
 - The settings file MUST NOT hold the credentials of any account and refers to an account only by
   its name (Section 3.10.1.1 and Section 3.10.1.2).
-- A settings file that hmz creates, and its lock file `<home>/.settings.yaml.lock`, have mode `0600`
+- A settings file that hmz creates, and its lock file `<home>/.settings.toml.lock`, have mode `0600`
   (Section 3.3.3.4, Section 4.5.2 and Section 4.5.6).
 - The `secret` of an EasyTier entry is stored in the settings file and is at least 16 bytes long
   (Section 3.4.10.2), and so is a TURN `credential` of `ice_servers` (Section 3.4.9.1).

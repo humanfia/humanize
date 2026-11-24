@@ -67,7 +67,7 @@ def test_a_harness_is_elsewhere_only_on_another_machine(
     assert elsewhere(AnchorConfig(harness=harness, target=target)) is away
 
 
-PROGRAM = "$HOME/.cache/humanize/coganchor-0123456789abcdef"
+PROGRAM = "${XDG_CACHE_HOME:-$HOME/.cache}/humanize/coganchor-0123456789abcdef"
 
 
 @pytest.fixture

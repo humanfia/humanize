@@ -32,6 +32,6 @@ Look up any Humanize command, key, Python name, setting or file. To learn how to
 | [Daemon and wire](/reference/daemon) | Routes, carriers, listeners, JSON-RPC methods and error codes. |
 | [Events and records](/reference/events) | The `hmz exec --json` event stream, epic record events and notices. |
 | [Trace formats](/reference/tracing) | Timeline document, Chrome trace output and harness trace readers. |
-| [settings.yaml](/reference/settings) | Every `settings.yaml` key, with its type, default and meaning. |
+| [settings.toml](/reference/settings) | Every `settings.toml` key, with its type, default and meaning. |
 | [Environment variables](/reference/environment) | Every environment variable `hmz` reads. |
 | [Files on disk](/reference/files) | Home directory, machine directory, epic directories, chat records and backups. |
