@@ -216,7 +216,10 @@ def test_what_is_done_where_no_hmz_is_found_is_said_as_remotes_are_made(
     assert ASKING == "asking"
     assert isinstance(Daemons().remotes("1.2.3", install=install), Made)
     assert isinstance(Daemons().remotes(), Made)
-    assert made == [("1.2.3", {"install": install}), (None, {"install": False})]
+    assert made == [
+        ("1.2.3", {"install": install, "kind": "sdk"}),
+        (None, {"install": False, "kind": "sdk"}),
+    ]
 
 
 def test_a_probe_is_read_by_what_each_line_says() -> None:
@@ -462,6 +465,35 @@ def test_a_daemon_is_reached_its_id_pinned_and_its_client_called(
         remotes.close()
     assert remotes.state("box")["state"] == "idle"
     assert _Peer.made[0].closed
+
+
+@pytest.mark.usefixtures("held", "reached")
+def test_a_daemon_is_reached_as_the_kind_of_client_asked_for_and_held_as_its_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hmz.rpc
+    from hmz.runtime.doing.daemons import Client
+
+    class Mine(Client):
+        """A client that does more than the runtime's, as the SDK's does."""
+
+    said: list[tuple[str, str]] = []
+
+    def hello(_peer: object, name: str, kind: str, **_: object) -> dict[str, str]:
+        said.append((name, kind))
+        return {"daemon_id": _ID, "version": "9.9.9", "device": "local"}
+
+    monkeypatch.setattr(hmz.rpc, "hello", hello)
+    Daemons().write("box", {"routes": ["stdio:local"]})
+    remotes = Daemons().remotes(kind="cli")
+    try:
+        client = remotes.client("box", Mine)
+        assert type(client) is Mine
+        assert type(remotes.client("box")) is Client
+        assert client.daemon_id == _ID
+        assert said == [("here", "cli")]
+    finally:
+        remotes.close()
 
 
 def test_a_daemon_that_answers_as_another_fails(

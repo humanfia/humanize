@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz.cli.tree import REFUSED, UNREAD, Arg, Command, Example, Field, table
+from hmz.cli.tree import YES, Arg, Command, Example, Field, sure, table, whole
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -14,40 +12,6 @@ if TYPE_CHECKING:
     from hmz.sdk.families.flowverses import Kept
 
 __all__ = ["COMMANDS"]
-
-#: The code a line that cannot be done as written is answered with under `--json`.
-_BAD = 400
-
-
-def _sure(call: Call, ask: str) -> int | None:
-    """Asks at the terminal before something is removed, unless the line said `-y`.
-
-    Never asked of anything but somebody at a terminal, nor under `--json`, whose standard
-    error stays empty: a line read off a pipe is not a yes.
-
-    Args:
-      call: The command being run.
-      ask: The question, as the page asks it.
-
-    Returns:
-      None to go on, else the status to end with: nothing was removed.
-    """
-    if call.yes:
-        return None
-    if call.json or not sys.stdin.isatty():
-        nobody = t("Nobody is at a terminal to ask; run it again with `-y`.")
-        if call.json:
-            call.answers({"error": {"code": _BAD, "message": nobody}})
-            return UNREAD
-        line = " ".join(["hmz", *call.path])
-        print(f"{line}: {nobody}", file=sys.stderr)
-        print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-        return UNREAD
-    print(f"{ask} [y/N] ", end="", file=sys.stderr, flush=True)
-    if sys.stdin.readline().strip().lower() in ("y", "yes"):
-        return None
-    print(t("Nothing was changed."), file=sys.stderr)
-    return REFUSED
 
 
 def _changed(call: Call, kept: Kept) -> None:
@@ -138,7 +102,7 @@ def _add(call: Call) -> None:
     # A repository on this disk written from here is named whole: the daemon stands elsewhere.
     url: str = call.url
     if url.startswith(("./", "../")):
-        url = str(Path(url).absolute())
+        url = whole(url)
     _changed(call, call.client.flowverses.add(url, call.name))
 
 
@@ -146,31 +110,21 @@ def _fetch(call: Call) -> None:
     _changed(call, call.client.flowverses.fetch(call.name))
 
 
-def _remove(call: Call) -> int | None:
-    ask = t("Remove {name} and every flow installed out of it?", name=call.name)
-    if (status := _sure(call, ask)) is not None:
-        return status
+def _remove(call: Call) -> None:
+    sure(call, t("Remove {name} and every flow installed out of it?", name=call.name))
     _changed(call, call.client.flowverses.remove(call.name))
-    return None
 
 
 def _install(call: Call) -> None:
     _changed(call, call.client.flowverses.install(call.flow, call.version))
 
 
-def _uninstall(call: Call) -> int | None:
-    if (status := _sure(call, t("Uninstall {name}?", name=call.flow))) is not None:
-        return status
+def _uninstall(call: Call) -> None:
+    sure(call, t("Uninstall {name}?", name=call.flow))
     _changed(call, call.client.flowverses.uninstall(call.flow))
-    return None
 
 
 _NAME = Arg(("name",), "the name of the flowverse, as `hmz flowverses list` prints it")
-_YES = Arg(
-    ("-y", "--yes"),
-    "remove without asking first; needed when nobody is at a "
-    "terminal to answer, and with `--json`",
-)
 
 #: What `flowverses.list` answers, which every change answers too.
 _KEPT = (
@@ -380,7 +334,7 @@ COMMANDS = (
                 "from it. Asks first unless `-y` is given; any answer other than "
                 "yes changes nothing and exits with status 1. Refused while an "
                 "epic is running.",
-                args=(_NAME, _YES),
+                args=(_NAME, YES),
                 examples=(
                     Example(
                         "hmz flowverses remove team",
@@ -445,7 +399,7 @@ COMMANDS = (
                         ("flow",),
                         "the installed flow, as `hmz flowverses list` prints it",
                     ),
-                    _YES,
+                    YES,
                 ),
                 examples=(
                     Example(

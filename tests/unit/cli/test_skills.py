@@ -332,11 +332,11 @@ def test_removing_asks_first(
     monkeypatch.setattr("sys.stdin", io.StringIO(""))
     assert main(["skills", "remove"]) == 1
     assert capsys.readouterr().err == (
-        "hmz skills remove: Removing asks first. Run it again with `--yes`.\n"
+        "hmz skills remove: Nobody is at a terminal to ask; run it again with `-y`.\n"
     )
     monkeypatch.setattr("sys.stdin", _Terminal("n\ny\n"))
     assert main(["skills", "remove", "--json"]) == 1
-    assert _said(capsys)["error"]["message"].startswith("Removing asks first.")
+    assert _said(capsys)["error"]["message"].startswith("Nobody is at a terminal")
     assert claude.exists()
 
     assert main(["skills", "remove"]) == 0

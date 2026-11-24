@@ -13,13 +13,12 @@ everything they read and write.
 from __future__ import annotations
 
 import contextlib
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.cli import tree
-from hmz.cli.tree import Arg, Command, Example, Field, table
+from hmz.cli.tree import YES, Arg, Command, Example, Field, asks, table
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -501,17 +500,7 @@ def _list(call: Call) -> None:
     call.answers({"version": version, "harnesses": harnesses}, table(rows))
 
 
-def _asked(place: _Place) -> bool:
-    """Whether the person at the terminal says to remove one."""
-    print(
-        f"{t('Remove {name}?', name=place.card.parent)} [y/N] ", end="", file=sys.stderr
-    )
-    sys.stderr.flush()
-    return sys.stdin.readline().strip().lower() in ("y", "yes")
-
-
 def _remove(call: Call) -> None:
-    from hmz.sdk import Refused
 
     version = _version()
     named = bool(getattr(call.given, "for")) or call.dir is not None
@@ -522,12 +511,11 @@ def _remove(call: Call) -> None:
             raise _foreign(place)
         if state in ("current", "older"):
             found.append(place)
-    if found and not call.yes and (call.json or not sys.stdin.isatty()):
-        raise Refused(t("Removing asks first. Run it again with `--yes`."))
     removed: list[dict[str, Any]] = []
     lines: list[str] = []
     for place in found:
-        if not call.yes and not _asked(place):
+        # Refused whole, before anything is removed, where nobody can be asked.
+        if not asks(call, t("Remove {name}?", name=place.card.parent)):
             continue
         skill = place.card.parent
         # What `add` writes and nothing else: whatever somebody put beside it is theirs,
@@ -718,7 +706,7 @@ COMMANDS = (
                 says="Removes the hmz skill wherever `hmz skills add` wrote it, or "
                 "from the harnesses named. Asks first unless `--yes` is given. Never "
                 "removes a skill `hmz` did not write.",
-                args=(_FOR, _DIR, Arg(("-y", "--yes"), "remove without asking first")),
+                args=(_FOR, _DIR, YES),
                 examples=(
                     Example(
                         "hmz skills remove",

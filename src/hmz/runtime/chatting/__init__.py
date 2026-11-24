@@ -1430,10 +1430,11 @@ class _Talk:
         """Takes one turn of the conversation, with no limit on what it spends."""
         from hmz.runtime.flowing.spi import TurnRequest
 
+        # One that landed as the last turn ended stopped nothing, and stops nothing now --
+        # forgotten before the turn is said to be going, so that one landing after is kept.
+        self._failed = self._interrupted = False
         self.turning = True
         self.between = False
-        # One that landed as the last turn ended stopped nothing, and stops nothing now.
-        self._failed = self._interrupted = False
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending

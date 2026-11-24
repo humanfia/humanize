@@ -180,6 +180,82 @@ def test_a_host_is_listed_while_it_is_held_and_closed_by_name(
     assert cli.main(["hosts", "stop"]) == 1
 
 
+#: Asks its one question behind a face.
+FACED = """
+from hmz.flows import AgentCollection, EnvCollection, Face, FlowParams, LocalEnv, Outworlder, flow
+
+
+class Agents(AgentCollection):
+    picker: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="faced")
+async def faced(task, *, agents, envs, params, ctx):
+    picking = await agents["picker"].spawn(face=Face.html("<p>pick one</p>", title="Pick"))
+    await agents["picker"].run("which?", session=picking)
+"""
+
+
+def test_a_face_is_printed_and_a_host_opened_detached_and_quit(
+    workspace: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    written(workspace, "faced", FACED)
+    at = str(workspace.resolve())
+
+    # Opened with nothing attached to it, and found there by whatever asks next.
+    opened = _json(capsys, "hosts", "open")
+    assert (opened["workspace"], opened["slot"], opened["kind"]) == (at, "", "host")
+    assert [one["pid"] for one in _json(capsys, "hosts", "list")["hosts"]] == [
+        opened["pid"]
+    ]
+    assert _json(capsys, "hosts", "open")["pid"] == opened["pid"]
+    assert _json(capsys, "epic", "status")["attached"] == 0
+
+    assert cli.main(["epic", "start", "./faced", "pick", *BUDGET]) == 0
+    assert until(lambda: _asking(capsys) == ["q1"])
+    capsys.readouterr()
+    assert cli.main(["epic", "face", "q1"]) == 0
+    assert capsys.readouterr().out == "<p>pick one</p>"
+    assert _json(capsys, "epic", "face", "q1") == {
+        "question": "q1",
+        "title": "Pick",
+        "html": "<p>pick one</p>",
+    }
+    assert _json(capsys, "epic", "face", "q7") == {
+        "error": {"code": 404, "message": "Question q7 is not waiting."}
+    }
+
+    # A frontend following it is let go, and the epic goes on asking.
+    holder = subprocess.Popen(
+        [sys.executable, "-m", "hmz", "epic", "attach", "--json"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert until(lambda: _json(capsys, "epic", "status")["attached"] == 1)
+        assert _json(capsys, "hosts", "detach") == {
+            "workspace": at,
+            "slot": "",
+            "let_go": 1,
+        }
+        told = [
+            json.loads(line) for line in holder.communicate(timeout=30)[0].splitlines()
+        ]
+    finally:
+        holder.kill()
+    assert (told[-1]["type"], told[-1]["why"]) == ("gone", "let go")
+    assert _asking(capsys) == ["q1"]
+
+    assert _json(capsys, "epic", "quit") == {"workspace": at, "slot": ""}
+    assert until(lambda: _json(capsys, "hosts", "list") == {"hosts": []})
+    assert cli.main(["epic", "quit"]) == 1
+    assert "no runs are held in" in capsys.readouterr().err
+
+
 def test_what_cannot_start_is_refused_in_the_daemons_words(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

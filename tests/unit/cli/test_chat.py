@@ -455,17 +455,15 @@ def test_a_chat_is_not_deleted_for_want_of_a_yes(
     _stdin(monkeypatch, "\n", terminal=True)
 
     assert main(["chat", "delete", ID]) == 1
-    assert capsys.readouterr().err.endswith(
-        f"hmz chat delete: Chat {ID} was not deleted.\n"
-    )
+    assert capsys.readouterr().err.endswith("hmz chat delete: Nothing was changed.\n")
 
     # Nobody at a terminal is nobody to ask, and neither is a program reading a document.
     _stdin(monkeypatch, "yes\n", terminal=False)
     assert main(["chat", "delete", ID]) == 1
-    assert "pass `--yes` to delete" in capsys.readouterr().err
+    assert "run it again with `-y`" in capsys.readouterr().err
     _stdin(monkeypatch, "yes\n", terminal=True)
     assert main(["chat", "delete", ID, "--json"]) == 1
-    assert "--yes" in json.loads(capsys.readouterr().out)["error"]["message"]
+    assert "`-y`" in json.loads(capsys.readouterr().out)["error"]["message"]
     chats.delete.assert_not_called()
 
 
@@ -597,6 +595,8 @@ def test_a_session_that_ended_under_a_turn_is_a_daemon_not_reached(
     chats: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
     chats.start.side_effect = hmz.sdk.Refused("the daemon went away", code=503)
+    # The session has ended, as the client says it of one whose daemon went.
+    tree.reach.return_value.wait.return_value = True  # pyright: ignore[reportFunctionMemberAccess]
 
     assert main(["chat", "start", "-a", "claude/m", "go"]) == 3
     assert "the daemon went away" in capsys.readouterr().err

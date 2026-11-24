@@ -122,7 +122,7 @@ Run `hmz chat start` to start a chat, execute one turn and exit. It writes progr
 hmz chat start -a claude/claude-haiku-4-5 "What does charge() do?"
 ```
 
-![hmz chat run in a terminal: it prints the chat's id, the agent works, and the answer and token counts follow](/shots/user-chat-cli.svg)
+![hmz chat start, run in a terminal: it prints the chat's id, the agent works, and the answer and token counts follow](/shots/user-chat-cli.svg)
 
 The first line printed (`Chat <id>`) gives the chat's id. Pass it to `hmz chat say` to send the next message:
 

@@ -130,6 +130,38 @@ def test_what_was_said_before_a_subscription_was_taken_up_is_kept_for_it(
     second.close()
 
 
+def test_what_is_said_to_a_subscription_after_it_was_closed_is_kept_for_nobody(
+    client: mock.Mock,
+) -> None:
+    hub = Subscription(client, "epic.event", "s1")
+    hears = _hears(client)
+    hears("epic.event", {"sub": "s1", "message": "unread"})
+    hub.close()
+    # What a host says to a frontend it has let go, after the call that let it go.
+    hears("epic.event", {"sub": "s1", "message": {"type": "gone"}})
+
+    with Subscription(client, "epic.event", "s1") as again:
+        assert again.next(0.01) is None
+        # Taken up again, it is heard again.
+        hears("epic.event", {"sub": "s1", "message": "new"})
+        assert again.next(1) == {"sub": "s1", "message": "new"}
+
+
+def test_a_family_listens_before_the_call_that_opens_a_subscription(
+    client: mock.Mock,
+) -> None:
+    class Opening(Family):
+        def opens(self) -> Subscription:
+            self._listens()
+            # The daemon speaks before the call that opened the subscription is answered.
+            _hears(client)("epic.event", {"sub": "s7", "message": "at once"})
+            return self._heard("epic.event", "s7")
+
+    with Opening(client).opens() as heard:
+        assert heard.next(1) == {"sub": "s7", "message": "at once"}
+    client.heard.assert_called_once()
+
+
 def test_iterating_ends_once_it_is_closed(client: mock.Mock) -> None:
     heard = Subscription(client, "notices.event", "s1")
     _hears(client)("notices.event", {"sub": "s1", "notice": {"id": 1}})

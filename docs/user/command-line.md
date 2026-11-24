@@ -41,7 +41,7 @@ hmz chat start -a claude/claude-haiku-4-5 "What does charge() do with an empty c
 
 `hmz chat start` starts a chat, runs one turn and exits. It takes no flow or budget. It prints `Chat <id>` as the first line on stderr so you can continue the chat later.
 
-![A terminal: hmz chat prints the chat's id, then the agent's answer, its tokens and its time](/shots/user-command-line-chat.svg)
+![A terminal: hmz chat start prints the chat's id, then the agent's answer, its tokens and its time](/shots/user-command-line-chat.svg)
 
 Send the next message with `hmz chat say`:
 
@@ -139,6 +139,13 @@ hmz epic stop
 Roles, params and the budget are written as for `hmz exec`. Unlike `hmz exec`, roles are not away: a question waits until you answer it with `hmz epic answer`, in the app or in the terminal. Pass `--away` to have nobody asked, and `--follow` to stay until the epic ends.
 
 Each command reaches the epic of the current directory. Pass `-w DIR` for another workspace and `--slot SLOT` for an epic that is not on the workspace's own host, such as one started by `hmz exec` or with `--slot exec:`. `hmz hosts list` prints every workspace and slot, and `hmz hosts stop` closes one.
+
+| To | Run |
+| --- | --- |
+| Save the page a flow drew for a waiting question | `hmz epic face q3 > face.html` |
+| Start a workspace's host without starting an epic | `hmz hosts open` |
+| Let go every app, terminal and command following a host, leaving its epic running | `hmz hosts detach` |
+| Close the host from one of its own frontends | `hmz epic quit` |
 
 Every `hmz epic` and `hmz hosts` command takes `--json` and documents itself under `--help`. See [`hmz epic`](/reference/cli#hmz-epic).
 
