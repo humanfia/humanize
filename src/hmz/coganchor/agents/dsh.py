@@ -83,9 +83,32 @@ _PATCH = "humanize.patch.yml"
 #:
 #: No policy can forbid it, so nothing is read for it first: the runtime reads no managed or
 #: system one. What outranks it is the person's own `permission.defaultPreset` in the
-#: `settings.yaml` of the home it is handed, which is read only where that home is theirs.
+#: `settings.yaml` of the home it is handed -- the user layer of `dsh-settings`, above
+#: anything a profile or a patch composes -- which a fresh session is pinned to rather than
+#: to the preset the environment names (:data:`_PINNED`).
 _PERMISSION_ENV = "DSH_PERMISSION_MODE"
 _UNCONFINED = "danger-full-access"
+
+#: The `permission` row of `dsh-base` for an agent held to a fence: every preset that row
+#: names, each bundling `danger-full-access` with the approval policy `never`.
+#:
+#: The person's own default preset is not a patch's to outrank -- `dsh-settings` resolves
+#: its user layer above the composition, and a patch is composition -- and nothing of theirs
+#: is written to. What the patch can say is what each name means: so whichever of the three a
+#: `settings.yaml` picks, which its schema holds to these names, a fresh session is pinned at
+#: the one preset this driver can start a runtime at, and asks nothing nobody would answer.
+#: An agent no fence holds keeps the row as `dsh-base` writes it, and so the person's own
+#: default (protocol/core.md Section 4.6.2.1).
+_PINNED = {
+    "id": "permission",
+    "config": {
+        "presets": {
+            name: {"sandbox": _UNCONFINED, "approval": "never"}
+            for name in ("read-only", "workspace-write", _UNCONFINED)
+        },
+        "defaultPreset": _UNCONFINED,
+    },
+}
 
 #: Where the runtime keeps its profiles and sessions, which the SDK never assumes.
 _HOME_ENV = "DSH_HOME"
@@ -684,6 +707,7 @@ class DshSession(SessionBase):
                 way,
                 toolbox.command() if offered else None,
                 *skilled,
+                fenced=self._agent.fenced() is not None,
             )
 
         # Composed against the live runtime's own directory, which is where its skills are:
@@ -1157,6 +1181,8 @@ def _composed(
     bridge: list[str] | None = None,
     stock: dict[str, Any] | None = None,
     lodged: str | None = None,
+    *,
+    fenced: bool = False,
 ) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
 
@@ -1177,11 +1203,15 @@ def _composed(
       lodged: The directory the flow's skills are put beside the patch in, for the
         provider and the plugin that read them (:data:`_SKILLS`, :data:`_BRIDGE`), or None
         for an agent the flow gave none.
+      fenced: Whether the agent is held to a fence, whose sessions are pinned at
+        `danger-full-access` whatever preset its home's settings pick (:data:`_PINNED`).
 
     Returns:
       The patch to write out and hand the runtime with `--patch`, as YAML.
     """
     rows: list[dict[str, Any]] = []
+    if fenced:
+        rows.append(_PINNED)
 
     def off(*ids: str) -> None:
         rows.extend({"id": one, "disabled": True} for one in ids)
