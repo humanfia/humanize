@@ -215,14 +215,14 @@ def test_a_diagram_is_a_box_per_agent_in_order() -> None:
     first, second = diagram(drawn, shape, 80)
 
     plain = [_plain(line) for line in first]
-    assert plain[0].strip().startswith("┌")
+    assert plain[0].strip().startswith("┏")
     assert "▸ ● NeiKos496" in plain[1]
-    assert plain[1].rstrip().endswith("1m15s │")
+    assert plain[1].rstrip().endswith("1m15s ┃")
     assert "builder · claude · opus · 1 turn" in plain[2]
-    assert plain[-1].strip().startswith("└")
+    assert plain[-1].strip().startswith("┗")
     # The arrows say which way and how often, lit for the handover taken last.
-    assert "↓ 2 · ↑ 1" in _plain(second[0])
-    assert "$secondary" in second[0]
+    assert "╱ ↓ 2 ╱ ↑ 1" in _plain(second[0])
+    assert "$primary" in second[0]
     assert "○ Ajax17" in _plain(second[2])
     assert "idle 5s" in _plain(second[2])
     assert "2 turns · 1.5k tokens" in _plain(second[3])
@@ -240,7 +240,7 @@ def test_every_row_of_a_box_is_as_wide_as_the_last() -> None:
 def test_two_agents_never_handed_between_are_joined_by_a_dotted_spine() -> None:
     _, second = diagram([Drawn("a"), Drawn("b")], _shape(), 80)
 
-    assert _plain(second[0]).strip() == "┆"
+    assert _plain(second[0]).strip() == "┇"
 
 
 def test_the_cursor_is_marked_beside_the_name_of_its_box() -> None:
@@ -283,14 +283,14 @@ def test_a_fleet_hangs_under_a_box_and_is_cut_when_long() -> None:
 
     lines = [_plain(line) for line in fleet(under, 60)]
 
-    assert lines[0] == "  ├╴◆ task 0"
-    assert lines[1] == "  ├╴◇ task 1"
+    assert lines[0] == "  ┣╸◆ task 0"
+    assert lines[1] == "  ┣╸◇ task 1"
     assert len(lines) == 5
-    assert lines[-1] == "  └╴◇ and 2 more"
+    assert lines[-1] == "  ┗╸◇ and 2 more"
 
 
 def test_a_short_fleet_ends_its_branch_and_none_draws_nothing() -> None:
-    assert [_plain(line) for line in fleet([Under("s", "only")], 60)] == ["  └╴◆ only"]
+    assert [_plain(line) for line in fleet([Under("s", "only")], 60)] == ["  ┗╸◆ only"]
     assert fleet([], 60) == []
 
 
@@ -307,22 +307,22 @@ def test_a_session_row_hangs_under_its_agent() -> None:
     )
 
     first, sub = (_plain(line) for line in row.splitlines())
-    assert "└╴● NeiKos496/1 · 2 turns · 2.0k tokens" in first
+    assert "┗╸● NeiKos496/1 · 2 turns · 2.0k tokens" in first
     assert first.rstrip().endswith("reading · 3s")
-    assert sub.endswith("└╴◆ sub")
+    assert sub.endswith("┗╸◆ sub")
 
 
 def test_a_session_row_is_called_by_the_last_part_of_its_name() -> None:
     row = session_row(Drawn("NeiKos496/1", named="NeiKos496 · first"), _shape(), 80)
 
-    assert "├╴○ first" in _plain(row)
+    assert "┣╸○ first" in _plain(row)
     assert "idle 0s" in _plain(row)
 
 
 def test_a_place_row_says_its_role_and_where_it_is() -> None:
     place = Placed("k", "ws", "ssh", target="box", workdir="/w")
 
-    assert _plain(place_row(place, 80)) == "     │   ▤ ws · ssh · box · /w"
+    assert _plain(place_row(place, 80)) == "     ┃   ▤ ws · ssh · box · /w"
     assert _plain(place_row(place, 80, last=True)).startswith("         ▤")
     assert "❯" in place_row(place, 80, here=True)
 

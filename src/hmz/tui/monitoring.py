@@ -39,6 +39,7 @@ from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
 from hmz.runtime.watching.monitor import Shape, lasting, short, tallied, thousands
 
+from . import humanfia
 from .pick import (
     _DOT,
     _FIELD,
@@ -93,13 +94,17 @@ __all__ = [
 #: what the flow says to them in, and answers it from.
 OUTWORLDER = "outworlder:"
 
-#: What the diagram draws one agent's box with, and what it joins two of them by. Light
-#: box-drawing, which is what a terminal has for a box that is a label rather than a frame.
-_BOX = ("┌", "┐", "└", "┘", "─", "│")
+#: What the diagram draws one agent's block with, and what it joins two of them by: heavy
+#: rules and square corners, as everything the interface draws of its own is.
+_BOX = ("┏", "┓", "┗", "┛", humanfia.RULE, humanfia.BAR)
 
 #: What says a handover went down the diagram and what says it came back up it, and what
 #: stands between two agents the flow never handed between directly.
-_DOWN, _UP, _NEITHER = "↓", "↑", "┆"
+_DOWN, _UP, _NEITHER = "↓", "↑", "┇"
+
+#: How many lanes there are: the colours agents are told apart by, given out in the order
+#: the flow takes them, as the web page gives them out.
+_LANES = 6
 
 #: How wide one agent's box is drawn, at most, and how narrow it is allowed to get. Wide
 #: enough for what an agent runs beside how long it has been running it, and narrow enough
@@ -117,7 +122,7 @@ _IDLED = "idle"
 #: not an agent of the flow -- nobody chose what it runs, nothing can be said to it, and it
 #: has no transcript to read -- so it is drawn as a thing the agent above it is doing, and a
 #: box would say it was another agent to attach to.
-_UNDER, _LAST_UNDER = "├╴", "└╴"
+_UNDER, _LAST_UNDER = "┣╸", "┗╸"
 _FLEET_WORKING, _FLEET_DONE = "◆", "◇"
 
 #: How many of a fleet are drawn under one agent before the rest are counted rather than
@@ -279,6 +284,8 @@ class Drawn(NamedTuple):
       reading: Whether its transcript is the one on the screen behind this sheet.
       unread: Whether it has said something since it was last looked at, which is the one
         thing on a box that says pressing enter on it is worth doing now.
+      asking: Whether it waits on the person for an answer, which is drawn as what is to be
+        pressed is.
       of: For a session, the agent it is one of, which is what it hangs under; "" for an
         agent.
       env: For a session, the key of the environment it works in, or "" where nothing said.
@@ -292,6 +299,17 @@ class Drawn(NamedTuple):
     unread: bool = False
     of: str = ""
     env: str = ""
+    asking: bool = False
+
+
+def _lane(at: int) -> str:
+    """The colour the agent at one place in the flow's order is told apart by."""
+    return f"$hmz-lane-{at % _LANES + 1}"
+
+
+def _inked(one: Drawn) -> str:
+    """What a node's name is drawn in: pink while it asks, cyan while it works, ink else."""
+    return "$accent" if one.asking else "$primary" if one.working else "$foreground"
 
 
 class Placed(NamedTuple):
@@ -490,8 +508,10 @@ def _marked(*, here: bool) -> str:
     return f" [$primary]{_HERE}[/] " if here else _INDENT
 
 
-def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str]:
-    """One agent, drawn as a box the width of the diagram.
+def _boxed(
+    said: Sequence[_Said], width: int, *, here: bool = False, lane: int = 0
+) -> list[str]:
+    """One agent, drawn as a flat block the width of the diagram, ruled heavily.
 
     Args:
       said: The lines to put in it, each as the colour to draw it in and the plain words to
@@ -502,13 +522,16 @@ def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str
       here: Whether the cursor is on this box, which is said in the colour of its sides. The
         rows of this list are pictures rather than lines of text, and a highlight that
         recoloured the row would be one the markup inside the picture painted straight over.
+      lane: Where the agent is in the flow's order, which is the colour of the plane down
+        its left side.
 
     Returns:
       The box, a line at a time, each exactly as wide as the last.
     """
     left, right, under_left, under_right, across, side = _BOX
-    edge = "$primary" if here else "$text-muted"
-    room = width - 4
+    edge = "$block-cursor-background" if here else "$hmz-line-strong"
+    stripe = f"[{_lane(lane)}]{humanfia.BLOCK}[/]"
+    room = width - 5
     lines = [f"[{edge}]{left}{across * (width - 2)}{right}[/]"]
     for one in said:
         # The right half first and whole: it is the shorter of the two and the one that
@@ -517,7 +540,7 @@ def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str
         head = _fits(one.said, room - len(tail) - (1 if tail else 0))
         pad = " " * max(0, room - len(head) - len(tail))
         lines.append(
-            f"[{edge}]{side}[/] [{one.colour}]{escape(head)}[/]{pad}"
+            f"[{edge}]{side}[/]{stripe} [{one.colour}]{escape(head)}[/]{pad}"
             + (f"[{one.tailing}]{escape(tail)}[/]" if tail else "")
             + f" [{edge}]{side}[/]"
         )
@@ -555,15 +578,16 @@ def _joins(down: int, up: int, *, live: bool = False) -> list[str]:
     Returns:
       The one line between the two boxes.
     """
-    ways = _DOT.join(
-        said
+    ways = "".join(
+        f" {humanfia.CUT} {said}"
         for said, often in ((f"{_DOWN} {down}", down), (f"{_UP} {up}", up))
         if often
     )
     # A spine down the left, so the boxes read as one run rather than as a stack of cards:
-    # solid where the flow has gone between these two, dotted where it never has.
+    # solid where the flow has gone between these two, dotted where it never has. Each way
+    # the work went is cut off it by the one diagonal.
     spine = _BOX[5] if ways else _NEITHER
-    return [f"[{'$secondary' if live else '$text-muted'}]{spine}   {ways}[/]"]
+    return [f"[{'$primary' if live else '$text-muted'}]{spine}{ways}[/]"]
 
 
 def _across(width: int) -> int:
@@ -582,7 +606,7 @@ def _flagged(one: Drawn) -> tuple[str, str]:
     if one.reading:
         return "reading", "$primary"
     if one.unread:
-        return "unread", "$secondary"
+        return "unread", "$accent"
     return "", "$text-muted"
 
 
@@ -653,14 +677,14 @@ def diagram(
         tail, tailing = _flagged(one)
         said = [
             _Said(
-                "$secondary" if one.working else "$foreground",
+                _inked(one),
                 f"{_OPEN if one.who in opened else _SHUT} "
                 f"{_WORKING if one.working else _IDLE} "
                 # What the flow calls it, or the id cut down where it calls it nothing: one
                 # name, since two for the same thing is one said twice.
                 + (one.named or short(one.who)),
                 _clock(shape, one.who, working=one.working),
-                "$secondary" if one.working else "$text-muted",
+                "$primary" if one.working else "$text-muted",
             ),
             _Said(
                 "$text-muted",
@@ -694,7 +718,7 @@ def diagram(
             )
         block = (
             arrows
-            + _boxed(said, across, here=one.who == here)
+            + _boxed(said, across, here=one.who == here, lane=at)
             # Under the box, where its sessions do not hang under it: opened out, each
             # subagent is under the session that started it.
             + ([] if one.who in opened else fleet(shape.under.get(one.who, ()), across))
@@ -737,7 +761,7 @@ def fleet(under: Sequence[Under], width: int) -> list[str]:
     for at, one in enumerate(shown):
         last = at == len(shown) - 1 and not rest
         mark = _FLEET_WORKING if one.working else _FLEET_DONE
-        colour = "$secondary" if one.working else "$text-muted"
+        colour = "$primary" if one.working else "$text-muted"
         lines.append(
             f"[$text-muted]{'  ' + (_LAST_UNDER if last else _UNDER)}[/]"
             f"[{colour}]{mark}[/] [$text-muted]{escape(_fits(one.about, room))}[/]"
@@ -769,7 +793,7 @@ def session_row(
     across = _across(width)
     taken = shape.turns.get(one.who, 0)
     flag, flagging = _flagged(one)
-    colour = "$secondary" if one.working else "$foreground"
+    colour = _inked(one)
     clock = _clock(shape, one.who, working=one.working)
     # The branch and the mark are six columns ahead of the words, and the clock ends where
     # the clock of the box above it does, a side and a space short of the box's width, so
@@ -796,7 +820,7 @@ def session_row(
         f"[{colour}]{_WORKING if one.working else _IDLE}[/] [{colour}]{escape(head)}[/]"
         f"{pad}"
         + (f"[{flagging}]{escape(flagged)}[/][$text-muted]{_DOT}[/]" if flagged else "")
-        + f"[{'$secondary' if one.working else '$text-muted'}]{escape(tail)}[/]"
+        + f"[{'$primary' if one.working else '$text-muted'}]{escape(tail)}[/]"
     ]
     stem = f"{_INDENT}[$text-muted]  {' ' if last else _BOX[5]} [/]"
     lines += [stem + line for line in fleet(shape.under.get(one.who, ()), across - 4)]
@@ -882,7 +906,7 @@ def listed_row(
     room = _what_room(width)
     said, flagging = flag
     name = _fits(named, _NAMED - 1 - (len(said) + 1 if said else 0))
-    colour = "$secondary" if working else "$foreground"
+    colour = "$primary" if working else "$foreground"
     lead = (
         f"[{colour}]{escape(name)}[/]"
         + (f" [{flagging}]{escape(said)}[/]" if said else "")
@@ -891,7 +915,7 @@ def listed_row(
     return (
         f"{_marked(here=here)}[$text-muted]{fold or ' '}[/] [{colour}]{mark}[/] {lead}"
         f"[$text-muted]{escape(f'{_fits(what, room - 1):<{room}}{turns:>{_TURNS}}')}[/]"
-        f"[{'$secondary' if working else '$text-muted'}]"
+        f"[{'$primary' if working else '$text-muted'}]"
         f"{escape(f'{clock:>{_CLOCK}}')}[/]"
         f"[$text-muted]{escape(f'{tokens:>{_TOKENS}}')}[/]"
     )
@@ -1180,7 +1204,7 @@ class Place(Sheet[str]):
             Option(
                 " "
                 + _shade(
-                    "$secondary" if one.working else "$text-muted",
+                    "$primary" if one.working else "$text-muted",
                     _WORKING if one.working else _IDLE,
                     here=one.who == landing,
                 )
@@ -1688,6 +1712,7 @@ class Monitoring(Screen[str | None]):
         stop: Callable[[bool], None] = lambda _: None,
         timelined: Callable[[], bool] = lambda: False,
         exomyth: Callable[[], None] = lambda: None,
+        asking: Callable[[], Collection[str]] = frozenset,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
 
@@ -1719,8 +1744,11 @@ class Monitoring(Screen[str | None]):
           timelined: Whether there is a run going to open in Exomyth: not a chat, which has
             no timeline.
           exomyth: Opens it there, as the epic's own sheet in `/epics` does.
+          asking: The outworlder roles the flow waits on for an answer now, whose nodes are
+            drawn as what waits on the person is.
         """
         super().__init__()
+        self._asking = asking
         self._monitoring = monitor
         self._boxing = drawn
         self._setup = setup
@@ -2067,7 +2095,7 @@ class Monitoring(Screen[str | None]):
         return _Row(
             _EPIC,
             f"{_marked(here=self._was == _EPIC)}"
-            f"[{'$secondary' if working else '$primary'}]◫[/] epic"
+            f"[{'$primary' if working else '$text-muted'}]◫[/] epic"
             f"{_DOT}[$text-muted]{_DOT.join(said)}[/]",
             landing=bool(epic.get("run")),
         )
@@ -2079,11 +2107,13 @@ class Monitoring(Screen[str | None]):
           One row apiece, under the first row and above the agents: a person is not an
           agent the flow drives, and reading what the flow says to them is where they answer.
         """
+        asking = self._asking()
         return [
             _Row(
                 key,
                 (
-                    f"{_marked(here=self._was == key)}[$primary]◉[/] "
+                    f"{_marked(here=self._was == key)}"
+                    f"[{'$accent' if role in asking else '$primary'}]◉[/] "
                     f"{escape(role)}{_DOT}[$text-muted]outworlder: messages from "
                     "the flow to you[/]"
                 )

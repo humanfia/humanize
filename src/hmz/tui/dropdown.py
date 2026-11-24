@@ -97,7 +97,7 @@ class Dropdown(ModalScreen[str | None]):
     Dropdown > OptionList {
         width: auto; min-width: 24; max-width: 90%;
         height: auto; max-height: 14;
-        border: round $primary; background: $surface; padding: 0;
+        border: heavy $primary; background: $surface; padding: 0;
         border-title-color: $primary; border-title-style: bold;
     }
     Dropdown > OptionList > .option-list--option { padding: 0 1; }
@@ -189,7 +189,7 @@ class Dropdown(ModalScreen[str | None]):
                 for one in self._lines
             )
         )
-        listing.border_title = escape(self._title)
+        listing.border_title = escape(self._title.upper())
         yield listing
 
     def on_mount(self) -> None:

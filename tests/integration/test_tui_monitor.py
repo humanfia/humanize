@@ -92,7 +92,7 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
         drawn = await shows(pilot, "◫ epic · running · 1 of 1 working · 1 turn")
         # No node reads every agent at once: the cursor starts on the agent being read.
         assert "all agents" not in drawn
-        assert re.search(r"❯ │ ▸ ● \S+", drawn)
+        assert re.search(r"❯ ┃█ ▸ ● \S+", drawn)
         assert RUNS in drawn
 
         await pilot.press("right")

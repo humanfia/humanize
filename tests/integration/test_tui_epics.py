@@ -417,7 +417,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         # Taken in, whichever line of the row the path wraps onto.
         await until(
             pilot,
-            lambda: "myepics" in re.sub(r"[\s│]", "", screen(app)),
+            lambda: "myepics" in re.sub(r"[\s│┃]", "", screen(app)),
             "the path pasted",
         )
         await pilot.click("#act-done")

@@ -71,6 +71,7 @@ from textual import events, on, work
 from textual.await_complete import AwaitComplete
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.geometry import Offset
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, OptionList, Static
@@ -84,6 +85,8 @@ from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
+
+from hmz.words import t
 
 from .complete import paths
 from .dropdown import Dropdown, Value, anchor
@@ -342,18 +345,23 @@ Sheet #top .crumb-sep { width: auto; color: $text-muted; }
 Sheet #asked { width: auto; padding: 0; text-style: bold; color: $primary; }
 Sheet #pending { width: 1fr; text-align: right; color: $warning; }
 Sheet #about { width: 100%; padding: 0 0 1 0; color: $text-muted; }
-Sheet #seek { display: none; border: round $primary; background: $background; }
+Sheet #seek { display: none; border: heavy $primary; background: $background; }
+/* A square frame ruled heavily, its title in capitals in the rule: quiet until the keys are
+   in it, and then the colour of what has the keys. */
 Sheet #choices {
     height: 1fr; max-height: 100%; padding: 0; background: $background;
-    border: round $accent; scrollbar-size: 1 1; }
-Sheet #choices:focus { border: round $primary; background-tint: $background 0%; }
+    border: heavy $border-blurred; scrollbar-size: 1 1;
+    border-title-color: $text-muted; border-title-style: bold; }
+Sheet #choices:focus {
+    border: heavy $primary; background-tint: $background 0%;
+    border-title-color: $primary; }
 Sheet #choices > .option-list--option-highlighted {
     background: $block-cursor-blurred-background;
     color: $block-cursor-blurred-foreground; text-style: none; }
 Sheet #choices:focus > .option-list--option-highlighted {
     background: $block-cursor-background; color: $block-cursor-foreground;
     text-style: bold; }
-Sheet #choices > .option-list--separator { color: $accent; }
+Sheet #choices > .option-list--separator { color: $border-blurred; }
 /* Where the pointer is, as a link is marked: the terminal's own colours have no shade of the
    background to fill a row with, so a theme's hover fill is nothing there. */
 Sheet #choices > .option-list--option-hover { text-style: underline; }
@@ -362,21 +370,21 @@ Sheet #choices > .option-list--option-hover { text-style: underline; }
    see is a key nobody has. */
 Sheet #tuning { width: 100%; height: auto; padding: 0 1; }
 Sheet #actions { width: 100%; height: auto; padding: 1 0 0 0; }
-/* Borderless in every state: the terminal's own colours give a button that cannot be
-   pressed a tall border of its own, which would make the bar three rows high. */
+/* Flat planes, borderless in every state: the terminal's own colours give a button that
+   cannot be pressed a tall border of its own, which would make the bar three rows high. The
+   one that has the keys is the colour of what has the keys; the one to press -- what keeps,
+   or what removes -- is the one thing in pink, whether or not the keys are on it. */
 Sheet #actions Button {
     height: 1; min-width: 0; padding: 0 2; margin: 0 1 0 0; border: none !important;
     background: $block-cursor-blurred-background;
     color: $block-cursor-blurred-foreground; text-style: none; }
-Sheet #actions Button.-primary {
-    background: $success; color: $block-cursor-foreground; }
-Sheet #actions Button.-error {
-    background: $error; color: $block-cursor-foreground; }
-Sheet #actions Button:hover {
-    background: $block-cursor-background; color: $block-cursor-foreground; }
+Sheet #actions Button:hover { text-style: underline; }
 Sheet #actions Button:focus {
-    background: $block-cursor-background; color: $block-cursor-foreground;
-    text-style: bold; }
+    background: $primary; color: $background; text-style: bold; }
+Sheet #actions Button.-primary, Sheet #actions Button.-error {
+    background: $accent; color: $background; }
+Sheet #actions Button.-primary:focus, Sheet #actions Button.-error:focus {
+    background: $accent; color: $background; text-style: bold; }
 Sheet #actions Button:disabled {
     background: $background; color: $text-muted; text-opacity: 100%;
     text-style: none; }
@@ -394,8 +402,9 @@ Sheet #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
 #: name of the sheet it is about -- and a rule apiece, since only the last selector of a list is
 #: scoped to the box.
 _POPUP = """
-#sheet { width: 66; max-width: 100%; height: auto; padding: 1 2; border: round $primary;
-         background: $background; }
+#sheet { width: 66; max-width: 100%; height: auto; padding: 1 2; border: heavy $primary;
+         background: $background; border-title-color: $primary;
+         border-title-style: bold; }
 #top { height: auto; }
 #asked { width: 1fr; }
 #about { padding: 0; }
@@ -569,6 +578,21 @@ def _chip(
         f"{shown}{caret}{_shade('$text-muted', tail, here=here) if tail else ''}",
         len(value) + (1 if caret else 0) + len(tail),
     )
+
+
+def _capitals(said: str) -> Content:
+    """A title as a frame says it: in capitals, whatever it is drawn in kept.
+
+    Args:
+      said: The title, as markup.
+
+    Returns:
+      It, in capitals.
+    """
+    held = Content.from_markup(said)
+    upper = held.plain.upper()
+    # A letter whose capital is two letters would put what it is drawn in a letter out.
+    return Content(upper, held.spans if len(upper) == len(held.plain) else None)
 
 
 def _act(key: str) -> str:
@@ -996,9 +1020,14 @@ class Sheet[T](ModalScreen[T | None]):
                 if at < len(trail):
                     step.update(trail[at].said)
         self._crumbed = trail
+        self._titled()
         self.query_one("#pending", Label).update(
             "● unsaved changes" if self._holding() else ""
         )
+
+    def _titled(self) -> None:
+        """Writes what this is, in capitals, into the rule of the frame its list is drawn in."""
+        self.query_one("#choices").border_title = _capitals(self.crumb())
 
     def _holding(self) -> bool:
         """Whether anything is held that saving would land, which only a menu that holds says."""
@@ -1605,7 +1634,7 @@ class Sheet[T](ModalScreen[T | None]):
           The row, as markup.
         """
         return "   ".join(
-            f"[b $accent]{escape(one.key)}[/] {escape(one.does)}" for one in keys
+            f"[b $primary]{escape(one.key)}[/] {escape(one.does)}" for one in keys
         )
 
     # -- Drawing -------------------------------------------------------------------------------
@@ -4492,6 +4521,9 @@ class Popup(Picks):
     #: The answer most often given, drawn as the one that answers a menu is, or "" for none.
     PRIMARY: ClassVar[str] = ""
 
+    #: What the box is headed, in capitals, in the rule of its frame.
+    TITLE: ClassVar[str] = "Question"
+
     def _ask(self) -> None:
         """Says what is being asked, and takes back the line under it where there is none.
 
@@ -4504,6 +4536,10 @@ class Popup(Picks):
     def _trail(self) -> list[_Crumb]:
         """Nothing: a box over a menu is about that menu, which is still drawn under it."""
         return []
+
+    def _titled(self) -> None:
+        """Heads the box, in capitals, in the rule of its frame: it has no list to head."""
+        self.query_one("#sheet").border_title = t(self.TITLE).upper()
 
     def actions(self) -> list[Action]:
         """The answers, each a button that answers with it."""
