@@ -128,7 +128,7 @@ You can also click any row, button or breadcrumb across the top.
 
 ### Save or discard changes
 
-Menus hold your edits until you save. While you have unsaved edits, the top line shows `● unsaved changes`. Press **Save**, or leave the menu to open a `Save?` prompt with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu).
+Menus hold your edits until you save. While you have unsaved edits, the top line shows `● Unsaved`. Press **Save**, or leave the menu to open a `Save?` prompt with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu).
 
 ![A reel: enter on a switch drops its values, picking off marks the page as unsaved, and leaving the settings opens the Save? box](/shots/user-terminal-save.svg)
 
@@ -150,7 +150,7 @@ TEXTUAL_THEME=nord hmz
 
 ## Panes beside the log
 
-Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
+Press <kbd>f1</kbd> to open Keys to the right of the log, or <kbd>f3</kbd> for Ai-chan's conversations. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
 ## Find a chat or an epic
 

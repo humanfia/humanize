@@ -233,7 +233,7 @@ async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
         first, _ = chats(workspace)
         assert epics(workspace) == []
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "wait for it")
+        await shows(pilot, "Resume chat", "wait for it")
         await opens(pilot, first.name)
 
         # Back in the first, as it stands, and talking to it.
@@ -287,7 +287,7 @@ async def test_an_env_asked_of_a_chat_that_is_refused_opens_over_nothing_later(
         (chat,) = chats(workspace)
         await until(pilot, lambda: bool((read(chat) or Ran(chat)).ended), "it to fold")
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "hello")
+        await shows(pilot, "Resume chat", "hello")
         await opens(pilot, chat.name)
         await shows(pilot, "say something to continue")
 
@@ -326,7 +326,7 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
 
         # Listed by the daemon, by its title, and not among the epics.
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "hello")
+        await shows(pilot, "Resume chat", "hello")
         await opens(pilot, chat.name)
         await shows(pilot, "say something to continue")
         # Drawn with what was said in it, above what carries it on (Section 8.7.4 of [CORE]).
@@ -516,7 +516,7 @@ async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
         await shows(pilot, "heard second", "◉ done")
 
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "first")
+        await shows(pilot, "Resume chat", "first")
         await opens(pilot, first.name)
         await shows(pilot, "say something to continue")
         # The first chat's, which was never given one of its own.
@@ -553,7 +553,7 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
         await shows(pilot, "native, from the settings file")
 
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "first")
+        await shows(pilot, "Resume chat", "first")
         await opens(pilot, first.name)
         await shows(pilot, "say something to continue")
         # Its own, as the chat records it, before a word carries it on and after.
@@ -623,7 +623,7 @@ async def test_a_harness_session_is_offered_on_resume_where_set_and_goes_on_as_a
         Settings().harness_sessions = True
         await typed(pilot, "/resume")
         await shows(
-            pilot, "Resume a chat", "the word is guava", "claude session, read-only"
+            pilot, "Resume chat", "the word is guava", "claude session, read-only"
         )
         # After the chats, and read-only: its row has no menu.
         listing = await on(pilot, Resumes)
@@ -782,7 +782,7 @@ async def test_resume_in_a_chat_carries_on_an_earlier_one(workspace: Path) -> No
         await chatting(pilot, "second")
 
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "first")
+        await shows(pilot, "Resume chat", "first")
         first, second = chats(workspace)
         # Newest first, the one on the screen among them as the one already had.
         assert rows(app) == [second.name, first.name]
@@ -807,7 +807,7 @@ async def test_a_chat_gone_back_to_is_drawn_with_every_line_said_in_it(
         await chatting(pilot, "other")
 
         await typed(pilot, "/resume")
-        await shows(pilot, "Resume a chat", "one")
+        await shows(pilot, "Resume chat", "one")
         first, _ = chats(workspace)
         await opens(pilot, first.name)
 

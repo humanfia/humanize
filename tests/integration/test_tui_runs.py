@@ -197,7 +197,7 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
         await typed(pilot, "/exit")
         await on(pilot, Leaves)
         await shows(
-            pilot, "A flow is running.", "Stop the flow and exit", "Detach and exit"
+            pilot, "A flow is running.", "Stop the flow and quit", "Detach and quit"
         )
         await pilot.click(f"#act-{STOPS}")
 

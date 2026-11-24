@@ -169,9 +169,9 @@ def test_what_is_wrong_is_said_field_by_field_in_plain_words() -> None:
     )
 
     assert answer is None
-    assert wrong["verdict"] == "this is needed"
-    assert wrong["count"] == "this needs a whole number"
-    assert wrong["extra"].startswith("this is not valid JSON")
+    assert wrong["verdict"] == "This needs an answer."
+    assert wrong["count"] == "This needs a whole number."
+    assert wrong["extra"].startswith("This is not valid JSON")
 
 
 def test_the_one_value_of_a_schema_that_is_not_an_object_is_the_answer() -> None:
@@ -245,7 +245,7 @@ def test_a_long_table_is_counted_and_collapsed() -> None:
     )
 
     assert "table · 40 rows" in drawn
-    assert "… 30 more rows -- all of it in the web page: http://here" in drawn
+    assert "… 30 more rows -- read all at http://here" in drawn
     assert "39" not in drawn
 
 
@@ -260,14 +260,14 @@ def test_an_image_or_a_chart_is_a_line_saying_where_to_see_it() -> None:
         )
     )
 
-    assert "image · the plot · open in web: http://here" in drawn
-    assert "chart · speed · open in web: http://here" in drawn
+    assert "image · the plot · see in web page: http://here" in drawn
+    assert "chart · speed · see in web page: http://here" in drawn
 
 
 def test_without_the_web_page_it_says_how_to_open_one() -> None:
     drawn = _drawn(*asking.blocks([{"kind": "chart", "spec": {}}]))
 
-    assert "open the web page (hmz web) to see it" in drawn
+    assert "open in web page (hmz web)" in drawn
 
 
 def test_code_and_json_say_how_long_they_are() -> None:
@@ -324,7 +324,7 @@ async def test_answering_with_required_fields_left_says_how_many_and_sends_nothi
     host = _Host(_question())
     async with host.run_test() as pilot:
         await pilot.pause()
-        assert host.sheet.actions()[-1].label == "answer · 2 required left"
+        assert host.sheet.actions()[-1].label == "Answer · 2 required left"
 
         host.sheet.action_done()
         await pilot.pause()
@@ -338,7 +338,7 @@ async def test_a_digit_picks_a_choice_and_the_suggestions_go_with_the_answer() -
     async with host.run_test() as pilot:
         await pilot.pause()
         await pilot.press("2")
-        assert host.sheet.actions()[-1].label == "answer"
+        assert host.sheet.actions()[-1].label == "Answer"
 
         host.sheet.action_done()
         await pilot.pause()
@@ -369,7 +369,7 @@ async def test_a_refusal_is_said_beside_the_field_it_is_about() -> None:
         await pilot.pause()
 
         assert host.sheet.under() == "notes"
-        assert "1 answer to look at" in _tuning(host)
+        assert "One answer needs another look." in _tuning(host)
 
 
 async def test_a_refusal_about_no_field_is_said_under_the_form() -> None:
@@ -435,7 +435,7 @@ async def test_words_that_answer_no_field_are_said_rather_than_dropped() -> None
     async with host.run_test() as pilot:
         await pilot.pause()
 
-        assert '"maybe" answers none of these' in _tuning(host)
+        assert '"maybe" answers no field' in _tuning(host)
 
 
 def test_a_required_field_that_may_be_null_is_answered_blank() -> None:

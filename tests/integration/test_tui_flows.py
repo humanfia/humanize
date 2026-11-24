@@ -128,7 +128,7 @@ async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
         await opens(pilot, "0")  # its one agent
         await on(pilot, Agent)
         await picks(pilot, "effort", "low")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
         await shows(pilot, f"set up: /flow {OWN} <task> starts it")
 

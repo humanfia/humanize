@@ -42,8 +42,10 @@ from textual.widgets import ContentSwitcher, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from hmz.runtime.watching.monitor import thousands
+from hmz.words import t
 
-from .pick import Crumbed, Key, bad
+from . import humanfia
+from .pick import Crumbed, Key, bad, hinted
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -128,24 +130,37 @@ _LISTED = 400
 _ARGS = 12
 _ARG = 200
 
-#: What each category and kind of process is coloured as, by the theme's own name for a colour.
-#: A kind is said with a `~` before it: `flow` and `session` are both.
+#: What each category and kind of process is coloured as, by the theme's own name for a colour:
+#: the lanes the web page draws them in, a turn the first of them. A kind is said with a `~`
+#: before it: `flow` and `session` are both. The one the page draws in the second lane is the
+#: mark's green here instead, since the second lane is pink and pink is the span under the
+#: cursor; it is only ever drawn inside a turn, which is cyan, and green stands beside cyan.
 _HUES = {
-    "flow": "primary",
-    "session": "accent",
-    "turn": "secondary",
-    "llm": "success",
-    "tool": "warning",
-    "message": "primary",
-    "event": "accent",
-    "process": "secondary",
-    "~flow": "primary",
-    "~session": "secondary",
-    "~os": "warning",
+    "flow": "hmz-ink-3",
+    "session": "hmz-lane-3",
+    "turn": "hmz-lane-1",
+    "llm": "hmz-green",
+    "tool": "hmz-lane-4",
+    "message": "hmz-lane-5",
+    "event": "hmz-lane-6",
+    "process": "hmz-lane-3",
+    "~flow": "hmz-ink-3",
+    "~session": "hmz-lane-3",
+    "~os": "hmz-lane-6",
 }
 
-#: What a span's name is written in, on its bar: the theme's ink for the cursor's fill.
+#: What any other category is coloured as: the last lane, which is the one in no order.
+_OTHER = "hmz-lane-6"
+
+#: What a span's name is written in, on its bar, and what the span under the cursor is filled
+#: with: the cursor's own pair, which is the one pink plane.
 _INK = "block-cursor-foreground"
+_CHOSEN = "block-cursor-background"
+
+
+def _inks(app: App[Any]) -> dict[str, str]:
+    """The theme's colours by name, humanfia's own given a value where the theme has none."""
+    return {**humanfia.FALLBACK, **app.theme_variables}
 
 
 def spaced(us: float) -> str:
@@ -1034,13 +1049,12 @@ def _style(app: App[Any], hue: str, how: str, *, chosen: bool) -> Style:
     key = (hue, how, chosen)
     held = styles.get(key)
     if held is None:
+        inks = _inks(app)
 
         def colour(name: str) -> RichColor:
-            return Color.parse(variables.get(name) or variables["primary"]).rich_color
+            return Color.parse(inks.get(name) or inks["primary"]).rich_color
 
-        paint, ink = colour(_HUES.get(hue, "primary")), colour(_INK)
-        if chosen:
-            paint, ink = ink, paint
+        paint, ink = colour(_CHOSEN if chosen else _HUES.get(hue, _OTHER)), colour(_INK)
         held = styles[key] = {
             "fill": Style(color=ink, bgcolor=paint, bold=chosen),
             "start": Style(color=paint, reverse=True),
@@ -1165,11 +1179,11 @@ class _Chart(ScrollView, can_focus=True, inherit_bindings=False):
     def _line(self, laid: Laid, row: Row, chosen: int, *, here: bool) -> Strip:
         """One line, drawn."""
         gutter = self.names
-        variables = _app(self).theme_variables
+        variables = _inks(_app(self))
         name = Style(
             color=Color.parse(
                 variables[
-                    "primary" if here else "foreground" if row.head else "text-muted"
+                    "primary" if here else "foreground" if row.head else "hmz-ink-3"
                 ]
             ).rich_color,
             bold=here,
@@ -1232,22 +1246,24 @@ class Exomyth(ModalScreen[None]):
     Exomyth #ruler { height: 1; color: $text-muted; }
     Exomyth #detail {
         display: none; height: auto; max-height: 16; padding: 0 1;
-        border: round $accent; overflow-y: auto; }
+        border: heavy $border-blurred; overflow-y: auto; }
     Exomyth #heading, Exomyth #columns {
         padding: 1 0 0 0; height: 2; color: $text-muted; }
     Exomyth #stacks, Exomyth #sliced {
         height: 1fr; padding: 0; background: $background;
-        border: round $accent; scrollbar-size: 1 1; }
+        border: heavy $border-blurred; scrollbar-size: 1 1;
+        border-title-color: $text-muted; border-title-style: bold; }
     Exomyth #sliced { text-wrap: nowrap; text-overflow: ellipsis; }
     Exomyth #stacks:focus, Exomyth #sliced:focus {
-        border: round $primary; background-tint: $background 0%; }
+        border: heavy $primary; background-tint: $background 0%;
+        border-title-color: $primary; }
     Exomyth OptionList > .option-list--option-highlighted {
         background: $block-cursor-blurred-background;
         color: $block-cursor-blurred-foreground; text-style: none; }
     Exomyth OptionList:focus > .option-list--option-highlighted {
         background: $block-cursor-background; color: $block-cursor-foreground;
         text-style: bold; }
-    Exomyth #seek { display: none; border: round $primary; background: $background; }
+    Exomyth #seek { display: none; border: heavy $primary; background: $background; }
     Exomyth #tuning { width: 100%; height: auto; padding: 0 1; }
     Exomyth #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
     """
@@ -1384,10 +1400,14 @@ class Exomyth(ModalScreen[None]):
                 with Vertical(id="flame"):
                     yield _Icicle(id="icicle")
                     yield Label(id="heading")
-                    yield OptionList(id="stacks")
+                    stacks = OptionList(id="stacks")
+                    stacks.border_title = t("Flame").upper()
+                    yield stacks
                 with Vertical(id="slices"):
                     yield Label(id="columns")
-                    yield OptionList(id="sliced")
+                    sliced = OptionList(id="sliced")
+                    sliced.border_title = t("Slices").upper()
+                    yield sliced
             yield Input(placeholder="span name", id="seek")
             yield Label(id="tuning")
             yield Label(id="keys")
@@ -1976,7 +1996,7 @@ class Exomyth(ModalScreen[None]):
         self._paned()
         self.query_one("#keys", Label).update(
             "   ".join(
-                f"[b $accent]{escape(one.key)}[/] {escape(one.does)}"
+                f"[b $primary]{escape(one.key)}[/] {escape(hinted(one.does))}"
                 for one in self._keys()
             )
         )

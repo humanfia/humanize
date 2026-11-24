@@ -67,6 +67,7 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>ctrl+g</kbd> | Opens Details of the open chat beside the log. Pressed inside Details it closes it. |
 | <kbd>ctrl+e</kbd> | Opens the New epic page from the log; closes it from the page. Over the monitor or a menu the key is theirs. |
 | <kbd>ctrl+o</kbd> | Opens the Epic pane beside the log: Details, Board, People, Side questions. |
+| <kbd>f3</kbd> | Opens Ai-chan's conversations beside the log, in the same way. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
 The bottom line of the screen lists the keys that work where you are, then the key of each pane.
@@ -206,7 +207,7 @@ To edit a board entry, type the name, press <kbd>enter</kbd>, type the value, an
 | Box | <kbd>enter</kbd> | Presses the button. |
 | Box | <kbd>esc</kbd> | Answers nothing. |
 
-If you leave a menu with unsaved changes, `Save?` opens with **Save** and **Discard**.
+If you leave a menu with unsaved changes, `Save changes?` opens with **Save** and **Discard**.
 
 ### Forms
 
@@ -226,8 +227,8 @@ If you leave a menu with unsaved changes, `Save?` opens with **Save** and **Disc
 | --- | --- |
 | `/flow`, Installed | `open`, `update`, `uninstall`, `copy here`, `copy name` |
 | `/flow`, Flowverses | `open`, `fetch` or `fetch again`, `remove`, `copy URL` |
-| `/resume` in a chat | `rename`, `fork`, `archive`, `upload`, `delete`, `copy id` |
-| `/ai` | `forget` |
+| `/resume` in a chat | `Rename`, `Fork`, `Archive`, `Upload`, `Delete`, `Copy ID` |
+| `/ai` | `Rename`, `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, `Delete` |
 | `/settings daemons` | `connect`, `edit…`, `remove`, `copy name`, and on a daemon that is up `pair a device…` and `devices…`. `Local` has only the last two. |
 | `/epics` on another daemon | An epic: `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`. A chat: `follow`, `copy id`. |
 
@@ -325,6 +326,20 @@ Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open Files, Changes or Te
 | Terminal, typing | Any other key | Goes to the terminal, <kbd>esc</kbd> included. |
 
 <kbd>ctrl+c</kbd>, <kbd>ctrl+q</kbd> and the keys that open panes stay with `hmz` while you type in a terminal pane.
+
+### Ai-chan pane
+
+<kbd>f3</kbd> opens it. Pinned conversations come first, then the latest said in; a square marks a pinned one and a dot an unread one. Pins and unread marks are kept by this terminal only.
+
+| Key | Does |
+| --- | --- |
+| <kbd>enter</kbd> | Follows the conversation in the log. On **New conversation**, opens `/ai`. |
+| <kbd>n</kbd> | Opens `/ai` to start a new conversation. |
+| <kbd>r</kbd> | Renames the conversation. |
+| <kbd>p</kbd> | Pins or unpins it. |
+| <kbd>u</kbd> | Marks it unread, or read. |
+| <kbd>delete</kbd> | Deletes it, after a box whose first answer is **Cancel**. |
+| <kbd>esc</kbd> | Goes back to the prompt and leaves the pane open. |
 
 ### Exomyth
 

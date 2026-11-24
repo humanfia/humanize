@@ -32,6 +32,8 @@ from rich.table import Table
 from textual.binding import Binding
 from textual.widgets import Label, OptionList
 
+from hmz.words import t
+
 from .pick import Action, Form, Key, Question
 
 if TYPE_CHECKING:
@@ -169,8 +171,8 @@ def _yes(about: str) -> str:
     """
     said = about.strip().rstrip(".")
     if not said or len(said) > _WORDED or "\n" in said:
-        return "Yes"
-    return f"Yes, {said[:1].lower()}{said[1:]}"
+        return t("Yes")
+    return t("Yes, {what}", what=f"{said[:1].lower()}{said[1:]}")
 
 
 def _field(
@@ -323,14 +325,14 @@ def _read(kind: str, typed: str) -> tuple[Any, str]:
         try:
             return int(typed.strip()), ""
         except ValueError:
-            return None, "this needs a whole number"
+            return None, t("This needs a whole number.")
     if kind == "number":
         try:
             number = float(typed.strip())
         except ValueError:
-            return None, "this needs a number"
+            return None, t("This needs a number.")
         if not math.isfinite(number):
-            return None, "this needs a number"
+            return None, t("This needs a number.")
         return (int(number) if number.is_integer() and "." not in typed else number), ""
     return typed, ""
 
@@ -348,12 +350,19 @@ def _valued(field: Field, typed: str) -> tuple[bool, Any, str]:
     if not typed.strip():
         if field.required and field.nullable:
             return True, None, ""  # nothing, which it may be
-        return False, None, "this is needed" if field.required else ""
+        return False, None, t("This needs an answer.") if field.required else ""
     if field.kind == "choice":
         for said, value in field.choices:
             if said == typed:
                 return True, value, ""
-        return False, None, "pick one of the choices"
+        return (
+            False,
+            None,
+            t(
+                "Pick one of {choices}.",
+                choices=", ".join(said for said, _ in field.choices),
+            ),
+        )
     if field.kind == "list":
         values: list[Any] = []
         for line in typed.splitlines():
@@ -367,8 +376,8 @@ def _valued(field: Field, typed: str) -> tuple[bool, Any, str]:
     if field.kind == "json":
         try:
             return True, json.loads(typed), ""
-        except json.JSONDecodeError as why:
-            return False, None, f"this is not valid JSON: {why.msg}"
+        except json.JSONDecodeError:
+            return False, None, t("This is not valid JSON.")
     value, wrong = _read(field.kind, typed)
     return not wrong, value, wrong
 
@@ -434,7 +443,7 @@ def summary(value: object, schema: Mapping[str, Any] | None = None) -> str:
             for name, one in cast("Mapping[str, Any]", value).items()
             if one not in (None, "", [], {})
         ]
-        return " · ".join(parts) or "the suggested values"
+        return " · ".join(parts) or t("what the flow suggested")
     return said(by.get(""), value)
 
 
@@ -447,10 +456,11 @@ def _clipped(text: str, room: int) -> tuple[str, int]:
     return "\n".join(lines[:room]), max(len(lines) - room, 0)
 
 
-def _more(count: int, what: str, web: str) -> str:
+def _more(count: int, web: str, *, rows: bool = False) -> str:
     """The line saying how much of a block was left out, and where to read all of it."""
-    where = f" -- all of it in the web page: {web}" if web else ""
-    return f"{_IN}[dim]… {count} more {what}{escape(where)}[/dim]"
+    where = t(" -- read all at {url}", url=web) if web else ""
+    left = t("… {n} more rows", n=count) if rows else t("… {n} more lines", n=count)
+    return f"{_IN}[dim]{escape(left + where)}[/dim]"
 
 
 def _changed(patch: str) -> str:
@@ -459,7 +469,7 @@ def _changed(patch: str) -> str:
     files = sum(1 for line in lines if line.startswith("+++ ")) or 1
     added = sum(1 for line in lines if line[:1] == "+" and not line.startswith("+++"))
     taken = sum(1 for line in lines if line[:1] == "-" and not line.startswith("---"))
-    return f"+{added} \N{MINUS SIGN}{taken} in {files} file{'s' if files != 1 else ''}"
+    return t("+{added} −{removed} in {n} files", added=added, removed=taken, n=files)  # noqa: RUF001
 
 
 def _code(text: str, language: str) -> Syntax:
@@ -473,9 +483,11 @@ def _code(text: str, language: str) -> Syntax:
     )
 
 
-def _counted(count: int, what: str) -> str:
-    """A count of something, said as `1 row` or `3 rows`."""
-    return f"{count} {what}{'s' if count != 1 else ''}"
+def _look(count: int) -> str:
+    """How many answers were refused, as the page says it: one, or so many."""
+    if count == 1:
+        return t("One answer needs another look.")
+    return t("{n} answers need another look.", n=count)
 
 
 def _block(
@@ -495,11 +507,11 @@ def _block(
     kind = str(block.get("kind") or "")
     if kind == "markdown":
         text, left = _clipped(str(block.get("text") or ""), room)
-        return "", Markdown(text), _more(left, "lines", web) if left else ""
+        return "", Markdown(text), _more(left, web) if left else ""
     if kind in ("code", "json", "diff"):
         if kind == "diff":
             whole, language = str(block.get("patch") or ""), "diff"
-            said = f"diff{_DOT}{_changed(whole)}"
+            said = t("diff · {changed}", changed=_changed(whole))
         else:
             whole, language = (
                 (str(block.get("text") or ""), str(block.get("language") or ""))
@@ -507,10 +519,10 @@ def _block(
                 else (json.dumps(block.get("value"), indent=2), "json")
             )
             said = (
-                f"{language or kind}{_DOT}{_counted(len(whole.splitlines()), 'line')}"
+                f"{language or kind}{_DOT}{t('{n} lines', n=len(whole.splitlines()))}"
             )
         text, left = _clipped(whole, room)
-        return said, _code(text, language), _more(left, "lines", web) if left else ""
+        return said, _code(text, language), _more(left, web) if left else ""
     if kind == "table":
         columns = [str(one) for one in cast("list[Any]", block.get("columns") or [])]
         rows = [
@@ -530,9 +542,9 @@ def _block(
             )
         left = len(rows) - shown
         return (
-            f"table{_DOT}{_counted(len(rows), 'row')}",
+            t("table · {n} rows", n=len(rows)),
             table,
-            _more(left, "rows", web) if left else "",
+            _more(left, web, rows=True) if left else "",
         )
     # An image or a chart, which a terminal cannot draw: where it can be seen instead.
     spec = block.get("spec")
@@ -541,8 +553,10 @@ def _block(
         if isinstance(spec, Mapping)
         else ""
     )
-    where = f"open in web: {web}" if web else "open the web page (hmz web) to see it"
-    return f"{kind or 'block'}{_DOT + about if about else ''}{_DOT}{where}", None, ""
+    where = (
+        t("see in web page: {url}", url=web) if web else t("open in web page (hmz web)")
+    )
+    return f"{kind or t('block')}{_DOT + about if about else ''}{_DOT}{where}", None, ""
 
 
 def blocks(context: Sequence[Mapping[str, Any]], *, web: str = "") -> list[object]:
@@ -595,7 +609,7 @@ class Asks(Form[Any]):
     closes it -- the host took the answer -- or says what the host refused (:meth:`refused`).
     """
 
-    DONE = "answer"
+    DONE = t("Answer")
 
     #: The transcript beneath, scrolled from here: what is asked about stays readable while
     #: it is being answered.
@@ -692,7 +706,10 @@ class Asks(Form[Any]):
             self._expanded = self._expanded or not written[0].required
             return
         # Never dropped without a word: what was typed is said, and where to answer instead.
-        self._wrong = f'"{typed.strip()}" answers none of these; pick or write below'
+        self._wrong = t(
+            '"{typed}" answers no field; choose an option or fill in a field below',
+            typed=typed.strip(),
+        )
 
     @staticmethod
     def _held(field: Field) -> str:
@@ -726,7 +743,7 @@ class Asks(Form[Any]):
         """Says what is asked: the prompt's first line, and who asks it."""
         prompt = str(self.question.get("text") or "").strip()
         first, _, rest = prompt.partition("\n")
-        self.query_one("#asked", Label).update(escape(first or "Answer the form"))
+        self.query_one("#asked", Label).update(escape(first or t("Question")))
         role = str(self.question.get("role") or "")
         about = " ".join(rest.replace("**", "").replace("`", "").split())
         if len(about) > 160:  # noqa: PLR2004 -- the rest is in the transcript, above
@@ -735,7 +752,7 @@ class Asks(Form[Any]):
             escape(
                 about
                 or (
-                    f"{role} asks; the context is in the transcript above"
+                    t("{role} asks; context is in the transcript above", role=role)
                     if role
                     else ""
                 )
@@ -752,8 +769,8 @@ class Asks(Form[Any]):
             rows.append(
                 Question(
                     _MORE,
-                    f"More options ({len(rest)})",
-                    "suggested values are filled in" if not self._expanded else "",
+                    t("More options ({n})", n=len(rest)),
+                    t("set to what the flow suggested") if not self._expanded else "",
                     kind=_OPENS,
                 )
             )
@@ -921,8 +938,10 @@ class Asks(Form[Any]):
         return [
             Action(
                 "done",
-                self.DONE if not left else f"{self.DONE} · {left} required left",
-                "sending…" if self._sending else "send this answer",
+                t(self.DONE)
+                if not left
+                else f"{t(self.DONE)}{_DOT}{t('{n} required left', n=left)}",
+                t("Sending…") if self._sending else t("send this answer"),
                 self.action_done,
                 variant="primary",
             )
@@ -936,12 +955,14 @@ class Asks(Form[Any]):
             key for key in keys if key.key not in ("esc", "1-9", "←/→", "pgup/pgdn")
         ]
         if one is not None and one.kind == "choice" and not self._editing:
-            kept.insert(0, Key("1-9", "pick"))
+            kept.insert(0, Key("1-9", t("Choose")))
             if self._segmented(row) is not None:
-                kept.insert(1, Key("←/→", "move"))
+                kept.insert(1, Key("←/→", t("Move")))
         if not self._editing:
-            kept.append(Key("pgup/pgdn", "read above"))
-        kept.append(Key("esc", "back" if self._editing else "close, keeping the draft"))
+            kept.append(Key("pgup/pgdn", t("Scroll transcript")))
+        kept.append(
+            Key("esc", t("Back") if self._editing else t("Close and keep draft"))
+        )
         super()._footed(*kept)
 
     def action_context(self, by: int) -> None:
@@ -1004,9 +1025,9 @@ class Asks(Form[Any]):
             }
             left = len(self._left())
             self._wrong = (
-                f"{left} required left"
+                t("{n} required left", n=left)
                 if left and left == len(wrong)
-                else "some answers need a look"
+                else _look(len(wrong))
             )
             self._lands([row for row in self._by if row in self._problems])
             return
@@ -1045,11 +1066,7 @@ class Asks(Form[Any]):
         # Said once, beside the field, where every refusal has one; under the list only what
         # belongs to no field, or how many fields there are to look at.
         self._wrong = (
-            "; ".join(loose)
-            if loose
-            else f"{_counted(len(problems), 'answer')} to look at"
-            if problems
-            else why
+            "; ".join(loose) if loose else _look(len(problems)) if problems else why
         )
         if problems:
             self._lands([row for row in self._by if row in problems])

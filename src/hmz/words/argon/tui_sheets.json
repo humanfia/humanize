@@ -1,0 +1,604 @@
+{
+ "entries": [
+  {
+   "wants": "where an archived chat is put back from: the Workspace page of `/settings` puts it back",
+   "where": "clause appended after a semicolon to a line about archiving a chat, lower-case start, no full stop; keep `/settings` in backticks out, write it as /settings",
+   "text": "the Workspace page of /settings puts it back"
+  },
+  {
+   "wants": "what a chat's title is for: it is what the chat is listed by",
+   "where": "quiet hint beside the one field of the rename form, lower-case start, no full stop",
+   "text": "what the chat is listed by"
+  },
+  {
+   "wants": "what pressing Done on the rename form does: renames the chat",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "renames the chat"
+  },
+  {
+   "wants": "title of the form that renames a chat",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Rename chat"
+  },
+  {
+   "wants": "a chat is listed by its title, which is the first line said in it until it is given another",
+   "where": "one sentence under the title of the rename form",
+   "text": "A chat is listed by its title, which is the first line said in it until it is given another."
+  },
+  {
+   "wants": "refusal: a chat's title cannot be empty",
+   "where": "error line under a form, one short sentence",
+   "text": "A chat's title cannot be empty."
+  },
+  {
+   "wants": "what the Cancel button of the delete question does: keeps the chat",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "keeps the chat"
+  },
+  {
+   "wants": "what the Delete button of the delete question does: deletes the chat for good",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "deletes the chat for good"
+  },
+  {
+   "wants": "title of the list of earlier chats of this folder, one of which is picked to carry on",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Resume chat"
+  },
+  {
+   "wants": "the chats of this folder, newest first; the one picked is carried on",
+   "where": "one sentence under the title of the list of chats to resume",
+   "text": "The chats of this folder, newest first; the one picked is carried on."
+  },
+  {
+   "wants": "what the Rename row of a chat's menu does: gives the chat another title",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "gives the chat another title"
+  },
+  {
+   "wants": "what the Fork row of a chat's menu does: makes a new chat that goes on from this one, and goes to it",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "makes a new chat that goes on from this one, and goes to it"
+  },
+  {
+   "wants": "what the Archive row of a chat's menu does: takes the chat out of this list",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "takes the chat out of this list"
+  },
+  {
+   "wants": "what the Upload row of a chat's menu does: backs the chat up to its backup targets, or to the default ones",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "backs the chat up to its backup targets, or to the default ones"
+  },
+  {
+   "wants": "what the Delete row of a chat's menu does: removes the chat for good, after asking",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "removes the chat for good, after asking"
+  },
+  {
+   "wants": "the chat was renamed and is now called {name}",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Renamed`, no full stop",
+   "text": "Renamed to {name}"
+  },
+  {
+   "wants": "the chat {name} was archived",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Archived`, no full stop",
+   "text": "Archived {name}"
+  },
+  {
+   "wants": "the chat is being backed up to the backup targets {targets}",
+   "where": "one quiet line under a list after an action, no full stop",
+   "text": "Backing up to {targets}"
+  },
+  {
+   "wants": "the chat {name} was deleted",
+   "where": "one quiet line under a list after an action, starts with the past participle like the page's `Deleted`, no full stop",
+   "text": "Deleted {name}"
+  },
+  {
+   "wants": "the chats of this folder that were archived, newest first; the one picked is put back among the others, where /resume in a chat lists it",
+   "where": "one or two sentences under the title of the list of archived chats",
+   "text": "The chats of this folder that were archived, newest first. The one picked is put back among the others, where /resume in a chat lists it."
+  },
+  {
+   "wants": "the archived chats are being read",
+   "where": "placeholder line of a list while it loads, in the manner of the page's `Reading the list…`, ends with an ellipsis character",
+   "text": "Reading archived chats…"
+  },
+  {
+   "wants": "no chat of this folder is archived",
+   "where": "empty-state line of a list, one short sentence in the manner of the page's `No archived chats.`",
+   "text": "No archived chats."
+  },
+  {
+   "wants": "the archived chat {name} was put back among the others",
+   "where": "one quiet line under a list after an action, no full stop",
+   "text": "Put {name} back"
+  },
+  {
+   "wants": "a `$` name that is both a skill and a flow: it runs {picked}, and /flow {name} starts the flow",
+   "where": "quiet description beside a completion offered under the prompt, lower-case start, no full stop, one line",
+   "text": "skill and flow: runs {picked}; /flow {name} starts the flow"
+  },
+  {
+   "wants": "the skill (as the object of `runs`)",
+   "where": "two words filling {picked} in `skill and flow: runs {picked}`, lower case",
+   "text": "the skill"
+  },
+  {
+   "wants": "the flow (as the object of `runs`)",
+   "where": "two words filling {picked} in `skill and flow: runs {picked}`, lower case",
+   "text": "the flow"
+  },
+  {
+   "wants": "a `$` name that is a skill, followed by what the skill says it does: skill · {about}",
+   "where": "quiet description beside a completion, lower case `skill`, a middle dot, then {about}",
+   "text": "skill · {about}"
+  },
+  {
+   "wants": "a `$` name is a skill",
+   "where": "one lower-case word beside a completion",
+   "text": "skill"
+  },
+  {
+   "wants": "a `$` name is a flow",
+   "where": "one lower-case word beside a completion",
+   "text": "flow"
+  },
+  {
+   "wants": "what esc does on a sheet: goes back one step",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Back"
+  },
+  {
+   "wants": "what esc does on a sheet opened from the prompt: closes it",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Close"
+  },
+  {
+   "wants": "what enter does on a row that leads somewhere: opens it",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Open"
+  },
+  {
+   "wants": "what the digits 1 to 9 do on a row of numbered choices: pick the choice with that number",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one, otherwise one or two words in sentence case",
+   "text": "Choose"
+  },
+  {
+   "wants": "what the left and right arrows do: move along the choices or buttons",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one, otherwise one or two words in sentence case",
+   "text": "Move"
+  },
+  {
+   "wants": "what page up and page down do while a question form is open: scroll the transcript above it, so what is asked about can be read",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "Scroll transcript"
+  },
+  {
+   "wants": "what esc does on a question form: closes it and keeps what was filled in as a draft",
+   "where": "key hint at the foot of a sheet in the terminal interface, a few words in sentence case, no full stop",
+   "text": "Close and keep draft"
+  },
+  {
+   "wants": "what enter does on a session row of an epic's graph: opens what that session did, to read it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Read"
+  },
+  {
+   "wants": "what enter does on one action of a session that is cut short: shows the whole of it, and cuts it short again when pressed again",
+   "where": "key hint at the foot of a sheet in the terminal interface, one or two words in sentence case",
+   "text": "Expand"
+  },
+  {
+   "wants": "stands for an answer made of the values the flow suggested, where there is nothing shorter to call it",
+   "where": "a few lower-case words used as the name of an answer, no full stop",
+   "text": "what the flow suggested"
+  },
+  {
+   "wants": "{n} more lines of a block were left out",
+   "where": "quiet line under a block of context cut short, starting with an ellipsis character and a space, lower case, no full stop",
+   "text": "… {n} more lines",
+   "one": "… {n} more line"
+  },
+  {
+   "wants": "{n} more rows of a table were left out",
+   "where": "quiet line under a table cut short, starting with an ellipsis character and a space, lower case, no full stop",
+   "text": "… {n} more rows",
+   "one": "… {n} more row"
+  },
+  {
+   "wants": "all of what was cut short can be read in the web page at {url}",
+   "where": "clause appended to a line such as `… 30 more rows`, starting with ` -- ` (space, two hyphens, space), lower case, no full stop",
+   "text": " -- read all at {url}"
+  },
+  {
+   "wants": "summary of a block of context that is a diff: the word diff, a middle dot, then what it changes {changed}",
+   "where": "quiet summary beside a block's title, lower case, as the page's `table · {n} rows`",
+   "text": "diff · {changed}"
+  },
+  {
+   "wants": "a picture or chart the terminal cannot draw can be seen in the web page at {url}",
+   "where": "end of a quiet summary line, lower case, no full stop, the address last after a colon",
+   "text": "see in web page: {url}"
+  },
+  {
+   "wants": "a picture or chart the terminal cannot draw can be seen by opening the web page, which `hmz web` opens",
+   "where": "end of a quiet summary line, lower case, no full stop; write the command as (hmz web)",
+   "text": "open in web page (hmz web)"
+  },
+  {
+   "wants": "what was typed, \"{typed}\", answers none of the fields of the form; pick a choice or write in a field below",
+   "where": "one line under a form, keep the double quotes around {typed}, lower-case start, no full stop",
+   "text": "\"{typed}\" answers no field; choose an option or fill in a field below"
+  },
+  {
+   "wants": "title of a question form whose question has no text of its own",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Question"
+  },
+  {
+   "wants": "{role} asks this question; its context is in the transcript above the form",
+   "where": "one line under the title of a question form, starts with {role}, no full stop",
+   "text": "{role} asks; context is in the transcript above"
+  },
+  {
+   "wants": "the optional fields folded under `More options` already hold the values the flow suggested",
+   "where": "quiet hint beside the `More options` row, lower-case start, no full stop",
+   "text": "set to what the flow suggested"
+  },
+  {
+   "wants": "what the Answer button does: sends this answer",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send this answer"
+  },
+  {
+   "wants": "what the Exomyth button on an epic's graph opens: the epic as a timeline of its sessions",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "timeline of its sessions"
+  },
+  {
+   "wants": "{n} actions of one session, oldest first, read back from its log",
+   "where": "one sentence under the title of the sheet that reads one session, starts with the count",
+   "text": "{n} actions, oldest first, read from its log.",
+   "one": "{n} action, oldest first, read from its log."
+  },
+  {
+   "wants": "{n} actions (things a session did: turns, messages, tool calls)",
+   "where": "count on a row, lower case, as the page's `{n} sessions`",
+   "text": "{n} actions",
+   "one": "{n} action"
+  },
+  {
+   "wants": "the session's log held nothing it did",
+   "where": "empty-state line under a list, one short sentence in the manner of the page's `Its logs held nothing said.`",
+   "text": "Its log held nothing done."
+  },
+  {
+   "wants": "label of a row that is one turn of a session",
+   "where": "one lower-case word at the start of a row",
+   "text": "turn"
+  },
+  {
+   "wants": "label of a row that is something the agent said",
+   "where": "one lower-case word at the start of a row",
+   "text": "said"
+  },
+  {
+   "wants": "label of a row that is a tool call whose tool has no name",
+   "where": "one lower-case word at the start of a row",
+   "text": "tool"
+  },
+  {
+   "wants": "label of a row that is an event of no other kind",
+   "where": "one lower-case word at the start of a row",
+   "text": "event"
+  },
+  {
+   "wants": "a tool call failed",
+   "where": "end of a row, after a ✕ mark: write `✕ failed` with the page's word for failed, lower case",
+   "text": "✕ failed"
+  },
+  {
+   "wants": "title of the list of Ai-chan conversations: her name alone",
+   "where": "sheet and pane title in the terminal interface, write exactly Ai-chan",
+   "text": "Ai-chan"
+  },
+  {
+   "wants": "what the F3 key does: opens the pane of Ai-chan conversations",
+   "where": "key hint on the bottom line of the terminal interface, write exactly Ai-chan",
+   "text": "Ai-chan"
+  },
+  {
+   "wants": "what the New conversation row starts: a conversation with a scope, nous and permissions of its own",
+   "where": "quiet line beside the first row of a list, lower-case start, no full stop",
+   "text": "a conversation with a scope, nous and permissions of its own"
+  },
+  {
+   "wants": "state of an Ai-chan conversation whose host is up and no turn is open: between turns",
+   "where": "two lower-case words at the end of a row",
+   "text": "between turns"
+  },
+  {
+   "wants": "state of an Ai-chan conversation whose host closed after nobody viewed it: folded away, and carried on when opened",
+   "where": "two lower-case words at the end of a row",
+   "text": "folded away"
+  },
+  {
+   "wants": "what the Rename row of a conversation's menu does: gives the conversation another title",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "gives the conversation another title"
+  },
+  {
+   "wants": "what the Pin row of a conversation's menu does: keeps the conversation at the top of the list on this machine",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "keeps the conversation at the top of the list on this machine"
+  },
+  {
+   "wants": "what the Unpin row of a conversation's menu does: lists the conversation by when it was last said in again",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "lists the conversation by when it was last said in again"
+  },
+  {
+   "wants": "what the Mark as read row of a conversation's menu does: takes the unread dot off it",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "takes the unread dot off it"
+  },
+  {
+   "wants": "what the Mark as unread row of a conversation's menu does: dots the conversation until it is opened",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "dots the conversation until it is opened"
+  },
+  {
+   "wants": "what the Delete row of a conversation's menu does: deletes the conversation and its scratch directory, after asking",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "deletes the conversation and its scratch directory, after asking"
+  },
+  {
+   "wants": "deleting an Ai-chan conversation removes the conversation and its scratch directory, and it cannot be carried on afterwards",
+   "where": "one sentence under the question `Delete this conversation?`",
+   "text": "This removes the conversation and its scratch directory, and it cannot be carried on afterwards."
+  },
+  {
+   "wants": "what the Delete button of the question does: deletes the conversation now",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "deletes the conversation now"
+  },
+  {
+   "wants": "what the Cancel button of the question does: keeps the conversation",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "keeps the conversation"
+  },
+  {
+   "wants": "title of the form that renames an Ai-chan conversation",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Rename conversation"
+  },
+  {
+   "wants": "a conversation is listed by its title, which is the start of the first thing said in it until it is given another",
+   "where": "one sentence under the title of the rename form",
+   "text": "A conversation is listed by its title, which is the start of the first thing said in it until it is given another."
+  },
+  {
+   "wants": "what a conversation's title is for: it is what the conversation is listed by",
+   "where": "quiet hint beside the one field of the rename form, lower-case start, no full stop",
+   "text": "what the conversation is listed by"
+  },
+  {
+   "wants": "what pressing Done on the rename form does: renames the conversation",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "renames the conversation"
+  },
+  {
+   "wants": "refusal: a conversation's title cannot be empty",
+   "where": "error line under a form, one short sentence",
+   "text": "This needs a title."
+  },
+  {
+   "wants": "what the epic scope reaches: the epic {epic} of the folder {folder}",
+   "where": "quiet line beside the Scope row of a form, lower-case start, no full stop",
+   "text": "the epic {epic} of the folder {folder}"
+  },
+  {
+   "wants": "what the Nous field of the form takes when no nous is saved: what Ai-chan thinks with, written the way `-a` spells an agent",
+   "where": "quiet hint beside a field, lower-case start, no full stop, keep `-a` in backticks",
+   "text": "what Ai-chan thinks with, written the way `-a` spells an agent"
+  },
+  {
+   "wants": "what pressing Done on the new conversation form does: nothing is made yet, the first line you say starts the conversation",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "nothing is made yet; the first line you say starts the conversation"
+  },
+  {
+   "wants": "what the n key does in the Ai-chan pane: starts a new conversation",
+   "where": "key hint on the bottom line of the terminal interface: the page's own word `New`",
+   "text": "New"
+  },
+  {
+   "wants": "what the m key does on a row of a list: opens the row's menu of actions",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Menu"
+  },
+  {
+   "wants": "the daemon could not be asked for Ai-chan's conversations: {why}",
+   "where": "error line in a pane, one sentence ending with the reason after a colon",
+   "text": "Ai-chan's conversations could not be loaded: {why}"
+  },
+  {
+   "wants": "what enter does while a row is being written in place: keeps what was written",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Keep"
+  },
+  {
+   "wants": "what esc does while a row is being written in place: puts the row back as it was",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Cancel"
+  },
+  {
+   "wants": "what enter does in the search box above a list: goes to the list of matches",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "To list"
+  },
+  {
+   "wants": "what esc does in the search box above a list: clears the search",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word `Clear`",
+   "text": "Clear"
+  },
+  {
+   "wants": "what enter does on a button that has no name: presses it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Press"
+  },
+  {
+   "wants": "what tab does from the buttons under a list: goes back to the list",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word `List`",
+   "text": "List"
+  },
+  {
+   "wants": "what enter does on a row whose value is written in place: starts changing it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Edit"
+  },
+  {
+   "wants": "names typing as the way a written row is edited: shown as the key `type` with the hint after it meaning `to edit`",
+   "where": "key hint at the foot of a sheet, shown after the word `type`: two words in sentence case",
+   "text": "To edit"
+  },
+  {
+   "wants": "what esc does on a list that is narrowed by a search: clears the search",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "Clear search"
+  },
+  {
+   "wants": "what esc does on the question asked when quitting while a flow runs: stays in the interface",
+   "where": "key hint at the foot of a question box, one word in sentence case",
+   "text": "Stay"
+  },
+  {
+   "wants": "what esc does on the first-start question about error reports: leaves it unanswered, to be asked again next time",
+   "where": "key hint at the foot of a question box, a few words in sentence case, no full stop",
+   "text": "Ask again next time"
+  },
+  {
+   "wants": "the menu holds changes that are not saved yet",
+   "where": "warning at the top right of a menu after a ● mark: the page's own word `Unsaved`",
+   "text": "Unsaved"
+  },
+  {
+   "wants": "what the Search button under a list does: narrows the list to what is typed",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "filter the list"
+  },
+  {
+   "wants": "placeholder of the search box above a list: type to filter the list",
+   "where": "placeholder of a text box, sentence case, no full stop",
+   "text": "Type to filter"
+  },
+  {
+   "wants": "stands for an agent the flow gave no name: agent {at} of {total}",
+   "where": "row label, lower case",
+   "text": "agent {at} of {total}"
+  },
+  {
+   "wants": "the agent's transcript is the one on the screen: it is being read",
+   "where": "one lower-case word after a middle dot on the status line",
+   "text": "reading"
+  },
+  {
+   "wants": "the agent has said something that has not been read yet",
+   "where": "one lower-case word after a middle dot on the status line: the page's `Unread` in lower case",
+   "text": "unread"
+  },
+  {
+   "wants": "what the Save button under a menu does: saves all the changes held",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "save changes"
+  },
+  {
+   "wants": "why the Save button under a menu cannot be pressed: nothing was changed yet",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "no changes yet"
+  },
+  {
+   "wants": "the row has no action to offer now",
+   "where": "empty-state line of a row's menu, lower-case start, no full stop",
+   "text": "no actions"
+  },
+  {
+   "wants": "question asked when leaving a menu that holds unsaved changes: save them?",
+   "where": "title of a small question box, as short as possible, ends with a question mark",
+   "text": "Save changes?"
+  },
+  {
+   "wants": "what the Save button of the question does: saves the changes and leaves the menu",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "save and close"
+  },
+  {
+   "wants": "button that throws the unsaved changes of a menu away",
+   "where": "button label, one word in sentence case",
+   "text": "Discard"
+  },
+  {
+   "wants": "what the Discard button of the question does: throws the changes away and leaves the menu",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "drop changes and close"
+  },
+  {
+   "wants": "statement shown when quitting the interface while a flow is running: a flow is running",
+   "where": "title of a small question box, one short sentence with a full stop",
+   "text": "A flow is running."
+  },
+  {
+   "wants": "detached, the flow keeps running; running `hmz` in this folder reattaches to it",
+   "where": "one sentence under the title of the question box, keep `hmz` in backticks",
+   "text": "Detached, the flow keeps running; run `hmz` in this folder to reattach."
+  },
+  {
+   "wants": "button that stops the running flow and exits the interface",
+   "where": "button label, starts with Stop, sentence case, no full stop",
+   "text": "Stop the flow and quit"
+  },
+  {
+   "wants": "what stopping the flow means: it stops for everybody reading it",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "stops for everyone reading it"
+  },
+  {
+   "wants": "button that lets go of the running flow, leaving it running, and exits the interface",
+   "where": "button label, starts with Detach, sentence case, no full stop",
+   "text": "Detach and quit"
+  },
+  {
+   "wants": "how to come back to a detached flow: run `hmz` in this folder to reattach",
+   "where": "quiet hint beside a button, lower-case start, no full stop, keep `hmz` in backticks",
+   "text": "run `hmz` in this folder to reattach"
+  },
+  {
+   "wants": "what the Cancel button does when quitting: keeps the interface open",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "stay here"
+  },
+  {
+   "wants": "question asked once on a first start: whether Humanize may report its own errors to its makers",
+   "where": "title of a small question box, ends with a question mark",
+   "text": "Send error reports to Humanize?"
+  },
+  {
+   "wants": "error reports help fix bugs. What is sent: {sent}. What is never sent: {kept}. This can be changed later in /settings",
+   "where": "two to four short sentences under the title of the question box; keep {sent} and {kept}, each a list ending its own sentence; write /settings without backticks",
+   "text": "Error reports help fix bugs. Sent: {sent}. Never sent: {kept}. Change this anytime in /settings."
+  },
+  {
+   "wants": "what answering Yes does: error reports are sent",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send error reports"
+  },
+  {
+   "wants": "what answering No does: nothing is sent",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send nothing"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

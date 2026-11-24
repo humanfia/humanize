@@ -133,7 +133,7 @@ async def test_a_concrete_nous_is_added_with_tries_and_a_then_chain(
         await shows(pilot, "codex/gpt-5 → claude/sonnet")
         await done(pilot, Adjusts)
 
-        await shows(pilot, "claude/opus", "2 retries", "● unsaved")
+        await shows(pilot, "claude/opus", "2 retries", "● Unsaved")
         await leaves(pilot)
 
     one = written("claude/opus")
