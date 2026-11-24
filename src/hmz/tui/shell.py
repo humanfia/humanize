@@ -196,12 +196,36 @@ class Hints(Static):
     Hints.hinting { display: block; }
     """
 
+    #: The keys being shown, each with what it does.
+    _pairs: Sequence[tuple[str, str]] = ()
+
     def says(self, pairs: Sequence[tuple[str, str]]) -> None:
         """Shows keys and what each does; nothing, and no line, where there are none."""
+        self._pairs = tuple(pairs)
         self.set_class(bool(pairs), "hinting")
-        self.update(
-            "   ".join(f"[b $primary]{_shown(key)}[/] {t(does)}" for key, does in pairs)
-        )
+        self._draws()
+
+    def on_resize(self, _: events.Resize) -> None:
+        """Breaks the line again for however wide it is now."""
+        self._draws()
+
+    def _draws(self) -> None:
+        """Writes the keys, a row breaking only between one key and the next.
+
+        Left to wrap where it will, a row ends with a key and the next begins with what that
+        key does, which reads as two things.
+        """
+        wide = self.size.width or 10**6
+        rows: list[list[str]] = [[]]
+        used = 0
+        for key, does in self._pairs:
+            plain = len(f"{_shown(key)} {t(does)}")
+            if rows[-1] and used + 3 + plain > wide:
+                rows.append([])
+                used = 0
+            used += plain + (3 if len(rows[-1]) else 0)
+            rows[-1].append(f"[b $primary]{_shown(key)}[/] {t(does)}")
+        self.update("\n".join("   ".join(row) for row in rows))
 
 
 def _shown(key: str) -> str:
