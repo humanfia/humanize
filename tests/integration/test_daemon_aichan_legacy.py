@@ -16,7 +16,7 @@ from unittest import mock
 
 import pytest
 
-from hmz import home
+from hmz import data
 from hmz.daemon.reach import Conversations, Links, epic_at, ran_in
 from hmz.rpc import Code, RpcError
 from hmz.runtime import epic
@@ -81,7 +81,7 @@ def test_a_conversation_left_as_an_epic_is_not_carried_on_until_it_is_moved(
 
     # So the next start moves it, and her conversation is carried on in the chat it is.
     assert epic.migrated() == ([at.name], {})
-    into = home() / "chats" / at.parent.name / at.name
+    into = data() / "chats" / at.parent.name / at.name
     assert epic_at(at.name) == into
     assert ran_in(at.name) == str(workspace.resolve())
     hosted.chat.return_value = {"ok": False, "why": "enough for this test"}

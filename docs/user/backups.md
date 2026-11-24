@@ -113,17 +113,18 @@ Without `--to`, `hmz backup EPIC` uses the targets the epic started with, or the
 | 1 | A target failed, or the epic to download is already on this machine. |
 | 2 | No such epic, no such target, or no targets configured. |
 
-You can also configure targets in `~/.hmz/settings.yaml`. See [settings.yaml](/reference/settings) for all keys.
+You can also configure targets in `~/.config/humanize/settings.toml`. See [settings.toml](/reference/settings) for all keys.
 
-```yaml
-backup:
-  targets:
-    - name: lab
-      url: git@github.com:you/epics.git
-      branch: main
-      policies: [end]
-      every: 30
-  defaults: [lab]
+```toml
+[backup]
+defaults = ["lab"]
+
+[[backup.targets]]
+name = "lab"
+url = "git@github.com:you/epics.git"
+branch = "main"
+policies = ["end"]
+every = 30
 ```
 
 ## Repository layout

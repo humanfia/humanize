@@ -59,11 +59,11 @@ Give a role no network in a flow to restrict its connections (`network=False`, s
 
 ## Choose the backend on Linux
 
-Set `sandbox.backend` in `~/.hmz/settings.yaml` to pin a backend on Linux. You must edit this file by hand; the change applies from the next turn, with no restart.
+Set `sandbox.backend` in `~/.config/humanize/settings.toml` to pin a backend on Linux. You must edit this file by hand; the change applies from the next turn, with no restart.
 
-```yaml
-sandbox:
-  backend: bwrap
+```toml
+[sandbox]
+backend = "bwrap"
 ```
 
 | Value | Meaning |
@@ -78,9 +78,9 @@ If a pinned backend cannot start, it refuses the role instead of falling back. U
 
 You can let Codex enforce the permission with its own sandbox instead of the fence:
 
-```yaml
-sandbox:
-  native: [codex]
+```toml
+[sandbox]
+native = ["codex"]
 ```
 
 ::: warning

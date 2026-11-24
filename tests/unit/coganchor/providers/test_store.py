@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from hmz import data
 from hmz.coganchor import backends, gateway, providers
 from hmz.coganchor.providers import (
     ENV,
@@ -31,7 +32,7 @@ from hmz.coganchor.providers import (
 
 
 def humanize() -> Path:
-    return Path(os.environ["HUMANIZE_HOME"])
+    return data()
 
 
 def profile(cli: str) -> backends.Profile:

@@ -80,6 +80,10 @@ _PATCH = "humanize.patch.yml"
 #: it starts alike. So a flow at `local=read` runs here with every request granted inside a
 #: fence whose workdir is readable and not writable, which is a read-only agent in fact rather
 #: than in name.
+#:
+#: No policy can forbid it, so nothing is read for it first: the runtime reads no managed or
+#: system one. What outranks it is the person's own `permission.defaultPreset` in the
+#: `settings.yaml` of the home it is handed, which is read only where that home is theirs.
 _PERMISSION_ENV = "DSH_PERMISSION_MODE"
 _UNCONFINED = "danger-full-access"
 

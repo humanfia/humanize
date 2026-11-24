@@ -2,8 +2,8 @@
 
 Section 4.22 of daemon.md.
 
-Each conversation is recorded in `<home>/ai/<machine>/conversations.yaml`, held on a host of an
-`ai:` slot of its own in the workspace of its scope -- `<home>/ai/<machine>` itself for the scope
+Each conversation is recorded in `<data>/ai/<machine>/conversations.yaml`, held on a host of an
+`ai:` slot of its own in the workspace of its scope -- `<data>/ai/<machine>` itself for the scope
 `daemon` -- and kept until it is forgotten, whether or not a host holds it. What starts that
 host, and the scoped link it is told of, is :class:`hmz.daemon.reach.Links`. Served by
 whichever daemon names them (:func:`served`), a private one among them.

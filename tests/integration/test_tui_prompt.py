@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import state
 from hmz.tui import Humanize
 from tests.integration.doubles_tui import (
     RUNS,
@@ -124,7 +125,7 @@ async def test_what_was_typed_is_kept_and_up_brings_it_back_in_the_next_interfac
         await typed(pilot, "/flew")
         await shows(pilot, "/flew")
 
-    kept = (tmp_path / "humanize-home" / "history.jsonl").read_text().splitlines()
+    kept = (state() / "history.jsonl").read_text().splitlines()
     assert [json.loads(one)["text"] for one in kept] == ["/fly", "/flew"]
 
     async with Humanize().run_test(size=SIZE) as pilot:

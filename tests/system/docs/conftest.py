@@ -55,7 +55,7 @@ import psutil
 import pytest
 
 from hmz.runtime import telemetry
-from tests.conftest import hide_agents
+from tests.conftest import hide_agents, own
 from tests.integration.conftest import FLOWS
 from tests.integration.doubles_core import AGENT, CLAUDE, MODEL
 from tests.integration.doubles_web import PATIENCE, Browser, served
@@ -352,8 +352,9 @@ def _no_real_agents(
 def _humanize_home(
     _humanize_home: None, _stage: _Stage, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The root's, moved to where the person's own would be: `~/.hmz`."""
-    monkeypatch.setenv("HUMANIZE_HOME", str(_stage.home / ".hmz"))
+    """The root's, moved to where the person's own would be: under `~`."""
+    for name, value in own(_stage.home).items():
+        monkeypatch.setenv(name, value)
     telemetry.again()
 
 

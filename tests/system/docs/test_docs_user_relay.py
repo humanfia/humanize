@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 from playwright.sync_api import expect
 
+from tests.conftest import own
 from tests.integration.doubles_tui import onto, shows, typed
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
@@ -189,7 +190,7 @@ def _devbox_env(world: World, port: int) -> dict[str, str]:
     return dict(
         os.environ,
         HOME=str(home),
-        HUMANIZE_HOME=str(home / ".hmz"),
+        **own(home),
         PYTHONPATH=str(site),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="d", dir=str(base)),

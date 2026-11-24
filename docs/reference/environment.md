@@ -27,7 +27,7 @@ An empty value counts as unset unless the table says otherwise. Switch values ar
 
 | Variable | Values | Default | Effect |
 | --- | --- | --- | --- |
-| `HUMANIZE_HOME` | a path | `~/.hmz` | The directory for settings, accounts, and epics. See [Files on disk](/reference/files). |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME` | an absolute path | `~/.config`, `~/.local/share`, `~/.local/state`, `~/.cache` | Where Humanize keeps its settings, data, state and cache, each in a `humanize` folder. A relative path counts as unset. See [Files on disk](/reference/files). |
 | `HUMANIZE_NAME` | any text | your login name, else `somebody` | The name an interface attaches to the daemon under, as `<name>@<kind>`. |
 | `HUMANIZE_SENTRY` | `on`, `1`, `true`, `yes` or `off`, `0`, `false`, `no` | the `enable_sentry` setting | Turns error reports on or off for this process only. Writes nothing to settings. Ignores any other value. See [Report a problem](/user/reporting). |
 | `HUMANIZE_SESSIONS` | `off`, `0`, `no` | on | Off: each harness keeps its sessions in its own home, and Humanize keeps none inside the epic. |
@@ -39,7 +39,7 @@ An empty value counts as unset unless the table says otherwise. Switch values ar
 | `HUMANIZE_EASYTIER` | path to an `easytier-core` binary | EasyTier `2.6.4`, downloaded into the home on first use | The EasyTier binary used to reach or serve a daemon over EasyTier. Ignores paths that are not files. |
 | `HUMANIZE_EASYTIER_NODES` | URL of an Uptime Kuma server | `https://easytier.gd.nkbpal.cn` | Source for the list of shared community EasyTier nodes. |
 | `HUMANIZE_COGANCHOR` | path to a `coganchor` binary | the build shipped in the package | The `coganchor` run on this machine. Other machines still get the packaged builds. Ignores paths that are not files. |
-| `HUMANIZE_SHADOWS` | a path, `~` allowed | `~/.cache/humanize/shadows` | Directory for records of local mirrors of remote workspaces. |
+| `HUMANIZE_SHADOWS` | a path, `~` allowed | `$XDG_STATE_HOME/humanize/shadows`, else `~/.local/state/humanize/shadows` | Directory for records of local mirrors of remote workspaces. |
 | `HUMANIZE_RENDEZVOUS` | a host or address | this machine's outward-facing address | The address the two halves of a remote turn dial to meet. Also the default of `hmz internal anchor --broker`. |
 | `HUMANIZE_RENDEZVOUS_PORT` | an integer | `0`, any free port | The port of that meeting point. Listens on every interface. An empty or non-numeric value is an error. |
 

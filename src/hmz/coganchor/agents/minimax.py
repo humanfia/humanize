@@ -76,6 +76,9 @@ _COMMAND = "mcode"
 #: What a fenced turn is run at, as `--permission`: `full`, which asks nothing and leaves the
 #: fence to hold the grant, rather than failing a turn on a question nobody is there to answer.
 #: An agent with no fence is given no flag at all. See the module.
+#:
+#: Nothing can forbid it, so nothing is read for it first: `--permission` outranks the
+#: `permissionMode` of a `config.yaml`, and MiniMax Code reads no managed or system one.
 _GRANTED = ("--permission", "full")
 
 #: The tool it starts an agent of its own with, by the name its stream calls it. A turn that

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from hmz import data
 from hmz.flows import FlowNotFound, FlowRefError
 from hmz.runtime.flowing.finding import (
     ENTRY,
@@ -40,7 +41,7 @@ class Places:
     def __init__(self, project: Path) -> None:
         self.project = project
         self.mine = project / ".hmz" / "flows"
-        self.yours = project.parent / "me" / ".hmz" / "flows"
+        self.yours = data() / "flows"
 
 
 @pytest.fixture

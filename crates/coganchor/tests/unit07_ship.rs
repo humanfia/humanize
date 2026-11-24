@@ -48,6 +48,7 @@ fn world() -> &'static World {
                esac\n\
              done\n\
              export REAL_HOME=\"$HOME\"\n\
+             unset XDG_CACHE_HOME\n\
              HOME=\"$FAKE_HOME\" exec /bin/sh -c \"$1\"\n",
         )
         .unwrap();

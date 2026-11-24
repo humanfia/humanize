@@ -26,6 +26,7 @@ import psutil
 import pytest
 from playwright.sync_api import expect
 
+from tests.conftest import own
 from tests.system.docs import shots
 from tests.system.web.doubles_browser import again, go
 
@@ -264,7 +265,7 @@ def _devbox(world: World) -> Generator[_Devbox]:
     there = dict(
         os.environ,
         HOME=str(home),
-        HUMANIZE_HOME=str(home / ".hmz"),
+        **own(home),
         PYTHONPATH=str(site),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="d", dir=str(base)),

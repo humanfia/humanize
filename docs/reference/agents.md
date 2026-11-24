@@ -17,7 +17,7 @@ hmz exec   -a ROLE=NOUS[,...]
 hmz chat   -a CLI[@ACCOUNT]/MODEL[:EFFORT]
 ```
 
-Use the same string in `settings.yaml` and the SDK. Omit the role to write a concrete nous.
+Use the same string in `settings.toml` and the SDK. Omit the role to write a concrete nous.
 
 | Part | Rule |
 | --- | --- |
@@ -50,7 +50,7 @@ Append `:auto` if a model name ends with `:` followed by a word, as in the fifth
 | A role that is no identifier | `'NAME' is not a place a flow could declare` |
 | No role on `hmz exec` | `expected <role>=<harness>[@<provider>]/<model>[:<effort>] or <role>=<nous>` |
 | A role given twice | `the role 'NAME' is given twice` |
-| Several specs where `settings.yaml` or the SDK takes one | ``expected one agent: a `,` separates several, each read on its own`` |
+| Several specs where `settings.toml` or the SDK takes one | ``expected one agent: a `,` separates several, each read on its own`` |
 | A nous name that is not saved | `'NAME' is no nous written down` |
 
 ## Harnesses

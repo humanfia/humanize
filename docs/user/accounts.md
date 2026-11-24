@@ -7,7 +7,7 @@ description: Give a coding agent a named set of credentials, keep several per CL
 
 An account is a named set of credentials for one coding agent CLI. Humanize isolates each account from the CLI's own sign-in and from other accounts, so two agents of the same CLI can run at the same time under different accounts.
 
-![Three agents of one CLI: two run as the named accounts work and personal, kept under ~/.hmz/providers, and one runs as Local, the CLI's own sign-in](/diagrams/user-accounts-1.svg)
+![Three agents of one CLI: two run as the named accounts work and personal, kept under ~/.local/share/humanize/providers, and one runs as Local, the CLI's own sign-in](/diagrams/user-accounts-1.svg)
 
 An agent without an account name runs as **Local**, using the CLI's existing sign-in on your machine. Humanize stores no credentials for Local, so you cannot edit or remove it.
 
@@ -121,7 +121,7 @@ See [Agents and harnesses](/reference/agents) for the methods each CLI supports,
 ## Good to know
 
 - Account names must start with a letter or digit and contain only letters, digits, `.`, `-`, and `_`. Names must be unique within each CLI.
-- Accounts are stored in `~/.hmz/providers/<cli>/<name>/`.
+- Accounts are stored in `~/.local/share/humanize/providers/<cli>/<name>/`.
 - Running under an account swaps only the credentials. The CLI keeps its sessions, settings, and skills.
 - During a turn under an account, Humanize unsets other credential variables from your shell, such as a stray `ANTHROPIC_API_KEY`.
 - You can add a key account before installing its CLI. The account works once you install the CLI.

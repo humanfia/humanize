@@ -16,7 +16,7 @@ Humanize ships with no flows. Install flows from a flowverse (a git repository t
 | `official` | The official flowverse, `humanfia/flowverse`. Always listed and cannot be removed. Browse its catalogue at [humanfia.ai/flows](https://humanfia.ai/flows/). | `goal` |
 | A flowverse you add | Any other index repository under a name you choose. | `@team/review` |
 | `local` | Flows in `.hmz/flows/` of the project. | `@local/review` |
-| `user` | Flows in `~/.hmz/flows/`. | `@user/review` |
+| `user` | Flows in `~/.local/share/humanize/flows/`. | `@user/review` |
 
 Humanize looks up bare names like `review` in the project first, then your home folder, then `official`, and then other flowverses in alphabetical order. A project flow overrides an official flow of the same name.
 
@@ -105,9 +105,9 @@ All flow and flowverse actions take effect immediately. **Save** only saves the 
 
 ## Add your own flows
 
-Place a Python file or folder in `.hmz/flows/` to use it in the current project, or in `~/.hmz/flows/` to use it everywhere. Humanize loads these flows directly and reloads them whenever you save changes. To build one, see [Write your first flow](/tutorials/first-flow) and [Anatomy of a flow](/builder/flow).
+Place a Python file or folder in `.hmz/flows/` to use it in the current project, or in `~/.local/share/humanize/flows/` to use it everywhere. Humanize loads these flows directly and reloads them whenever you save changes. To build one, see [Write your first flow](/tutorials/first-flow) and [Anatomy of a flow](/builder/flow).
 
-In the app, the **Flows** page lists installed flows and those in `~/.hmz/flows/`, but not a project's. Select project flows from the **New epic** page.
+In the app, the **Flows** page lists installed flows and those in `~/.local/share/humanize/flows/`, but not a project's. Select project flows from the **New epic** page.
 
 ## Start a flow from a chat line
 

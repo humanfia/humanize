@@ -24,6 +24,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     CHATTING,
     Endpoint,
@@ -239,7 +240,7 @@ def test_the_daemon_under_an_account_a_gateway_holds_is_pointed_at_it(
         "LITELLM_GATEWAY_KEY",
     )
     held.install("kimi", CHATTING + KIMI)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     monkeypatch.setenv("KIMI_MODEL_NAME", "lying-about")
     monkeypatch.setattr(Provider, "swaps", _unswapped)
