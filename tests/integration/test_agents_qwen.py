@@ -84,6 +84,10 @@ def turn(said):
         sys.exit(3)
     if said == "hang":
         time.sleep(600)
+    if said == "ask":
+        out({"type": "control_request", "request_id": "r1", "request": {
+            "subtype": "can_use_tool", "tool_name": "edit", "input": {"path": "a"}}})
+        said = json.loads(sys.stdin.readline())["response"]["response"]["behavior"]
     record({"type": "system", "subtype": "init", "model": flags.get("--model")})
     if said == "unfinished":
         record({"type": "result", "subtype": "error_during_execution", "is_error": True,
@@ -124,6 +128,10 @@ class Shape(BaseModel):
 def qwen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
     held.install("qwen", CHATTING + QWEN)
+    # Not the machine's own system layer, which is read before a process is started.
+    monkeypatch.setenv(
+        "QWEN_CODE_SYSTEM_SETTINGS_PATH", str(tmp_path / "no-machine.json")
+    )
     return held
 
 
@@ -163,6 +171,14 @@ def test_a_turn_held_to_a_shape_answers_with_the_object(qwen: Standins) -> None:
     assert shaped.flag("--session-id") == session.id
     assert after.flag("--resume") == session.id
     assert shaped.pid != after.pid
+
+
+def test_a_tool_qwen_asks_leave_for_is_granted_mid_turn(qwen: Standins) -> None:
+    session = QwenCodeAgent(CONFIG).new()
+
+    assert session("ask") == "allow"
+    assert session("after") == "after"
+    assert len({one.pid for one in qwen.calls()}) == 1
 
 
 def test_a_result_marked_as_an_error_is_a_failed_turn(qwen: Standins) -> None:

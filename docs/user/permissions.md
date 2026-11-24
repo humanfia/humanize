@@ -88,7 +88,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 
 | What | How it is held |
 | --- | --- |
-| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits`, Codex uses `workspace-write` with approval `on-request`, and Humanize approves every request. |
+| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits`, Codex uses `workspace-write` with approval `on-request`, and Humanize approves every request. Qwen Code runs at `yolo`. If its folder trust is on and the working folder is not trusted, it runs at `default` with the shell, `monitor`, `edit` and `write_file` allowed unless the role withholds them, and Humanize approves every other request. |
 | Read-only roles | File-writing tools are disabled when the CLI supports it. The shell stays enabled, and the fence blocks any file writes it attempts. |
 | `network=False` | The fence cuts the network, and Humanize disables the CLI's web search where supported. `cursor-agent` and `mcode` run searches on vendor servers, so they are refused for offline roles. Any CLI added over ACP must declare its hosts. |
 | Hooks | A flow can attach a hook to approve or reject each tool call. Claude Code, Codex and Kimi Code are then configured to ask, and the hook answers. See [Hooks](/builder/hooks). |
@@ -96,6 +96,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 ## Good to know
 
 - If Humanize cannot enforce a permission, the session fails to open with `HarnessSandboxed`. An agent never runs with wider access than its permission allows.
+- If Qwen Code's system settings, or a trusted folder's own, set `disableAllHooks` and a flow hangs a pre-tool-use hook on the agent, the session fails to open and names the settings file.
 - When an agent reports a refused write, the permission is working. Start the chat in the folder you want changed, or select a wider preset.
 - Under **Edit this folder**, the agent can also write to `/tmp`, `/var/tmp` and `$TMPDIR`.
 - Under any preset, every agent can write to its own settings, sign-in and session files.
