@@ -4572,10 +4572,11 @@ def _mend(entries: dict[str, object]) -> list[str]:
 def _fault(entry: object) -> str | None:
     """What is wrong with one entry, or None where it is an added CLI as written."""
     if isinstance(entry, list):
-        entry = {"command": entry}
-    if not isinstance(entry, dict):
+        said: dict[object, object] = {"command": cast("object", entry)}
+    elif isinstance(entry, dict):
+        said = cast("dict[object, object]", entry)
+    else:
         return "expected a command as a list, such as [my-agent, --acp], or a mapping"
-    said = cast("dict[object, object]", entry)
     unknown = [str(one) for one in said if one not in _KEYS]
     if unknown:
         return f"unknown key {unknown[0]!r}; expected command, hosts and state"
