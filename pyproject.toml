@@ -51,6 +51,10 @@ dependencies = [
     "pyfiglet>=1.0",
     "pyopenssl>=26",
     "pyinstrument>=5.1.3",
+    # The terminal emulator a terminal of an environment is drawn by in a pane beside the
+    # log, where what it prints has to be a screen of cells rather than a stream; the tests
+    # read what `hmz exec` redrew with it too.
+    "pyte>=0.8.2",
     "pyyaml>=6.0.3",
     # Named because the interface imports it directly. It arrives with textual either
     # way, but a dependency you import is one you declare.
@@ -196,9 +200,6 @@ dev = [
     # page is printed by the browser to a PDF, which this reads back as vector paths. Under
     # 2, which is where it began to bring a layout model and its runtime along.
     "pymupdf>=1.26,<2",
-    # And what a command wrote to its terminal is read by a terminal emulator there, since
-    # `hmz exec` redraws its last lines as it goes.
-    "pyte>=0.8.2",
     "pyright>=1.1.414",
     "pytest>=8",
     "pytest-asyncio>=1.4.0",

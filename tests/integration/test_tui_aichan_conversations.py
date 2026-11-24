@@ -26,6 +26,7 @@ from tests.integration.doubles_tui import (
     on,
     onto,
     opened,
+    opens,
     own_flow,
     picks,
     screen,
@@ -149,7 +150,7 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         await opened(pilot)
         await _new(pilot)
         # Nothing has been run here, so the scope is this directory; the nous the setting.
-        drawn = await shows(pilot, "scope", "workspace", "nous", RUNS, "read-only")
+        drawn = await shows(pilot, "Scope", "workspace", "Nous", RUNS, "read-only")
         # Her network is hers always: the form asks nothing of it.
         assert "network" not in drawn
         await _done(pilot)
@@ -241,7 +242,7 @@ async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_dae
         await shows(pilot, "the epic ")
         await picks(pilot, "scope", "daemon")
         await picks(pilot, "preset", "danger-full-access")
-        await shows(pilot, "every workspace and epic of this daemon")
+        await shows(pilot, "Every workspace and epic here")
         await _done(pilot)
         await typed(pilot, "look around")
         await shows(pilot, "heard look around", "Ai-chan#1 · daemon")
@@ -307,12 +308,13 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
         await onto(pilot, "1")
         await pilot.press("m")
         await on(pilot, Acts)
-        await pilot.press("enter")
+        await opens(pilot, "forget")
         await on(pilot, AiForgets)
-        await shows(pilot, "Forget Ai-chan#1?")
-        await pilot.press("enter")
+        await shows(pilot, "Ai-chan#1 · Delete this conversation?")
+        # Keeping it is the answer the keys open on: deleting is one step along.
+        await pilot.press("right", "enter")
         await on(pilot, AiChans)
-        await shows(pilot, "no conversation yet")
+        await shows(pilot, "Deleted")
     assert _made(daemon) == []
     assert heard(workspace)[-1] == "and again"
 
@@ -376,3 +378,31 @@ async def test_a_nous_the_daemon_refused_is_not_the_one_the_next_form_opens_on(
 
     assert _made(daemon) == []
     assert Settings().ai_chan == ""
+
+
+async def test_f3_lists_her_conversations_beside_the_log_and_enter_follows_one(
+    workspace: Path, daemon: Private
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await _new(pilot)
+        await _done(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "heard hello there")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: "Ai-chan#1" not in screen(app), "her to be left")
+
+        await pilot.press("f3")
+        # In the context zone, headed in capitals, the log still drawn beside it.
+        drawn = await shows(pilot, "AI-CHAN", "+ New conversation", "Ai-chan#1 · hello")
+        assert "Humanize" in drawn
+        # Its keys are the hint line's while it has them.
+        await shows(pilot, "enter Open", "N New", "R Rename", "P Pin", "delete Delete")
+
+        await pilot.press("down", "enter")
+        await shows(pilot, "Ai-chan#1 · workspace")
+        await typed(pilot, "and again")
+        await shows(pilot, "heard and again")
+    assert len(_made(daemon)) == 1
+    assert heard(workspace)[-1] == "and again"

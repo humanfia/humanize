@@ -160,6 +160,23 @@ Use the buttons below the list to act on all files: `Stage all`, `Unstage all`, 
 
 The Shell page hands your terminal over to a login shell in the environment. Exit the shell to return to `hmz`. Type `~.` at the start of a line to return to `hmz` and leave the shell running; type `~~` to send a literal tilde. When you return to the page, choose a running shell or `new shell`.
 
+### Keep a pane open beside the chat
+
+To read an agent's work next to the conversation, open a pane instead of a sheet. Press <kbd>f5</kbd> for Files, <kbd>f6</kbd> for Changes, or <kbd>f7</kbd> for Terminal. The pane opens to the right of the log for the environment of the chat or epic you are in, and refreshes when the agent finishes a turn or changes a file.
+
+- Press <kbd>esc</kbd> to return to the prompt. The pane stays open while you keep talking to the agent.
+- Press the pane's key again to go back to it, and once more to close it.
+- Press <kbd>ctrl+w</kbd> to widen the pane: half the screen, then four fifths, then back to 48 columns.
+- When the chat or epic has several environments, the first row names the one shown. Press <kbd>tab</kbd> for the next one. The choice is remembered for that chat or epic, across all three panes.
+
+Each pane lists its keys at its foot.
+
+**Files** shows a tree. <kbd>enter</kbd> opens or shuts a folder, and shows a file read-only in the pane with line numbers and colours; <kbd>backspace</kbd> returns to the tree. Press <kbd>e</kbd> to edit the file in the built-in editor, which saves as described above. <kbd>n</kbd> and <kbd>shift+n</kbd> make a file or a folder, <kbd>r</kbd> renames, <kbd>d</kbd> deletes after asking, <kbd>ctrl+p</kbd> opens a file by name, and <kbd>/</kbd> searches in files. Files over 1 MiB are not shown in the pane.
+
+**Changes** shows the status list with the diff of the selected file under it. Move with <kbd>↑</kbd> and <kbd>↓</kbd>; the diff follows. <kbd>s</kbd> stages, <kbd>u</kbd> unstages, <kbd>x</kbd> discards after asking, <kbd>shift+s</kbd> and <kbd>shift+u</kbd> stage or unstage everything, and <kbd>c</kbd> opens the commit form with `message` and `amend`. <kbd>l</kbd> lists the commits. <kbd>p</kbd> lists the snapshots, where <kbd>enter</kbd> rewinds to one after asking. <kbd>backspace</kbd> returns to the changes.
+
+**Terminal** shows the environment's terminals as tabs and draws the selected one live in the pane. It opens a shell if none is running and gives it the keys. While you type in it, every key goes to the shell, <kbd>esc</kbd> included. Type `~.` at the start of a line to return to the tabs and leave the shell running. On the tabs, <kbd>enter</kbd> types in the terminal again, <kbd>←</kbd> and <kbd>→</kbd> switch terminals, <kbd>n</kbd> opens another, and <kbd>x</kbd> closes one after asking. <kbd>ctrl+c</kbd> stays with `hmz`, so use the Shell page of `/env` for a program you need to interrupt.
+
 ## From the command line
 
 `hmz env` does the same from a shell or a script, in the environments of a chat or an epic that is going. Run it in the project folder, or name the host with `-w DIR`, `--slot SLOT` or `--chat ID`.

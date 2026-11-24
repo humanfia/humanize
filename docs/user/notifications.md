@@ -61,7 +61,15 @@ In a browser, look next to **System** for `Not asked`, `Allowed` or `Blocked`. C
 
 ![In a menu of the terminal interface, an epic ends: a Done card appears in the corner, then /epics shows a dot on the epic's row](/shots/user-notifications-terminal-card.svg)
 
-When **System** is on, `hmz` also rings the terminal bell and sends a desktop notification. iTerm2, Ghostty, WezTerm, kitty and Windows Terminal display it; other terminals ignore it.
+When **System** is on, `hmz` also asks your terminal to show a desktop notification:
+
+| Terminal | What `hmz` sends |
+| --- | --- |
+| iTerm2, Ghostty, WezTerm, kitty, Warp, Windows Terminal | A desktop notification (OSC 9). |
+| GNOME Terminal and other VTE terminals, foot, urxvt | A desktop notification (OSC 777). |
+| Any other, and any inside tmux or screen | The terminal bell, then OSC 9, which a terminal that does not know it ignores. |
+
+Once your terminal has reported that its window gained or lost focus, `hmz` sends these only while the window is not focused. A terminal that never reports focus is sent every notice.
 
 To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd> on a row, select `on` or `off`, and choose **Save**.
 
@@ -70,7 +78,7 @@ To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd
 | Row | Off means |
 | --- | --- |
 | **Done**, **Failed**, **Stopped**, **Questions**, **Waiting** | No card, bell or dot for that kind. |
-| **System** | A card in `hmz` alone: no bell, no system notification. |
+| **System** | A card in `hmz` alone: no desktop notification, no bell. |
 
 `hmz` saves these settings under `notifications` in `settings.toml`. See [settings.toml](/reference/settings).
 
@@ -102,7 +110,7 @@ See [hmz notices](/reference/cli#hmz-notices).
 
 ## Good to know
 
-- The app and terminal store settings separately, although the terminal page's heading mentions the web interface. App settings live in the browser or Humanize Desktop rather than the daemon, so each device has its own, and clearing site data resets them.
+- The app and terminal store settings separately. App settings live in the browser or Humanize Desktop rather than the daemon, so each device has its own, and clearing site data resets them.
 - The app skips system notifications for notices received more than ten minutes late (for example, while the page was closed), but still marks the row unread.
 - Terminal cards and dots last only while `hmz` stays open. Chats have no row in `/epics`, so they show a card but no dot.
 - `hmz exec` and `hmz chat` do not show notifications of their own.

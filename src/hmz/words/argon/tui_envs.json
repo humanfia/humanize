@@ -1,0 +1,25 @@
+{
+ "entries": [
+  {
+   "wants": "what the ctrl+w key does in a pane beside the log (Files, Changes, Terminal): makes the pane wider, stepping through three widths and back to the narrowest",
+   "where": "key hint on the bottom line of the terminal interface, one word, capitalised like the page's button names",
+   "text": "Widen"
+  },
+  {
+   "wants": "what the enter key does on the row of terminal tabs in the Terminal pane: gives the keys to the terminal shown, so what is typed next goes to its shell",
+   "where": "key hint in the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Type in"
+  },
+  {
+   "wants": "what typing ~. at the start of a line does while the keys are going to a terminal in the Terminal pane: gives the keys back to the pane, and the terminal keeps running",
+   "where": "key hint in the terminal interface, two to four words, capitalised like the page's button names",
+   "text": "Leave terminal"
+  },
+  {
+   "wants": "what the tab key does in a pane of an environment when the chat or epic has several environments: shows the next environment in the pane",
+   "where": "key hint in the terminal interface, two words, capitalised like the page's button names",
+   "text": "Next environment"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

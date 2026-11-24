@@ -90,6 +90,28 @@ Run `hmz` in a folder to start a new chat with the folder's last agent, or with 
 | `/chat` | Return to the chat after a flow takes the screen. |
 | <kbd>ctrl+c</kbd> twice, <kbd>ctrl+q</kbd>, `/exit` or `/quit` | Quit without stopping an active turn. |
 
+### Start a chat from the New chat page
+
+Press <kbd>ctrl+n</kbd> for the New chat page. It has the same chips as the app, above the message: **Folder**, **Environment**, **Model**, **Effort** and **Permissions**. Each shows what the chat will start with, so the short way is to type the message and press <kbd>enter</kbd>.
+
+To change one, press <kbd>tab</kbd> or <kbd>shift+tab</kbd> to reach it, press <kbd>enter</kbd>, and pick from the list. **Environment** offers **This computer**, **New worktree** in a git repository, and your saved runtimes. Below the message, the page lists the chats of this folder that wait for your answer, then its harness sessions. Press <kbd>enter</kbd> on one to open it.
+
+A chat started in another folder runs there. The terminal keeps showing its own folder and prints where the chat was started. Run `hmz` in that folder to read it.
+
+### Change a chat while it runs
+
+Press <kbd>ctrl+g</kbd> for **Details** of the open chat, to the right of the log. Move with <kbd>↑</kbd> and <kbd>↓</kbd> and press <kbd>enter</kbd> to change a row.
+
+| Row | What it changes |
+| --- | --- |
+| **Model**, **Effort** | The model and effort from the next turn on. The harness and account stay the same. |
+| **Permissions** | **Read only**, **Edit this folder** or **Full access**, from the next turn on. |
+| **Skill or flow** | What `$name` runs when it names both a skill and a flow. |
+| **Environment** | Moves the chat to this computer or a saved runtime, between turns. |
+| **Rename…**, **Fork**, **Archive**, **Delete chat** | The same actions as the chat's menu in the app. **Delete chat** asks first. |
+
+**Usage** shows what the chat has spent and what the folder spent over the last 7 days. Press <kbd>esc</kbd> to return to the prompt and <kbd>ctrl+g</kbd> twice to close the pane.
+
 The line above the prompt names the agent. The status line shows `running…` during a turn and `done` when it finishes. Turn on **Details** in `/settings general` to show tool calls and reasoning. Use **Chat agent** in `/settings workspace` to change the agent the next chat here starts with.
 
 ## From the command line

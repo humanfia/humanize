@@ -335,7 +335,7 @@ async def test_the_terminal_asks_the_form(world: World) -> None:
         await shows(pilot, MODEL)
         await _budgeted(pilot)
         await pilot.press(*f"/flow gate {_TASK}", "enter")
-        await shows(pilot, "Ship this change?", "a richer view of this question")
+        await shows(pilot, "Ship this change?", "The custom view is in the web page")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-terminal")
 

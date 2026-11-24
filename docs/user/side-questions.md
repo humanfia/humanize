@@ -74,6 +74,10 @@ This sends the question and turns on btw mode. In btw mode, every line you type 
 
 When you enter btw mode, the terminal prints `btw · <agent>/<n> each line is a question; /btw or esc to exit`. The status line starts with `btw · <agent>/<n>` in cyan while btw mode is on; check it before typing, because a plain line outside btw mode talks to the working agent. Each answer appears with a cyan bullet, `btw · ` and your question, and the answer in cyan. Leaving btw mode prints `btw: exited` and closes the side conversation.
 
+### Ask from the Epic pane
+
+Press <kbd>ctrl+o</kbd> and then <kbd>4</kbd> to open **Side questions** beside an epic's log. Press <kbd>a</kbd>, pick the conversation to ask under **Ask it of**, write the question and press **Ask**. The answer appears under `btw · <agent>/<n>` in the pane, and nothing is typed at the prompt, so nothing can reach the epic by mistake. Press <kbd>enter</kbd> on a side conversation to ask it again, and <kbd>d</kbd> to close it. These are the side conversations the app shows for the same epic.
+
 ## From the command line
 
 `hmz btw` asks side questions without opening the app or the terminal interface. It prints the answer and exits, so scripts and agents can use it.

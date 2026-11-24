@@ -21,6 +21,8 @@ from rich.markup import escape
 from textual import on, work
 from textual.widgets import Label, OptionList
 
+from hmz.words import t
+
 from .pick import (
     _COPY_NAME,
     LOCAL_DAEMON,
@@ -58,7 +60,7 @@ _RENAMES, _FORKS, _ARCHIVES, _UPLOADS, _DELETES = (
 _READS = frozenset({"chat.list", "chat.get"})
 
 #: Where an archived chat is put back from, said wherever one is archived.
-PUT_BACK = "/settings workspace puts it back"
+PUT_BACK = t("the Workspace page of /settings puts it back")
 
 
 def calls(method: str, **said: Any) -> dict[str, Any]:
@@ -100,22 +102,24 @@ class Renames(Form[str]):
         return [
             Question(
                 "title",
-                "title",
-                "what the chat is listed by",
+                t("Chat title"),
+                t("what the chat is listed by"),
                 needed=not self._typed_in.get("title", "").strip(),
             )
         ]
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "renames the chat"
+        return t("renames the chat")
 
     def _ask(self) -> None:
         """Says what this is for."""
-        self.query_one("#asked", Label).update("Rename the chat")
+        self.query_one("#asked", Label).update(t("Rename chat"))
         self.query_one("#about", Label).update(
-            "A chat is listed by its title: the first line said in it, until it is given "
-            "another."
+            t(
+                "A chat is listed by its title, which is the first line said in "
+                "it until it is given another."
+            )
         )
         self._fill()
 
@@ -123,7 +127,7 @@ class Renames(Form[str]):
         """Answers with the title, once it says something."""
         title = " ".join(self._typed_in.get("title", "").split())
         if not title:
-            self._wrong = "a chat's title says something"
+            self._wrong = t("A chat's title cannot be empty.")
             self._fill()
             return
         self.dismiss(title)
@@ -134,6 +138,8 @@ class Deletes(Popup):
 
     CSS = _popup("Deletes")
 
+    PRIMARY: ClassVar = "yes"
+
     def __init__(self, title: str) -> None:
         """Initializes the question.
 
@@ -141,15 +147,18 @@ class Deletes(Popup):
           title: What the chat is called.
         """
         super().__init__()
-        self.asked = f"Delete {escape(title)}?"
-        self.about = (
-            "Permanent: the chat and the conversation kept with it are removed, and "
-            "cannot be brought back."
+        self.asked = t("Delete {name}?", name=escape(title))
+        self.about = t(
+            "This permanently removes the chat’s record and the sessions kept with it, "  # noqa: RUF001
+            "and cannot be undone. A worktree it worked in is left on disk."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Keeping it, which is first and so what enter answers, or deleting it."""
-        return [("no", "keep", "keep it"), ("yes", "delete", "delete it for good")]
+        return [
+            ("no", t("Cancel"), t("keeps the chat")),
+            ("yes", t("Delete"), t("deletes the chat for good")),
+        ]
 
 
 class _Listed(Picks):
@@ -228,8 +237,8 @@ class Resumes(_Listed):
     renamed, forked, archived, backed up and deleted, on its menu.
     """
 
-    asked = "Resume a chat"
-    about = "The chats of this directory, newest first: the one picked goes on."
+    asked = t("Resume chat")
+    about = t("The chats of this folder, newest first; the one picked is carried on.")
 
     def menu(self) -> tuple[str, list[Action]] | None:
         """What is done to the chat under the cursor as it is written down."""
@@ -240,42 +249,42 @@ class Resumes(_Listed):
         acts = [
             Action(
                 _RENAMES,
-                "rename",
-                "give it another title",
+                t("Rename"),
+                t("gives the chat another title"),
                 lambda: self._renames(chat),
             ),
             Action(
                 _FORKS,
-                "fork",
-                "a new chat that goes on from this one, and go to it",
+                t("Fork"),
+                t("makes a new chat that goes on from this one, and goes to it"),
                 lambda: self._forks(name),
             ),
             Action(
                 _ARCHIVES,
-                "archive",
-                f"take it out of this list; {PUT_BACK}",
+                t("Archive"),
+                f"{t('takes the chat out of this list')}; {t(PUT_BACK)}",
                 lambda: self._archives(chat),
             ),
             Action(
                 _UPLOADS,
-                "upload",
-                "back the chat up to its targets, or the defaults",
+                t("Upload"),
+                t("backs the chat up to its backup targets, or to the default ones"),
                 lambda: self._uploads(name),
                 lambda: bool(_hmz().backups.targets()),
             ),
             Action(
                 _DELETES,
-                "delete",
-                "remove it for good, after asking",
+                t("Delete"),
+                t("removes the chat for good, after asking"),
                 lambda: self._deletes(chat),
             ),
-            Action(_COPY_NAME, "copy id", name, lambda: self._copies(name)),
+            Action(_COPY_NAME, t("Copy ID"), name, lambda: self._copies(name)),
         ]
         return _titled(chat), acts
 
     def _copies(self, name: str) -> None:
         self.copies(name)
-        self._redrawn("id copied")
+        self._redrawn(t("ID copied"))
 
     @work
     async def _renames(self, chat: dict[str, Any]) -> None:
@@ -293,7 +302,7 @@ class Resumes(_Listed):
         row = await self._asked("chat.rename", chat=chat.get("id"), title=title)
         if row is not None:
             chat["title"] = row.get("title", title)
-            self._redrawn(f"renamed {escape(_titled(chat))}")
+            self._redrawn(t("Renamed to {name}", name=escape(_titled(chat))))
 
     @work
     async def _forks(self, name: str) -> None:
@@ -307,7 +316,10 @@ class Resumes(_Listed):
         """Archives the chat, which leaves this list."""
         name = str(chat.get("id") or "")
         if await self._asked("chat.archive", chat=name) is not None:
-            self._redrawn(f"archived {escape(_titled(chat))}; {PUT_BACK}", name)
+            self._redrawn(
+                f"{t('Archived {name}', name=escape(_titled(chat)))}; {t(PUT_BACK)}",
+                name,
+            )
 
     @work
     async def _uploads(self, name: str) -> None:
@@ -315,7 +327,7 @@ class Resumes(_Listed):
         said = await self._asked("chat.backup", chat=name)
         if said is not None:
             queued = ", ".join(str(one) for one in said.get("queued") or ())
-            self._redrawn(f"backing up to {escape(queued)}")
+            self._redrawn(t("Backing up to {targets}", targets=escape(queued)))
 
     @work
     async def _deletes(self, chat: dict[str, Any]) -> None:
@@ -328,7 +340,7 @@ class Resumes(_Listed):
             self.opened()
         name = str(chat.get("id") or "")
         if sure == "yes" and await self._asked("chat.delete", chat=name) is not None:
-            self._redrawn(f"deleted {escape(_titled(chat))}", name)
+            self._redrawn(t("Deleted {name}", name=escape(_titled(chat))), name)
 
 
 class Archived(_Listed):
@@ -336,10 +348,10 @@ class Archived(_Listed):
 
     SEARCHES: ClassVar = True
 
-    asked = "Archived chats"
-    about = (
-        "The chats of this directory that were archived, newest first: the one picked is "
-        "put back among the others, on /resume in a chat."
+    asked = t("Archived chats")
+    about = t(
+        "The chats of this folder that were archived, newest first. The one "
+        "picked is put back among the others, where /resume in a chat lists it."
     )
 
     def __init__(
@@ -353,7 +365,7 @@ class Archived(_Listed):
         """
         super().__init__([], asks)
         self._workspace = workspace
-        self._said = "reading the archived chats…"
+        self._said = t("Reading archived chats…")
 
     def _ask(self) -> None:
         """Says what this is, and asks for the chats."""
@@ -379,7 +391,7 @@ class Archived(_Listed):
             if not page or len(found) >= int(said.get("total") or 0):
                 break
         self._chats = found
-        self._redrawn("" if found else "no chat of this directory is archived")
+        self._redrawn("" if found else t("No archived chats."))
         if found:
             # The list was empty as the sheet opened, so the focus went to a button under it.
             self.query_one("#choices", OptionList).focus()
@@ -397,4 +409,4 @@ class Archived(_Listed):
     async def _puts_back(self, chat: dict[str, Any]) -> None:
         name = str(chat.get("id") or "")
         if await self._asked("chat.unarchive", chat=name) is not None:
-            self._redrawn(f"put back {escape(_titled(chat))}", name)
+            self._redrawn(t("Put {name} back", name=escape(_titled(chat))), name)

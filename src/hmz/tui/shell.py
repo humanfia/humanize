@@ -113,9 +113,14 @@ class Zone(Vertical):
     Zone:focus-within > .zone-title { color: $primary; }
     Zone > .zone-rule { height: 1; color: $hmz-line-strong; }
     Zone:focus-within > .zone-rule { color: $primary; }
-    #navigator { border-right: heavy $hmz-line; }
-    #context { border-left: heavy $hmz-line; width: 48; }
+    Zone#navigator { border-right: heavy $hmz-line; }
+    Zone#context { border-left: heavy $hmz-line; width: 48; }
+    Zone.wide, Zone#context.wide { width: 50%; }
+    Zone.widest, Zone#context.widest { width: 80%; }
     """
+
+    #: How wide a zone can be made, narrowest first: as it opens, half the screen, most of it.
+    WIDTHS: ClassVar = ("", "wide", "widest")
 
     #: The view open here, or None.
     view: View | None = None
@@ -160,6 +165,19 @@ class Zone(Vertical):
             for prompt in self.screen.query(Shell.HOME):
                 prompt.focus()
 
+    def widens(self) -> str:
+        """Makes the zone one step wider, and as narrow as it opens after the widest.
+
+        Returns:
+          How wide it is now: one of :attr:`WIDTHS`.
+        """
+        now = next((one for one in self.WIDTHS if one and self.has_class(one)), "")
+        going = self.WIDTHS[(self.WIDTHS.index(now) + 1) % len(self.WIDTHS)]
+        for one in self.WIDTHS:
+            if one:
+                self.set_class(one == going, one)
+        return going
+
     async def empties(self) -> None:
         """Closes the zone, and lets go of what was in it."""
         self.view = None
@@ -172,16 +190,42 @@ class Hints(Static):
     """The line of keys: every key that does something where the keys are, and what it does."""
 
     DEFAULT_CSS = """
-    Hints { display: none; height: 1; padding: 0 2; color: $text-muted; }
+    /* As many lines as its keys take, so that none is cut off on a narrow terminal. */
+    Hints { display: none; height: auto; max-height: 3; padding: 0 2;
+            color: $text-muted; }
     Hints.hinting { display: block; }
     """
 
+    #: The keys being shown, each with what it does.
+    _pairs: Sequence[tuple[str, str]] = ()
+
     def says(self, pairs: Sequence[tuple[str, str]]) -> None:
         """Shows keys and what each does; nothing, and no line, where there are none."""
+        self._pairs = tuple(pairs)
         self.set_class(bool(pairs), "hinting")
-        self.update(
-            "   ".join(f"[b $primary]{_shown(key)}[/] {t(does)}" for key, does in pairs)
-        )
+        self._draws()
+
+    def on_resize(self, _: events.Resize) -> None:
+        """Breaks the line again for however wide it is now."""
+        self._draws()
+
+    def _draws(self) -> None:
+        """Writes the keys, a row breaking only between one key and the next.
+
+        Left to wrap where it will, a row ends with a key and the next begins with what that
+        key does, which reads as two things.
+        """
+        wide = self.size.width or 10**6
+        rows: list[list[str]] = [[]]
+        used = 0
+        for key, does in self._pairs:
+            plain = len(f"{_shown(key)} {t(does)}")
+            if rows[-1] and used + 3 + plain > wide:
+                rows.append([])
+                used = 0
+            used += plain + (3 if len(rows[-1]) else 0)
+            rows[-1].append(f"[b $primary]{_shown(key)}[/] {t(does)}")
+        self.update("\n".join("   ".join(row) for row in rows))
 
 
 def _shown(key: str) -> str:
@@ -200,6 +244,8 @@ class Shell:
     def __init__(self, app: App[None]) -> None:
         """Holds the interface the zones are part of."""
         self._app = app
+        #: The page each view that is one last opened, which its key closes while it is up.
+        self._pages: dict[str, Widget] = {}
 
     def zone(self, where: Where) -> Zone:
         """One of the two zones."""
@@ -229,7 +275,12 @@ class Shell:
 
             if not isinstance(made, Screen):
                 raise TypeError(f"the page {name!r} is not a screen")
-            await self._app.push_screen(cast("Screen[None]", made))
+            # A page's key is bound over everything, the page itself included: pressed on
+            # the page it opens, or on anything opened from it, it is not opened again.
+            page = cast("Screen[None]", made)
+            if not any(type(one) is type(page) for one in self._app.screen_stack):
+                self._pages[name] = made
+                await self._app.push_screen(page)
         else:
             await self.zone(view.zone).shows(view, made, keys=keys)
         self.hints()
@@ -246,10 +297,15 @@ class Shell:
 
         The same key is the way in and the way out, so that there is one thing to remember:
         pressed from elsewhere it goes to the view, opening it if it is not open, and pressed
-        from inside it closes it.
+        from inside it closes it -- a page as well as a zone's.
         """
         view = views()[name]
-        if view.zone == "page" or self.zone(view.zone).view is not view:
+        if view.zone == "page" and self._app.screen is self._pages.get(name):
+            self._app.pop_screen()
+        elif view.zone != "page" and not self._app.query(f"#{view.zone}"):
+            # A sheet or a page is over the log: the zones are under it, and the key is its.
+            return
+        elif view.zone == "page" or self.zone(view.zone).view is not view:
             await self.opens(name)
         elif self.held() is view:
             await self.closes(view.zone)
@@ -272,7 +328,8 @@ class Shell:
 
     def hints(self) -> None:
         """Draws the hint line: the keys of what has the keys, then each view's own."""
-        line = self._app.query(Hints)
+        # The log's own, whatever page is over it: a page says its keys for itself.
+        line = self._app.screen_stack[0].query(Hints) if self._app.screen_stack else ()
         if not line:
             return
         held = self.held()

@@ -60,7 +60,7 @@ Pins and read marks are saved per browser. A conversation becomes unread when ne
 
 ## In the terminal
 
-1. Type `/ai`. The menu lists **New** and every conversation, newest first, with its scope, nous, preset, and state (`answering`, `between turns`, or `folded away`).
+1. Type `/ai`. The menu lists **New conversation** and every conversation, pinned ones first and then the latest said in, with its scope, nous, preset, and state (`typing…`, `between turns`, or `folded away`).
 2. Choose **New**. Set `scope`, `nous`, and `preset` (`read-only` or `danger-full-access`), then press **Done**.
 3. Type your first line and press <kbd>enter</kbd> to create the conversation.
 
@@ -77,7 +77,9 @@ Select an existing conversation in the menu to follow it. The status line shows 
 | `/clear` | Leaves her conversation and returns to the folder, or drops a new conversation before the first line |
 | `/ai` | Opens the menu again |
 
-To delete a conversation, press <kbd>m</kbd> on its row in the menu, choose `forget`, and choose `forget` again to confirm.
+Press <kbd>m</kbd> on a conversation's row for its menu: **Rename**, **Pin** or **Unpin**, **Mark as read** or **Mark as unread**, and **Delete**. Delete asks first; the box opens on **Cancel**, so move to **Delete** and press <kbd>enter</kbd> to confirm. Pins and unread marks are kept by this terminal only.
+
+Press <kbd>f3</kbd> to keep the same list open to the right of the log. There, <kbd>enter</kbd> follows a conversation, <kbd>n</kbd> starts one, <kbd>r</kbd> renames, <kbd>p</kbd> pins, <kbd>u</kbd> marks unread, and <kbd>delete</kbd> deletes after asking.
 
 ## From the command line
 
