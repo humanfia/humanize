@@ -24,15 +24,15 @@ def test_a_sheet_that_rereads_is_one_that_lists_flows() -> None:
 @pytest.mark.parametrize(
     ("flows", "about"),
     [
-        (0, "Takes its index away."),
-        (1, "Takes its index away and 1 installed flow."),
-        (3, "Takes its index away and 3 installed flows."),
+        (0, ""),
+        (1, "1 installed flow goes with it."),
+        (3, "3 installed flows go with it."),
     ],
 )
 def test_removing_a_flowverse_says_what_goes_with_it(flows: int, about: str) -> None:
     asked = Removes("@mine", flows)
 
-    assert asked.asked == "Remove @mine?"
+    assert asked.asked == "Remove @mine and every flow installed out of it?"
     assert asked.about == about
     assert [key for key, _, _ in asked.rows()] == ["yes", "no"]
 
@@ -44,4 +44,6 @@ def test_adding_a_flowverse_asks_where_it_is_then_what_to_call_it() -> None:
 
     assert (repository.held, repository.needed) == ("repository", True)
     assert (name.held, name.needed) == ("name", False)
-    assert form.done_about() == "clones its index; install flows from it next"
+    assert form.done_about() == (
+        "clones the flowverse's index; flows are installed from it next"
+    )

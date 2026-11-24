@@ -244,14 +244,14 @@ async def test_an_epic_downloaded_from_the_backup_page_lands_here_again(
         await shows(pilot, "Download from lab", held.machine, "fix the build · done")
 
         await opens(pilot, held.key)
-        await shows(pilot, f"downloaded {epic.path.name}")
+        await shows(pilot, f"Downloaded {epic.path.name}")
         await until(pilot, epic.path.is_dir, "the epic to land")
-        await shows(pilot, "fix the build · done · here")
+        await shows(pilot, "fix the build · done · Here")
         await pilot.press("enter")
         await shows(pilot, "is here already")
 
         await leaves(pilot)
-        await shows(pilot, f"downloaded {epic.path.name} into")
+        await shows(pilot, f"Downloaded {epic.path.name} into")
     assert epics(workspace) == [epic.path]
 
 
@@ -278,7 +278,7 @@ async def test_a_chat_downloaded_from_the_backup_page_lands_among_the_chats(
         await opens(pilot, held.key)
         await until(pilot, chat.path.is_dir, "the chat to land")
         await wrapped(pilot, "carry it on with /resume in a chat")
-        await wrapped(pilot, "what is here? · done · here")
+        await wrapped(pilot, "what is here? · done · Here")
         await leaves(pilot)
     assert chats(workspace) == [chat.path]
     assert epics(workspace) == []

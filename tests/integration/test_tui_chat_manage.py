@@ -108,7 +108,7 @@ async def test_resume_lists_the_chat_on_the_screen_too_and_renames_one(
         await pilot.click("#act-done")
 
         await on(pilot, Resumes)
-        await wrapped(pilot, "renamed the parser")
+        await wrapped(pilot, "Renamed to the parser")
         assert _said(second).title == "the parser"
 
         # Picked, the one on the screen stays there.
@@ -128,7 +128,9 @@ async def test_a_chat_archived_leaves_resume_and_is_put_back_from_settings(
 
         await _does(pilot, first, "archive")
         await on(pilot, Resumes)
-        await wrapped(pilot, "archived first; /settings workspace puts it back")
+        await wrapped(
+            pilot, "Archived first; the Workspace page of /settings puts it back"
+        )
         assert rows(app) == [second.name]
         assert _said(first).archived
         await pilot.press("escape")
@@ -139,7 +141,7 @@ async def test_a_chat_archived_leaves_resume_and_is_put_back_from_settings(
         await on(pilot, Archived)
         await until(pilot, lambda: rows(app) == [first.name], "the archived chat")
         await pilot.press("enter")
-        await wrapped(pilot, "put back first")
+        await wrapped(pilot, "Put first back")
         assert rows(app) == []
         assert not _said(first).archived
         await leaves(pilot)
@@ -159,7 +161,7 @@ async def test_the_chat_on_the_screen_archived_gives_way_to_a_new_one(
 
         await _does(pilot, second, "archive")
         await on(pilot, Resumes)
-        await wrapped(pilot, "archived second")
+        await wrapped(pilot, "Archived second")
         await pilot.press("escape")
 
         await shows(pilot, f"◉ {RUNS}")
@@ -179,7 +181,7 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
 
         await _does(pilot, first, "delete")
         await on(pilot, Deletes)
-        await shows(pilot, "Delete first?", "Permanent", "cannot be brought back")
+        await shows(pilot, "Delete first?", "permanently removes", "cannot be undone")
         # Keeping it is the answer under the cursor.
         await pilot.press("enter")
         await on(pilot, Resumes)
@@ -191,7 +193,7 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
         await on(pilot, Deletes)
         await pilot.press("right", "enter")
         await on(pilot, Resumes)
-        await wrapped(pilot, "deleted first")
+        await wrapped(pilot, "Deleted first")
         assert rows(app) == [second.name]
         assert not first.exists()
 
@@ -202,7 +204,7 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
         await on(pilot, Deletes)
         await pilot.press("right", "enter")
         await on(pilot, Resumes)
-        await wrapped(pilot, "deleted second")
+        await wrapped(pilot, "Deleted second")
     assert chats(workspace) == []
 
 
@@ -264,7 +266,7 @@ async def test_a_chat_uploaded_from_resume_lands_in_its_target(
 
         await _does(pilot, first, "upload")
         await on(pilot, Resumes)
-        await wrapped(pilot, "backing up to lab")
+        await wrapped(pilot, "Backing up to lab")
         await until(pilot, lambda: "lab" in _said(first).backed, "the backup")
 
     assert _said(first).backed["lab"]["ok"]

@@ -71,7 +71,7 @@ Type `/flow` and press <kbd>enter</kbd>. The menu opens on **Installed**, groupi
 
 ### Install a flow
 
-1. Press <kbd>tab</kbd>, then press <kbd>enter</kbd> on **Install more…** to list flowverses.
+1. Press <kbd>tab</kbd>, then press <kbd>enter</kbd> on **Browse Flowverses** to list flowverses.
 2. Press <kbd>enter</kbd> on a flowverse, then on a flow. Releases appear newest first with their tag, commit, and licence.
 3. Press <kbd>enter</kbd> on a release to install it and its dependencies immediately.
 
@@ -85,7 +85,7 @@ Select a flow on the **Installed** screen and use the action buttons.
 
 | Button | What it does |
 | --- | --- |
-| **Install more…** | Opens the flowverse list. |
+| **Browse Flowverses** | Opens the flowverse list. |
 | **Update** | Installs the newest available release, if one exists. |
 | **Uninstall** | Removes the installed flow. |
 | **Copy here** | Copies the flow into the project's `.hmz/flows/` folder for editing. Disabled for project flows, and refused if the project already has a flow of that name. |
@@ -99,9 +99,18 @@ Use **Copy here** to customize an installed flow without losing your changes on 
 
 ### Add, fetch or remove a flowverse
 
-Open **Install more…** to manage flowverses. **Add flowverse…** prompts for `repository` and `name`. **Fetch again** reloads the index for the selected flowverse. **Remove** prompts `Remove <name>?` and deletes the flowverse along with any flows installed from it.
+Open **Browse Flowverses** to manage flowverses. **Add flowverse** prompts for `URL` and `Name`. **Fetch** reloads the index for the selected flowverse. **Remove** prompts `Remove <name> and every flow installed out of it?` and deletes the flowverse along with any flows installed from it.
 
 All flow and flowverse actions take effect immediately. **Save** only saves the role configuration for the flow you are setting up to run.
+
+### The Flows page
+
+Press <kbd>ctrl+l</kbd> for the same flows on one page with two tabs, as in the app.
+
+- **Installed** lists every flow you can run. A flow with a newer release is first, marked `↑` with that release, and counted above the list. Press <kbd>enter</kbd> to open a flow and read its agents, environments and params, <kbd>n</kbd> to start a new epic of it, <kbd>u</kbd> to update it, <kbd>s</kbd> to switch to another release and <kbd>x</kbd> to uninstall it.
+- **Flowverses** (press <kbd>tab</kbd>) lists each flowverse with when it was fetched. Press <kbd>a</kbd> to add one, <kbd>f</kbd> to fetch it, <kbd>x</kbd> to remove it and <kbd>enter</kbd> to list its flows. On a flow, <kbd>i</kbd> installs the newest release and <kbd>enter</kbd> lists every release.
+
+Uninstalling a flow and removing a flowverse ask first and name what goes. While an epic is going, the page says `An epic is going; flows are installed, updated and uninstalled once it ends.` and installs nothing.
 
 ## Add your own flows
 

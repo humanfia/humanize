@@ -355,7 +355,7 @@ async def test_the_switches_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await pilot.press(*"/flow rlar", "enter")
         await on(pilot, Flows)
-        await shows(pilot, "profile flow", "profile environment")
+        await shows(pilot, "Profile flow", "Profile environment")
         for row in ("profile-flow", "profile-environment"):
             await onto(pilot, f"\x1e{row}")
             # The list opens on the answer it is not: enter twice turns it round.

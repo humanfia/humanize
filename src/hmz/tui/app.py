@@ -75,8 +75,9 @@ from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
+from hmz.words import speak
 
-from . import humanfia
+from . import humanfia, own
 from .asking import Asks, blocks, fields, summary
 from .chats import Resumes
 from .complete import Command, flow_names, hinted, offered, tagged
@@ -133,6 +134,7 @@ from .selecting import Choices, Transcript
 from .settings import MOVED, Adjusts, page_of
 from .settings import PAGES as _PAGES
 from .shell import Hints, Shell, Zone, bindings
+from .views.navigator import told as lists_told
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -906,6 +908,13 @@ class Humanize(App[None]):
         Returns:
           Whether to run it.
         """
+        if (
+            action in ("monitor", "attach_next", "attach_previous")
+            and self.shell.held() is not None
+        ):
+            # The log's own keys, and the keys are in a zone: the view open there has its
+            # own use for the arrows and for tab, as a sheet has.
+            return False
         if action == "monitor":
             # From the log alone, and only with nothing typed or offered: the monitor is up
             # already over anything else, and a sheet has its own use for the arrows. Never
@@ -1125,7 +1134,12 @@ class Humanize(App[None]):
         self.register_theme(_TERMINAL)
         for theme in humanfia.THEMES.values():
             self.register_theme(theme)
-        self.theme = humanfia.chosen(os.environ, self.available_themes)
+        # What Settings > Themes and Language keep comes after those two, and the language
+        # before anything is drawn (`own.py`).
+        kept = own.read()
+        self.theme = humanfia.chosen(os.environ, self.available_themes, kept.looks())
+        speak(kept.speaks(os.environ))
+        own.hears_focus(self)
         #: The zones beside the log, and what is open in them.
         self.shell = Shell(self)
         #: This interface's end of the runs: everything it draws is a message told through
@@ -1191,6 +1205,7 @@ class Humanize(App[None]):
             lambda said: self._link.asked(said, seconds=_ENV_PATIENCE),
             lambda: self._opened_envs,
             self.show,
+            lambda: self._chat_now or self._epic_now,
         )
         #: Who this interface is to the runs, as they named it: its client id and its name.
         self._me = ""
@@ -3070,6 +3085,11 @@ class Humanize(App[None]):
         """Whether a flow is running, as the rows of the command table read it: not a chat."""
         return self._run is not None and not self.chatting()
 
+    @property
+    def reach(self) -> Reach:
+        """The host, as an environment's panes reach it: what `/env` asks, asked from a zone."""
+        return self._reach
+
     def chatting(self) -> bool:
         """Whether the chat is on the screen: a run of kind `chat`, or none of a flow.
 
@@ -4318,6 +4338,9 @@ class Humanize(App[None]):
         """
         for one in event.lines:
             self.show(one)
+        # Said by the Flows page too, as each thing lands: what it updated or uninstalled is
+        # no longer one to count.
+        self._recounts_updates()
 
     @work
     async def _quick_flow(self, named: str, task: str) -> None:
@@ -4701,7 +4724,9 @@ class Humanize(App[None]):
         )
 
     @work
-    async def action_epics(self, daemon: str = "") -> None:
+    async def action_epics(
+        self, daemon: str = "", at: str = "", *, elsewhere: bool = False
+    ) -> None:
         """Opens the runs of this directory or this machine, which is what `/epics` is for.
 
         Every run of a flow here, newest first: what it was and how it went, with enter
@@ -4715,7 +4740,11 @@ class Humanize(App[None]):
 
         Args:
           daemon: The daemon, as `@<name>`, or "" for the one last listed.
+          at: An epic of this machine to go straight into, by name, or "" for the list.
+          elsewhere: Whether that epic ran in another directory.
         """
+        if at:
+            self._daemon = LOCAL_DAEMON
         if daemon:
             named = daemon.removeprefix("@")
             if not daemon.startswith("@") or named not in daemon_names():
@@ -4736,10 +4765,13 @@ class Humanize(App[None]):
                         self._run is not None and not self._slot and self._afar is None
                     ),
                     unseen=self._unseen,
+                    at=at,
+                    elsewhere=elsewhere,
                 )
                 if self._daemon == LOCAL_DAEMON
                 else RemoteEpics(self._daemon)
             )
+            at = ""
             if said is None or said.doing or not said.daemon:
                 break
             for one in said.said:
@@ -4765,6 +4797,44 @@ class Humanize(App[None]):
             self._moves("", None)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
+
+    def opens_chat(self, chat: str, slot: str | None = None) -> None:
+        """Puts one chat of this directory on the log: what picking it on `/resume` does.
+
+        Args:
+          chat: The chat, by its id.
+          slot: The host holding it as `chat.list` said it, "" for none; or None to ask the
+            hosts of this workspace.
+        """
+        self._continues(chat, slot)
+        self._draw()
+
+    def opens_epic(
+        self, epic: str, slot: str | None = None, *, here: bool = True
+    ) -> None:
+        """Opens one epic of this machine, from a list of them elsewhere in the interface.
+
+        On the log, where a host of this directory goes with it; otherwise as `/epics` goes
+        into one, which is where an epic that ended is read, carried on and exported.
+
+        Args:
+          epic: The epic, by name.
+          slot: The host of this directory that goes with it, or None for none.
+          here: Whether it ran in this directory.
+        """
+        if slot is None:
+            self.action_epics(at=epic, elsewhere=not here)
+            return
+        self._unseen.discard(epic)
+        if (slot, None) != (self._slot, self._afar):
+            self._moves(slot, None)
+        self._draw()
+
+    def showing(self) -> str:
+        """The chat or the epic on the log, by its id or its name; "" for neither."""
+        if self.chatting():
+            return self._chat_now or self._chat_id
+        return self._epic_now
 
     def _statuses(self) -> dict[str, dict[str, Any]]:
         """How the runs of every host on this machine stand, attaching to none of them.
@@ -4810,7 +4880,10 @@ class Humanize(App[None]):
           notice: The notice, as `Notices` made it.
           system: Whether the system is told too.
         """
-        if self._shows(notice):
+        shown = self._shows(notice)
+        # The list of every chat and epic reads them again, and marks this one unread.
+        lists_told(self, notice, unread=not shown)
+        if shown:
             return
         kind = str(notice.get("kind") or "")
         epic = str(notice.get("epic") or "")
@@ -4829,15 +4902,9 @@ class Humanize(App[None]):
             title=title,
             severity="error" if kind == "failed" else "information",
         )
-        if system and not self.is_headless:
-            self.bell()
-            # OSC 9, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as one of
-            # the system's own notifications, and every other terminal ignores. Nothing an
-            # agent wrote may end it early or say anything else to the terminal.
-            told = _DOT.join(one for one in (title, said) if one)
-            shown = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", f"hmz: {told}")
-            if self._driver is not None:
-                self._driver.write(f"\x1b]9;{shown}\x07")
+        if system:
+            # Through the terminal, while it is not what is being looked at (`own.py`).
+            own.tells(self, os.environ, f"hmz: {title}", said)
 
     def _shows(self, notice: Mapping[str, Any]) -> bool:
         """Whether a notice's epic or chat is the one on the screen.
@@ -6537,8 +6604,8 @@ class Humanize(App[None]):
         if record.get("face"):
             where = f": {web}" if web else " (hmz web)"
             drawn.append(
-                "  [dim]a richer view of this question is in the web page"
-                f"{escape(where)}[/dim]"
+                "  [dim]The custom view is in the web page"
+                f"{escape(where)}; Enter answers here with the plain form[/dim]"
             )
         # On the outworlder's own transcript, and on the one being read, which is where it
         # is answered from.
@@ -6928,8 +6995,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, notifications, daemons, accounts, nous, runtimes, backup, "
-        "workspace, usage",
+        f"Every setting: {', '.join(_PAGES)}",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

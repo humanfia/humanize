@@ -50,7 +50,7 @@ Type `/` to see the commands that work in the current view and state. If you run
 | `/settings` | a page | Opens settings, or one page of it. |
 | `/prefer` | `native` or `flow` | In a chat, sets what `$<name>` runs when it names both a skill and a flow. Alone, says the current choice. |
 
-`/settings` takes `general`, `notifications`, `daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`. The older names `settings`, `everywhere`, `directory` and `environments` also work. `/settings flowverses` opens `/flow` on the Flowverses page.
+`/settings` takes `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup`, `usage` or `workspace`. <kbd>F2</kbd> opens it from anywhere. The older names `settings`, `everywhere`, `directory` and `environments` also work. `/settings flowverses` opens `/flow` on the Flowverses page.
 
 ## Keys
 
@@ -61,6 +61,13 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>ctrl+c</kbd> | Takes back the nearest thing. See the next table. |
 | <kbd>ctrl+q</kbd> | Same as `/exit`. |
 | <kbd>f1</kbd> | Opens Keys beside the log. Pressed from elsewhere it goes to Keys; pressed inside Keys it closes it. |
+| <kbd>ctrl+b</kbd> | Opens the navigator to the left of the log. Pressed from elsewhere it goes to it; pressed inside it closes it. |
+| <kbd>ctrl+k</kbd> | Opens Search over the screen, and closes it. |
+| <kbd>ctrl+n</kbd> | Opens the New chat page. Pressed on the page it closes it. |
+| <kbd>ctrl+g</kbd> | Opens Details of the open chat beside the log. Pressed inside Details it closes it. |
+| <kbd>ctrl+e</kbd> | Opens the New epic page from the log; closes it from the page. Over the monitor or a menu the key is theirs. |
+| <kbd>ctrl+o</kbd> | Opens the Epic pane beside the log: Details, Board, People, Side questions. |
+| <kbd>f3</kbd> | Opens Ai-chan's conversations beside the log, in the same way. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
 The bottom line of the screen lists the keys that work where you are, then the key of each pane.
@@ -105,6 +112,58 @@ Use these keys on the log screen while an epic runs. They do nothing in a chat.
 | <kbd>tab</kbd> | Previous view, while the offer list is closed. |
 | <kbd>←</kbd> on an empty prompt | Opens the monitor. |
 
+### Navigator
+
+The navigator lists every chat, epic and harness session of this machine's daemon. It is open from the start on a terminal at least 110 columns wide. `Waiting for you` is always the first group, then `Pinned`, then the rest by folder, by date, or as one list.
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move along the list. |
+| <kbd>enter</kbd> | On a chat: puts it on the log, as `/resume` does. On an epic: attaches the log to it while a host of this folder runs it, otherwise opens the epic's sheet from `/epics`. On a heading: folds or unfolds the group. |
+| <kbd>n</kbd> | New chat. |
+| <kbd>N</kbd> | New epic. |
+| <kbd>p</kbd> | Pin or unpin the row. |
+| <kbd>u</kbd> | Mark the row unread or read. |
+| <kbd>.</kbd> | Open the menu of the row or folder. |
+| <kbd>g</kbd> | Next grouping: `Folder`, `Date`, `None`. |
+| <kbd>esc</kbd> | Back to the prompt. The navigator stays open. |
+
+| Row | Menu |
+| --- | --- |
+| Chat | `Open`, `Pin`, `Mark as unread`, `Rename`, `Fork`, `Copy ID`, `Upload`, `Archive`, `Delete` |
+| Epic | `Open`, `Pin`, `Mark as unread`, `Copy task`, `Copy name`, `Upload`, `Stop` while a host runs it |
+| Harness session | `Open`, `Pin`, `Mark as unread`, `Copy session ID` |
+| Folder | `New chat here`, `New epic here`, `Search here`, `Copy path`, `Collapse`, `Forget` for an empty folder |
+
+`Delete` and `Forget` ask first. `Resume`, `Export`, `Exomyth` and `Copy path` of an epic are on the sheet that `Open` goes to. A chat of another folder is listed but not opened: run `hmz` in that folder.
+
+| Mark | Meaning |
+| --- | --- |
+| Pink `■` | Waits on you: a chat awaiting input, an epic asking or waiting. |
+| Cyan `■` | Running or stopping. |
+| Green `■` | An epic that is done. |
+| Red `■` | Failed, refused or crashed. |
+| Cyan `●` | Unread. |
+| `▸` beside the mark | Pinned. |
+| Cyan title | The chat or epic on the log. |
+
+While the keys are in the navigator, rows keep their places: changes are drawn where each row stands, and the order settles when you leave. Pins, unread marks, the grouping and folded groups are kept in `navigator.json` in Humanize's state directory.
+
+### Search
+
+| Key | Action |
+| --- | --- |
+| Typing | Narrows the list, 0.2 seconds after the last key. |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move along what was found. |
+| <kbd>enter</kbd> | Close Search and open the row, as the navigator opens it. |
+| <kbd>tab</kbd> / <kbd>shift+tab</kbd> | Next or previous tab: `All`, `Chats`, `Epics`. |
+| <kbd>f2</kbd> | Next value of `How it went`. Applies to epics. |
+| <kbd>f3</kbd> | Next folder. |
+| <kbd>f4</kbd> | Next flow. Applies to epics. |
+| <kbd>f5</kbd> | Clear the text and the filters. |
+| <kbd>pgdn</kbd> / <kbd>pgup</kbd> | Older or newer page of 50 rows. |
+| <kbd>esc</kbd> or <kbd>ctrl+k</kbd> | Close Search. |
+
 ### Monitor
 
 Use these keys in the monitor, graph or list, while its prompt is empty. See [Watch a run](/user/watch-a-run).
@@ -148,7 +207,7 @@ To edit a board entry, type the name, press <kbd>enter</kbd>, type the value, an
 | Box | <kbd>enter</kbd> | Presses the button. |
 | Box | <kbd>esc</kbd> | Answers nothing. |
 
-If you leave a menu with unsaved changes, `Save?` opens with **Save** and **Discard**.
+If you leave a menu with unsaved changes, `Save changes?` opens with **Save** and **Discard**.
 
 ### Forms
 
@@ -168,8 +227,8 @@ If you leave a menu with unsaved changes, `Save?` opens with **Save** and **Disc
 | --- | --- |
 | `/flow`, Installed | `open`, `update`, `uninstall`, `copy here`, `copy name` |
 | `/flow`, Flowverses | `open`, `fetch` or `fetch again`, `remove`, `copy URL` |
-| `/resume` in a chat | `rename`, `fork`, `archive`, `upload`, `delete`, `copy id` |
-| `/ai` | `forget` |
+| `/resume` in a chat | `Rename`, `Fork`, `Archive`, `Upload`, `Delete`, `Copy ID` |
+| `/ai` | `Rename`, `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, `Delete` |
 | `/settings daemons` | `connect`, `edit…`, `remove`, `copy name`, and on a daemon that is up `pair a device…` and `devices…`. `Local` has only the last two. |
 | `/epics` on another daemon | An epic: `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`. A chat: `follow`, `copy id`. |
 
@@ -230,6 +289,58 @@ Run `/env` to open an environment's panels. Press <kbd>tab</kbd> and <kbd>shift+
 
 Letter shortcuts in Files and Changes are disabled while the search box is open.
 
+#### Panes beside the log
+
+Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open Files, Changes or Terminal to the right of the log, for the environment of the chat or epic you are in. The same key closes the pane; <kbd>esc</kbd> returns to the prompt and leaves it open. Each pane lists its keys at its foot.
+
+| Pane | Key | Action |
+| --- | --- | --- |
+| All | <kbd>ctrl+w</kbd> | Widens the pane: 48 columns, half the screen, four fifths, then 48 again. |
+| All | <kbd>tab</kbd> | Turns to the next environment, when there are several. |
+| Files | <kbd>enter</kbd> | Opens or shuts the folder, or shows the file read-only in the pane. |
+| Files | <kbd>backspace</kbd> | Back from the file to the tree. |
+| Files | <kbd>e</kbd> | Opens the file in the built-in editor. |
+| Files | <kbd>n</kbd> | New file. |
+| Files | <kbd>shift+n</kbd> | New folder. |
+| Files | <kbd>r</kbd> | Rename. |
+| Files | <kbd>d</kbd> | Delete, after a box. |
+| Files | <kbd>ctrl+p</kbd> | Go to file by name. |
+| Files | <kbd>/</kbd> | Search in files. |
+| Changes | <kbd>↑</kbd> <kbd>↓</kbd> | Moves the cursor; the diff under the list follows it. |
+| Changes | <kbd>enter</kbd> | Gives the keys to the diff, to scroll it. <kbd>backspace</kbd> returns to the list. |
+| Changes | <kbd>s</kbd> | Stage. |
+| Changes | <kbd>u</kbd> | Unstage. |
+| Changes | <kbd>x</kbd> | Discard, after a box. |
+| Changes | <kbd>shift+s</kbd> | Stage all changes. |
+| Changes | <kbd>shift+u</kbd> | Unstage all changes. |
+| Changes | <kbd>c</kbd> | Commit, or amend the last commit. |
+| Changes | <kbd>l</kbd> | Lists the commits. <kbd>backspace</kbd> returns to the changes. |
+| Changes | <kbd>p</kbd> | Lists the snapshots. <kbd>enter</kbd> rewinds to one, after a box. |
+| Changes | <kbd>r</kbd> | Refresh. |
+| Terminal, tabs | <kbd>enter</kbd> | Gives the keys to the terminal shown. |
+| Terminal, tabs | <kbd>←</kbd> <kbd>→</kbd> | Previous or next terminal. |
+| Terminal, tabs | <kbd>n</kbd> | New terminal. |
+| Terminal, tabs | <kbd>x</kbd> | Closes the terminal, after a box. |
+| Terminal, typing | `~.` at the start of a line | Returns the keys to the tabs and leaves the terminal running. |
+| Terminal, typing | `~~` at the start of a line | Sends one `~`. |
+| Terminal, typing | Any other key | Goes to the terminal, <kbd>esc</kbd> included. |
+
+<kbd>ctrl+c</kbd>, <kbd>ctrl+q</kbd> and the keys that open panes stay with `hmz` while you type in a terminal pane.
+
+### Ai-chan pane
+
+<kbd>f3</kbd> opens it. Pinned conversations come first, then the latest said in; a square marks a pinned one and a dot an unread one. Pins and unread marks are kept by this terminal only.
+
+| Key | Does |
+| --- | --- |
+| <kbd>enter</kbd> | Follows the conversation in the log. On **New conversation**, opens `/ai`. |
+| <kbd>n</kbd> | Opens `/ai` to start a new conversation. |
+| <kbd>r</kbd> | Renames the conversation. |
+| <kbd>p</kbd> | Pins or unpins it. |
+| <kbd>u</kbd> | Marks it unread, or read. |
+| <kbd>delete</kbd> | Deletes it, after a box whose first answer is **Cancel**. |
+| <kbd>esc</kbd> | Goes back to the prompt and leaves the pane open. |
+
 ### Exomyth
 
 Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomyth](/user/tracing).
@@ -259,6 +370,101 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Slices | <kbd>o</kbd> | Sorts by the next column. |
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |
+
+### Flows page
+
+<kbd>ctrl+l</kbd> opens the Flows page from anywhere, and closes it. Its bottom line lists the keys of the list that is open.
+
+| Where | Key | Action |
+| --- | --- | --- |
+| Either tab | <kbd>tab</kbd> | Turns to the other tab: **Installed** or **Flowverses**. |
+| Installed | <kbd>enter</kbd> | Opens the flow: what it says of itself, its agents, environments and params. |
+| Installed, or a flow opened | <kbd>n</kbd> | Starts a new epic of the flow. |
+| Installed, or a flow opened | <kbd>u</kbd> | Updates to the newest release its flowverse lists. |
+| Installed, or a flow opened | <kbd>s</kbd> | Lists its releases; <kbd>enter</kbd> installs or switches to one. |
+| Installed, or a flow opened | <kbd>x</kbd> | Uninstalls it, after asking. |
+| Flowverses | <kbd>enter</kbd> | Lists the flows the flowverse lists. |
+| Flowverses | <kbd>a</kbd> | Adds a flowverse: a URL or `owner/repo`, and an optional name. |
+| Flowverses, or its flows | <kbd>f</kbd> | Fetches its index. |
+| Flowverses | <kbd>x</kbd> | Removes it and every flow installed out of it, after asking. |
+| A flowverse's flows | <kbd>i</kbd> | Installs the newest release of the flow. |
+| A flowverse's flows | <kbd>enter</kbd> | Lists the flow's releases. |
+| A flowverse's flows, releases | <kbd>x</kbd> | Uninstalls the flow, after asking. |
+| Releases | <kbd>enter</kbd> | Installs the release, or switches to it. |
+| Anywhere on the page | <kbd>esc</kbd> | Goes back one list, then closes the page. |
+
+Nothing is installed, updated or uninstalled while an epic is going; the page says so.
+
+### Download, Import and Export pages
+
+These three pages have no key of their own. Each lists the transfers under way and finished; a transfer goes on when its page is closed.
+
+| Page | Key | Action |
+| --- | --- | --- |
+| Download | <kbd>enter</kbd> | Downloads the epic or chat under the cursor. |
+| Download | <kbd>f</kbd> | Fetches the backup target again. |
+| Download | <kbd>t</kbd> | Turns to the next backup target, where there is more than one. |
+| Import | <kbd>enter</kbd> | Asks for the `.hmzepic` to import; <kbd>tab</kbd> finishes the path. |
+| Export | <kbd>enter</kbd> | Asks where the epic under the cursor goes, and writes its archive there. |
+| Any | <kbd>esc</kbd> | Closes the page. |
+
+### New chat page
+
+| Where | Key | Action |
+| --- | --- | --- |
+| Page | <kbd>tab</kbd> <kbd>shift+tab</kbd> | Next or previous of the chips, the message and the list. |
+| Chip | <kbd>enter</kbd> | Drops the list its value is picked from: **Folder**, **Environment**, **Model**, **Effort**, **Permissions**. |
+| Message | <kbd>enter</kbd> | Starts the chat with what the chips say. |
+| List | <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next chat or harness session. |
+| List | <kbd>enter</kbd> | Opens the waiting chat, or reads the harness session. |
+| Page | <kbd>esc</kbd> | Closes the page. |
+
+### Details of a chat
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next chip or action. |
+| <kbd>enter</kbd> | Changes **Model**, **Effort**, **Permissions**, **Skill or flow** or **Environment**, or runs **Rename…**, **Fork**, **Archive** or **Delete chat**. |
+| <kbd>esc</kbd> | Gives the keys back to the prompt. |
+
+### Harness session page
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>pageup</kbd> <kbd>pagedown</kbd> | Scroll what was said. |
+| <kbd>enter</kbd> | **Continue in chat**, for a session that can be continued. |
+| <kbd>esc</kbd> | Closes the page. |
+
+### New epic page
+
+One form with everything an epic starts with: Flow, Folder, Task, an agent and an environment per role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens holding what the folder last set the flow up with.
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Previous or next row. |
+| typing | Writes the row under the cursor; <kbd>enter</kbd> keeps it and moves to the next row still to answer, or to Start. |
+| <kbd>enter</kbd> | On a row with `▾`, drops its values. `More options` opens the full agent or environment sheet. |
+| <kbd>tab</kbd> | Completes a path in Folder. |
+| <kbd>ctrl+s</kbd> | Start. The daemon checks the set-up first; what it refuses is shown under the row it is about. |
+| <kbd>esc</kbd>, <kbd>ctrl+e</kbd> | Closes the page. What you typed is kept until the terminal closes. |
+
+### Epic pane
+
+| Key | Where | Action |
+| --- | --- | --- |
+| <kbd>←</kbd> <kbd>→</kbd>, <kbd>1</kbd>–<kbd>4</kbd> | Any tab | Previous or next tab; the tab of that number. |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Any tab | Previous or next row. |
+| <kbd>enter</kbd> | Board | Edits the line. |
+| <kbd>a</kbd> | Board | Adds a line. |
+| <kbd>d</kbd> | Board | Removes the line, after asking. |
+| <kbd>enter</kbd> | People | Claim, Take over or Release the role. |
+| <kbd>w</kbd> | People | Away or Back for the role. |
+| <kbd>shift+w</kbd> | People | Away or Back for all roles. |
+| <kbd>enter</kbd> | Side questions | Asks in the side conversation under the cursor. |
+| <kbd>a</kbd> | Side questions | Asks in a new side conversation. |
+| <kbd>d</kbd> | Side questions | Closes the side conversation, after asking. |
+
+The pane reopens on the tab and row you left it on.
 
 ### Mouse
 

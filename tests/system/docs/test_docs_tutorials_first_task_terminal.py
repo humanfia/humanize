@@ -202,7 +202,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         await _types(pilot, reel, "/flow", per=2)
         await pilot.press("enter")
         await on(pilot, Flows)
-        await shows(pilot, "no flows yet")
+        await shows(pilot, "No flows installed yet.")
         reel.tui(app, hold=1.6, keys="enter", caption="nothing installed yet")
         await pilot.press("enter")
         await shows(pilot, "humanfia/flowverse")

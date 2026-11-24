@@ -92,7 +92,7 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
         drawn = await shows(pilot, "◫ epic · running · 1 of 1 working · 1 turn")
         # No node reads every agent at once: the cursor starts on the agent being read.
         assert "all agents" not in drawn
-        assert re.search(r"❯ │ ▸ ● \S+", drawn)
+        assert re.search(r"❯ ┃█ ▸ ● \S+", drawn)
         assert RUNS in drawn
 
         await pilot.press("right")
@@ -117,7 +117,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
         await pilot.press("left")
         await on(pilot, Monitoring)
 
-        await shows(pilot, "1 turn · 1.2k tok", "1.0k", "200")
+        await shows(pilot, "1 turn · 1.2k to", "1.0k", "200")
 
 
 async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(

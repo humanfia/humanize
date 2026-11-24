@@ -127,12 +127,12 @@ Select **Search here** in a folder's menu to search only that folder. For search
 
 | Menu row | What it does |
 | --- | --- |
-| `rename` | Prompts for a new title. |
-| `fork` | Creates a new chat continuing from this one and switches to it. |
-| `archive` | Removes the chat from the list. |
-| `upload` | Backs the chat up. Shown only when a backup target is set. |
-| `delete` | Prompts `Delete <title>?` with `keep` selected first, then deletes it permanently. |
-| `copy id` | Copies the chat's ID. |
+| `Rename` | Prompts for a new title. |
+| `Fork` | Creates a new chat continuing from this one and switches to it. |
+| `Archive` | Removes the chat from the list. |
+| `Upload` | Backs the chat up. Shown only when a backup target is set. |
+| `Delete` | Prompts `Delete <title>?` with `Cancel` selected first, then deletes it permanently. |
+| `Copy ID` | Copies the chat's ID. |
 
 If you archive or delete the active chat, closing the list starts a new chat.
 

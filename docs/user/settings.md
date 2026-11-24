@@ -72,7 +72,15 @@ Open **Setup** to see what a folder remembers: its **Default flow**, and every f
 
 ## In the terminal
 
-Type `/settings` to open a screen of nine cards: General, Notifications, Daemons, Accounts, Nous, Runtimes, Backup, Workspace, and Usage. Type `/settings <page>` (for example, `/settings workspace`) to open a page directly. The terminal does not have Themes or Language pages.
+Type `/settings` or press <kbd>F2</kbd> to open a screen of eleven cards in the same groups as the app:
+
+| Group | Pages | Where it is kept |
+| --- | --- | --- |
+| **App** | Themes, Daemons, Notifications, Language | On this machine, for you |
+| **Daemon** | General, Accounts, Nous, Runtimes, Backup, Usage | On the daemon |
+| **Workspace** | Workspace | With the directory `hmz` was started in |
+
+Type `/settings <page>` (for example, `/settings themes`) to open a page directly. See [Themes and language](/user/themes) for the Themes and Language pages.
 
 ![The /settings screen in the terminal: nine cards, each with its name, what it holds and a summary](/shots/user-settings-terminal.svg)
 
@@ -87,20 +95,20 @@ You can also click cards, rows, and the breadcrumb path across the top.
 
 ### Save held changes
 
-Changes are held until you save them, and any card with pending edits shows `unsaved`. Press <kbd>tab</kbd> to reach **Save**, then press <kbd>enter</kbd> to save held changes across all pages. If you leave with unsaved changes, Humanize asks whether to save them.
+Changes are held until you save them, and any card with pending edits shows `Unsaved`. Themes and Language are the exception: each is kept as soon as you choose it. Press <kbd>tab</kbd> to reach **Save**, then press <kbd>enter</kbd> to save held changes across all pages. If you leave with unsaved changes, Humanize asks whether to save them.
 
 ![Opening General, turning Details on, going back to a card marked unsaved, and saving](/shots/user-settings-terminal-held.svg)
 
-Creating or signing in to an account, saving or checking a runtime, and changing daemons apply right away instead of being held. Rows that cannot apply to the current session show `takes effect on next launch` or `takes effect on next chat`.
+Creating or signing in to an account, saving or checking a runtime, and changing daemons apply right away instead of being held. Rows that cannot apply to the current session show `on next launch` or `in the next chat`.
 
 ### General
 
 | Row | Values | What it does |
 | --- | --- | --- |
 | `Details` | `on`, `off` | Show every tool call and all thinking |
-| `Chat prefers for $` | `native`, `flow` | Choose what `$<name>` starts in a chat when a skill and a flow share the name. See [Skills](/user/skills). |
+| `When $name is both` | `native`, `flow` | Choose what `$<name>` starts in a chat when a skill and a flow share the name. See [Skills](/user/skills). |
 | `Harness sessions` | `on`, `off` | List each coding agent's own sessions in `/resume` |
-| `Error reports` | `on`, `off` | Send error reports to Humanize. Reads `not set` until you choose. |
+| `Error reports` | `on`, `off` | Send error reports to Humanize. Reads `Not set` until you choose. |
 | `What is sent` | | Show what reports include and what they never include |
 
 ### Workspace
@@ -111,8 +119,8 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 
 | Row | What it does |
 | --- | --- |
-| `Default flow` | Read-only: the flow last set up here. Change it with `/flow`. |
-| `Chat agent` | The agent a new chat here talks to |
+| `Flow` | Read-only: the flow last set up here. Change it with `/flow`. |
+| `Default agent` | The agent a new chat here talks to |
 | `Archived chats` | Opens the chats archived here; pick one to restore it |
 | `Forget` | Set to `on` and save to clear what this directory remembers for every flow |
 
@@ -134,13 +142,13 @@ Add `--json` for one JSON object. `hmz settings set --help` lists every setting 
 
 - **App pages** are stored in the browser or the desktop app window. Each browser and device keeps its own values, and clearing site data resets them.
 - **Daemon pages and Workspace settings**, along with what you save in `/settings`, are stored by the daemon in `~/.config/humanize/settings.toml` and shared across all interfaces connected to that daemon. See [settings.toml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
-- Notifications are stored per browser in the app, and in `settings.toml` for the terminal.
+- Notifications are stored per browser in the app, and in `settings.toml` for the terminal. The terminal's theme, appearance and language are stored under `tui` in the same file.
 
 ## Good to know
 
 - Once **Error reports** is set to **On** or **Off**, you cannot return it to **Not set**.
 - Setting the `HUMANIZE_SENTRY` environment variable overrides the saved error-report choice for that run, and the terminal's General page notes the override.
-- In the terminal, saving `Forget` at the same time as a changed `Chat agent` forgets both and does not write the agent.
+- In the terminal, saving `Forget` at the same time as a changed `Default agent` forgets both and does not write the agent.
 - Forgetting a folder keeps its chats, epics, and files intact.
 - An older address of a folder's page in Settings, such as `#/settings/workspace`, opens that folder's Workspace settings. An address with `daemon=<name>` in its query switches the whole app to that daemon.
 - On a narrow window, the page list moves to a strip across the top of either dialog.

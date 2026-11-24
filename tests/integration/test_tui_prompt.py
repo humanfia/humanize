@@ -17,6 +17,7 @@ from tests.integration.doubles_tui import (
     screen,
     shows,
     stand_in,
+    status,
     typed,
     until,
 )
@@ -43,7 +44,7 @@ async def test_it_opens_on_chat_with_the_model_the_installed_agent_says_it_runs(
 
     # The chat's agent, as its one role and at rest on the status line.
     assert f"assistant · {RUNS}" in drawn
-    assert f"◉ {RUNS}" in drawn.splitlines()[-2]
+    assert f"◉ {RUNS}" in status(drawn)
 
 
 async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
@@ -58,7 +59,7 @@ async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
         drawn = await shows(pilot, RUNS)
 
         # The flow is held for `$` and `/flow`, and what is said starts the chat.
-        assert f"◉ {RUNS}" in drawn.splitlines()[-2]
+        assert f"◉ {RUNS}" in status(drawn)
         assert f"◉ {OWN}" not in drawn
         await typed(pilot, "hello")
         await shows(pilot, "heard hello", "◉ done")
@@ -96,7 +97,7 @@ async def test_a_half_typed_command_is_offered_and_tab_takes_it(
 
         await pilot.press("tab")
 
-        drawn = await shows(pilot, "❯ /settings", "workspace")
+        drawn = await shows(pilot, "❯ /settings", "themes")
         assert "general" in drawn  # and now its pages are offered
 
 

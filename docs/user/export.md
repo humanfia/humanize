@@ -100,6 +100,10 @@ The list selects the imported epic and displays its target directory. If the epi
 
 ![The list of epics in hmz after an import: the imported epic is selected, and the line under the list says imported into ~/shop](/shots/user-export-terminal-imported.svg)
 
+### The Export and Import pages
+
+The terminal also has an Export page and an Import page, opened from an epic's row menu in the navigator. Export lists every epic recorded on this machine; press <kbd>enter</kbd> on one and say where the archive goes. Import asks for the `.hmzepic`; <kbd>tab</kbd> finishes the path. Both show a moving bar while the archive is written or read, and you can press <kbd>esc</kbd> to leave: the transfer goes on, and the page shows what came of it when you open it again.
+
 ## Use an imported epic
 
 An imported epic works like any local epic. Humanize files it under its original workspace path, even if that directory does not exist on your machine. See [History and search](/user/history) and [Trace a run with Exomyth](/user/tracing) to inspect it.

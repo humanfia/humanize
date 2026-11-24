@@ -71,6 +71,7 @@ from textual import events, on, work
 from textual.await_complete import AwaitComplete
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.geometry import Offset
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, OptionList, Static
@@ -84,7 +85,9 @@ from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
+from hmz.words import known, t
 
+from . import humanfia
 from .complete import paths
 from .dropdown import Dropdown, Value, anchor
 from .selecting import Choices
@@ -117,6 +120,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "AI_MARKS",
     "AI_NEW",
     "DETACHES",
     "EXPORTED",
@@ -130,6 +134,8 @@ __all__ = [
     "AiChanNew",
     "AiChans",
     "AiForgets",
+    "AiMarks",
+    "AiRenames",
     "Backing",
     "Backups",
     "Catalogue",
@@ -165,6 +171,7 @@ __all__ = [
     "chatting",
     "complete",
     "declared_of",
+    "hinted",
     "named_as",
     "nous_named",
     "opens_on",
@@ -191,7 +198,11 @@ def called(roles: Sequence[str], at: int) -> str:
     Returns:
       The role, which is what the flow calls it.
     """
-    return roles[at] if at < len(roles) else f"agent {at + 1} of {len(roles)}"
+    return (
+        roles[at]
+        if at < len(roles)
+        else t("agent {at} of {total}", at=at + 1, total=len(roles))
+    )
 
 
 #: How far in a line under a heading sits.
@@ -285,8 +296,8 @@ def _holds(held: Held) -> str:
         return ""
     said = f"{_WORKING if held.working else _IDLE} {held.many}"
     if held.reading:
-        return f"{said}{_DOT}reading"
-    return f"{said}{_DOT}unread" if held.unread else said
+        return f"{said}{_DOT}{t('reading')}"
+    return f"{said}{_DOT}{t('unread')}" if held.unread else said
 
 
 def reads(
@@ -342,18 +353,23 @@ Sheet #top .crumb-sep { width: auto; color: $text-muted; }
 Sheet #asked { width: auto; padding: 0; text-style: bold; color: $primary; }
 Sheet #pending { width: 1fr; text-align: right; color: $warning; }
 Sheet #about { width: 100%; padding: 0 0 1 0; color: $text-muted; }
-Sheet #seek { display: none; border: round $primary; background: $background; }
+Sheet #seek { display: none; border: heavy $primary; background: $background; }
+/* A square frame ruled heavily, its title in capitals in the rule: quiet until the keys are
+   in it, and then the colour of what has the keys. */
 Sheet #choices {
     height: 1fr; max-height: 100%; padding: 0; background: $background;
-    border: round $accent; scrollbar-size: 1 1; }
-Sheet #choices:focus { border: round $primary; background-tint: $background 0%; }
+    border: heavy $border-blurred; scrollbar-size: 1 1;
+    border-title-color: $text-muted; border-title-style: bold; }
+Sheet #choices:focus {
+    border: heavy $primary; background-tint: $background 0%;
+    border-title-color: $primary; }
 Sheet #choices > .option-list--option-highlighted {
     background: $block-cursor-blurred-background;
     color: $block-cursor-blurred-foreground; text-style: none; }
 Sheet #choices:focus > .option-list--option-highlighted {
     background: $block-cursor-background; color: $block-cursor-foreground;
     text-style: bold; }
-Sheet #choices > .option-list--separator { color: $accent; }
+Sheet #choices > .option-list--separator { color: $border-blurred; }
 /* Where the pointer is, as a link is marked: the terminal's own colours have no shade of the
    background to fill a row with, so a theme's hover fill is nothing there. */
 Sheet #choices > .option-list--option-hover { text-style: underline; }
@@ -362,21 +378,21 @@ Sheet #choices > .option-list--option-hover { text-style: underline; }
    see is a key nobody has. */
 Sheet #tuning { width: 100%; height: auto; padding: 0 1; }
 Sheet #actions { width: 100%; height: auto; padding: 1 0 0 0; }
-/* Borderless in every state: the terminal's own colours give a button that cannot be
-   pressed a tall border of its own, which would make the bar three rows high. */
+/* Flat planes, borderless in every state: the terminal's own colours give a button that
+   cannot be pressed a tall border of its own, which would make the bar three rows high. The
+   one that has the keys is the colour of what has the keys; the one to press -- what keeps,
+   or what removes -- is the one thing in pink, whether or not the keys are on it. */
 Sheet #actions Button {
     height: 1; min-width: 0; padding: 0 2; margin: 0 1 0 0; border: none !important;
     background: $block-cursor-blurred-background;
     color: $block-cursor-blurred-foreground; text-style: none; }
-Sheet #actions Button.-primary {
-    background: $success; color: $block-cursor-foreground; }
-Sheet #actions Button.-error {
-    background: $error; color: $block-cursor-foreground; }
-Sheet #actions Button:hover {
-    background: $block-cursor-background; color: $block-cursor-foreground; }
+Sheet #actions Button:hover { text-style: underline; }
 Sheet #actions Button:focus {
-    background: $block-cursor-background; color: $block-cursor-foreground;
-    text-style: bold; }
+    background: $primary; color: $block-cursor-foreground; text-style: bold; }
+Sheet #actions Button.-primary, Sheet #actions Button.-error {
+    background: $accent; color: $block-cursor-foreground; }
+Sheet #actions Button.-primary:focus, Sheet #actions Button.-error:focus {
+    background: $accent; color: $block-cursor-foreground; text-style: bold; }
 Sheet #actions Button:disabled {
     background: $background; color: $text-muted; text-opacity: 100%;
     text-style: none; }
@@ -394,8 +410,9 @@ Sheet #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
 #: name of the sheet it is about -- and a rule apiece, since only the last selector of a list is
 #: scoped to the box.
 _POPUP = """
-#sheet { width: 66; max-width: 100%; height: auto; padding: 1 2; border: round $primary;
-         background: $background; }
+#sheet { width: 66; max-width: 100%; height: auto; padding: 1 2; border: heavy $primary;
+         background: $background; border-title-color: $primary;
+         border-title-style: bold; }
 #top { height: auto; }
 #asked { width: 1fr; }
 #about { padding: 0; }
@@ -571,6 +588,38 @@ def _chip(
     )
 
 
+def _capitals(said: str) -> Content:
+    """A title as a frame says it: in capitals, whatever it is drawn in kept.
+
+    Args:
+      said: The title, as markup.
+
+    Returns:
+      It, in capitals.
+    """
+    held = Content.from_markup(said)
+    upper = held.plain.upper()
+    # A letter whose capital is two letters would put what it is drawn in a letter out.
+    return Content(upper, list(held.spans) if len(upper) == len(held.plain) else None)
+
+
+def hinted(does: str) -> str:
+    """What a key does, as the row of keys says it: in the words of :mod:`hmz.words`.
+
+    A sheet not yet written in those words says its keys in lower case -- `open`, `back`;
+    where the texts have the same word with a capital, as the page writes a button, that is
+    what is said, so that one row of keys reads as one.
+
+    Args:
+      does: What the sheet says the key does.
+
+    Returns:
+      The text for it, or what was said where there is none.
+    """
+    capital = does[:1].upper() + does[1:]
+    return t(capital) if known(capital) else does
+
+
 def _act(key: str) -> str:
     """The id of the button an action is drawn as."""
     return f"act-{key}"
@@ -725,7 +774,7 @@ class Sheet[T](ModalScreen[T | None]):
     #: What the line under the list says about the button with the focus, while that is what
     #: it says: what a sheet says there itself -- something wrong, something worth knowing --
     #: comes first.
-    _hinted = ""
+    hinted = ""
 
     def __init__(self) -> None:
         """Starts with nothing drawn: no buttons, no keys, and nowhere it was opened from."""
@@ -736,6 +785,8 @@ class Sheet[T](ModalScreen[T | None]):
         self._page_keys: tuple[Key, ...] = ()
         #: The way across the top as it was last drawn.
         self._crumbed: list[_Crumb] = []
+        #: What the frame of the list is headed with now, as markup, or None before it is.
+        self._headed: str | None = None
         #: How wide the screen was last drawn, which the rows are laid out across.
         self._width = 0
 
@@ -996,9 +1047,17 @@ class Sheet[T](ModalScreen[T | None]):
                 if at < len(trail):
                     step.update(trail[at].said)
         self._crumbed = trail
+        self._titled()
         self.query_one("#pending", Label).update(
-            "● unsaved changes" if self._holding() else ""
+            f"● {t('Unsaved')}" if self._holding() else ""
         )
+
+    def _titled(self) -> None:
+        """Writes what this is, in capitals, into the rule of the frame its list is drawn in."""
+        asked = str(self.query_one("#asked", Label).content)
+        if asked != self._headed:
+            self._headed = asked
+            self.query_one("#choices").border_title = _capitals(asked)
 
     def _holding(self) -> bool:
         """Whether anything is held that saving would land, which only a menu that holds says."""
@@ -1288,8 +1347,8 @@ class Sheet[T](ModalScreen[T | None]):
         """The button a list is searched from, as `/` searches it."""
         return Action(
             _ACT_SEARCH,
-            "search…",
-            "narrow the list by what is typed",
+            t("Search"),
+            t("filter the list"),
             self.action_search,
         )
 
@@ -1519,13 +1578,13 @@ class Sheet[T](ModalScreen[T | None]):
         """
         tuning = self.query_one("#tuning", Label)
         now = str(tuning.content)
-        mine = bool(self._hinted) and now == self._hinted
+        mine = bool(self.hinted) and now == self.hinted
         act = self._pointed()
         if act is not None and act.about and (mine or not now):
-            self._hinted = f"[$text-muted]{escape(act.about)}[/]"
-            tuning.update(self._hinted)
+            self.hinted = f"[$text-muted]{escape(act.about)}[/]"
+            tuning.update(self.hinted)
         elif mine:
-            self._hinted = ""
+            self.hinted = ""
             tuning.update("")
 
     def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
@@ -1546,27 +1605,31 @@ class Sheet[T](ModalScreen[T | None]):
                 # The one chord, which only a row being written that takes a list has, and
                 # the tab that finishes a path, which only a path being written has.
                 *(one for one in keys if one.key in (_CHORD, _FINISH)),
-                Key("enter", "keep"),
-                Key("esc", "undo"),
+                Key("enter", t("Keep")),
+                Key("esc", t("Cancel")),
             )
-        back = next((one for one in keys if one.key == "esc"), Key("esc", "back"))
+        back = next((one for one in keys if one.key == "esc"), Key("esc", t("Back")))
         focus = self.focused
         if isinstance(focus, Input):
-            return (Key("enter", "to list"), Key("esc", "clear"))
+            return (Key("enter", t("To list")), Key("esc", t("Clear")))
         if isinstance(focus, Button):
             act = self._pointed()
             return (
                 # What the button does, in its first word: `add`, `import`, `save`.
-                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
-                Key(_ACROSS, "move"),
-                *((Key("tab", "list"),) if self.query_one("#choices").display else ()),
+                Key("enter", act.label.split()[0].rstrip("…") if act else t("Press")),
+                Key(_ACROSS, t("Move")),
+                *(
+                    (Key("tab", t("List")),)
+                    if self.query_one("#choices").display
+                    else ()
+                ),
                 back,
             )
         under = self.under()
         said = (
-            "choose"
+            t("Choose")
             if under and self.drops(under)
-            else "change"
+            else t("Edit")
             if under and self.editable(under)
             else None
         )
@@ -1575,7 +1638,7 @@ class Sheet[T](ModalScreen[T | None]):
             # Typing is what writes it, so typing is what the row of keys says: enter begins
             # it as well, which is the same thing done the long way round.
             listed = [
-                Key("type", "to edit"),
+                Key("type", t("To edit")),
                 *(one for one in listed if one.key != "enter"),
             ]
         elif said:
@@ -1585,15 +1648,18 @@ class Sheet[T](ModalScreen[T | None]):
             ]
         if (
             under
-            and all(one.does != "menu" for one in listed)
+            and all(hinted(one.does) != t("Menu") for one in listed)
             and self.menu() is not None
         ):
-            listed.append(Key("m", "menu"))
+            listed.append(Key("m", t("Menu")))
         if self._searchable():
-            listed.append(Key("/", "search"))
+            listed.append(Key("/", t("Search")))
         if any(one.able() for one in self._acts):
-            listed.append(Key("tab", "actions"))
-        return (*listed, Key("esc", "clear search") if self._searching else back)
+            listed.append(Key("tab", t("Actions")))
+        return (
+            *listed,
+            Key("esc", t("Clear search")) if self._searching else back,
+        )
 
     def keys_line(self, keys: Sequence[Key]) -> str:
         """The keys with the key picked out from what it does, as a footer draws them.
@@ -1605,7 +1671,8 @@ class Sheet[T](ModalScreen[T | None]):
           The row, as markup.
         """
         return "   ".join(
-            f"[b $accent]{escape(one.key)}[/] {escape(one.does)}" for one in keys
+            f"[b $primary]{escape(one.key)}[/] {escape(hinted(one.does))}"
+            for one in keys
         )
 
     # -- Drawing -------------------------------------------------------------------------------
@@ -1621,7 +1688,7 @@ class Sheet[T](ModalScreen[T | None]):
                 yield Label(id="asked")
                 yield Label(id="pending")
             yield Label(id="about")
-            yield Input(placeholder="type to filter", id="seek")
+            yield Input(placeholder=t("Type to filter"), id="seek")
             yield Choices(id="choices")
             yield Label(id="tuning")
             with Horizontal(id="actions"):
@@ -1788,13 +1855,15 @@ class Sheet[T](ModalScreen[T | None]):
           The card, as markup.
         """
         width = self._width_of(self.query_one("#choices", OptionList))
-        said = f"{summary}  ● unsaved" if pending else summary
+        unsaved = f"● {t('Unsaved')}"
+        said = f"{summary}  {unsaved}" if pending else summary
         pad = " " * max(2, width - 5 - len(title) - len(said))
         right = _shade("$text-muted", summary, here=here) + (
-            f"  {_shade('$warning', '● unsaved', here=here)}" if pending else ""
+            f"  {_shade('$warning', unsaved, here=here)}" if pending else ""
         )
         return (
-            f" {_shade('$primary', icon, here=here)}  [b]{escape(title)}[/]{pad}{right}\n"
+            f" {_shade('$primary', icon, here=here)}  "
+            f"[b]{escape(title)}[/]{pad}{right}\n"
             f"    {_shade('$text-muted', blurb, here=here)}"
         )
 
@@ -1960,8 +2029,8 @@ class Drafts[T](Sheet[T]):
         """The button the whole menu is saved from, last on a menu that holds anything."""
         return Action(
             _ACT_SAVE,
-            "save",
-            "save all changes" if self._holding() else "nothing to save yet",
+            t("Save"),
+            t("save changes") if self._holding() else t("no changes yet"),
             self.applied,
             self._holding,
             "primary",
@@ -3739,10 +3808,27 @@ class Picks(Sheet[str]):
         """
         return ""
 
+    def unread(self, answer: str) -> bool:
+        """Whether a row is dotted as not yet read, which a list of things said in says.
+
+        Args:
+          answer: What picking the row answers with.
+
+        Returns:
+          False, for a list nothing is read in.
+        """
+        del answer
+        return False
+
     def _ask(self) -> None:
         """Says what is being chosen, and puts the choices up."""
-        self.query_one("#asked", Label).update(self.asked)
-        self.query_one("#about", Label).update(self.about)
+        # What the class says is a text, said in the language spoken now; what one sheet was
+        # given holds what it is about -- a title somebody wrote -- and is said as it is.
+        mine = vars(self)
+        asked = self.asked if "asked" in mine else t(self.asked)
+        about = self.about if "about" in mine else t(self.about)
+        self.query_one("#asked", Label).update(asked)
+        self.query_one("#about", Label).update(about)
         self._fill()
 
     def added(self) -> None:
@@ -3802,6 +3888,7 @@ class Picks(Sheet[str]):
                         about,
                         here=answer == landing,
                         inforce=answer == self._current,
+                        unread=self.unread(answer),
                     ),
                     # Every row answers with a string and "" is one of the answers, which an
                     # id of its own keeps tellable from a row that was never chosen.
@@ -3816,7 +3903,7 @@ class Picks(Sheet[str]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
+        self._footed(Key("enter", t("Choose")), Key("esc", t("Back")))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -3850,7 +3937,7 @@ class Acts(Picks):
 
     def nothing(self) -> str:
         """That there is nothing to do with it, where there is not."""
-        return "" if self._offers else "nothing to do with this one now"
+        return "" if self._offers else t("no actions")
 
 
 def _hmz() -> Hmz:
@@ -4487,10 +4574,13 @@ class Popup(Picks):
     SEARCHES: ClassVar = False
 
     #: What esc is here, which is answering nothing: the third answer, said as what it does.
-    ESC: ClassVar[str] = "back"
+    ESC: ClassVar[str] = t("Back")
 
     #: The answer most often given, drawn as the one that answers a menu is, or "" for none.
     PRIMARY: ClassVar[str] = ""
+
+    #: What the box is headed, in capitals, in the rule of its frame.
+    HEADED: ClassVar[str] = t("Question")
 
     def _ask(self) -> None:
         """Says what is being asked, and takes back the line under it where there is none.
@@ -4504,6 +4594,10 @@ class Popup(Picks):
     def _trail(self) -> list[_Crumb]:
         """Nothing: a box over a menu is about that menu, which is still drawn under it."""
         return []
+
+    def _titled(self) -> None:
+        """Heads the box, in capitals, in the rule of its frame: it has no list to head."""
+        self.query_one("#sheet").border_title = t(self.HEADED).upper()
 
     def actions(self) -> list[Action]:
         """The answers, each a button that answers with it."""
@@ -4520,7 +4614,7 @@ class Popup(Picks):
 
     def _fill(self) -> None:
         """Puts the answers up, and says what esc is here."""
-        self._footed(Key("esc", self.ESC))
+        self._footed(Key("esc", t(self.ESC)))
 
     def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
         """Enter, which takes the answer with the focus, and esc, which takes none.
@@ -4582,15 +4676,15 @@ class Confirms(Popup):
     #: Five words for the whole question, keys and all: it arrives over a menu somebody has
     #: just spent a minute in, it asks the one thing that is left, and either answer is a
     #: word. Anything more is prose read at the moment nobody is reading.
-    asked = "Save?"
+    asked = t("Save changes?")
 
     PRIMARY: ClassVar = _KEEP
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two things there are to do about a menu holding changes."""
         return [
-            (_KEEP, "save", "save the changes and leave"),
-            (_DROP, "discard", "throw the changes away and leave"),
+            (_KEEP, t("Save"), t("save and close")),
+            (_DROP, t("Discard"), t("drop changes and close")),
         ]
 
 
@@ -4617,9 +4711,9 @@ class Leaves(Popup):
 
     CSS = _popup("Leaves")
 
-    asked = "A flow is running."
+    asked = t("A flow is running.")
 
-    ESC: ClassVar = "stay"
+    ESC: ClassVar = t("Stay")
 
     def __init__(self, *, held: bool) -> None:
         """Initializes the question.
@@ -4633,16 +4727,18 @@ class Leaves(Popup):
         # The one line worth a word: that the run outlives this interface is the whole of
         # what makes letting go of it an answer rather than a way of abandoning it.
         self.about = (
-            "Detached, it keeps running: run `hmz` here to reattach." if held else ""
+            t("Detached, the flow keeps running; run `hmz` in this folder to reattach.")
+            if held
+            else ""
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers, the second of which is whichever one is true here."""
         return [
-            (STOPS, "stop the flow and exit", "stop it for everybody reading it"),
-            (DETACHES, "detach and exit", "run `hmz` here to reattach")
+            (STOPS, t("Stop the flow and quit"), t("stops for everyone reading it")),
+            (DETACHES, t("Detach and quit"), t("run `hmz` in this folder to reattach"))
             if self._held
-            else (STAYS, "cancel", "keep the interface open"),
+            else (STAYS, t("Cancel"), t("stay here")),
         ]
 
 
@@ -4697,9 +4793,9 @@ class Reports(Popup):
 
     CSS = _popup("Reports")
 
-    asked = "Report errors to Humanize?"
+    asked = t("Send error reports to Humanize?")
 
-    ESC: ClassVar = "ask again next time"
+    ESC: ClassVar = t("Ask again next time")
 
     PRIMARY: ClassVar = _REPORTS
 
@@ -4709,9 +4805,11 @@ class Reports(Popup):
         sent, kept = "; ".join(SENT), "; ".join(KEPT)
         # What goes and what does not, where the question is asked rather than somewhere to
         # go and read: this is the whole of what anybody has to decide on, so it stays.
-        self.about = (
-            f"Send error reports to help fix bugs. Sent: {sent}. Never sent: "
-            f"{kept}. You can change this later in /settings."
+        self.about = t(
+            "Error reports help fix bugs. Sent: {sent}. Never sent: {kept}. "
+            "Change this anytime in /settings.",
+            sent=sent,
+            kept=kept,
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -4721,7 +4819,10 @@ class Reports(Popup):
         saying it again beside the answers would be the same list twice in a box that is read
         in a second.
         """
-        return [(_REPORTS, "yes", "send error reports"), (_QUIET, "no", "send nothing")]
+        return [
+            (_REPORTS, t("Yes"), t("send error reports")),
+            (_QUIET, t("No"), t("send nothing")),
+        ]
 
 
 #: The account an agent runs as when nobody has chosen one, which is always the first row it
@@ -5166,7 +5267,8 @@ class Clis(Picks):
                 *sorted(one.__name__ for one in role.capabilities),
             ]
             return (
-                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no coding agent "
+                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no "
+                f"coding agent "
                 "installed here has that"
             )
         return "no coding agent installed here can run this agent"
@@ -10886,7 +10988,8 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, added from the code hmz devices pair prints there, or "
+            "Another machine's hmz, added from the code hmz devices pair prints "
+            "there, or "
             "from its routes: its epics are listed with /epics @<name>."
         )
         self._fill()
@@ -11056,7 +11159,8 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
         """Says what this is for."""
         self.query_one("#asked", Label).update("Batch apply")
         self.query_one("#about", Label).update(
-            "This machine's settings, written to other daemons as each of their pages saves "
+            "This machine's settings, written to other daemons as each of their "
+            "pages saves "
             "them. Accounts stay put: only a secret sets them."
         )
         self._fill()
@@ -12187,6 +12291,8 @@ class Epics(Sheet[Doing]):
         *,
         running: Callable[[], bool] | None = None,
         unseen: set[str] | None = None,
+        at: str = "",
+        elsewhere: bool = False,
     ) -> None:
         """Reads every run of this directory, or of this machine where that was last asked for.
 
@@ -12198,6 +12304,9 @@ class Epics(Sheet[Doing]):
             finished. None for nothing to ask, which is nothing running.
           unseen: The epics told of and not opened since, by name: each dotted, and taken
             out of it as it is opened.
+          at: An epic to go straight into as the sheet opens, by name, or "" for none: what
+            opening one from a list elsewhere in the interface does.
+          elsewhere: Whether that epic ran in another directory, which lists this machine's.
         """
         super().__init__()
         from hmz.daemon import Hmz
@@ -12206,7 +12315,9 @@ class Epics(Sheet[Doing]):
         self._runs = hmz.epics
         self._settings = hmz.settings
         #: Whether the list is of every epic on this machine rather than of this directory's.
-        self._every = self._settings.every_epic
+        self._every = self._settings.every_epic or (bool(at) and elsewhere)
+        #: The epic gone straight into as the sheet opens, by name, or "" for none.
+        self._straight = at
         #: Where this directory's epics are kept, which tells one run here from one run
         #: elsewhere: a path written down in a run is spelled however it was typed.
         self._here = self._runs.under()
@@ -12245,8 +12356,33 @@ class Epics(Sheet[Doing]):
         """Says what these are, and puts them up."""
         self.query_one("#asked", Label).update("Epics")
         self._fill()
-        if self._reading:
+        if self._straight:
+            self._goes_straight()
+        elif self._reading:
             self._rereads()
+
+    @work
+    async def _goes_straight(self) -> None:
+        """Goes into the epic the sheet was opened for, and leaves with it.
+
+        What is done there is done as it is from the list. Walked out of with nothing said,
+        the sheet goes too: the list under it was never walked to, so esc is one step back
+        to where the epic was picked. Where something was said -- a copy, an export, a
+        refusal -- the list stays up to say it.
+        """
+        from textual.worker import WorkerCancelled
+
+        named, self._straight = self._straight, ""
+        self._was, self._on, self._from = named, "", None
+        with contextlib.suppress(WorkerCancelled):
+            await self._rereads().wait()
+            ran = next((one for one in self._ran if one.name == named), None)
+            if ran is None:
+                self._settles_focus()
+                return
+            await self._doing(ran).wait()
+            if self._up() and not self._said:
+                self.dismiss(Doing(None, "", tuple(self._told)))
 
     def _read(self, *, every: bool) -> list[Ran]:
         """The epics of this directory or of this whole machine, newest first.
@@ -13070,7 +13206,8 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         """Says what this is."""
         self.query_one("#asked", Label).update("New epic")
         self.query_one("#about", Label).update(
-            f"An epic on {escape(self._daemon)}, set up as that directory last ran the flow, "
+            f"An epic on {escape(self._daemon)}, set up as that directory last "
+            f"ran the flow, "
             "and followed here once it starts."
         )
         self._fill()
@@ -13311,7 +13448,8 @@ class RemoteEpics(Sheet[Doing]):
         if not self._up():
             return
         self.query_one("#about", Label).update(
-            f"Every epic {escape(self._daemon)} holds and every chat going there, newest "
+            f"Every epic {escape(self._daemon)} holds and every chat going there, "
+            f"newest "
             "first: workspace, task, status, and session count."
         )
         listing = self.query_one("#choices", OptionList)
@@ -13611,10 +13749,66 @@ _AI_SCOPE, _AI_NOUS, _AI_PRESET = "scope", "nous", "preset"
 
 #: How each state of a conversation is said on its row (Section 4.22.3.2 of daemon.md).
 _AI_STATES = {
-    "running": "answering",
-    "waiting": "between turns",
-    "folded": "folded away",
+    "running": t("typing…"),
+    "waiting": t("between turns"),
+    "folded": t("folded away"),
 }
+
+
+class AiMarks:
+    """What this interface keeps of her conversations: the pinned, the unread, what was read.
+
+    Kept here and nowhere else, as the web page keeps its own in the browser: pinning a
+    conversation or marking it unread changes how this interface lists it, and nothing about
+    the conversation.
+    """
+
+    def __init__(self) -> None:
+        """Starts with nothing pinned and nothing read."""
+        #: The ids pinned, which are listed first.
+        self.pinned: set[int] = set()
+        #: The ids marked unread by hand, until each is opened.
+        self.unread: set[int] = set()
+        #: Up to when each conversation was read, by id, as its `updated` said it then.
+        self.seen: dict[int, str] = {}
+        #: The id of the conversation on the screen, which is read as it is said in, or None.
+        self.following: int | None = None
+
+    def reads(self, one: Mapping[str, Any]) -> None:
+        """Takes a conversation as read up to what was last said in it."""
+        number = int(one["id"])
+        self.unread.discard(number)
+        self.seen[number] = str(one.get("updated") or "")
+
+    def follows(self, one: Mapping[str, Any] | None) -> None:
+        """Takes one conversation as the one on the screen, or none of them for None."""
+        self.following = None if one is None else int(one["id"])
+        if one is not None:
+            self.reads(one)
+
+    def is_unread(self, one: Mapping[str, Any]) -> bool:
+        """Whether one is unread here: marked so, or said in since it was last read."""
+        number = int(one["id"])
+        if number == self.following:
+            self.seen[number] = str(one.get("updated") or "")
+            return False
+        if number in self.unread:
+            return True
+        seen = self.seen.get(number)
+        return seen is not None and str(one.get("updated") or "") > seen
+
+    def ordered(self, listed: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        """The conversations as they are listed: the pinned first, then the latest said in."""
+
+        def when(one: Mapping[str, Any]) -> tuple[str, int]:
+            return str(one.get("updated") or one.get("created") or ""), int(one["id"])
+
+        latest = sorted((dict(one) for one in listed), key=when, reverse=True)
+        return sorted(latest, key=lambda one: int(one["id"]) not in self.pinned)
+
+
+#: What this interface keeps of the conversations of this machine's daemon.
+AI_MARKS = AiMarks()
 
 
 def ai_chan(method: str, **params: Any) -> Any:
@@ -13679,33 +13873,43 @@ def _ai_row(one: Mapping[str, Any]) -> str:
             ai_scope(one),
             str(one.get("nous") or ""),
             str(one.get("preset") or ""),
-            _AI_STATES.get(state, state),
+            t(_AI_STATES[state]) if state in _AI_STATES else state,
         ]
     )
 
 
 class AiChans(Picks):
-    """`/ai`: a new Ai-chan conversation, and every one the daemon holds, newest first.
+    """`/ai`: a new Ai-chan conversation, and every one the daemon holds.
 
-    Enter on one follows it in the log screen; `m` on one offers forgetting it. Read once as
-    the menu opens, and again after a conversation is forgotten.
+    The pinned first, then the latest said in, as the web page's drawer lists them. Enter on
+    one follows it in the log screen; `m` on one offers what the drawer's menu does --
+    renaming it, pinning it, marking it read or unread, and deleting it after asking. Read
+    once as the menu opens, and again after a conversation is renamed or deleted.
     """
 
-    asked = "Ai-chan"
-    about = (
-        "Talk to Ai-chan, who operates hmz for you: carry a conversation on, or start a "
-        "new one."
+    asked = t("Ai-chan")
+    about = t(
+        "Ask Ai-chan what your epics did, have her steer a session, or run something "
+        "for you."
     )
 
-    def __init__(self, conversations: Sequence[Mapping[str, Any]]) -> None:
+    def __init__(
+        self,
+        conversations: Sequence[Mapping[str, Any]],
+        marks: AiMarks | None = None,
+    ) -> None:
         """Lists the conversations `aichan.list` answered.
 
         Args:
-          conversations: Each, newest first, as it answered.
+          conversations: Each, as it answered.
+          marks: Which of them are pinned and which unread; this interface's own for None.
         """
         super().__init__(AI_NEW)
-        self._conversations = [dict(one) for one in conversations]
+        self._marks = AI_MARKS if marks is None else marks
+        self._conversations = self._marks.ordered(conversations)
         self._said = ""
+        #: What became of the last thing done from the menu.
+        self._done = ""
         #: The ids of the conversations forgotten from here.
         self.forgotten: set[int] = set()
 
@@ -13725,73 +13929,172 @@ class AiChans(Picks):
     def rows(self) -> list[tuple[str, str, str]]:
         """New, then each conversation by its id."""
         return [
-            (AI_NEW, "New", "a conversation of its own scope, nous and permission"),
+            (
+                AI_NEW,
+                t("New conversation"),
+                t("a conversation with a scope, nous and permissions of its own"),
+            ),
             *(
                 (
                     str(one["id"]),
-                    f"Ai-chan#{one['id']}{_DOT}{one.get('title') or ''}",
+                    (
+                        f"{humanfia.SQUARE} "
+                        if int(one["id"]) in self._marks.pinned
+                        else ""
+                    )
+                    + f"Ai-chan#{one['id']}{_DOT}{one.get('title') or ''}",
                     _ai_row(one),
                 )
                 for one in self._conversations
             ),
         ]
 
+    def unread(self, answer: str) -> bool:
+        """Whether a conversation was said in since it was read here, or is marked unread."""
+        one = self.conversation(answer)
+        return one is not None and self._marks.is_unread(one)
+
     def nothing(self) -> str:
-        """What went wrong forgetting one, or that there are none yet."""
+        """What went wrong with the last thing done, what it did, or that there are none."""
         if self._said:
             return f"[$error]{escape(self._said)}[/]"
-        return "" if self._conversations else "no conversation yet"
+        if self._done:
+            return escape(self._done)
+        return "" if self._conversations else t("No conversations yet")
 
     def menu(self) -> tuple[str, list[Action]] | None:
-        """Forgetting the conversation under the cursor, after asking."""
+        """What the drawer's menu does to the conversation under the cursor."""
         one = self.conversation(self.under())
         if one is None:
             return None
+        number = int(one["id"])
+        pinned = number in self._marks.pinned
+        unread = self._marks.is_unread(one)
         return (
-            f"Ai-chan#{one['id']}",
+            f"Ai-chan#{number}",
             [
                 Action(
+                    "rename",
+                    t("Rename"),
+                    t("gives the conversation another title"),
+                    partial(self._renames, one),
+                ),
+                Action(
+                    "pin",
+                    t("Unpin") if pinned else t("Pin"),
+                    t("lists the conversation by when it was last said in again")
+                    if pinned
+                    else t(
+                        "keeps the conversation at the top of the list on this machine"
+                    ),
+                    partial(self._pins, number, on=not pinned),
+                ),
+                Action(
+                    "read",
+                    t("Mark as read") if unread else t("Mark as unread"),
+                    t("takes the unread dot off it")
+                    if unread
+                    else t("dots the conversation until it is opened"),
+                    partial(self._reads, one, read=unread),
+                ),
+                Action(
                     "forget",
-                    "forget",
-                    "forget the conversation and its scratch directory",
-                    partial(self._forgets, int(one["id"])),
+                    t("Delete"),
+                    t(
+                        "deletes the conversation and its scratch directory, "
+                        "after asking"
+                    ),
+                    partial(self._forgets, number),
                     variant="error",
-                )
+                ),
             ],
         )
 
+    def _redrawn(self, done: str = "", wrong: str = "") -> None:
+        """Draws the list again, saying what the last thing done came to."""
+        self._done, self._said = done, wrong
+        self._conversations = self._marks.ordered(self._conversations)
+        self._rows = None
+        self._fill()
+
+    def _pins(self, number: int, *, on: bool) -> None:
+        """Pins one conversation to the top of this interface's list, or lets it go."""
+        (self._marks.pinned.add if on else self._marks.pinned.discard)(number)
+        self._redrawn(t("Pinned") if on else "")
+
+    def _reads(self, one: Mapping[str, Any], *, read: bool) -> None:
+        """Marks one conversation read up to now, or unread until it is opened."""
+        if read:
+            self._marks.reads(one)
+        else:
+            self._marks.unread.add(int(one["id"]))
+        self._redrawn()
+
+    def _showing(self) -> App[None]:
+        return cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+
+    @work
+    async def _renames(self, one: dict[str, Any]) -> None:
+        """Asks what one conversation is to be called, and renames it by `aichan.rename`.
+
+        Args:
+          one: The conversation.
+        """
+        import asyncio
+
+        title = await self._showing().push_screen_wait(
+            AiRenames(str(one.get("title") or ""))
+        )
+        if not title:
+            return
+        try:
+            await asyncio.to_thread(ai_chan, "rename", id=int(one["id"]), title=title)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._redrawn(wrong=str(why))
+            return
+        one["title"] = title
+        self._redrawn(t("Renamed"))
+
     @work
     async def _forgets(self, number: int) -> None:
-        """Asks whether to forget one conversation, and forgets it by `aichan.forget`.
+        """Asks whether to delete one conversation, and forgets it by `aichan.forget`.
 
         Args:
           number: Its id.
         """
         import asyncio
 
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        if await showing.push_screen_wait(AiForgets(number)) != "yes":
+        if await self._showing().push_screen_wait(AiForgets(number)) != "yes":
             return
         try:
             await asyncio.to_thread(ai_chan, "forget", id=number)
             self.forgotten.add(number)
             listed = await asyncio.to_thread(ai_chan, "list")
         except (LookupError, OSError, RuntimeError, ValueError) as why:
-            self._said = str(why)
-        else:
-            self._said = ""
-            self._conversations = [dict(one) for one in listed["conversations"]]
-        self._rows = None
-        self._fill()
+            self._redrawn(wrong=str(why))
+            return
+        self._marks.pinned.discard(number)
+        self._marks.unread.discard(number)
+        self._conversations = [dict(one) for one in listed["conversations"]]
+        self._redrawn(t("Deleted"))
+
+    @on(OptionList.OptionSelected)
+    def _opened(self, event: OptionList.OptionSelected) -> None:
+        """Takes the conversation picked as read: it is about to be on the screen."""
+        one = self.conversation(str(event.option.id).removeprefix("="))
+        if one is not None:
+            self._marks.follows(one)
 
 
 class AiForgets(Popup):
-    """Whether to forget one Ai-chan conversation, which cannot be carried on after."""
+    """Whether to delete one Ai-chan conversation, which cannot be carried on after."""
 
     CSS = _popup("AiForgets")
+
+    PRIMARY: ClassVar = "yes"
 
     def __init__(self, number: int) -> None:
         """Initializes the question.
@@ -13800,14 +14103,67 @@ class AiForgets(Popup):
           number: The conversation's id.
         """
         super().__init__()
-        self.asked = f"Forget Ai-chan#{number}?"
-        self.about = (
-            "Its conversation and scratch directory go; it cannot be carried on."
+        self.asked = f"Ai-chan#{number}{_DOT}{t('Delete this conversation?')}"
+        self.about = t(
+            "This removes the conversation and its scratch directory, and it "
+            "cannot be carried on afterwards."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Forgetting it, or keeping it."""
-        return [("yes", "forget", "forget it now"), ("no", "keep", "keep it")]
+        """Keeping it, which the keys open on, or deleting it."""
+        return [
+            ("no", t("Cancel"), t("keeps the conversation")),
+            ("yes", t("Delete"), t("deletes the conversation now")),
+        ]
+
+
+class AiRenames(Form[str]):
+    """What an Ai-chan conversation is to be called: one written row, opening on its title."""
+
+    def __init__(self, title: str) -> None:
+        """Opens on the title the conversation has.
+
+        Args:
+          title: It.
+        """
+        super().__init__()
+        self._typed_in = {"title": title}
+        self._fresh = {"title"}
+
+    def asked(self) -> list[Question]:
+        """The title."""
+        return [
+            Question(
+                "title",
+                t("New name"),
+                t("what the conversation is listed by"),
+                needed=not self._typed_in.get("title", "").strip(),
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return t("renames the conversation")
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update(t("Rename conversation"))
+        self.query_one("#about", Label).update(
+            t(
+                "A conversation is listed by its title, which is the start of "
+                "the first thing said in it until it is given another."
+            )
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the title, once it says something."""
+        title = " ".join(self._typed_in.get("title", "").split())
+        if not title:
+            self._wrong = t("This needs a title.")
+            self._fill()
+            return
+        self.dismiss(title)
 
 
 class AiAsked(NamedTuple):
@@ -13881,19 +14237,24 @@ class AiChanNew(Form[AiAsked]):
         typed = self._typed_in
         return [
             Question(
-                _AI_SCOPE, "scope", self.means(_AI_SCOPE, typed[_AI_SCOPE]), _STEPS
+                _AI_SCOPE, t("Scope"), self.means(_AI_SCOPE, typed[_AI_SCOPE]), _STEPS
             ),
             Question(
                 _AI_NOUS,
-                "nous",
-                "what Ai-chan thinks with"
+                t("Nous"),
+                t("Pick a nous for Ai-chan.")
                 if self._nouses
-                else "what Ai-chan thinks with, as -a spells an agent",
+                else t(
+                    "what Ai-chan thinks with, written the way `-a` spells an agent"
+                ),
                 _STEPS if self._nouses else _WRITES,
                 needed=not typed[_AI_NOUS].strip(),
             ),
             Question(
-                _AI_PRESET, "preset", self.means(_AI_PRESET, typed[_AI_PRESET]), _STEPS
+                _AI_PRESET,
+                t("Permissions"),
+                self.means(_AI_PRESET, typed[_AI_PRESET]),
+                _STEPS,
             ),
         ]
 
@@ -13924,35 +14285,36 @@ class AiChanNew(Form[AiAsked]):
         """
         if held == _AI_SCOPE:
             return {
-                "daemon": "every workspace and epic of this daemon",
-                "workspace": f"{_homed(self._workspace)} and its epics",
-                "epic": f"the epic {self._epic} of {_homed(self._workspace)}",
+                "daemon": t("Every workspace and epic here"),
+                "workspace": t("In the folder {name}", name=_homed(self._workspace)),
+                "epic": t(
+                    "the epic {epic} of the folder {folder}",
+                    epic=self._epic,
+                    folder=_homed(self._workspace),
+                ),
             }.get(value, "")
         if held == _AI_PRESET:
             return {
-                "read-only": "she reads, and changes nothing",
-                "danger-full-access": "she may change what her scope reaches",
+                "read-only": t("Reads, and changes nothing"),
+                "danger-full-access": t("Changes what her scope reaches"),
             }.get(value, "")
         return ""
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "the first line you say starts the conversation"
+        return t("nothing is made yet; the first line you say starts the conversation")
 
     def _ask(self) -> None:
         """Says what this is."""
-        self.query_one("#asked", Label).update("New Ai-chan conversation")
-        self.query_one("#about", Label).update(
-            "What she may reach, what she thinks with, and what she may change: none of "
-            "it changes once the conversation is made."
-        )
+        self.query_one("#asked", Label).update(t("New conversation"))
+        self.query_one("#about", Label).update(t("Set when the conversation was made"))
         self._fill()
 
     def action_done(self) -> None:
         """Answers with the conversation set up, once it has a nous."""
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         if not typed[_AI_NOUS]:
-            self._wrong = "Name Ai-chan's nous: the ai_chan setting names none."
+            self._wrong = t("Pick a nous for Ai-chan.")
             self._fill()
             return
         scope = typed[_AI_SCOPE]

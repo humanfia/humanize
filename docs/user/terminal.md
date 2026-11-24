@@ -128,7 +128,7 @@ You can also click any row, button or breadcrumb across the top.
 
 ### Save or discard changes
 
-Menus hold your edits until you save. While you have unsaved edits, the top line shows `● unsaved changes`. Press **Save**, or leave the menu to open a `Save?` prompt with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu).
+Menus hold your edits until you save. While you have unsaved edits, the top line shows `● Unsaved`. Press **Save**, or leave the menu to open a `Save?` prompt with **Save** and **Discard** (<kbd>esc</kbd> returns to the menu).
 
 ![A reel: enter on a switch drops its values, picking off marks the page as unsaved, and leaving the settings opens the Save? box](/shots/user-terminal-save.svg)
 
@@ -150,7 +150,44 @@ TEXTUAL_THEME=nord hmz
 
 ## Panes beside the log
 
-Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
+Press <kbd>f1</kbd> to open Keys to the right of the log, or <kbd>f3</kbd> for Ai-chan's conversations. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
+
+## Find a chat or an epic
+
+The navigator on the left lists every chat and epic on this machine. It is open from the start on a wide terminal; press <kbd>ctrl+b</kbd> to go to it, and again to close it.
+
+1. Press <kbd>ctrl+b</kbd>.
+2. Move with <kbd>↑</kbd> and <kbd>↓</kbd>. What waits on you is at the top, in pink.
+3. Press <kbd>enter</kbd> to open the row. The prompt takes the keys back.
+
+Press <kbd>p</kbd> to pin a row, <kbd>u</kbd> to mark it unread, <kbd>g</kbd> to group by folder, date or as one list, and <kbd>.</kbd> for everything else you can do with it.
+
+To search instead, press <kbd>ctrl+k</kbd> and type. <kbd>tab</kbd> switches between all, chats and epics; <kbd>enter</kbd> opens the row; <kbd>esc</kbd> closes Search. See [the key tables](/reference/tui#navigator).
+
+## Flows page
+
+Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installed** lists the flows you can run, with any that has a newer release first and marked `↑`. **Flowverses** lists the indexes more flows are installed from, with when each was fetched. <kbd>tab</kbd> turns from one to the other, the bottom line lists the keys of the list you are in, and <kbd>esc</kbd> goes back one list and then closes the page. See [Find and install flows](/user/flows#the-flows-page).
+
+The Download, Import and Export pages move epics between machines. A transfer goes on when you close its page with <kbd>esc</kbd>; open any of the three again to see where it stands. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
+Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open the Files, Changes or Terminal of the environment you are working in beside the log, and <kbd>ctrl+w</kbd> inside one to widen it. The pane stays open while you type at the prompt. See [Files, changes and terminal](/user/environment-panels#keep-a-pane-open-beside-the-chat).
+Press <kbd>ctrl+g</kbd> for **Details** of the open chat: its model, effort, permissions and environment, each changed with <kbd>enter</kbd>, its usage, and **Rename…**, **Fork**, **Archive** and **Delete chat**.
+
+## Pages over the log
+
+Press <kbd>ctrl+n</kbd> for the New chat page: the first message, and above it the chips **Folder**, **Environment**, **Model**, **Effort** and **Permissions** showing what the chat starts with. A page covers the log until you press <kbd>esc</kbd>. See [Chat with an agent](/user/chat) and [Continue sessions from other CLIs](/user/harness-sessions).
+
+### Start an epic from one page
+
+Press <kbd>ctrl+e</kbd> at the log to open **New epic**. The page is one form, read top to bottom: Flow, Folder, Task, an agent for each role, the flow's parameters, Budget, Backup, the profiling switches and Resume. It opens with what this folder last set the flow up with, so starting the same flow again is typing the task and pressing <kbd>ctrl+s</kbd>.
+
+- Type on a row to write it, and press <kbd>enter</kbd> on a row marked `▾` to pick from a list. `More options` at the end of an agent's or an environment's list opens the full sheet, with accounts, efforts and machines.
+- Leave **Folder** empty to start the epic in a temporary directory of its own. An epic started in another folder, or in none, is listed under `/epics`; one started in this folder runs in front of you.
+- <kbd>ctrl+s</kbd> starts the epic. Anything missing or refused is shown in red under the row it is about.
+- <kbd>esc</kbd> closes the page and keeps what you typed for next time.
+
+### Read the epic beside its log
+
+Press <kbd>ctrl+o</kbd> to open the **Epic** pane to the right of the log. It has the app's four tabs: **Details**, **Board**, **People** and **Side questions**. Press <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>4</kbd> to switch tabs; the bottom line lists what the open tab's keys do. The pane reopens on the tab and row you left.
 
 ## Good to know
 

@@ -197,7 +197,7 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
         await typed(pilot, "/exit")
         await on(pilot, Leaves)
         await shows(
-            pilot, "A flow is running.", "Stop the flow and exit", "Detach and exit"
+            pilot, "A flow is running.", "Stop the flow and quit", "Detach and quit"
         )
         await pilot.click(f"#act-{STOPS}")
 
@@ -515,7 +515,7 @@ async def test_a_form_held_by_another_frontend_waits_for_it(workspace: Path) -> 
         drawn = await shows(
             pilot,
             "Waiting for web",
-            "a richer view of this question is in the web page",
+            "The custom view is in the web page",
         )
         assert "press Enter to open" not in drawn
 

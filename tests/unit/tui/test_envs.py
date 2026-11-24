@@ -18,6 +18,7 @@ from hmz.tui.envs import (
     Escape,
     Inbox,
     Reach,
+    Viewing,
     bridge,
     default_panel,
     grouped,
@@ -407,3 +408,81 @@ async def test_a_commit_is_not_answered_without_a_message(amend: str) -> None:
 
     assert answers == []
     assert "message is required" in said
+
+
+def _reach(envs: list[dict[str, Any]], of: list[str]) -> Reach:
+    return Reach(lambda _said: {}, lambda: envs, of=lambda: of[0])
+
+
+def test_a_pane_shows_the_first_open_environment_that_has_its_page() -> None:
+    envs = [
+        _env(id="1:a", caps=["files"]),
+        _env(id="1:b", role="b", caps=["files", "git"], open=False),
+        _env(id="1:c", role="c", caps=["files", "git", "shell"]),
+    ]
+    reach = _reach(envs, [""])
+
+    assert [one.id for one in reach.desks("files")] == ["1:a", "1:c"]
+    assert [one.id for one in reach.desks("changes")] == ["1:c"]
+    assert [one.id for one in (reach.desk("files"),) if one] == ["1:a"]
+    assert reach.desk("snapshots") is None
+
+
+def test_the_environment_turned_to_is_remembered_for_each_chat() -> None:
+    envs = [_env(id="1:a", caps=["files"]), _env(id="1:c", role="c", caps=["files"])]
+    of = ["chat-1"]
+    reach = _reach(envs, of)
+
+    reach.turns("1:c")
+    assert [one.id for one in (reach.desk("files"),) if one] == ["1:c"]
+
+    of[0] = "chat-2"
+    assert [one.id for one in (reach.desk("files"),) if one] == ["1:a"]
+    of[0] = "chat-1"
+    assert [one.id for one in (reach.desk("files"),) if one] == ["1:c"]
+
+    # One that has closed since is not shown: the first is.
+    envs.pop()
+    assert [one.id for one in (reach.desk("files"),) if one] == ["1:a"]
+
+
+def test_a_terminal_drawn_in_a_pane_is_handed_its_messages_and_no_other_s() -> None:
+    asked: list[dict[str, Any]] = []
+    done = threading.Event()
+
+    def ask(said: dict[str, Any]) -> dict[str, Any]:
+        asked.append(said)
+        done.set()
+        return {}
+
+    reach = Reach(ask, list)
+    heard: list[tuple[dict[str, Any], bool]] = []
+    viewing = Viewing(lambda message, acked: heard.append((message, acked)), "t1")
+    stops = reach.views(viewing)
+    data = base64.b64encode(b"x" * ACK_EVERY).decode()
+
+    assert reach.told({"type": "term", "term": "t1", "data": data})
+    assert reach.told({"type": "term", "term": "t2", "data": data})
+    assert reach.told({"type": "term_exit", "term": "t1", "status": 0})
+
+    # Its own, not yet acknowledged; the other's is nobody's, and acknowledged here.
+    assert [(one["type"], one["term"], acked) for one, acked in heard] == [
+        ("term", "t1", False),
+        ("term_exit", "t1", False),
+    ]
+    assert done.wait(5)
+    assert asked == [{"do": "env.term.ack", "term": "t2", "bytes": ACK_EVERY}]
+
+    stops()
+    assert reach.told({"type": "term", "term": "t1", "data": ""})
+    assert len(heard) == 2
+
+
+def test_a_terminal_still_opening_is_handed_every_terminal_s_as_acknowledged() -> None:
+    reach = Reach(lambda _said: {}, list)
+    heard: list[tuple[str, bool]] = []
+    reach.views(Viewing(lambda message, acked: heard.append((message["term"], acked))))
+
+    assert reach.told({"type": "term", "term": "t9", "data": ""})
+
+    assert heard == [("t9", True)]

@@ -117,6 +117,7 @@ Every top-level key except `workspaces` applies to the whole machine.
 | `ai_chan` | string | `""` | Nous used for the last Ai-chan conversation: a nous name or `<harness>[@<account>]/<model>[:<effort>]`. Written by the daemon; new conversations start with it. See [Ai-chan](/user/ai-chan). |
 | `chat.prefer` | `native` or `flow` | `native` | Meaning of `$<name>` in a chat when it matches both a harness skill and a flow. Other values read as `native`. A chat's own choice overrides this. See [Commands, skills and files in a chat](/user/chat-input). |
 | `notifications` | mapping | all enabled | Notices shown by the terminal interface. See [`notifications`](#notifications). |
+| `tui` | mapping | defaults | Theme, appearance and language of the terminal interface. See [`tui`](#tui). |
 | `daemons` | list | `[]` | Remote daemons reachable by the terminal interface, `hmz exec`, and the SDK. See [`daemons`](#daemons). |
 | `listen` | list of strings | `[]` | Extra listeners opened by this machine's daemon beside its socket. See [`listen`](#listen). |
 | `ice_servers` | list | `[]` | STUN and TURN servers used by this machine's daemon to answer WebRTC. See [`ice_servers`](#ice-servers). |
@@ -147,6 +148,18 @@ Set terminal notifications with `/settings notifications`. Only the terminal int
 | `system` | boolean | `true` | Also show operating system notifications. |
 
 Only `false` disables a notice. See [Notifications](/user/notifications).
+
+### `tui` {#tui}
+
+Set these with `/settings themes` and `/settings language`. Only the terminal interface reads this key; the app and browser page store their own choices in the browser.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `theme` | string | `humanize` | The preset in use, by its key: `humanize`, `temperate-gold`, `concordant-scarlet`, `restrained-crimson`, `critical-teal`, `desirous-indigo`, `peaceful-lilac`, `hateful-silver`, `devoted-pink`, `self-negating-plum`, `dominant-azure`, `surviving-jade` or `lamenting-orchid`. |
+| `appearance` | string | `auto` | Which side is drawn: `auto`, `light`, `dark`, or `terminal` for the terminal's own colours. |
+| `language` | string | `""` | `en`, `zh-Hans` or `zh-Hant`; empty follows `LC_ALL`, `LC_MESSAGES` or `LANG`. |
+
+Any other value reads as the default. `TEXTUAL_THEME` and `NO_COLOR` override `theme` and `appearance`. See [Themes and language](/user/themes).
 
 ### `daemons` {#daemons}
 
