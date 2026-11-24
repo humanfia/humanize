@@ -1215,6 +1215,12 @@ one no retry changes, naming the harness, the team's admin and the setting.
 **4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
 it, and hmz MUST launch each at that mode without reading any policy first.
 
+**4.6.2.11** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
+run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
+request granted and a schema asked for in the prompt, and MUST say so once per agent. An agent with
+web search off, or with a setting only `grok -p` carries, MUST be refused as its session opens, and
+a fork of its conversation MUST be refused, each naming the lock's source.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one

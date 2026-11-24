@@ -26,6 +26,7 @@ from hmz.coganchor.agents import (
     Moment,
     Unhooked,
     Unrecoverable,
+    Unserved,
     Verdict,
 )
 from hmz.coganchor.fence import Fence
@@ -56,6 +57,13 @@ import time
 
 session = flags.get("--resume", "ses-grok")
 spent = {"input_tokens": 5, "output_tokens": 2, "cache_read_input_tokens": 1}
+
+if argv[:1] == ["inspect"]:
+    # What 1.0.62 enforces, under `permissions`: the lock on always-approve where a test sets one.
+    lock = os.environ.get("GROK_STAND_IN_LOCK")
+    enforced = [{"setting": "alwaysApprove", "enabled": False, "source": lock}] if lock else []
+    out({"permissions": {"enforced": enforced}})
+    sys.exit(0)
 
 
 def told(kind, **rest):
@@ -209,6 +217,37 @@ def test_a_permission_asked_under_a_fence_is_allowed_by_its_kind(
     )
 
     assert agent.new()("ask") == "yes"
+
+
+def test_under_a_lock_on_always_approve_a_fenced_agent_runs_asking_and_is_granted(
+    grok: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GROK_STAND_IN_LOCK", "/etc/grok/requirements.toml")
+    agent = GrokBuildAgent(
+        GrokBuildAgentConfig(model="grok-stand-in", effort="high", fence=OPEN)
+    )
+
+    assert agent.new()("ask") == "yes"
+
+    launch = grok.calls()[0]
+    assert launch.argv[0] == "agent"
+    assert "--always-approve" not in launch.argv
+
+
+def test_under_a_lock_on_always_approve_what_only_grok_p_says_is_refused(
+    grok: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GROK_STAND_IN_LOCK", "/etc/grok/requirements.toml")
+    agent = GrokBuildAgent(
+        GrokBuildAgentConfig(
+            model="grok-stand-in", effort="high", fence=OPEN, web_search=False
+        )
+    )
+
+    with pytest.raises(Unserved, match="locked off by /etc/grok/"):
+        agent.new()
+
+    assert grok.calls() == []
 
 
 def test_a_refused_prompt_is_a_failed_turn(grok: Standins) -> None:
