@@ -38,6 +38,13 @@ WORDS = 30
 SHELL = frozenset("|&;<>()")
 
 
+@pytest.fixture(autouse=True)
+def colourless(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Help read plain: a workflow sets `FORCE_COLOR`, which bolds it and colours argparse's."""
+    for name in ("FORCE_COLOR", "NO_COLOR"):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _under(
     path: tuple[str, ...], command: Command
 ) -> Iterator[tuple[tuple[str, ...], Command]]:
