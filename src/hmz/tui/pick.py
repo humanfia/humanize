@@ -13826,7 +13826,7 @@ def remotes() -> Any:
     with _REACHING:
         if not _REACH:
             # Asked of whoever is at this interface where a machine has no hmz.
-            _REACH.append(_hmz().daemons.remotes(install=None))
+            _REACH.append(_hmz().daemons.remotes(install=None, kind="tui"))
         return _REACH[0]
 
 

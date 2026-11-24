@@ -25,7 +25,6 @@ import itertools
 import json
 import math
 import time
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
 from rich.markup import escape
@@ -65,7 +64,7 @@ from .pick import (
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, MutableSet, Sequence
+    from collections.abc import Callable, Collection, Mapping, MutableSet, Sequence
 
     from pydantic import BaseModel
     from textual.app import App, ComposeResult
@@ -1767,11 +1766,10 @@ class Monitoring(Screen[str | None]):
             no timeline.
           exomyth: Opens it there, as the epic's own sheet in `/epics` does.
           asking: The outworlder roles the flow waits on for an answer now, whose nodes are
-            drawn as what waits on the person is; None to read them off the questions the
-            interface this is drawn in holds.
+            drawn as what waits on the person is; None where nothing is said to wait.
         """
         super().__init__()
-        self._asking = self._asked_of if asking is None else asking
+        self._asking = asking or frozenset[str]
         self._monitoring = monitor
         self._boxing = drawn
         self._setup = setup
@@ -2135,21 +2133,6 @@ class Monitoring(Screen[str | None]):
             f"{_DOT}[$text-muted]{escape(_fits(_DOT.join(said), room))}[/]",
             landing=bool(epic.get("run")),
         )
-
-    def _asked_of(self) -> set[str]:
-        """The roles asked something now, as the interface this is drawn in holds them."""
-        app = cast(
-            "object",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        held: object = getattr(app, "_pending", ())
-        if not isinstance(held, list | tuple):
-            return set()
-        return {
-            str(cast("Mapping[str, Any]", one).get("role") or "")
-            for one in cast("Sequence[object]", held)
-            if isinstance(one, Mapping)
-        }
 
     def _outworlders(self) -> list[_Row]:
         """A node per outworlder: the person, as each role of the run that is them.
