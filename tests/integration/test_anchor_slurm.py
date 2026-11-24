@@ -137,7 +137,12 @@ def test_a_job_reached_over_tcp_holds_what_is_derived_from_a_workdir(
     cluster: Fakes, workspace: Path
 ) -> None:
     machine = _config(workspace, via=TCP).create()
-    derived = cluster.home / ".hmz" / "envs" / "project-0123456789ab" / "scratch" / "s"
+    derived = (
+        cluster.home
+        / ".local/state/humanize/envs/project-0123456789ab"
+        / "scratch"
+        / "s"
+    )
 
     anchor = machine.start()
     try:
@@ -149,7 +154,7 @@ def test_a_job_reached_over_tcp_holds_what_is_derived_from_a_workdir(
             client.start(anchor.token)
             client.mkdir(str(derived), parents=True)
             with pytest.raises(OSError, match="outside every export"):
-                client.mkdir(str(cluster.home / ".hmz" / "other"))
+                client.mkdir(str(cluster.home / ".local/state/humanize/other"))
         finally:
             link.close()
         assert derived.is_dir()

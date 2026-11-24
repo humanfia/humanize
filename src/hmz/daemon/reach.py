@@ -7,7 +7,7 @@ every session over it carries the conversation's reach (Section 4.21 of daemon.m
 held to it by the method's `x-hmz-reach` and `x-hmz-writes` in the OpenRPC document, refused 403
 by the first of four rules that holds, and the lists it is answered are cut to what it reaches.
 
-The conversations themselves are kept here too, in `<home>/ai/<machine>/conversations.yaml`
+The conversations themselves are kept here too, in `<data>/ai/<machine>/conversations.yaml`
 (Section 4.16 of files.md), together with what starts the host of an `ai:` slot and listens on
 its scoped link while that host is up.
 """
@@ -102,7 +102,7 @@ class Reach:
     Attributes:
       id: The conversation's `id`.
       scope: `daemon`, `workspace` or `epic`.
-      workspace: The workspace of its host: of its scope, or `<home>/ai/<machine>`.
+      workspace: The workspace of its host: of its scope, or `<data>/ai/<machine>`.
       epic: The epic name of an `epic` scope, else "".
       preset: `read-only` or `danger-full-access`.
     """

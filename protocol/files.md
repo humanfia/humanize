@@ -2484,18 +2484,19 @@ host, a docker or Apple container, a swarm service, a Slurm job, a server reache
 **this machine**.
 
 **9.2.2** **State directory** (`<state>`): on **this machine**, `<state>` of Section 4.2.1; on an
-ssh host or a Slurm node, `${HUMANIZE_HOME:-$HOME/.hmz}` as the login shell of the **user** there
-expands it, a relative value taken under `$HOME`.
+ssh host or a Slurm node, `<xdg-state>/humanize`, where `<xdg-state>` is `XDG_STATE_HOME` as the
+shell **hmz** runs there has it where that is an absolute path, and `$HOME/.local/state` otherwise.
 
 **9.2.3** **Binary cache** (`<cache>`): the directory on a **target** that holds the `coganchor`
-binary: `$HOME/.cache/humanize` on an ssh host and on a Slurm node; `/tmp/humanize` in a container;
-`/tmp/humanize-<user>` in a docker container whose **runtime** names the user `<user>` to execute
-as.
+binary: `${XDG_CACHE_HOME:-$HOME/.cache}/humanize` as the shell **hmz** runs there expands it on
+an ssh host and on a Slurm node; `/tmp/humanize` in a container; `/tmp/humanize-<user>` in a docker
+container whose **runtime** names the user `<user>` to execute as.
 
 **9.2.4** **Mirror root** (`<mirrors>`): the directory on a **harness machine** other than **this
-machine** that holds **mirrors**: `$HOME/.cache/humanize-mirrors` on an ssh host and on a Slurm
-node; `/tmp/humanize-mirrors` in a container; `/tmp/humanize-mirrors-<user>` in a docker container
-whose **runtime** names the user `<user>`.
+machine** that holds **mirrors**: `${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors` as the shell
+**hmz** runs there expands it on an ssh host and on a Slurm node; `/tmp/humanize-mirrors` in a
+container; `/tmp/humanize-mirrors-<user>` in a docker container whose **runtime** names the user
+`<user>`.
 
 **9.2.5** **Workdir digest**: lowercase hexadecimal digits of a BLAKE2b digest of the absolute path
 of a working directory.
@@ -2505,9 +2506,15 @@ of a working directory.
 **9.3.1** `hmz` MUST create on a **target** only the entries Section 9 and Section 8 specify,
 besides the files the **agents** and the **flow** write as their work.
 
-**9.3.2** Where `HUMANIZE_HOME` is not set on an ssh host, `$HOME/.hmz` does not exist there and
-`$HOME/.humanize` is a directory there, `hmz` MUST rename `$HOME/.humanize` to `$HOME/.hmz` when it
-first probes that host.
+**9.3.2** Where `<state>/envs` does not exist on an ssh host or a Slurm node, `hmz` MUST, when it
+first probes that host and when the batch step of a Slurm job reached over TCP starts there, rename
+to `<state>/envs` the first of these that is a directory: `<old>/envs`, where `<old>` is
+`HUMANIZE_HOME` as the shell **hmz** runs there has it, a relative value taken under `$HOME`,
+and `$HOME/.hmz` where it is unset or empty; then `$HOME/.humanize/envs`. It MUST rename it only
+where `df -P` names one filesystem for it and `<state>`, MUST NOT merge it into a `<state>/envs`
+that exists, and a rename that fails MUST leave it where it was and MUST NOT fail the probe or the
+job. Once it is renamed, `hmz` MUST remove the directory it was in where that is empty, and MUST
+run `git worktree repair` in each worktree of Section 9.4 under it.
 
 **9.3.3** `hmz` MUST NOT create on a **target** other than **this machine** any entry of `<state>`
 other than `envs/`.

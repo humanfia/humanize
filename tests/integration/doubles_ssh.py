@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 _SSH = """#!{python}
 import json, os, socket, subprocess, sys, threading
 
-HOME, HUMANIZE, PLACES, TMP, LOG = {home!r}, {humanize!r}, {places!r}, {tmp!r}, {log!r}
+HOME, PLACES, TMP, LOG = {home!r}, {places!r}, {tmp!r}, {log!r}
 TAKES = set("BbcDEeFIiJLlmOopQRSWw")
 
 args, forwards, at = sys.argv[1:], [], 0
@@ -93,7 +93,7 @@ for spec in forwards:
         target=serves, args=(listening, (to, int(to_port))), daemon=True
     ).start()
 
-env = dict(os.environ, HOME=HOME, HUMANIZE_HOME=HUMANIZE, TMPDIR=TMP, **PLACES)
+env = dict(os.environ, HOME=HOME, TMPDIR=TMP, **PLACES)
 os.chdir(HOME)
 if not command:
     threading.Event().wait()
@@ -138,8 +138,7 @@ class Host:
 
     Attributes:
       home: Its `HOME`.
-      humanize: What its Humanize's directories are under (`tests.conftest.places`), and
-        its `HUMANIZE_HOME`, which its shell reads.
+      humanize: What its Humanize's directories are under (`tests.conftest.places`).
       tmp: Its `TMPDIR`.
       log: Where each `ssh` run writes its pid and what it was told.
     """
@@ -225,7 +224,6 @@ def faked(
             _SSH.format(
                 python=sys.executable,
                 home=str(host.home),
-                humanize=str(host.humanize),
                 places=places(host.humanize),
                 tmp=str(host.tmp),
                 log=str(host.log),

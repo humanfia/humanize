@@ -1191,7 +1191,8 @@ nothing. Each harness MUST be launched as the table states:
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
 `untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
-MUST run at `yolo` where the table says `auto`.
+MUST run at `yolo` where the table says `auto`. Where Kimi Code refuses the mode it is told, or
+holds the session at another, hmz MUST fail the session before the prompt is sent, naming the mode.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools

@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
     KimiCodeCLISession,
+    Unrecoverable,
     driver,
 )
 from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
@@ -77,6 +78,10 @@ class _Daemon:
     headers: list[str] = field(default_factory=list[str])
     #: The routes it refuses, as the daemon refuses one: inside a 200, with a code.
     refused: set[str] = field(default_factory=set[str])
+    #: What it says as it refuses one.
+    refusal: str = "refused"
+    #: The permission mode its profile route says the session is at, where it says one.
+    holds: str | None = None
     #: The skills it lists for the session: two a person may activate, and one only the
     #: model may read.
     skills: list[dict[str, Any]] = field(
@@ -98,6 +103,9 @@ class _Daemon:
         posts: dict[str, Any] = {
             "/sessions": {"id": _SESSION},
             f"{at}/prompts": {"user_message_id": "u1", "prompt_id": "p1"},
+            f"{at}/profile": (
+                {"agent": {"permission_mode": self.holds}} if self.holds else {}
+            ),
         }
         gets: dict[str, Any] = {
             at: {"usage": self.usage},
@@ -122,7 +130,7 @@ class _Daemon:
         route = path.removeprefix("/api/v1")
         self.calls.append((method, route, body))
         if route in self.refused:
-            return io.BytesIO(json.dumps({"code": 40000, "msg": "refused"}).encode())
+            return io.BytesIO(json.dumps({"code": 40000, "msg": self.refusal}).encode())
         return io.BytesIO(
             json.dumps({"code": 0, "data": self.answer(method, path)}).encode()
         )
@@ -483,6 +491,58 @@ def test_asks_said_off_keeps_a_hooked_session_at_auto(
 
 
 @pytest.mark.parametrize(
+    ("refusal", "holds", "asks", "told"),
+    [
+        (
+            'agent_config.permission_mode: Invalid option: expected one of "manual"',
+            None,
+            False,
+            "auto",
+        ),
+        ("refused", "manual", False, "auto"),
+        ("refused", "manual", True, "yolo"),
+    ],
+)
+def test_a_daemon_that_will_not_hold_the_mode_fails_the_session_before_its_prompt(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    refusal: str,
+    holds: str | None,
+    asks: bool,
+    told: str,
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    daemon.refusal, daemon.holds = refusal, holds
+    if holds is None:
+        daemon.refused = {f"/sessions/{_SESSION}/profile"}
+
+    with pytest.raises(Unrecoverable) as failed:
+        _turn(made(fence=_WRITES, asks=asks).new(tmp_path))
+
+    said = f"kimi: Kimi Code will not run a fenced session at permission mode `{told}`"
+    assert said in str(failed.value)
+    assert daemon.posted(f"/sessions/{_SESSION}/prompts") == []
+
+
+def test_a_daemon_holding_the_mode_it_was_told_runs_the_turn(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    daemon.holds = "auto"
+
+    assert _turn(made(fence=_WRITES).new(tmp_path))[-1].kind == "result"
+
+
+@pytest.mark.parametrize(
     ("said", "disabled"),
     [
         ({"web_search": False}, ["WebSearch", "FetchURL"]),
@@ -682,9 +742,11 @@ def test_a_session_the_daemon_made_is_the_runs_though_it_is_refused_its_settings
     agent = made()
     agent.epic = run = Run(tmp_path)
 
-    with pytest.raises(Failed):
+    with pytest.raises(Failed) as failed:
         _turn(agent.new(tmp_path))
 
+    # A refusal that is not of the mode is tried again as any failed turn is.
+    assert not isinstance(failed.value, Unrecoverable)
     # Named by the daemon before anything else was asked of it: the run's, and not opened.
     assert run.said == [(_SESSION, "")]
     assert agent.opened == []

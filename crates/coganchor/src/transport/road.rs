@@ -20,13 +20,14 @@ use sha2::{Digest, Sha256};
 use crate::transport::Target;
 use crate::transport::target::{APPLE, Endpoint, SLURM, ssh_flags};
 
-/// Where coganchor is cached on a target reached over ssh or srun: `$HOME`, expanded by the
-/// far side's shell, rather than `~`. `transport.REMOTE_CACHE`.
-pub const REMOTE_CACHE: &str = "$HOME/.cache/humanize";
+/// Where coganchor is cached on a target reached over ssh or srun: `humanize` in that user's
+/// XDG cache directory, `$XDG_CACHE_HOME` and `$HOME` expanded by the far side's shell, rather
+/// than `~`. `transport.REMOTE_CACHE`.
+pub const REMOTE_CACHE: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/humanize";
 
 /// Where a harness put on such a machine keeps its mirrors, beside the cache rather than in
 /// it (see `transport.REMOTE_MIRRORS` for why). `transport.REMOTE_MIRRORS`.
-pub const REMOTE_MIRRORS: &str = "$HOME/.cache/humanize-mirrors";
+pub const REMOTE_MIRRORS: &str = "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors";
 
 /// And in a container. `transport.CONTAINER_CACHE`.
 pub const CONTAINER_CACHE: &str = "/tmp/humanize";
@@ -657,7 +658,7 @@ mod tests {
         assert_eq!(road.mirrors(), "/tmp/humanize-mirrors-7");
         assert!(road.owned());
         let road = Road::to(&Target::parse("ssh://h").unwrap());
-        assert_eq!(road.cache(), "$HOME/.cache/humanize");
+        assert_eq!(road.cache(), "${XDG_CACHE_HOME:-$HOME/.cache}/humanize");
         assert!(!road.owned());
     }
 
