@@ -569,7 +569,7 @@ def test_an_easytier_daemon_is_installing_while_easytier_downloads(
 
 
 def _code(routes: list[str]) -> str:
-    """A pairing code of the daemon `_ID`, as `hmz daemon pair` prints one."""
+    """A pairing code of the daemon `_ID`, as `hmz devices pair` prints one."""
     said = {"v": 1, "id": _ID, "routes": routes, "token": "t0ken", "expires": 1}
     return "hmz-pair:" + base64.urlsafe_b64encode(json.dumps(said).encode()).decode()
 

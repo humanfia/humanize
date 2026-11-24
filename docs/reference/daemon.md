@@ -106,7 +106,7 @@ listen = [
 - A `relay:` and a `webrtc:` listener at the same relay share one registration.
 - If a listener fails to open, the daemon logs the failure to `daemon.log` and retries after 1 second, doubling up to 60 seconds.
 - A daemon with a listener, or started by `hmz daemon serve`, never exits when idle.
-- A pairing code created with `hmz daemon pair` includes the routes of all open listeners, unless `--route` names others.
+- A pairing code created with `hmz devices pair` includes the routes of all open listeners, unless `--route` names others.
 
 ## Devices and pairing
 

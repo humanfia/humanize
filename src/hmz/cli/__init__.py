@@ -474,7 +474,7 @@ def _web(argv: list[str]) -> int:
 
 
 def _daemon(argv: list[str]) -> int:
-    """Runs, reaches, pairs or installs this machine's daemon.
+    """Runs, reaches or installs this machine's daemon.
 
     Args:
       argv: What followed the command name.
@@ -708,7 +708,7 @@ INTERNAL = {
 
 #: Each command, as what carries it out and the line a listing shows it as. Seven are for
 #: anybody: running a flow in a directory, saying one message to an agent there, serving the
-#: web interface, running, reaching and pairing this machine's daemon, serving a relay daemons
+#: web interface, running, reaching and installing this machine's daemon, serving a relay daemons
 #: and devices meet through, moving Humanize itself to its newest release, and backing an
 #: epic up from a script -- everything else Humanize keeps is walked at the prompt rather
 #: than typed, a run already held here included, which `hmz` with no command opens.
@@ -719,7 +719,7 @@ COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "chat": (_chat, "say one message to an agent in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
-    "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
+    "daemon": (_daemon, "run, reach and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),

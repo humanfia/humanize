@@ -235,7 +235,10 @@ class Call:
 
 
 def reach(daemon: str) -> Client:
-    """A session with a daemon: this machine's for `""`, else the one kept under a name.
+    """A session with a daemon: this machine's for `""` or `local`, else the one of that name.
+
+    A name is one of the registry of other machines' daemons (`hmz daemons list`), and its
+    daemon is reached over the routes written there.
 
     Raises:
       OSError: If it cannot be reached.
@@ -243,9 +246,14 @@ def reach(daemon: str) -> Client:
     """
     from hmz.sdk import Client, Refused
 
-    if daemon:
-        raise Refused(t("No daemon is kept under the name {name}.", name=daemon))
-    return Client.local(kind="cli")
+    if daemon in ("", "local"):
+        return Client.local(kind="cli")
+    try:
+        return Client.named(daemon)
+    except LookupError:
+        raise Refused(
+            t("No daemon is kept under the name {name}.", name=daemon), code=404
+        ) from None
 
 
 def table(rows: Sequence[Sequence[str]]) -> list[str]:

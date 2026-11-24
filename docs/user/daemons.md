@@ -14,7 +14,7 @@ Every machine running Humanize has its own [daemon](/user/daemon). Add another m
 | Way | The other machine needs | Use it when |
 | --- | --- | --- |
 | SSH | Nothing. Your `ssh` keys must already work. | You can `ssh` to it. |
-| Pairing code | A listening daemon and a one-time code from `hmz daemon pair`. | You can reach a port, WebSocket, or relay on it. |
+| Pairing code | A listening daemon and a one-time code from `hmz devices pair`. | You can reach a port, WebSocket, or relay on it. |
 | EasyTier | An EasyTier entry with the same secret and node, and a pairing code. | Both machines are behind NAT with no open port and no SSH. |
 
 Over SSH, Humanize starts the remote daemon itself. If the remote machine has no `hmz`, a dialog asks `hmz is not installed on <name>. Install it?`: click **Install** to install it, or **Not now** to leave the machine `failed` until you click **Connect** again. After you click **Install** for a machine, Humanize does not ask about it again until you reload the page or change the machine's routes. If the remote `hmz` is a different version, Humanize replaces it without asking, but never while its daemon has running epics. It never asks for a password.
@@ -25,10 +25,10 @@ On the remote machine, start a listener, then generate a pairing code from a sec
 
 ```sh
 hmz daemon serve --listen tcp://0.0.0.0:41817
-hmz daemon pair
+hmz devices pair
 ```
 
-![hmz daemon pair prints a code, then hmz daemon devices lists a paired laptop](/shots/user-daemons-pair.svg)
+![hmz devices pair prints a code, then hmz devices list lists a paired laptop](/shots/user-daemons-pair.svg)
 
 A code pairs one device once and expires after 10 minutes. If a daemon is already running there, `hmz daemon serve` exits with `hmz: a daemon is already running (pid …)`. Set the `listen` key in [settings.toml](/reference/settings) instead: the running daemon opens the listener, and keeps it open every time it starts.
 
@@ -37,9 +37,9 @@ A code pairs one device once and expires after 10 minutes. If a daemon is alread
 | `--route ROUTE` | A route the code carries. Repeatable. Defaults to the routes of the open listeners. |
 | `--seconds SECONDS` | Code lifetime in seconds, from `60` to `86400`. Default `600`. |
 
-A code needs a route to carry. Without an open listener or `--route`, the command prints `hmz: There is no route to pair over: give one, or listen.` and exits with status 1, and `pair a device…` in the terminal is refused the same way. Add a listener or pass `--route ROUTE`. The daemon waits up to 5 seconds for listeners that are still opening.
+A code needs a route to carry. Without an open listener or `--route`, the command prints `hmz devices pair: There is no route to pair over: give one, or listen.` and exits with status 1, and `pair a device…` in the terminal is refused the same way. Add a listener or pass `--route ROUTE`. The daemon waits up to 5 seconds for listeners that are still opening.
 
-For EasyTier, add an entry and a listener to `~/.config/humanize/settings.toml` on the remote machine, then run `hmz daemon pair`:
+For EasyTier, add an entry and a listener to `~/.config/humanize/settings.toml` on the remote machine, then run `hmz devices pair`. `hmz easytier set home --node tcp://node.example:11010 --secret-stdin` writes the same entry without editing the file:
 
 ```toml
 listen = ["easytier:home"]
@@ -128,13 +128,32 @@ Run `/epics @devbox` to list another machine's epics. Select a running epic to f
 
 ## From the command line
 
-Run these commands to manage the local daemon's paired devices.
+Run these commands on the machine you want to reach, to manage its daemon's paired devices.
 
 | Command | What it does |
 | --- | --- |
-| `hmz daemon pair` | Prints a pairing code. |
-| `hmz daemon devices` | Lists paired devices: name, fingerprint, when each was added, and when it was last seen. |
-| `hmz daemon devices revoke NAME` | Removes a device and closes its sessions. |
+| `hmz devices pair` | Prints a pairing code. |
+| `hmz devices list` | Lists paired devices: name, fingerprint, when each was added, and when it was last seen. |
+| `hmz devices revoke NAME` | Removes a device and closes its sessions. |
+
+Run these commands on your own machine, to keep the list of machines and to ask one of them.
+
+| Command | What it does |
+| --- | --- |
+| `hmz daemons list` | Lists this machine's daemon as `local`, then each machine you added. |
+| `hmz daemons add NAME ROUTE...` | Adds a machine by its routes, tried in order. Any first route but SSH needs `--id ID`. |
+| `hmz daemons pair NAME CODE` | Adds a machine from its pairing code. Pass `-` as `CODE` to read it from standard input. |
+| `hmz daemons show NAME --connect` | Prints the machine's id and routes, connects, and prints its hmz version. Exits with status 3 if it cannot be reached. |
+| `hmz daemons remove NAME` | Forgets the machine. Nothing on it changes. |
+| `hmz easytier set NAME --node URL --secret-stdin` | Saves the EasyTier entry an `easytier:NAME` route or listener uses. `hmz easytier nodes` lists shared nodes. |
+
+```sh
+hmz daemons add devbox stdio:ssh://devbox
+ssh server hmz devices pair | hmz daemons pair server -
+hmz devices list --daemon devbox
+```
+
+Add `--daemon NAME` to `hmz devices`, `hmz runtimes` or `hmz easytier` to ask that machine's daemon instead of the local one. The command connects over the machine's routes. It does not install `hmz` on a machine that has none: if `hmz` is missing on an SSH machine, connect to it once from the app or the terminal interface first. See the [CLI reference](/reference/cli#hmz-daemons).
 
 ## How routes connect
 
@@ -146,9 +165,9 @@ Humanize tries each route 0.25 s after the previous one, or immediately if all e
 
 ## Good to know
 
-- The desktop app, each browser, and the terminal each keep a separate machine list. The terminal stores its list under the `daemons` key in `settings.toml`.
+- The desktop app, each browser, and the terminal each keep a separate machine list. The terminal stores its list under the `daemons` key in `settings.toml`; `hmz daemons` and `--daemon` use that same list.
 - Machine names must start with a letter or digit, followed by letters, digits, `.`, `_`, or `-`. The name `local` is reserved.
 - SSH connections never prompt. Hosts that require a password or have an unknown host key fail.
-- The terminal has no EasyTier form. Add the matching `easytier` entry to the local `settings.toml`, then add the machine using its pairing code.
+- The terminal has no EasyTier form. Save the matching entry with `hmz easytier set`, then add the machine using its pairing code.
 - A daemon holds at most 16 unclaimed pairing codes. Generating a 17th code drops the oldest one.
 - See [Security](/user/security) for details on pairing and permissions for unpaired devices.

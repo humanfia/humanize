@@ -29,16 +29,19 @@ python -m hmz ...
 | `exec` | Run an agent flow in this directory. |
 | `chat` | Say one message to an agent in this directory. |
 | `web` | Open this machine's epics in a browser on it. |
-| `daemon` | Run, reach, pair and install this machine's daemon. |
+| `daemon` | Run, reach and install this machine's daemon. |
 | `relay` | Relay daemons and the devices that reach them. |
 | `update` | Update hmz to its newest release. |
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
+| `daemons` | List, add, pair and remove the daemons of other machines. |
 | `devices` | List and revoke the devices paired with this daemon. |
+| `easytier` | List, write and remove this machine's EasyTier networks. |
+| `runtimes` | List, write, check and remove the runtimes environments are put on. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `devices`, `runtimes` and `easytier` start the daemon if none runs. `relay`, `update` and `backup` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -63,7 +66,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | stdout | Machine-readable output: help, version, turn answers, the NDJSON stream, listing lines, addresses, pairing codes, paths. |
 | stderr | Progress, spinners and diagnostics. Diagnostics start with `hmz: ` or the command's name, such as `hmz exec: `. |
 
-Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz daemon pair` code. Every other printed URL has its credentials removed.
+Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz devices pair` code. Every other printed URL has its credentials removed.
 
 The first matching rule sets colour per stream:
 
@@ -267,9 +270,6 @@ A browser opens automatically on macOS, or when `DISPLAY` or `WAYLAND_DISPLAY` i
 ```text
 hmz daemon serve [--listen SPEC]...
 hmz daemon connect --stdio
-hmz daemon pair [--route ROUTE]... [--seconds SECONDS]
-hmz daemon devices
-hmz daemon devices revoke NAME
 hmz daemon install
 hmz daemon uninstall
 ```
@@ -278,9 +278,6 @@ hmz daemon uninstall
 | --- | --- |
 | `serve` | Runs the daemon in the foreground until SIGINT or SIGTERM. SIGHUP is ignored, so closing the terminal does not stop it. Listens on its socket, configured listeners, and each `--listen`, printing `hmz daemon: listening on <route>` for each. Exits 1 if a daemon already runs. |
 | `connect --stdio` | Bridges standard input and output to the daemon's socket, starting with `hmz-stdio/1`. `--stdio` is required. |
-| `pair` | Prints a one-time pairing code on stdout and its expiration time on stderr. |
-| `devices` | Lists paired devices, oldest first, one tab-separated line per device: name, fingerprint, date added, last seen. |
-| `devices revoke NAME` | Revokes a device and closes its sessions. Prints `hmz daemon devices: revoked <name>; <n> sessions closed`. |
 | `install` | Installs and starts a per-user login service for `hmz daemon serve` (launchd on macOS, systemd on Linux). Prints `hmz daemon: installed <path>`. Exits 1 on any other system. |
 | `uninstall` | Stops and removes the login service. Prints `hmz daemon: uninstalled <path>`. Exits 1 if none is installed. |
 
@@ -288,8 +285,6 @@ hmz daemon uninstall
 | --- | --- | --- | --- |
 | `--listen` | `serve` | `SPEC` | An additional listener to open. Repeatable. |
 | `--stdio` | `connect` | | Required. |
-| `--route` | `pair` | `ROUTE` | A route to embed in the code. Repeatable. Defaults to the daemon's own listener routes. |
-| `--seconds` | `pair` | `60` to `86400` | Code validity in seconds. Default `600`. |
 
 | Listener spec | Meaning |
 | --- | --- |
@@ -363,12 +358,12 @@ See [Back up to git](/user/backups).
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
+`hmz devices`, `hmz runtimes`, `hmz easytier` and `hmz daemons` are commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
 
 | Option | What it does |
 | --- | --- |
 | `--json` | Prints one JSON document on standard output instead of text, and nothing on standard error. |
-| `--daemon NAME` | Asks the daemon kept under `NAME` instead of this machine's. |
+| `--daemon NAME` | Asks the daemon kept under `NAME` by [`hmz daemons`](#hmz-daemons) instead of this machine's. `local` is this machine's. |
 | `--no-color` | Prints without terminal colours. |
 | `-h`, `--help` | Prints everything about the command: usage, arguments, options, examples, the text and JSON it prints, exit statuses, and the daemon methods it calls. |
 
@@ -397,7 +392,94 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 | `revoke NAME` | How many sessions were closed. | `{"dropped": <n>}` |
 | `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
 
-`--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+`--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for, from `60` to `86400`; the default is `600`.
+
+## hmz runtimes
+
+```text
+hmz runtimes list
+hmz runtimes show BACKEND [NAME]
+hmz runtimes set BACKEND NAME [--set FIELD=VALUE]... [--replace]
+hmz runtimes remove BACKEND NAME
+hmz runtimes check BACKEND NAME
+hmz runtimes hosts
+hmz runtimes import [HOST]... [--update]
+```
+
+`BACKEND` is `ssh`, `docker`, `swarm`, `apple-container` or `slurm`. See [Environments and runtimes](/reference/environments) for each backend's fields, and [Runtimes](/user/runtimes#from-the-command-line) for a walk-through.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | A line for the daemon's own machine (`local` and its host name), then one line per runtime: backend, name, how it was made. | `{"local", "runtimes": [{"backend", "name", "made", "fields"}], "blanks"}`; `blanks` holds every field of each backend with its default. |
+| `show BACKEND [NAME]` | One `field=value` line per field, the form `--set` takes. Without `NAME`, the fields a new runtime of the backend starts with. | `{"backend", "name", "made", "fields"}`; `name` and `made` are `null` without `NAME`. |
+| `set BACKEND NAME` | `Saved` | `{"runtimes": [...]}`, every runtime afterwards. |
+| `remove BACKEND NAME` | `Removed` | `{"runtimes": [...]}` |
+| `check BACKEND NAME` | One line per field of the answer: name, then value. | `{"reached", "said", "home", "cpus", "memory", "gpus", "usable", "gpu_memory", "runtimes", "version", "short", "nodes"}` |
+| `hosts` | One line per host of the SSH config on the daemon's machine: alias, machine, user, port, and `Saved` if a runtime of that name exists. | `{"hosts": [{"alias", "host", "user", "port", "identity_files", "proxy_jump", "saved"}]}` |
+| `import [HOST]...` | `Imported` | `{"runtimes": [...]}` |
+
+| Option | Of | What it does |
+| --- | --- | --- |
+| `--set FIELD=VALUE` | `set` | Sets one field. Repeatable. For a list field, repeat it once per item or give a JSON array. For a mapping field (`options`, `nodes`), write `FIELD=KEY=VALUE` once per pair or give a JSON object. An empty value clears a list or a mapping. |
+| `--replace` | `set` | Changes the runtime already saved under that backend and name. Fields the line does not set keep their values. Without it, a name already saved is refused. |
+| `--update` | `import` | Rewrites a runtime imported before from the host's current SSH config. |
+
+`check` exits with status 4 if the runtime did not answer; its reason is in `said`.
+
+## hmz easytier
+
+```text
+hmz easytier list
+hmz easytier set NAME [--node URL]... [--secret-stdin] [--secret-env VAR]
+hmz easytier remove NAME
+hmz easytier nodes
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per entry: name, `true` or `false` for whether a secret is saved, and its nodes. | `{"networks": [{"name", "nodes", "secret"}]}`; `secret` is a boolean. |
+| `set NAME` | `Saved` | `{"networks": [...]}`, every entry afterwards. |
+| `remove NAME` | `Removed` | `{"networks": [...]}` |
+| `nodes` | One line per shared node: URL, `up` or `down`, uptime over 24 hours, EasyTier version, name. | `{"nodes": [{"url", "name", "version", "up", "uptime"}]}` |
+
+| Option | Of | What it does |
+| --- | --- | --- |
+| `--node URL` | `set` | A shared node, as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`). Repeatable. Without it, an existing entry keeps its nodes. |
+| `--secret-stdin` | `set` | Reads the secret from standard input. |
+| `--secret-env VAR` | `set` | Reads the secret from the environment variable `VAR`. |
+
+A secret is at least 16 bytes. It is never read from the command line and never printed. Without either secret option, an existing entry keeps its secret. `remove` is refused while the daemon listens on the entry.
+
+## hmz daemons
+
+```text
+hmz daemons list
+hmz daemons add NAME [ROUTE]... [--id ID] [--replace]
+hmz daemons remove NAME
+hmz daemons show NAME [--connect]
+hmz daemons pair NAME CODE [--device DEVICE] [--replace]
+```
+
+These commands keep the list of other machines' daemons that `--daemon NAME` names. The list is stored on this machine under the `daemons` key of `settings.toml` and is the one the terminal interface uses. `list`, `add` and `remove` contact no daemon.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per daemon: name, pinned daemon id, routes. This machine's is first, as `local`. | `{"daemons": [{"name", "id", "routes"}]}` |
+| `add NAME ROUTE...` | `Added`, or `Saved` with `--replace`. | `{"name", "id", "routes"}` |
+| `remove NAME` | `Removed` | `{"name"}` |
+| `show NAME` | One line per field: name, then value. | `{"name", "id", "routes", "state", "version"}`; `state` and `version` are `null` without `--connect`. |
+| `pair NAME CODE` | `Added` | `{"name", "id", "routes"}` |
+
+| Option | Of | What it does |
+| --- | --- | --- |
+| `--id ID` | `add` | The daemon id to pin. Required unless the first route is an SSH route. |
+| `--replace` | `add`, `pair` | Overwrites the daemon already kept under `NAME`. |
+| `--connect` | `show` | Reaches the daemon and reports `state` `up` and its hmz `version`. Exits with status 3 if it cannot be reached. |
+| `--device DEVICE` | `pair` | The name this machine is paired as there. Defaults to this machine's host name. |
+
+A route is `stdio:ssh://[USER@]HOST[:PORT]`, `tcp://HOST:PORT`, `ws://…`, `wss://…`, `relay:wss://…`, `webrtc:wss://…` or `easytier:ENTRY`; routes are tried in the order given. See [Daemon and wire](/reference/daemon) for the route grammar. `pair` claims a code that `hmz devices pair` printed on the other machine; pass `-` as `CODE` to read it from standard input.
+
+With `--daemon NAME`, any declared command asks that daemon instead of this machine's. An unknown name exits with status 1 and `No daemon is kept under the name <name>.`; a daemon that cannot be reached exits with status 3. `hmz` is never installed on a machine that has none.
 
 ## hmz internal
 

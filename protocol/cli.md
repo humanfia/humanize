@@ -91,6 +91,11 @@ It is normative. It is cited by the tag [CLI].
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
 - [22. `hmz settings`, `hmz accounts` and `hmz nous`](#22-hmz-settings-hmz-accounts-and-hmz-nous)
 - [23. `hmz runtimes`, `hmz easytier` and `hmz daemons`](#23-hmz-runtimes-hmz-easytier-and-hmz-daemons)
+  - [23.1. Synopsis](#231-synopsis)
+  - [23.2. `hmz runtimes`](#232-hmz-runtimes)
+  - [23.3. `hmz easytier`](#233-hmz-easytier)
+  - [23.4. `hmz daemons`](#234-hmz-daemons)
+  - [23.5. `--daemon`](#235---daemon)
 - [24. `hmz btw`, `hmz ai` and `hmz notices`](#24-hmz-btw-hmz-ai-and-hmz-notices)
 - [25. `hmz skills`](#25-hmz-skills)
 - [26. `hmz help`](#26-hmz-help)
@@ -196,7 +201,7 @@ epilog MUST each be at most thirty words long.
 exec      run an agent flow in this directory
 chat      say one message to an agent in this directory
 web       open this machine's epics in a browser on it
-daemon    run, reach, pair and install this machine's daemon
+daemon    run, reach and install this machine's daemon
 relay     relay daemons and the devices that reach them
 update    update hmz to its newest release
 backup    back epics up to git repositories, or download them
@@ -1183,28 +1188,21 @@ meanings given there.
 ```text
 hmz daemon serve [--listen <spec>]...
 hmz daemon connect --stdio
-hmz daemon pair [--route <route>]... [--seconds <seconds>]
-hmz daemon devices [revoke <name>]
 hmz daemon install
 hmz daemon uninstall
 ```
 
-**13.1.1** `hmz daemon` MUST take a subcommand, `serve`, `connect`, `pair`, `devices`, `install` or
-`uninstall`; anything else MUST be a usage error.
+**13.1.1** `hmz daemon` MUST take a subcommand, `serve`, `connect`, `install` or `uninstall`;
+anything else MUST be a usage error. Making a pairing code and listing and revoking the paired
+devices are `hmz devices` (Section 17): `pair` and `devices` MUST NOT be subcommands of `hmz
+daemon`.
 
 **13.1.2** `--listen` MUST be accepted any number of times, each a listener spec of Section 3.9.2 of
 [DAEMON]; another value MUST be a usage error saying `<spec> is not a listener.`
 
 **13.1.3** `connect` MUST take `--stdio`, and without it MUST be a usage error.
 
-**13.1.4** `--route` MUST be accepted any number of times, each a route of Section 3.3 of [WIRE];
-another value MUST be a usage error saying `<route> is not a route.` `--seconds` MUST take an
-integer from 60 to 86400; another value MUST be a usage error.
-
-**13.1.5** `devices` MUST take nothing, or `revoke` and one name; anything else MUST be a usage
-error.
-
-**13.1.6** `install` and `uninstall` MUST take no option.
+**13.1.4** `install` and `uninstall` MUST take no option.
 
 ### 13.2. Behaviour
 
@@ -1223,17 +1221,7 @@ the socket and every byte of the socket to its standard output, unchanged and in
 either ends, and MUST then close both, half-closing neither (Section 3.4.10 of [WIRE]); it MUST
 write nothing else to standard output.
 
-**13.2.4** `hmz daemon pair` MUST call `pair.create` on this machine's daemon, starting it where
-none runs, with the routes of `--route` where any is given and the lifetime `--seconds`, and MUST
-write the code and a line feed to standard output, and `hmz daemon pair: claim this code on the
-device to pair before <time>` to standard error, `<time>` the moment it expires in local time.
-
-**13.2.5** `hmz daemon devices` MUST write one line per device paired with this machine's daemon,
-oldest first, its name, fingerprint, when it was added and when it was last seen, separated by tab
-characters; `hmz daemon devices revoke <name>` MUST call `devices.revoke` and write `hmz daemon
-devices: revoked <name>; <n> sessions closed` to standard output.
-
-**13.2.6** `hmz daemon install` and `hmz daemon uninstall` MUST write, enable and start, or stop,
+**13.2.4** `hmz daemon install` and `hmz daemon uninstall` MUST write, enable and start, or stop,
 disable and remove, the service of Section 3.9.6 of [DAEMON], and MUST write `hmz daemon: installed
 <path>` or `hmz daemon: uninstalled <path>` to standard output, `<path>` the file of the service.
 
@@ -1247,15 +1235,11 @@ already running (pid <pid>)` to standard error and exit with status 1.
 **13.3.3** `hmz daemon connect --stdio` MUST exit with status 0 where its standard input or the
 daemon ended the connection.
 
-**13.3.4** Where the daemon cannot be reached or started, `hmz daemon connect`, `pair` and `devices`
-MUST write `hmz: the daemon cannot be reached: <why>` to standard error and exit with status 1, and
-where it is of another protocol version, the refusal of Section 3.7.5 of [DAEMON] and exit with
-status 1.
+**13.3.4** Where the daemon cannot be reached or started, `hmz daemon connect` MUST write `hmz: the
+daemon cannot be reached: <why>` to standard error and exit with status 1, and where it is of
+another protocol version, the refusal of Section 3.7.5 of [DAEMON] and exit with status 1.
 
-**13.3.5** Where the daemon refuses `pair.create` or `devices.revoke`, the command MUST write `hmz:
-<message>` to standard error, the refusal's message, and exit with status 1.
-
-**13.3.6** `hmz daemon install` and `hmz daemon uninstall` MUST write `hmz: hmz daemon install runs
+**13.3.5** `hmz daemon install` and `hmz daemon uninstall` MUST write `hmz: hmz daemon install runs
 on macOS and Linux alone` and exit with status 1 on any other system, and MUST write `hmz: <why>`
 and exit with status 1 where `launchctl` or `systemctl` fails, or, for `uninstall`, where no service
 is installed.
@@ -1505,7 +1489,155 @@ This section is reserved for `hmz settings`, `hmz accounts` and `hmz nous`, the 
 
 ## 23. `hmz runtimes`, `hmz easytier` and `hmz daemons`
 
-This section is reserved for `hmz runtimes`, `hmz easytier` and `hmz daemons`, the declared commands of `runtimes.*` and `easytier.*`, and the daemons `--daemon` names. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 23.1. Synopsis
+
+```text
+hmz runtimes list
+hmz runtimes show <backend> [<name>]
+hmz runtimes set <backend> <name> [--set <field>=<value>]... [--replace]
+hmz runtimes remove <backend> <name>
+hmz runtimes check <backend> <name>
+hmz runtimes hosts
+hmz runtimes import [<host>]... [--update]
+hmz easytier list
+hmz easytier set <name> [--node <url>]... [--secret-stdin] [--secret-env <variable>]
+hmz easytier remove <name>
+hmz easytier nodes
+hmz daemons list
+hmz daemons add <name> [<route>]... [--id <id>] [--replace]
+hmz daemons remove <name>
+hmz daemons show <name> [--connect]
+hmz daemons pair <name> <code> [--device <device>] [--replace]
+```
+
+**23.1.1** `hmz runtimes`, `hmz easytier` and `hmz daemons` MUST each be a group of declared
+commands (Section 16).
+
+**23.1.2** `--set` MUST be accepted any number of times; a value with no `=`, or with nothing before
+it, MUST be a usage error.
+
+### 23.2. `hmz runtimes`
+
+**23.2.1** `hmz runtimes list` MUST call `runtimes.list` and write a line for the daemon's own
+machine, `local` and its host name, then one line per runtime in the daemon's order: its backend,
+its name and how it was made, in columns. Its JSON document MUST be `{"local", "runtimes":
+[{"backend", "name", "made", "fields"}], "blanks"}`, `local` and `blanks` as the daemon answered
+them and `fields` every member of the runtime other than `backend`, `name` and `made`.
+
+**23.2.2** `hmz runtimes show <backend> <name>` MUST call `runtimes.list` and write one line
+`<field>=<value>` for each field `blanks` names for the backend, the runtime's value where it has
+one and the blank's otherwise; a value that is not text MUST be written as JSON. Without `<name>` it
+MUST write the blank's values. Its JSON document MUST be `{"backend", "name", "made", "fields"}`,
+`name` and `made` being `null` without `<name>`. A backend `blanks` does not name MUST be refused
+with code `400`, and a runtime that is not written with code `404`.
+
+**23.2.3** `hmz runtimes set <backend> <name>` MUST call `runtimes.set` with `backend`, `name`,
+`fields` and, where `--replace` is given, `replace` `true`. `fields` MUST be made of each `--set`
+in order, read by the value `blanks` (of `runtimes.list`) holds for its field:
+
+- for a number, `<value>` as an integer, else as a decimal number;
+- for a list, `<value>` added as one item, or the whole list where `<value>` is a JSON array;
+- for an object, `<value>` as `<key>=<member>` added as one member, or the whole object where
+  `<value>` is a JSON object;
+- for a list or an object, an empty `<value>` as none;
+- otherwise, and for a number that reads as neither, `<value>` as text.
+
+**23.2.4** With `--replace`, where a runtime of that backend and name is written, `fields` MUST
+start from that runtime's fields, and a field a `--set` names MUST be what this command line says
+of it alone. Without `--replace`, `fields` MUST hold the fields of the command line alone.
+
+**23.2.5** `hmz runtimes remove <backend> <name>` MUST call `runtimes.remove`, and `hmz runtimes
+import` MUST call `runtimes.import` with each `<host>` as `names` and, where `--update` is given,
+`update` `true`. `set`, `remove` and `import` MUST write `Saved`, `Removed` and `Imported`, and
+their JSON document MUST be `{"runtimes": [...]}`, every runtime the daemon answered afterwards, as
+`list` writes them.
+
+**23.2.6** `hmz runtimes check <backend> <name>` MUST call `runtimes.check` and write one line per
+member of the result, its name and its value, text as it is and anything else as JSON; its JSON
+document MUST be the result. It MUST exit with status 4 where `reached` is false, and 0 otherwise.
+
+**23.2.7** `hmz runtimes hosts` MUST call `runtimes.hosts` and write one line per host: its alias,
+the machine it reaches, its user, its port, and `Saved` where `saved` is true. Its JSON document
+MUST be the result.
+
+### 23.3. `hmz easytier`
+
+**23.3.1** `hmz easytier list` MUST call `easytier.list` and write one line per entry: its name,
+`true` or `false` as a secret is written, and its nodes separated by spaces. Its JSON document MUST
+be `{"networks": [{"name", "nodes", "secret"}]}`, `secret` a boolean.
+
+**23.3.2** `hmz easytier set <name>` MUST call `easytier.set` with `name`, `nodes` and, where one is
+given, `secret`. The secret MUST be read from standard input, less a trailing line end, where
+`--secret-stdin` is given, and from the environment variable `--secret-env` names where that is
+given; it MUST NOT be taken from the command line, and MUST NOT be written to either stream. Both
+options given, or a variable that is not set, MUST be refused with code `400` and nothing called.
+
+**23.3.3** Where no `--node` is given, `hmz easytier set` MUST call `easytier.list` and send the
+nodes of the entry of that name, none where there is no such entry.
+
+**23.3.4** `hmz easytier remove <name>` MUST call `easytier.remove`. `set` and `remove` MUST write
+`Saved` and `Removed`, and their JSON document MUST be that of `list`, of the entries the daemon
+answered afterwards.
+
+**23.3.5** `hmz easytier nodes` MUST call `easytier.nodes` and write one line per node: its URL,
+`up` or `down` where that is known, its share of the last 24 hours up where that is known, its
+version and its name. Its JSON document MUST be `{"nodes": [{"url", "name", "version", "up",
+"uptime"}]}`.
+
+### 23.4. `hmz daemons`
+
+**23.4.1** `hmz daemons` MUST read and write the registry of Section 4.14 of [PYTHON], which is
+kept by the clients of this machine and by no daemon (Section 4.20.2 of [DAEMON]), in the calling
+process; Section 16.2 does not hold of it. `list`, `add` and `remove` MUST call no daemon, and
+`--daemon` MUST change nothing any command of the group does.
+
+**23.4.2** `hmz daemons list` MUST write one line per daemon: its name, the id pinned for it and its
+routes separated by spaces, this machine's first as `local`, with no id and the route `unix:`, then
+each daemon of the registry in order. Its JSON document MUST be `{"daemons": [{"name", "id",
+"routes"}]}`.
+
+**23.4.3** `hmz daemons add <name> <route>...` MUST write the daemon to the registry with `id`
+`--id`, `""` where absent, and the routes in order, and MUST write `Added`, or `Saved` with
+`--replace`. Its JSON document MUST be the daemon as written, `{"name", "id", "routes"}`. It MUST
+refuse a name already kept, unless `--replace` is given, with code `409` and `There is already a
+daemon <name>.`; no route with code `400` and `A daemon needs at least one route.`; and a daemon the
+registry refuses (Section 4.14.3 of [PYTHON]), `local` among them, with code `400` and the
+registry's message.
+
+**23.4.4** `hmz daemons remove <name>` MUST remove the daemon from the registry and write `Removed`;
+its JSON document MUST be `{"name": <name>}`. A name not kept MUST be refused with code `404` and
+`There is no daemon <name>.`, and `local` with code `400`.
+
+**23.4.5** `hmz daemons show <name>` MUST write one line per member it knows, its name and its
+value. Its JSON document MUST be `{"name", "id", "routes", "state", "version"}`, `state` and
+`version` being `null` without `--connect`. With `--connect` it MUST reach the daemon as Section
+23.5 states, `state` MUST be `up`, `version` the version `session.hello` answered, and `id` the id
+kept, or the one answered where none is; where the daemon cannot be reached it MUST fail as Section
+16.7 to Section 16.9 state of a daemon that cannot be. A name not kept MUST be refused with code
+`404`.
+
+**23.4.6** `hmz daemons pair <name> <code>` MUST claim the pairing code as `Remotes.pair` does
+(Section 4.14.10 of [PYTHON]), under the device name `--device` where it is given, MUST write
+`Added`, and its JSON document MUST be the daemon as written. `<code>` given as `-` MUST be read
+from standard input. A name already kept MUST be refused as Section 23.4.3 states before anything
+is claimed, `local` among them; a code that is not one with code `400`; a claim the daemon refuses
+with the code and message of its refusal; a daemon claimed that cannot then be written with code
+`500`; and where no route opens the command MUST fail as one whose daemon cannot be reached.
+
+### 23.5. `--daemon`
+
+**23.5.1** Absent, empty or `local`, `--daemon` MUST name this machine's daemon, reached as Section
+4.21.1 of [PYTHON] states with `kind` `cli`.
+
+**23.5.2** Any other `--daemon <name>` MUST name the daemon the registry keeps under `<name>`. The
+command MUST be a client of that daemon in place of this machine's: reached over its routes as
+`Client.named` reaches it (Section 4.30.9 of [PYTHON]), `hmz` never installed on a machine that has
+none, and let go of as the command ends.
+
+**23.5.3** Where the registry keeps no daemon under `<name>`, the command MUST be refused with code
+`404` and `No daemon is kept under the name <name>.`, and exit with status 1. Where the daemon is
+kept and cannot be reached, the command MUST fail as Section 16.7 to Section 16.9 state of a daemon
+that cannot be reached, saying how it stands.
 
 ## 24. `hmz btw`, `hmz ai` and `hmz notices`
 
@@ -1536,8 +1668,8 @@ document states.
   (Section 4.3, Section 9.2.2). The answers of turns, the event stream of `--json` and a flow's
   traceback are written as the agents and the flow produced them (Section 7.12, Section 7.13), so
   they hold whatever those produced. The line `hmz web` writes to standard output carries the key
-  of the address it serves (Section 8.2.4), and the code `hmz daemon pair` writes admits one device
-  to the daemon until it is claimed or expires (Section 13.2.4).
+  of the address it serves (Section 8.2.4), and the code `hmz devices pair` writes admits one device
+  to the daemon until it is claimed or expires (Section 17.2.3).
 - **Secrets on command lines.** hmz passes a secret to a process it starts with `--token-file`,
   never with `--token` (Section 11.2.4). The secret a user types after `--token` is nonetheless on
   that user's own command line. No option of `hmz exec` has an equivalent environment variable
@@ -1553,7 +1685,7 @@ document states.
   relay serve` listens where it is told, on plain WebSockets, admits anybody, and carries only what
   is secured end to end (Section 14.2.1).
 - **Services.** `hmz daemon install` makes the daemon start at login and keeps it running with its
-  listeners (Section 13.2.6). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
+  listeners (Section 13.2.4). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
   daemon's socket on its standard streams (Section 13.2.3).
 - **`hmz internal`.** These commands are the command lines hmz starts its own processes with and
   are not a public interface, yet each runs when a user types it (Section 11.1). `hmz internal

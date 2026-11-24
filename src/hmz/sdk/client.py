@@ -3,7 +3,8 @@
 The client is the runtime's own (:class:`hmz.runtime.doing.daemons.Client`, what the registry
 of other machines' daemons hands out too): this adds only reaching this machine's daemon,
 which starting it where none runs is the daemon layer's to do (Section 4.21.1 of python.md),
-and the families of :mod:`hmz.sdk.families`, each the typed calls of one group of methods.
+reaching another machine's by the name that registry keeps it under, and the families of
+:mod:`hmz.sdk.families`, each the typed calls of one group of methods.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from hmz.runtime.doing.daemons import Client as Session
 
 if TYPE_CHECKING:
     from hmz.rpc import Kind
+    from hmz.runtime.doing.daemons import Remotes
 
     from .families.accounts import Accounts
     from .families.aichan import AiChan
@@ -41,6 +43,9 @@ __all__ = ["Client"]
 
 #: How long this machine's daemon is given to take the session.
 _PATIENCE = 10.0
+
+#: How long is waited before a daemon on its way up is asked for again.
+_AGAIN = 0.2
 
 
 class Client(Session):
@@ -75,6 +80,59 @@ class Client(Session):
             one = where.connects(where.at(), _PATIENCE)
         one.settimeout(None)
         return cls.over(SocketPipe(one, trusted=True), name=name, kind=kind)
+
+    #: What reached the daemon of a client made by :meth:`named`, closed with it.
+    _remotes: Remotes | None = None
+
+    @classmethod
+    def named(cls, name: str) -> Client:
+        """A session with another machine's daemon, by the name the registry keeps it under.
+
+        Reached over its routes as :class:`hmz.runtime.doing.daemons.Remotes` reaches it,
+        never installing `hmz` on a machine that has none, and let go of whole when the
+        client is closed (Section 4.30.12 of python.md). A daemon being reached or brought
+        to this version is waited for, until it is up or has failed.
+
+        Args:
+          name: What the daemon is written down as.
+
+        Raises:
+          LookupError: If no daemon is written down by that name.
+          OSError: If it cannot be reached, saying how it stands.
+        """
+        import time
+
+        from hmz.runtime.doing.daemons import (
+            CONNECTING,
+            INSTALLING,
+            Daemons,
+            Unreached,
+        )
+
+        remotes = Daemons().remotes()
+        try:
+            while True:
+                try:
+                    held = remotes.client(name)
+                    break
+                except Unreached as why:
+                    # Still on its way: closing now would stop what is bringing it up.
+                    if why.seen.get("state") not in (CONNECTING, INSTALLING):
+                        raise ConnectionError(str(why)) from why
+                    time.sleep(_AGAIN)
+        except BaseException:
+            remotes.close()
+            raise
+        made = cls(held._session)  # noqa: SLF001 -- the one session, held as this class
+        made._remotes = remotes
+        return made
+
+    def close(self) -> None:
+        """Lets go of the session; every epic goes on."""
+        super().close()
+        remotes, self._remotes = self._remotes, None
+        if remotes is not None:
+            remotes.close()
 
     @functools.cached_property
     def devices(self) -> Devices:

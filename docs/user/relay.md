@@ -72,7 +72,7 @@ uv tool install 'hmz[webrtc]'
 Next, generate a pairing code on the daemon's machine. The code includes the daemon's ID and both routes, works once, and expires after 10 minutes.
 
 ```sh
-hmz daemon pair
+hmz devices pair
 ```
 
 ## Add the daemon on your device

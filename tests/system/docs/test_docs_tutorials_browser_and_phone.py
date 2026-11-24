@@ -309,7 +309,7 @@ def test_a_pairing_code_is_made(world: World) -> None:
     # A daemon makes a code over its listeners: this machine's is given one, as the
     # tutorial gives the other machine's.
     world.call("settings.set", listen=["tcp://127.0.0.1:0"])
-    shots.cli(["hmz", "daemon", "pair"], f"{_PAGE}-pair", columns=72)
+    shots.cli(["hmz", "devices", "pair"], f"{_PAGE}-pair", columns=72)
 
 
 @pytest.mark.usefixtures("_named")

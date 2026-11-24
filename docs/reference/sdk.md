@@ -440,6 +440,8 @@ class Client:
     @classmethod
     def local(cls, *, name: str = "", kind: str = "sdk") -> Client
     @classmethod
+    def named(cls, name: str) -> Client
+    @classmethod
     def over(cls, pipe: Pipe, *, name: str = "", kind: str = "sdk") -> Self
     def call(self, method: str, params: Mapping[str, Any] | None = None, *,
              idem: str | None = None, seconds: float | None = None) -> Any
@@ -458,6 +460,7 @@ Manages a direct RPC session with a daemon. A context manager. See [Daemon and w
 | Member | What it does |
 | --- | --- |
 | `local(name="", kind="sdk")` | Connects to this machine's daemon over its Unix socket, starting it if needed. `kind` is `sdk`, `cli`, `tui`, or `ai-chan`. `ai-chan` connects over the scoped link named by [`HUMANIZE_AICHAN_LINK`](/reference/environment) instead and starts no daemon. Raises `OSError` if unreachable, unable to start, on a protocol mismatch, or, for `ai-chan`, if the variable names no link. |
+| `named(name)` | Connects to another machine's daemon by the name it is kept under in the daemon list (`hmz daemons list`, `Hmz().daemons`), over its routes. Never installs `hmz` on a machine that has none. Raises `LookupError` for an unknown name and `OSError` if the daemon cannot be reached. Closing the client also stops what was started to reach it. |
 | `over(pipe, name="", kind="sdk")` | Opens a session over an existing trusted pipe. |
 | `call(method, params=None, *, idem=None, seconds=None)` | Calls an RPC method and returns the result. `idem` sets the idempotency key for writes. Raises `Refused` (with `code` and `data`) on error, or `TimeoutError` after `seconds`. |
 | `heard(listener)` | Calls `listener(method, params)` in order on a background thread for each notification. Raises `RuntimeError` if already set. |
@@ -506,6 +509,36 @@ with Client.local() as client:
     for device in client.devices.list():
         print(device.name, device.seen)
 ```
+
+#### runtimes {#client-runtimes}
+
+The runtimes a daemon has saved. This family asks a daemon; [`Hmz().runtimes`](#runtimes) reads this machine's files instead.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Listed` | Every runtime. A `Listed` has `local` (the daemon's own machine), `runtimes` (a tuple of `Runtime`) and `blanks` (every field of each backend with its default). A `Runtime` has `backend`, `name`, `made` and `fields`. |
+| `set(backend, name, fields=None, *, replace=False, idem=None)` | `Listed` | Saves a runtime. A name already saved is refused unless `replace` is true, which overwrites it with `fields`. |
+| `remove(backend, name, *, idem=None)` | `Listed` | Removes a runtime. |
+| `check(backend, name, *, wait=None)` | `Checked` | Reaches the runtime and reports what it has. A `Checked` has `reached`, `why`, `cpus`, `memory`, `gpus`, `short` and `said`, the whole answer. |
+| `hosts()` | tuple of `Host` | The hosts of the SSH config on the daemon's machine. A `Host` has `alias`, `host`, `user`, `port`, `saved` and `said`. |
+| `import_(names, *, update=False, idem=None)` | `Listed` | Saves an SSH runtime for each named host. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    client.runtimes.set("ssh", "gpu-box", {"host": "10.0.0.7", "user": "me"})
+    print(client.runtimes.check("ssh", "gpu-box").reached)
+```
+
+#### easytier {#client-easytier}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | tuple of `Network` | The EasyTier entries. A `Network` has `name`, `nodes` and `secret`, which is whether a secret is saved, never the secret. |
+| `set(name, nodes, *, secret=None, idem=None)` | tuple of `Network` | Saves an entry. `secret=None` keeps the saved secret. |
+| `remove(name, *, idem=None)` | tuple of `Network` | Removes an entry the daemon does not listen on. |
+| `nodes()` | tuple of `Node` | The shared nodes on offer. A `Node` has `url`, `name`, `version`, `up` and `uptime`; the last two are `None` if unknown. |
 
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
