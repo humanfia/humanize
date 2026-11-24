@@ -86,11 +86,17 @@ class _Hub:
 
     A client has one listener. This is it, for a client whose families subscribe: it keeps
     what arrived for a subscription nobody has taken up yet -- the daemon may speak before the
-    call that opened it has returned -- and hands it over when somebody does.
+    call that opened it has returned -- and hands it over when somebody does. What arrives for
+    one that was taken up and closed is for nobody, and is dropped: a host says `gone` to a
+    frontend after the call that let it go has been answered.
     """
 
     #: How many notifications are kept for a subscription nobody has taken up.
     KEPT = 4096
+
+    #: How many subscriptions closed are remembered as closed, the newest: what a daemon
+    #: says to one after it was let go comes at once, not thousands of subscriptions later.
+    LEFT = 1024
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -98,12 +104,16 @@ class _Hub:
             tuple[str, str], queue.SimpleQueue[dict[str, Any] | None]
         ] = {}
         self._waiting: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        #: The subscriptions closed, in the order they were: a dict for its order.
+        self._left: dict[tuple[str, str], None] = {}
 
     def hears(self, method: str, params: dict[str, Any]) -> None:
         key = (method, str(params.get("sub", "")))
         with self._lock:
             inbox = self._taken.get(key)
             if inbox is None:
+                if key in self._left:
+                    return
                 waiting = self._waiting.setdefault(key, [])
                 if len(waiting) < self.KEPT:
                     waiting.append(params)
@@ -115,12 +125,17 @@ class _Hub:
         with self._lock:
             for params in self._waiting.pop(key, []):
                 inbox.put(params)
+            self._left.pop(key, None)
             self._taken[key] = inbox
         return inbox
 
     def leaves(self, key: tuple[str, str]) -> None:
         with self._lock:
             inbox = self._taken.pop(key, None)
+            self._waiting.pop(key, None)
+            self._left[key] = None
+            while len(self._left) > self.LEFT:
+                del self._left[next(iter(self._left))]
         if inbox is not None:
             inbox.put(None)
 
@@ -184,7 +199,7 @@ class Subscription:
             yield one
 
     def close(self) -> None:
-        """Stops hearing it."""
+        """Stops hearing it, and drops whatever it is told from here on."""
         self._hub.leaves(self._key)
 
     def __enter__(self) -> Self:

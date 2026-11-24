@@ -3672,8 +3672,8 @@ message that carried it on in that new conversation.
 saying that the chat cannot be continued here.
 
 **8.7.8** A chat MUST NOT be carried on by resuming the workspace's last epic; it MUST be carried on
-only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat --resume`
-in [CLI]) or by saying something in it.
+only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat say` in
+[CLI]) or by saying something in it.
 
 **8.7.9** A chat that is carried on MUST record that it was opened again, once something is said
 in it (Section 8.7.4), MUST read back as going
@@ -4549,18 +4549,18 @@ with, else to the default targets.
 **11.3.4.2** A backup by hand MUST be refused for a target settings does not hold, and for an epic
 with no target to go to.
 
-**11.3.4.3** `hmz backup <epic>` MUST wait for the backup to finish, MUST state for each target
-whether it succeeded, naming the target's URL with any credential removed where it succeeded and the
-error where it failed, and MUST exit 0 where every target succeeded, 1 where any failed, and 2 for
-an epic or a target that does not exist or where there is no target.
+**11.3.4.3** `hmz backup run <epic>` MUST wait for the backup to finish unless it is told not to
+wait, MUST state for each target whether it succeeded, naming the target and when it was uploaded
+where it succeeded and the error where it failed, and MUST exit 0 where every target succeeded and
+1 where any failed, and for an epic or a target that does not exist or where there is no target,
+which the daemon refuses (Section 10.2 of [CLI]).
 
 **11.3.4.4** A frontend offering a backup by hand MUST return at once, and MUST then show how the
 backup went as the epic records it.
 
 **11.3.4.5** While `hmz backup` waits on a target -- backing up to it, listing it, or downloading
-from it -- and standard error is a terminal and escapes are allowed (Section 4.2 of [CLI]), it MUST
-draw a transient spinner there saying what it is doing and to which target, and MUST take it down
-before it states how that went.
+from it -- it MUST write nothing: what it states is stated once the daemon has answered, as a
+declared command states it (Section 16 of [CLI]).
 
 #### 11.3.5. Content and delivery
 
@@ -4611,8 +4611,10 @@ backup, and MUST read the list from the manifests there alone.
 in, its epic name, its flow, its task, when it began, when it ended, how it ended (empty where it
 had not ended when backed up) and the commit its manifest states (Section 11.4.2.3).
 
-**11.3.6.3** `hmz backup --list` MUST state, for each target named, else for every target, each epic
-it holds on one line: machine, workspace, epic name, ending (`unfinished` where none) and task.
+**11.3.6.3** `hmz backup list --target <target>` MUST state each epic the target named holds on one
+line: its epic key, which names its machine, its workspace and its epic name, then its ending
+(`unfinished` where none), its flow, whether this machine holds it and its task. Without `--target`
+it MUST state the backup targets instead (Section 10.3 of [CLI]).
 
 **11.3.6.4** Downloading an epic MUST import it exactly as importing a bundle does (Section 11.4.5),
 with the same refusals, an epic this machine backed up and still holds counting as an epic already
@@ -4624,14 +4626,15 @@ naming the target's URL with any credential removed.
 **11.3.6.6** hmz MUST refuse to download an epic key that is not three non-empty path segments, none
 starting with `.` and none containing `\`.
 
-**11.3.6.7** `hmz backup --pull <epic>` MUST download the epic, named by epic name or epic key, from
-the first target named, else from the first target, that holds it, and MUST print where it now is.
+**11.3.6.7** `hmz backup pull <epic> --target <target>` MUST download the epic, named by epic name
+or epic key, from the target named, and MUST print the name it now has here.
 
-**11.3.6.8** `hmz backup --pull` MUST state every target that cannot be reached, and MUST exit 1
-unless the epic was downloaded from another target; an epic already here MUST exit 1.
+**11.3.6.8** `hmz backup pull` MUST state why where the target cannot be reached, and MUST then
+exit 1; an epic already here MUST exit 1.
 
-**11.3.6.9** `hmz backup --pull` MUST be a usage error where every target answered and none holds
-the epic, or where a target holds epics of that name from more than one machine.
+**11.3.6.9** `hmz backup pull` MUST be refused, exiting 1 and downloading nothing, where the target
+does not hold the epic, or holds epics of that name from more than one machine, in which case it
+MUST name their epic keys.
 
 ### 11.4. Export and import
 

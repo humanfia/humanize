@@ -3244,12 +3244,13 @@ class Registry:  # the class's own name is Daemons
     def remove(self, name: str) -> None: ...
     def offered(self) -> dict[str, dict[str, Any]]: ...
     def imported(self, wanted: Sequence[str]) -> list[str]: ...
-    def remotes(self, version: str | None = None, *, install: bool | None = False) -> Remotes: ...
+    def remotes(self, version: str | None = None, *, install: bool | None = False,
+                kind: Kind = "sdk") -> Remotes: ...
 class Remotes:
     def state(self, name: str) -> dict[str, str]: ...
     def connect(self, name: str) -> dict[str, str]: ...
     def answer(self, name: str, install: bool) -> dict[str, str]: ...
-    def client(self, name: str) -> Client: ...
+    def client[Made: Client](self, name: str, made: type[Made] = Client) -> Made: ...
     def pair(self, name: str, code: str, *, device: str | None = None) -> dict[str, Any]: ...
     def close(self) -> None: ...
 class Unreached(RuntimeError):
@@ -3283,7 +3284,9 @@ as it is first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` 
 `stdio:ssh` route, or at the calling process's version where `version` is `None`. Where no `hmz` is
 on the machine of that route (Section 3.8.3.7 of [DAEMON]), `install` `False` MUST install nothing,
 as a client with no user to ask does (Section 3.8.3.10 of [DAEMON]); `True` MUST install unasked;
-and `None` MUST have the daemon `asking` until `Remotes.answer` answers it.
+and `None` MUST have the daemon `asking` until `Remotes.answer` answers it. Every session that
+`Remotes` opens MUST say `session.hello` with `kind`, which is `sdk`, `cli` or `tui` (Section 6.5 of
+[WIRE]) and `sdk` where it is not given.
 
 **4.14.7** `Remotes.state(name)` MUST return `{state, detail, version}`, `state` being one of
 `idle`, `connecting`, `asking`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling
@@ -3296,7 +3299,10 @@ where the `Remotes` is closing.
 **4.14.9** `Remotes.client(name)` MUST return the `Client` (Section 4.21) of the session to that
 daemon, reaching it first where needed, and MUST pin the id it answers where the entry's `id` is
 `""` (Section 3.8.2.7 of [DAEMON]); it MUST raise `Unreached` where the daemon cannot be reached,
-with `Unreached.seen` its state, and `LookupError` for an unknown name.
+with `Unreached.seen` its state, and `LookupError` for an unknown name. `Remotes.client(name, made)`
+MUST return that client as an instance of `made`, a subclass of `Client`, so that a caller whose
+clients do more -- `hmz.sdk.Client`, which has the families of Section 4.22 -- holds the one session
+as its own class and reaches into nothing of this one's.
 
 **4.14.10** `Remotes.pair(name, code, device=...)` MUST claim the pairing code over its routes as
 Section 4.5.7 of [WIRE] states, under the device name `device`, this machine's host name where it is
@@ -3716,9 +3722,15 @@ family.
 `nous`, `paths`, `runs`, `runtimes`, `settings` and `workspaces`. Each MUST be made when first read
 and MUST be the same object every time after.
 
-**4.22.2** `Family.METHODS` MUST name every method of [OPENRPC] the family calls, and every method
-of [OPENRPC] other than `session.hello`, `session.cancel` and `rpc.discover` MUST be named by
-exactly one family.
+**4.22.2** `Family.METHODS` MUST name the methods of [OPENRPC] that are the family's own: each one
+it makes by a method of its own that is that call and what it answers. Every method of [OPENRPC]
+other than `session.hello`, `session.cancel` and `rpc.discover` MUST be named by exactly one
+family. A family that, to do what one of its methods does, also calls a method another family names
+-- `Chats`, `Envs` and `AiChan` attaching to a host with `epic.attach` and letting go with
+`epic.detach`, `Envs` asking `hosts.status` and `chat.get`, `Backups.targets` reading `settings.get`
+(Section 4.26.10), `SideQuestions.sessions` reading `runs.get` and `chat.get` (Section 4.31.16) --
+MUST NOT name it. The methods of `chat.harness.*` are named by `Harness`, the family read as
+`Client.chats.harness`, and not by `Chats`.
 
 **4.22.3** A method of a family MUST make its calls through `Client.call`, so that Section 4.21.4
 and Section 4.21.7 hold of it; it MUST leave out of `params` every parameter it was given as `None`;
@@ -3730,6 +3742,13 @@ return with its answer, a `Subscription` whose `sub` is the subscription's. Iter
 the `params` of each notification of that subscription, in order, the ones that arrived before it
 was made included; `next(seconds)` MUST return the next, or `None` where none came within `seconds`
 or it was closed; `close()` MUST end the iteration and MUST NOT end the subscription at the daemon.
+A notification of a subscription that arrives after its `Subscription` was closed MUST be dropped,
+and MUST NOT be kept for a `Subscription` made later: a `sub` names one subscription of a session
+and no other (Section 6.8 of [WIRE]).
+
+**4.22.6** A method of a family that opens a subscription MUST have the client listening (Section
+4.22.5) before it makes the call that opens it, so that a notification the daemon sends before
+that call is answered is kept for the `Subscription` and not lost.
 
 **4.22.5** A `Client` whose families hold a `Subscription` MUST NOT also be given a listener with
 `Client.heard`; the second of the two MUST raise `RuntimeError` (Section 4.21.5).
@@ -3836,8 +3855,8 @@ class Sessions:        # frozen
 ```
 
 `Client.chats` is the family of `chat.*` (Section 4.25 of [DAEMON]); `hmz.sdk.families.chats` holds
-it and these types. `Chats.METHODS` names every method of `chat.*` and `chat.harness.*`, those of
-`Harness.METHODS` among them.
+it and these types. `Chats.METHODS` names every method of `chat.*` but those of `chat.harness.*`,
+which `Harness.METHODS` names (Section 4.22.2).
 
 **4.24.1** `start`, `say`, `commands`, `set`, `move`, `stop`, `list`, `get`, `rename`, `agent`,
 `fork`, `archive`, `unarchive`, `backup` and `delete` MUST each make the one call of `chat.*` of that
@@ -4236,8 +4255,8 @@ the `size` answered; a `Ran`; and a `Grepped`. They MUST NOT attach to the host.
 **4.27.2** `attached(workspace, slot=...)` MUST call `epic.attach` with `workspace`, `slot` and
 `replay` `false`, and MUST return an `Attached` of the subscription answered, with `sub`,
 `workspace` and `slot` as answered, once the host has sent `live` (Section 4.9.1 of [DAEMON]). The
-client MUST have its listener (Section 4.22.5) before `epic.attach` is called, so that nothing the
-host says to the subscription is lost.
+client MUST be listening before `epic.attach` is called (Section 4.22.6), so that nothing the host
+says to the subscription is lost.
 
 **4.27.3** Where `start` is `False`, `attached` MUST first call `hosts.status` with `workspace` and
 `slot`, and MUST raise what it refuses without calling `epic.attach`, so that no host is started.
@@ -4613,7 +4632,7 @@ class Node:      # frozen
 
 class Client:
     @classmethod
-    def named(cls, name: str) -> Client: ...
+    def named(cls, name: str, *, kind: Kind = "sdk") -> Client: ...
 ```
 
 The family `Runtimes` of this section is the calls of `runtimes.*` on a daemon, and is distinct from
@@ -4651,10 +4670,12 @@ and `version` being `""` and `up` and `uptime` `None` where the daemon said noth
 `runtimes.check`, `runtimes.hosts` and `runtimes.import`, and `EasyTier.METHODS` `easytier.list`,
 `easytier.set`, `easytier.remove` and `easytier.nodes`.
 
-**4.30.9** `Client.named(name)` MUST return a `Client` (Section 4.21) of a session with the daemon
-the registry of Section 4.14 keeps under `name`, reached as `Registry.remotes()` reaches it (Section
-4.14.6, Section 4.14.9) with `install` `False`: over its routes in order, pinning the id it answers
-where none is pinned, and never installing `hmz` on a machine that has none. It MUST wait for a
+**4.30.9** `Client.named(name, kind=...)` MUST return a `Client` (Section 4.21) of a session with
+the daemon the registry of Section 4.14 keeps under `name`, reached as `Registry.remotes(kind=kind)`
+reaches it (Section 4.14.6, Section 4.14.9) with `install` `False`: over its routes in order,
+pinning the id it answers where none is pinned, and never installing `hmz` on a machine that has
+none. The session MUST say `session.hello` with `kind`, `sdk` where it is not given; a declared
+command given `--daemon` (Section 23.5 of [CLI]) gives `cli`. It MUST wait for a
 daemon that is `connecting` or `installing` until it is `up` or `failed`.
 
 **4.30.10** `Client.named` MUST raise `LookupError` where the registry keeps no daemon under
@@ -4788,13 +4809,13 @@ be raised. Once the session has ended it MUST raise `ConnectionError`.
 
 **4.31.17** `AiChan.list()` MUST return `""` for a text a conversation's entry holds `null` for.
 
+**4.31.15** `Notice.of(said)` MUST return the `Notice` of one notice as a daemon says it (Section
+4.19.1.2 of [DAEMON]).
+
 **4.31.16** The `METHODS` of these three families MUST name the methods of `btw.*`, `aichan.*` and
 `notices.*` alone. The calls `AiChan` makes of `epic.*` and `SideQuestions.sessions` makes of
 `runs.get` and `chat.get` are named by the families of those methods (Section 4.22.2), and MUST be
 made as Section 4.22.3 states.
-
-**4.31.15** `Notice.of(said)` MUST return the `Notice` of one notice as a daemon says it (Section
-4.19.1.2 of [DAEMON]).
 
 ## 5. Security Considerations
 

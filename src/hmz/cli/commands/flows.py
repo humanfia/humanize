@@ -6,10 +6,19 @@ import json
 import re
 import shlex
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.cli.tree import UNREAD, Arg, Command, Example, Field, table
+from hmz.cli.tree import (
+    WORKSPACE,
+    Arg,
+    Command,
+    Example,
+    Field,
+    Unread,
+    table,
+    whole,
+    workspace,
+)
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -27,31 +36,17 @@ _ITEMS = re.compile(r",\s*(?=[A-Za-z_][\w-]*=)")
 #: The limits of a budget, as `-p budget.<limit>=` names each.
 _LIMITS = ("duration", "cost", "output_tokens")
 
-#: The code a line that cannot be read is answered with under `--json`: a bad request.
-_BAD = 400
-
-
-class _UnreadError(Exception):
-    """A line whose options cannot be read, with what is wrong with it."""
-
-
-def _at(said: str | None) -> str:
-    """A workspace as the daemon is told it: whole, the current directory where none was named."""
-    if said is None:
-        return str(Path.cwd())
-    return said if said.startswith(("/", "~")) else str(Path(said).absolute())
-
 
 def _named(flow: str) -> str:
     """A flow as the daemon is told it: a path written from here, whole; a name as it is."""
-    return str(Path(flow).absolute()) if flow.startswith(("./", "../")) else flow
+    return whole(flow) if flow.startswith(("./", "../")) else flow
 
 
 def _roles(given: Sequence[str] | None, flag: str) -> dict[str, str] | None:
     """What each role is given by every `-a`, or every `-e`: by role, as written after `=`.
 
     Raises:
-      _UnreadError: For an item that is not `<role>=<value>`, and for a role given twice.
+      Unread: For an item that is not `<role>=<value>`, and for a role given twice.
     """
     if not given:
         return None
@@ -61,7 +56,7 @@ def _roles(given: Sequence[str] | None, flag: str) -> dict[str, str] | None:
             role, written, rest = item.strip().partition("=")
             role, rest = role.strip(), rest.strip()
             if not written or not role or not rest:
-                raise _UnreadError(
+                raise Unread(
                     t(
                         "{flag} {item}: expected `ROLE=VALUE`",
                         flag=flag,
@@ -69,7 +64,7 @@ def _roles(given: Sequence[str] | None, flag: str) -> dict[str, str] | None:
                     )
                 )
             if role in said:
-                raise _UnreadError(
+                raise Unread(
                     t("{flag}: the role {role} is given twice", flag=flag, role=role)
                 )
             said[role] = rest
@@ -80,7 +75,7 @@ def _set_up(call: Call) -> dict[str, Any]:
     """What a line sets an epic up with, as `flows.check` and `flows.setup` take it.
 
     Raises:
-      _UnreadError: For an `-a`, `-e`, `-p` or `--backup` that cannot be read.
+      Unread: For an `-a`, `-e`, `-p` or `--backup` that cannot be read.
     """
     from hmz.runtime.flowing.specs import SpecError, parse_budget, parse_params
 
@@ -89,11 +84,11 @@ def _set_up(call: Call) -> dict[str, Any]:
         budget = parse_budget(params)
         read = parse_params(params)
     except SpecError as bad:
-        raise _UnreadError(str(bad)) from bad
+        raise Unread(str(bad)) from bad
     backup: list[str] | None = call.backup
     if backup is not None and "none" in backup:
         if set(backup) != {"none"}:
-            raise _UnreadError(
+            raise Unread(
                 t("`--backup none` cannot be given with another backup target")
             )
         backup = []
@@ -132,20 +127,6 @@ def _valued(text: str, kinds: set[str]) -> Any:
             except ValueError:
                 continue
     return text
-
-
-def _unread(call: Call, bad: _UnreadError) -> int:
-    """Says what is wrong with a line as a usage error is said, and answers its status.
-
-    Under `--json` it is the one document the command prints, and standard error stays empty.
-    """
-    if call.json:
-        call.answers({"error": {"code": _BAD, "message": str(bad)}})
-        return UNREAD
-    line = " ".join(["hmz", *call.path])
-    print(f"{line}: {bad}", file=sys.stderr)
-    print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-    return UNREAD
 
 
 def _limits(budget: Mapping[str, Any] | None) -> list[str]:
@@ -341,7 +322,7 @@ def _shown(flow: Declared) -> list[str]:
 
 
 def _list(call: Call) -> None:
-    offered = call.client.flows.list(_at(call.workspace))
+    offered = call.client.flows.list(workspace(call))
     call.answers(
         offered.answer,
         table([[one.name, one.whose, one.about] for one in offered.flows]),
@@ -354,7 +335,7 @@ def _list(call: Call) -> None:
 
 
 def _show(call: Call) -> None:
-    flow = call.client.flows.get(call.name, _at(call.workspace))
+    flow = call.client.flows.get(call.name, workspace(call))
     call.answers(flow.answer, _shown(flow))
 
 
@@ -398,12 +379,9 @@ def _backends(call: Call) -> None:
 
 
 def _check(call: Call) -> int | None:
-    try:
-        set_up = _set_up(call)
-    except _UnreadError as bad:
-        return _unread(call, bad)
+    set_up = _set_up(call)
     checked = call.client.flows.check(
-        _at(call.workspace), _named(call.flow), resume=call.resume or None, **set_up
+        workspace(call), _named(call.flow), resume=call.resume or None, **set_up
     )
     lines = [
         t("An epic set up like this can start."),
@@ -427,16 +405,13 @@ def _check(call: Call) -> int | None:
 
 
 def _setup(call: Call) -> int | None:
-    try:
-        set_up = _set_up(call)
-    except _UnreadError as bad:
-        return _unread(call, bad)
-    workspace = _at(call.workspace)
+    set_up = _set_up(call)
+    at = workspace(call)
     flows = call.client.flows
     # The line is the whole set-up: a role, a param or a profile it does not say is one the
     # workspace no longer keeps, as the page's form saves all of it at once.
     properties: Mapping[str, Mapping[str, Any]] = (
-        flows.get(call.flow, workspace).params.get("properties") or {}
+        flows.get(call.flow, at).params.get("properties") or {}
     )
     written: dict[str, str] = set_up["params"] or {}
     set_up |= {
@@ -449,14 +424,14 @@ def _setup(call: Call) -> int | None:
         "profile_flow": bool(call.profile_flow),
         "profile_environment": bool(call.profile_environment),
     }
-    flow = flows.setup(workspace, call.flow, **set_up)
+    flow = flows.setup(at, call.flow, **set_up)
     call.answers(
         flow.answer,
         [
             t(
                 "The set-up of the flow {flow} was saved for the folder {folder}.",
                 flow=flow.name,
-                folder=workspace,
+                folder=at,
             )
         ],
     )
@@ -464,16 +439,9 @@ def _setup(call: Call) -> int | None:
 
 
 def _fork(call: Call) -> None:
-    forked = call.client.flows.fork(_at(call.workspace), call.flow)
+    forked = call.client.flows.fork(workspace(call), call.flow)
     call.answers({"said": forked.said, "at": forked.at}, [forked.said])
 
-
-_WORKSPACE = Arg(
-    ("-w", "--workspace"),
-    "the workspace, a folder on the daemon's machine; the "
-    "current directory when not given",
-    metavar="PATH",
-)
 
 #: What `check` and `setup` take to say what an epic is set up with, as `hmz exec` spells it.
 _SET_UP = (
@@ -589,7 +557,7 @@ COMMANDS = (
             Command(
                 "list",
                 "list the flows on offer in a workspace",
-                args=(_WORKSPACE,),
+                args=(WORKSPACE,),
                 examples=(
                     Example(
                         "hmz flows list",
@@ -647,7 +615,7 @@ COMMANDS = (
                     Arg(
                         ("name",), "the name of the flow, as `hmz flows list` prints it"
                     ),
-                    _WORKSPACE,
+                    WORKSPACE,
                 ),
                 examples=(
                     Example(
@@ -759,7 +727,7 @@ COMMANDS = (
                         "check resuming the newest epic of this flow in the "
                         "workspace instead of starting a new one",
                     ),
-                    _WORKSPACE,
+                    WORKSPACE,
                 ),
                 examples=(
                     Example(
@@ -824,7 +792,7 @@ COMMANDS = (
                         ("flow",), "the name of the flow, as `hmz flows list` prints it"
                     ),
                     *_SET_UP,
-                    _WORKSPACE,
+                    WORKSPACE,
                 ),
                 examples=(
                     Example(
@@ -857,7 +825,7 @@ COMMANDS = (
                         ("flow",),
                         "the name of the flow to copy, as `hmz flows list` prints it",
                     ),
-                    _WORKSPACE,
+                    WORKSPACE,
                 ),
                 examples=(
                     Example(

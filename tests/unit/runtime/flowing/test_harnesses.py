@@ -833,6 +833,35 @@ async def test_a_turn_is_refused_once_a_turn_before_has_written_such_a_project(
     assert _cli(session).conversations[0].prompts == ["write an .mcp.json"]
 
 
+async def test_a_turn_stopped_while_its_project_is_still_read_is_stopped(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stop landing before the CLI is asked anything stops the turn about to ask it."""
+    monkeypatch.setattr(backends, "named", returning(Profile(launchers=MCP)))
+    stopping: list[HarnessSession] = []
+
+    def found(*_: Any) -> list[str]:
+        for session in stopping:
+            session.interrupt()
+        return []
+
+    monkeypatch.setattr(crossing, "found", found)
+    session = await _driven().open(
+        _on(SHADOW), permission=Permission(), skills=(), hooks=HookTable()
+    )
+    assert isinstance(session, HarnessSession)
+    stopping.append(session)
+
+    with pytest.raises(SessionError, match="interrupted"):
+        await session.turn(TurnRequest("never asked"), Sink())
+    assert "never asked" not in _cli(session).conversations[0].prompts
+
+    # The next turn is no longer stopped by it.
+    stopping.clear()
+    await session.turn(TurnRequest("asked"), Sink())
+    assert _cli(session).conversations[0].prompts == ["asked"]
+
+
 async def test_a_work_machine_that_cannot_be_read_drops_the_session(
     coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1213,6 +1242,17 @@ async def test_a_turn_with_nothing_left_to_spend_is_refused(
 
     with pytest.raises(kind):
         await session.turn(TurnRequest("x", limits=limits), Sink())
+
+
+async def test_a_turn_refused_before_it_began_leaves_none_in_flight(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    with pytest.raises(CostExceeded):
+        await session.turn(TurnRequest("x", limits=Limits(cost=0.0)), Sink())
+
+    assert await session.turn(TurnRequest("y"), Sink()) == _echo("y")
 
 
 async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(

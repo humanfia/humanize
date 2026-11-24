@@ -88,10 +88,11 @@ Options:
   -h, --help     show this help and exit
 
 Exit codes:
-  0  did what was asked
-  1  the daemon refused the request and its reason was printed
-  2  the command line could not be read
-  3  the daemon could not be reached
+  0    did what was asked
+  1    the daemon refused the request and its reason was printed
+  2    the command line could not be read
+  3    the daemon could not be reached
+  130  interrupted with ctrl+c
 
 Next steps:
   Run `hmz COMMAND --help` to read everything about one command.
@@ -265,7 +266,7 @@ def test_json_is_the_whole_command_line_as_one_document(
         "--daemon NAME",
         "--no-color",
     ]
-    assert list(said["conventions"]["exit_status"]) == ["0", "1", "2", "3"]
+    assert list(said["conventions"]["exit_status"]) == ["0", "1", "2", "3", "130"]
     assert "`error`" in said["conventions"]["json"]
     assert said["groups"] == [
         {"title": "Environments", "commands": ["env"]},

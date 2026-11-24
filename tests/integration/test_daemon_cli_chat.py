@@ -167,7 +167,7 @@ def test_a_chat_is_renamed_forked_archived_and_deleted_by_its_id(
 
     # Nobody is at a terminal here, so nothing is asked and nothing deleted without a yes.
     assert cli.main(["chat", "delete", fork]) == 1
-    assert "--yes" in capsys.readouterr().err
+    assert "`-y`" in capsys.readouterr().err
     assert _json(capsys, "delete", "--yes", fork) == {"deleted": fork}
     assert _json(capsys, "show", fork, status=1) == {
         "error": {"code": 404, "message": f"There is no chat {fork}."}

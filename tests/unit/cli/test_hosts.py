@@ -1,4 +1,4 @@
-"""`hmz hosts`: the hosts of a daemon listed with what each runs, and one closed."""
+"""`hmz hosts`: a daemon's hosts listed, one opened, its frontends let go, one closed."""
 
 from __future__ import annotations
 
@@ -100,3 +100,50 @@ def test_a_host_is_closed_by_its_workspace_and_slot(
     assert main(["hosts", "stop", "-w", "/w", "--slot", "exec:ab", "--json"]) == 0
     assert json.loads(capsys.readouterr().out) == {"workspace": "/w", "slot": "exec:ab"}
     hosts.stop.assert_called_with("/w", "exec:ab")
+
+
+def test_a_host_is_opened_without_attaching_and_its_slot_said(
+    hosts: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hosts.open.return_value = {
+        "pid": 41,
+        "workspace": "/w",
+        "started": "2026-01-01T00:00:00Z",
+        "kind": "host",
+        "protocol": "7",
+        "slot": "exec:ab",
+        "more": "not said",
+    }
+
+    assert main(["hosts", "open", "-w", "/w", "--slot", "exec:"]) == 0
+    assert capsys.readouterr().out == "41  /w  exec:ab\n"
+    hosts.open.assert_called_once_with("/w", "exec:")
+
+    assert main(["hosts", "open", "-w", "/w", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "pid": 41,
+        "workspace": "/w",
+        "started": "2026-01-01T00:00:00Z",
+        "kind": "host",
+        "protocol": "7",
+        "slot": "exec:ab",
+    }
+    hosts.open.assert_called_with("/w", "")
+
+
+def test_every_frontend_of_a_host_is_let_go_and_counted(
+    hosts: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hosts.detach.return_value = 1
+
+    assert main(["hosts", "detach", "-w", "/w"]) == 0
+    assert capsys.readouterr().out == "1 frontend let go.\n"
+    hosts.detach.assert_called_once_with("/w", "")
+
+    hosts.detach.return_value = 3
+    assert main(["hosts", "detach", "-w", "/w", "--slot", "chat:1f", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "workspace": "/w",
+        "slot": "chat:1f",
+        "let_go": 3,
+    }

@@ -93,7 +93,7 @@ hmz hosts list --running             # find the workspace and slot of another ep
 hmz epic stop -w ~/work/app --slot exec:1f2e
 ```
 
-`hmz hosts stop` closes the whole host instead, stopping the epic or chat it runs.
+`hmz hosts stop` closes the whole host instead, stopping the epic or chat it runs. `hmz epic quit` does the same as one of the host's frontends. `hmz hosts detach` stops nothing: it lets go every app, terminal and command following the host and leaves the epic running.
 
 ## What a stop leaves {#what-a-stop-leaves}
 

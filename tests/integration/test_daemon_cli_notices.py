@@ -231,7 +231,7 @@ def test_ai_chan_is_talked_to_renamed_and_forgotten(
 
     # Asked of nobody under `--json`, and so not forgotten until told to.
     assert cli.main(["ai", "forget", "1", "--json"]) == 1
-    assert "--yes" in json.loads(capsys.readouterr().out)["error"]["message"]
+    assert "`-y`" in json.loads(capsys.readouterr().out)["error"]["message"]
     assert _said(capsys, "ai", "forget", "1", "--yes") == {"id": 1}
     assert _said(capsys, "ai", "list") == {"conversations": []}
     assert cli.main(["ai", "say", "1", "anyone?"]) == 1

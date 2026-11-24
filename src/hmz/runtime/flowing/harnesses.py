@@ -1552,36 +1552,26 @@ class HarnessSession:
         with self._lock:
             if self._flying:
                 raise SessionError("a turn is already in flight in this session")
-        limits = request.limits
-        _refuse_spent(limits)
-        fence = self._agent.config.fence
-        if (
-            self._driver.harness is HarnessKind.GROK
-            and self._tools
-            and fence is not None
-            and not fence.writes
-        ):
-            # Grok Build takes the flow's tools only over the conversation it holds open, and
-            # holds open only a fence that writes somewhere: one that writes nothing is an
-            # allowlist of tools, which only `grok -p` carries, and `grok -p` takes no MCP
-            # server. Refused here, before the turn, so that whether the flow's tools reach
-            # grok turns on the fence alone.
-            raise HarnessUnrecoverable(
-                f"{self._driver.harness}: a turn whose fence writes nothing cannot be "
-                "offered the flow's own callbacks"
+            # In flight from the moment it is asked for, so that a stop landing while the
+            # CLI's settings are still being read stops this turn rather than none.
+            self._flying = True
+            self._interrupted = False
+            self._over = None
+            self._steers = []
+            self._steer_cut = False
+        try:
+            body, goal = self._opening(request)
+            # Asked again before every turn and not only as the session opened: the CLI reads
+            # its project's settings as each turn starts it, and a turn before may have written
+            # some.
+            await asyncio.to_thread(
+                self._driver.crossed, self._agent.config.machine, self._session.cwd
             )
-        goal = (
-            request.prompt.startswith(_GOAL)
-            and GoalCommandAgentMixin in self._driver.capabilities
-        )
-        body = request.prompt.removeprefix(_GOAL) if goal else request.prompt
-        self._native = request.native and not goal
-        # Asked again before every turn and not only as the session opened: the CLI reads its
-        # project's settings as each turn starts it, and a turn before may have written some.
-        await asyncio.to_thread(
-            self._driver.crossed, self._agent.config.machine, self._session.cwd
-        )
-        self._begin(sink, limits)
+        except BaseException:
+            with self._lock:
+                self._flying = False
+            raise
+        self._begin(sink, request.limits)
         try:
             if not self._started:
                 self._started = True
@@ -1621,7 +1611,7 @@ class HarnessSession:
         finally:
             self._end()
         if self._over is not None:
-            raise self._exceeded(self._over, limits)
+            raise self._exceeded(self._over, request.limits)
         if self._interrupted:
             # Interrupted between two of the CLI's turns -- while a STOP hook was deciding --
             # which is the turn interrupted all the same.
@@ -1630,19 +1620,46 @@ class HarnessSession:
             return harnessing.read_shape(said, request.output_schema)
         return said
 
+    def _opening(self, request: TurnRequest) -> tuple[str, bool]:
+        """What a turn says to the CLI, and whether as a goal; refuses one it cannot take.
+
+        Raises:
+          BudgetExceeded: For a turn whose limits are already spent.
+          HarnessUnrecoverable: For a grok turn the flow's own callbacks cannot be offered in.
+        """
+        _refuse_spent(request.limits)
+        fence = self._agent.config.fence
+        if (
+            self._driver.harness is HarnessKind.GROK
+            and self._tools
+            and fence is not None
+            and not fence.writes
+        ):
+            # Grok Build takes the flow's tools only over the conversation it holds open, and
+            # holds open only a fence that writes somewhere: one that writes nothing is an
+            # allowlist of tools, which only `grok -p` carries, and `grok -p` takes no MCP
+            # server. Refused here, before the turn, so that whether the flow's tools reach
+            # grok turns on the fence alone.
+            raise HarnessUnrecoverable(
+                f"{self._driver.harness}: a turn whose fence writes nothing cannot be "
+                "offered the flow's own callbacks"
+            )
+        goal = (
+            request.prompt.startswith(_GOAL)
+            and GoalCommandAgentMixin in self._driver.capabilities
+        )
+        body = request.prompt.removeprefix(_GOAL) if goal else request.prompt
+        self._native = request.native and not goal
+        return body, goal
+
     def _begin(self, sink: UsageSink, limits: Limits) -> None:
         """Starts counting a turn: its sink, its limits and its clocks."""
         with self._lock:
-            self._flying = True
             self._sink = sink
             self._limits = limits
             self._last = time.monotonic()
             self._turn_cost = 0.0
             self._turn_tokens = 0
-            self._over = None
-            self._interrupted = False
-            self._steers = []
-            self._steer_cut = False
         loop = self._loop
         if limits.deadline is not None and not limits.deadline_graceful:
             self._timers.append(

@@ -133,7 +133,7 @@ def _pair(call: Call) -> None:
     if not call.replace:
         _free(call.name)
     code = sys.stdin.read().strip() if call.code == "-" else call.code
-    remotes = _registry().remotes()
+    remotes = _registry().remotes(kind="cli")
     try:
         written = remotes.pair(call.name, code, device=call.device)
     except ValueError as why:

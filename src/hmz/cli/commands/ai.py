@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.cli.tree import Arg, Command, Example, Field, table
+from hmz.cli.tree import YES, Arg, Command, Example, Field, sure, table, workspace
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -38,15 +36,12 @@ def _new(call: Call) -> None:
     scope: str = call.scope or (
         "epic" if call.epic else "workspace" if given else "daemon"
     )
-    if given is None:
-        workspace = str(Path.cwd()) if scope in ("workspace", "epic") else None
-    else:
-        # `~` is the daemon's to expand, on its own machine.
-        workspace = given if given.startswith("~") else str(Path(given).absolute())
+    # A daemon scope is of no workspace, so the folder this is typed in is not one either.
+    at = workspace(call) if given or scope in ("workspace", "epic") else None
     made = call.client.aichan.create(
         call.task,
         scope=scope,
-        workspace=workspace,
+        workspace=at,
         epic=call.epic,
         nous=call.nous,
         preset=call.preset,
@@ -103,21 +98,18 @@ def _rename(call: Call) -> None:
 
 
 def _forget(call: Call) -> None:
-    from hmz.sdk import Refused
-
     if not call.yes:
         # Read before anything is asked: one that is not there is refused as that.
         one = call.client.aichan.get(call.id)
-        if call.json or not sys.stdin.isatty():
-            raise Refused(t("Nobody can be asked here; give `--yes` to delete."))
-        asked = t(
-            "Delete conversation {id} ({title}) with Ai-chan? It cannot be brought back.",
-            id=one.id,
-            title=one.title,
+        sure(
+            call,
+            t(
+                "Delete conversation {id} ({title}) with Ai-chan? "
+                "It cannot be brought back.",
+                id=one.id,
+                title=one.title,
+            ),
         )
-        print(f"{asked} [y/N] ", end="", file=sys.stderr, flush=True)
-        if sys.stdin.readline().strip().lower() not in ("y", "yes"):
-            raise Refused(t("The conversation was not deleted."))
     call.client.aichan.forget(call.id)
     call.answers({"id": call.id}, [t("Deleted")])
 
@@ -343,7 +335,7 @@ COMMANDS = (
                 says="Deletes the conversation and closes its host; it cannot be brought "
                 "back. Asks first on standard error unless `--yes` is given; where nobody "
                 "is at a terminal, or with `--json`, `--yes` is needed.",
-                args=(_ID, Arg(("-y", "--yes"), "delete without asking")),
+                args=(_ID, YES),
                 examples=(
                     Example("hmz ai forget 3", "asks, then deletes conversation 3"),
                     Example(

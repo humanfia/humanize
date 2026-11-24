@@ -66,6 +66,8 @@ class Daemon:
         self.answers: dict[str, Any] = {}
         self.envs = [ENV, FORK, SHUT] if envs is None else envs
         self.keys: list[str | None] = []
+        #: The subscription attached last: each has a name no other of the session has.
+        self.sub = "s0"
 
     def _call(
         self,
@@ -78,10 +80,11 @@ class Daemon:
         self.asked.append((method, params))
         self.keys.append(idem)
         if method == "epic.attach":
+            self.sub = f"s{int(self.sub[1:]) + 1}"
             self.says({"type": "welcome"})
             self.says({"type": "envs", "envs": self.envs})
             self.says({"type": "live", "seq": 0})
-            return {"sub": "s1", "client": "c1", "workspace": "/w", "slot": ""}
+            return {"sub": self.sub, "client": "c1", "workspace": "/w", "slot": ""}
         answer = self.answers.get(method, {})
         if isinstance(answer, Exception):
             raise answer
@@ -89,10 +92,10 @@ class Daemon:
             return answer.pop(0)  # pyright: ignore[reportUnknownVariableType]
         return answer
 
-    def says(self, message: dict[str, Any], sub: str = "s1") -> None:
-        """What the host tells the frontend, as the client's listener hears it."""
+    def says(self, message: dict[str, Any], sub: str | None = None) -> None:
+        """What the host tells the frontend attached last, as the client's listener hears it."""
         (listener,), _ = self.client.heard.call_args
-        listener("epic.event", {"sub": sub, "message": message})
+        listener("epic.event", {"sub": sub or self.sub, "message": message})
 
     def of(self, method: str) -> list[dict[str, Any]]:
         """What each call of one method was given."""
@@ -249,7 +252,7 @@ def test_a_host_that_lets_go_before_it_is_live_is_a_refusal() -> None:
 
     def call(method: str, params: dict[str, Any], **_: Any) -> Any:
         if method == "epic.attach":
-            daemon.says({"type": "gone", "why": "the host was closed"})
+            daemon.says({"type": "gone", "why": "the host was closed"}, "s1")
             return {"sub": "s1", "client": "c1", "workspace": "/w", "slot": ""}
         return {}
 
