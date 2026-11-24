@@ -2093,7 +2093,158 @@ that cannot be reached, saying how it stands.
 
 ## 24. `hmz btw`, `hmz ai` and `hmz notices`
 
-This section is reserved for `hmz btw`, `hmz ai` and `hmz notices`, the declared commands of `btw.*`, `aichan.*` and `notices.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 24.1. Synopsis
+
+```text
+hmz btw ask <question> [--to <session>] [--aside <name>] [-w <path>] [--epic <name> | --chat <name>]
+hmz btw sessions (--epic <name> | --chat <name>)
+hmz btw list [-w <path>] [--epic <name> | --chat <name>]
+hmz btw show <aside> [-w <path>] [--epic <name> | --chat <name>]
+hmz btw leave (<aside> | --all) [-w <path>]
+hmz ai new <task> [--scope <scope>] [-w <path>] [--epic <name>] [--nous <nous>]
+                  [--preset <preset>] [--wait] [--timeout <seconds>]
+hmz ai list
+hmz ai rename <id> <title>
+hmz ai forget <id> [-y]
+hmz ai say <id> <text> [--no-wait] [--timeout <seconds>]
+hmz ai wait <id> [--timeout <seconds>]
+hmz ai stop <id>
+hmz notices list [--after <id>] [--kind <kind>]...
+hmz notices follow [--after <id>] [--kind <kind>]...
+```
+
+**24.1.1** `hmz btw`, `hmz ai` and `hmz notices` MUST each be a group of declared commands (Section
+16), with the summaries `ask side questions of a session of an epic or chat`, `talk to Ai-chan, who
+operates hmz for you` and `list and follow what this daemon tells you about your epics and chats`.
+
+**24.1.2** `-w`, `--workspace` MUST name a workspace of the daemon's machine: a path beginning `~`
+MUST be sent as it is written, any other path MUST be made absolute against the working directory,
+and where the option is absent the working directory MUST be sent, but where 24.3.1 states
+otherwise.
+
+### 24.2. `hmz btw`
+
+**24.2.1** `--epic` and `--chat` MUST be sent as the `epic` and the `chat` of `btw.ask` and
+`btw.list` (Section 4.15 of [DAEMON]), each left out where it is absent; a line giving both MUST be
+refused with status 1 and MUST call nothing.
+
+**24.2.2** `hmz btw ask <question>` MUST call `btw.ask` with `question`, the workspace of 24.1.2,
+`--to` as `to` and `--aside` as `aside`, and MUST write the answer and a line feed to standard
+output. Where `--aside` is absent it MUST name a new side conversation itself, and, without
+`--json`, MUST then write that name to standard error with the `--aside` that goes on in it. Its
+JSON document MUST be `{"aside", "to", "question", "answer"}`.
+
+**24.2.3** Where `--to` is absent and `--aside` names a side conversation `btw.list` answers, `hmz
+btw ask` MUST ask the session that side conversation asks. Otherwise, where `--to` is absent, `hmz
+btw ask` with `--chat` MUST ask the last session the chat
+opened, as `hmz btw sessions` names it, and MUST be refused with status 1, `This chat has said
+nothing to ask about yet.`, where the chat opened none; without `--chat` it MUST be refused with
+status 1, `Pick the conversation to ask first.`
+
+**24.2.4** `hmz btw sessions` MUST take exactly one of `--epic` and `--chat`, MUST read the epic's
+sessions from `runs.get` or the chat's from `chat.get`, and MUST write one line per session, oldest
+first: `<agent>/<n>`, `<agent>` the name of the session's agent and `<n>` counting that agent's
+sessions from 1 in the order the daemon answers them, and its harness. Its JSON document MUST be
+`{"sessions": [{"session", "agent", "harness"}]}`.
+
+**24.2.5** `hmz btw list` MUST call `btw.list` and write one line per side conversation, in the
+daemon's order: its name, the session it asks, how many questions it has answered and the question
+it is answering, in columns. Its JSON document MUST be `{"asides": [{"aside", "to", "question",
+"said": [{"question", "answer"}]}]}`.
+
+**24.2.6** `hmz btw show <aside>` MUST call `btw.list` and write, for each question the side
+conversation of that name answered, oldest first, `> ` and the question on one line and its answer
+after it, an empty line between two. Its JSON document MUST be that side conversation's entry of
+24.2.5. A name of no side conversation listed MUST be refused with status 1.
+
+**24.2.7** `hmz btw leave <aside>` MUST call `btw.leave` with that `aside`, and `hmz btw leave
+--all` MUST call it with none; a line giving both or neither MUST be refused with status 1 and MUST
+call nothing. Its JSON document MUST be `{"aside": <name>}`, `null` for `--all`.
+
+### 24.3. `hmz ai`
+
+**24.3.1** `hmz ai new <task>` MUST call `aichan.create` (Section 4.22 of [DAEMON]) with `task`,
+`--nous` as `nous` and `--preset` as `preset`, each left out where absent, and `scope` being
+`--scope` where given, else `epic` where `--epic` is given, else `workspace` where `--workspace` is
+given, else `daemon`. It MUST send `--epic` as `epic` where given, and as `workspace` what
+`--workspace` names where given, else the working directory for the scopes `workspace` and `epic`,
+else nothing. It MUST write the conversation's `id` and a line feed to standard output, before it
+waits for anything.
+
+**24.3.2** With `--wait`, `hmz ai new` MUST then wait as `hmz ai wait` does and write what Ai-chan
+said after the `id`. Its JSON document MUST be `{"id", "workspace", "slot", "answer", "mode"}`,
+`answer` and `mode` being `null` without `--wait`.
+
+**24.3.3** `hmz ai list` MUST call `aichan.list` and write one line per conversation, in the
+daemon's order: its `id`, `state`, `scope`, `preset`, `nous` and `title`, in columns. Its JSON
+document MUST be `{"conversations": [...]}`, each as `aichan.list` answers it.
+
+**24.3.4** `hmz ai rename <id> <title>` MUST call `aichan.rename`. Its JSON document MUST be `{"id",
+"title"}`, `title` as it was given.
+
+**24.3.5** `hmz ai forget <id>` MUST call `aichan.forget`. Without `--yes` it MUST first read the
+conversation (`aichan.list`), ask on standard error, naming it by its `id` and title and saying that
+it cannot be brought back, and MUST forget it only where `y` or `yes` is then read from standard
+input, compared without regard to case; where standard input is not a terminal, or under `--json`,
+it MUST read nothing and say to give `--yes`. A conversation not forgotten for want of a yes MUST
+exit with status 1. Its JSON document MUST be `{"id"}`.
+
+**24.3.6** `hmz ai say <id> <text>` MUST attach to the conversation's host (`epic.attach` with its
+`workspace` and `slot` and `replay` `false`, which carries a folded conversation on, Section 4.22.5
+of [DAEMON]), and MUST then answer the first question the host's status holds (`epic.answer`) with
+`<text>`, or, where it holds none and its `turn` is `running`, say `<text>` into the turn
+(`epic.say`). It MUST wait while the host holds no question and its turn is not open, and MUST
+detach (`epic.detach`) however it ends.
+
+**24.3.7** Unless `--no-wait` is given, `hmz ai say` MUST then wait until the host's status holds a
+question it did not hold when `<text>` was sent, and MUST write that question's `text` and a line
+feed to standard output. Its JSON document MUST be `{"id", "answer", "mode"}`, `answer` that `text`
+and `mode` that question's `mode`, both `null` with `--no-wait`.
+
+**24.3.8** `hmz ai wait <id>` MUST attach as 24.3.6 states, wait until the host's status holds a
+question, write the first one's `text` and a line feed to standard output, and detach. Its JSON
+document MUST be `{"id", "answer", "mode"}`.
+
+**24.3.9** Where the host holds no question, its turn is not open and its `ended` says how it
+ended and that is not `stopped`, `hmz ai say`, `hmz ai wait` and `hmz ai new --wait` MUST be refused with status 1 and that `why`,
+or `This conversation failed. Start a new one.` where it says none. Where `--timeout` seconds,
+`600` where absent, pass before what is waited for comes, each MUST end as a daemon that did not
+answer in time (Section 16.9).
+
+**24.3.10** `hmz ai stop <id>` MUST call `epic.stop` on the conversation's host, attached to and
+let go of as 24.3.6 states, and MUST NOT attach to a conversation whose `state` is `folded`, which
+it MUST refuse with status 1, `Ai-chan is not answering, so there is nothing to stop`. Its JSON
+document MUST be `{"id"}`.
+
+**24.3.11** An `<id>` of no conversation MUST be refused with status 1, `There is no Ai-chan
+#<id>.`, by every command of 24.3 that takes one.
+
+### 24.4. `hmz notices`
+
+**24.4.1** `hmz notices list` MUST call `notices.list` (Section 4.19.2 of [DAEMON]) with `--after`
+as `after` and write one line per notice, oldest first: its `id`, when it was made in local time
+as `YYYY-MM-DD HH:MM:SS`, its kind as the web interface names it (`Done`, `Failed`, `Stopped`,
+`Question`, `Waiting`), its `chat` or else its `epic`, and the first line of its `text` that says
+anything, or else of its `task`, in columns. Its JSON document MUST be `{"notices": [...], "last":
+<id>}`, each notice as the daemon answers it and `last` the `id` of the newest notice the daemon
+has made.
+
+**24.4.2** `--kind`, which MAY be given more than once and MUST be one of `done`, `failed`,
+`stopped`, `asked` and `listening`, MUST leave out every notice whose `kind` is none of those
+given; it MUST NOT change `last`.
+
+**24.4.3** `hmz notices follow` MUST open a notices subscription (`notices.subscribe`) with
+`--after` as `after` and MUST write each notice it is told as a line of 24.4.1, as it is told. Under
+`--json` it MUST write each notice as one JSON document and a line feed instead, which is the
+exception to Section 16.7. Each line MUST be written out at once.
+
+**24.4.4** Told that the subscription has gone (Section 6.10.1 of [WIRE]), `hmz notices follow`
+MUST subscribe again after the last notice it was told, or, where it was told none, after the
+`after` it gave or the `last` its first subscription was answered with.
+
+**24.4.5** `hmz notices follow` MUST run until it is interrupted, when it MUST end the subscription
+(`notices.unsubscribe`) and exit with status 130; where the session with the daemon ends first it
+MUST exit as a daemon that cannot be reached (Section 16.9).
 
 ## 25. `hmz skills`
 
