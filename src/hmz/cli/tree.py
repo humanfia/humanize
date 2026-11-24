@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DONE",
     "INTERRUPTED",
+    "LOCALLY",
     "REFUSED",
     "UNREACHED",
     "UNREAD",
@@ -205,7 +206,7 @@ class Command:
         for status in self.exits:
             yield status.says
         if self.local:
-            yield _LOCALLY.says
+            yield LOCALLY.says
         elif YES in self.args:
             yield _ASKED.says
         for under in self.commands:
@@ -250,7 +251,7 @@ _ASKED: Final = Exit(
 )
 
 #: What a command that asks no daemon ends with where it will not do what was asked.
-_LOCALLY: Final = Exit(REFUSED, "the request was refused and the reason was printed")
+LOCALLY: Final = Exit(REFUSED, "the request was refused and the reason was printed")
 
 
 def _common(command: Command) -> tuple[Arg, ...]:
@@ -269,7 +270,7 @@ def _statuses(command: Command) -> list[Exit]:
     if command.local:
         # Nobody is asked, so nobody is unreached, and whatever refuses is this machine.
         del common[UNREACHED]
-        common[REFUSED] = _LOCALLY
+        common[REFUSED] = LOCALLY
     elif YES in command.args:
         common[REFUSED] = _ASKED
     own = {one.code: one for one in command.exits}

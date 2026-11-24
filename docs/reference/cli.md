@@ -61,7 +61,7 @@ python -m hmz ...
 
 `hmz help completions bash`, `zsh` or `fish` prints a completion script for that shell; see [hmz help](#hmz-help). Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update`, `backup` and `help` do not.
+`hmz`, `exec`, `web`, `daemon connect` and every [declared command](#declared-commands) that asks this machine's daemon start the daemon if none runs. `relay`, `update`, `help` and `skills` do not, and neither does a command given `--daemon <name>` for another machine's daemon.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -76,7 +76,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | `126` | `hmz internal fence` could not put the fence up. |
 | `127` | `hmz internal anchor`, `cred` or `fence` found no `coganchor` binary for this machine, `anchor --native` found no such harness on the target, or `fence` could not start its program. |
 | `129` | `exec` or `chat` ended on SIGHUP. |
-| `130` | `exec` or `chat` ended on SIGINT, or `daemon connect --stdio` or `hmz internal anchor` was interrupted. |
+| `130` | `exec` or `chat` ended on SIGINT, or a [declared command](#declared-commands), `daemon connect --stdio` or `hmz internal anchor` was interrupted with Ctrl+C. |
 | `143` | `exec` or `chat` ended on SIGTERM. |
 
 ## Output streams
@@ -86,7 +86,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | stdout | Machine-readable output: help, version, turn answers, the NDJSON stream, listing lines, addresses, pairing codes, paths. |
 | stderr | Progress, spinners and diagnostics. Diagnostics start with `hmz: ` or the command's name, such as `hmz exec: `. |
 
-Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz daemon pair` code. Every other printed URL has its credentials removed.
+Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz devices pair` code. Every other printed URL has its credentials removed.
 
 The first matching rule sets colour per stream:
 
@@ -305,7 +305,7 @@ Running daemons continue on the old release until restarted. See [Install and up
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` and `hmz help` are commands written as one declaration. Every such command prints the same kind of help and takes the same options. All but `hmz help` are clients of the daemon; a command that asks no daemon takes no `--daemon`, exits 1 when it refuses, and never exits 3.
+Every command but `exec`, `web`, `daemon`, `relay`, `update` and `internal` is written as one declaration. Every such command prints the same kind of help and takes the same options. All but `hmz help` and `hmz skills` are clients of the daemon; a command that asks no daemon takes no `--daemon`, exits 1 when it refuses, and never exits 3.
 
 | Option | What it does |
 | --- | --- |
@@ -321,9 +321,14 @@ Help wraps to the terminal's width, up to 100 columns, and to 80 columns when st
 | Status | Meaning |
 | --- | --- |
 | `0` | The command did what was asked. |
-| `1` | The daemon refused the request. |
+| `1` | The daemon refused the request, or a question the command asked was not answered yes. |
 | `2` | The command line could not be read. |
-| `3` | The daemon could not be reached. |
+| `3` | The daemon could not be reached, did not answer in time, or went away while the command ran. |
+| `130` | The command was interrupted with Ctrl+C. Nothing more is printed, and whatever the daemon holds goes on. |
+
+A command that removes something asks first and takes `-y`/`--yes` to skip the question. It asks on standard error and only at a terminal: with `--json`, or when standard input is not a terminal, it exits 1 without `--yes`, as it does for any answer but `y` or `yes`. Nothing is changed in either case.
+
+A relative `-w`/`--workspace` path is read from the directory the command is typed in. A path beginning `~` is expanded by the daemon, on its own machine.
 
 On failure, the command writes `hmz <command>: <message>` to standard error. With `--json` it prints `{"error": {"code": <code>, "message": <message>}}` on standard output instead; `code` is the daemon's error code, `503` if the daemon is unreachable, or `504` if it did not answer in time.
 
@@ -722,6 +727,10 @@ Prints that the conversation was deleted.
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `id` | `integer` | The conversation's number. |
+
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
 
 Daemon methods: `aichan.list`, `aichan.forget`.
 
@@ -1147,6 +1156,7 @@ Prints the agent's answer on standard output, and the chat's id and the turn as 
 | Status | Meaning |
 | --- | --- |
 | `129` | A hangup (SIGHUP) ended the command; the chat goes on in the daemon. |
+| `130` | An interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon. |
 | `143` | A termination signal (SIGTERM) ended the command; the chat goes on in the daemon. |
 
 Daemon methods: `chat.start`, `chat.say`, `epic.attach`, `epic.detach`, `settings.get`.
@@ -1186,6 +1196,7 @@ Prints the agent's answer on standard output, and the chat's id and the turn as 
 | Status | Meaning |
 | --- | --- |
 | `129` | A hangup (SIGHUP) ended the command; the chat goes on in the daemon. |
+| `130` | An interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon. |
 | `143` | A termination signal (SIGTERM) ended the command; the chat goes on in the daemon. |
 
 Daemon methods: `chat.get`, `chat.say`, `chat.start`, `epic.attach`, `epic.detach`.
@@ -1458,6 +1469,10 @@ Prints nothing on standard output, and asks the question on standard error.
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `deleted` | `string` | The id of the chat that was deleted. |
+
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
 
 Daemon methods: `chat.get`, `chat.delete`.
 
@@ -2462,6 +2477,10 @@ Prints the question on standard error, and then `Deleted`.
 | --- | --- | --- |
 | `path` | `string` | The path as given on the command line. |
 
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
+
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.remove`, `epic.detach`.
 
 ### hmz env exec
@@ -2696,6 +2715,10 @@ The paths acted on, one per line.
 | --- | --- | --- |
 | `paths` | `list` | The paths that were acted on. |
 
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
+
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.git.status`, `env.git.discard`, `epic.detach`.
 
 ### hmz env git commit
@@ -2785,6 +2808,10 @@ Prints the question on standard error, and then that the environment was rewound
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `ref` | `string` | The snapshot the environment was rewound to. |
+
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
 
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.git.rewind`, `epic.detach`.
 
@@ -2946,6 +2973,10 @@ One line naming the epic's number, workspace and slot. With `--follow`, that lin
 | `slot` | `string` | The slot of the host that holds it, to pass as `--slot`. |
 | `workspace` | `string` | The workspace it runs in, to pass as `--workspace`. |
 
+| Status | Meaning |
+| --- | --- |
+| `130` | Interrupted while following; the epic goes on. |
+
 Daemon methods: `epic.attach`, `epic.afk`, `epic.start`, `epic.detach`.
 
 ### hmz epic attach
@@ -2976,6 +3007,10 @@ What each agent does on standard error and each answer on standard output, as `h
 | `run` | `integer` | Of a history record, the epic's number. |
 | `question` | `string` | Of `asked`, the id to answer it by with `hmz epic answer`. |
 | `how` | `string` | Of `ended`: `done`, `stopped`, `budget`, `refused`, `failed` or `crashed`. |
+
+| Status | Meaning |
+| --- | --- |
+| `130` | Interrupted while following; the epic goes on. |
 
 Daemon methods: `hosts.status`, `epic.attach`, `epic.detach`.
 
@@ -3185,6 +3220,10 @@ What `hmz epic attach` prints.
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `type` | `string` | What the message is, as `hmz epic attach --json` writes it. |
+
+| Status | Meaning |
+| --- | --- |
+| `130` | Interrupted while following; the epic goes on. |
 
 Daemon methods: `hosts.status`, `epic.attach`, `epic.claim`, `epic.answer`, `epic.detach`.
 
@@ -3750,6 +3789,10 @@ Prints what was done, in one line.
 | `updates[].from` | `string` | The release installed. |
 | `updates[].to` | `string` | The newest release. |
 
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
+
 Daemon methods: `flowverses.remove`.
 
 ### hmz flowverses install
@@ -3837,6 +3880,10 @@ Prints what was done, in one line.
 | `updates[].flow` | `string` | The name of the flow. |
 | `updates[].from` | `string` | The release installed. |
 | `updates[].to` | `string` | The newest release. |
+
+| Status | Meaning |
+| --- | --- |
+| `1` | The daemon refused it, or you did not answer yes. |
 
 Daemon methods: `flowverses.uninstall`.
 

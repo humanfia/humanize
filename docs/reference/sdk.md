@@ -440,6 +440,8 @@ class Client:
     @classmethod
     def local(cls, *, name: str = "", kind: str = "sdk") -> Client
     @classmethod
+    def named(cls, name: str, *, kind: str = "sdk") -> Client
+    @classmethod
     def over(cls, pipe: Pipe, *, name: str = "", kind: str = "sdk") -> Self
     def call(self, method: str, params: Mapping[str, Any] | None = None, *,
              idem: str | None = None, seconds: float | None = None) -> Any
@@ -458,6 +460,7 @@ Manages a direct RPC session with a daemon. A context manager. See [Daemon and w
 | Member | What it does |
 | --- | --- |
 | `local(name="", kind="sdk")` | Connects to this machine's daemon over its Unix socket, starting it if needed. `kind` is `sdk`, `cli`, `tui`, or `ai-chan`. `ai-chan` connects over the scoped link named by [`HUMANIZE_AICHAN_LINK`](/reference/environment) instead and starts no daemon. Raises `OSError` if unreachable, unable to start, on a protocol mismatch, or, for `ai-chan`, if the variable names no link. |
+| `named(name, kind="sdk")` | Connects to another machine's daemon by the name it is kept under (`hmz daemons list`), over its routes, as the kind of client given. It never installs `hmz` there. Raises `LookupError` if no daemon is kept under that name and `OSError` if it cannot be reached. Closing the client lets go of everything that reached it. |
 | `over(pipe, name="", kind="sdk")` | Opens a session over an existing trusted pipe. |
 | `call(method, params=None, *, idem=None, seconds=None)` | Calls an RPC method and returns the result. `idem` sets the idempotency key for writes. Raises `Refused` (with `code` and `data`) on error, or `TimeoutError` after `seconds`. |
 | `heard(listener)` | Calls `listener(method, params)` in order on a background thread for each notification. Raises `RuntimeError` if already set. |
@@ -479,7 +482,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | Attribute | Methods |
 | --- | --- |
 | `devices` | `pair.*`, `devices.*` |
-| `chats` | `chat.*` |
+| `chats`, `chats.harness` | `chat.*`, `chat.harness.*` |
 | `epics`, `hosts` | `epic.*`, `hosts.*` |
 | `runs`, `backups`, `files` | `runs.*`, `backups.*`, `files.*` |
 | `envs` | `env.*`, `hosts.env.*` |
@@ -555,7 +558,7 @@ with Client.local() as client:
         print(account.cli, account.name or "Local", account.sets)
 ```
 
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening; what the daemon says to it after that is dropped. A client whose families subscribe cannot also take a listener through `heard`.
 
 #### runs {#client-runs}
 
@@ -605,8 +608,6 @@ File handles carry a file over the session in chunks of at most `CHUNK` (1 MiB).
 | `read(handle, offset, length=CHUNK)` | `Chunk` | Reads a chunk. A `Chunk` has `data` and `eof`. |
 | `close(handle)` | `None` | Ends a handle. |
 
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
-
 #### runtimes {#client-runtimes}
 
 The runtimes a daemon has saved. This family asks a daemon; [`Hmz().runtimes`](#runtimes) reads this machine's files instead.
@@ -636,8 +637,6 @@ with Client.local() as client:
 | `set(name, nodes, *, secret=None, idem=None)` | tuple of `Network` | Saves an entry. `secret=None` keeps the saved secret. |
 | `remove(name, *, idem=None)` | tuple of `Network` | Removes an entry the daemon does not listen on. |
 | `nodes()` | tuple of `Node` | The shared nodes on offer. A `Node` has `url`, `name`, `version`, `up` and `uptime`; the last two are `None` if unknown. |
-
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 #### flows {#client-flows}
 
@@ -698,8 +697,6 @@ A change returns the flowverses as they are after it, with `said`, what was done
 | `complete(typed)` | list of `str` | The folders a partly typed path could become, at most 50. |
 
 Every result that has `answer` keeps the daemon's whole answer there as a `dict`.
-
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 #### btw {#client-btw}
 
@@ -767,8 +764,6 @@ with Client.local() as client:
             print(notice.epic, notice.text)
 ```
 
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
-
 #### epics {#client-epics}
 
 `client.epics.attach(...)` attaches to a host as one frontend and returns an `Attached`: the calls of that epic subscription, and the messages the host sends it.
@@ -818,8 +813,6 @@ with Client.local() as client, client.epics.attach("/work/app", slot="exec:") as
 | `status(workspace, slot=None)` | `dict` | One host's status. Raises `Refused` with code 404 if no host is held there. |
 | `detach(workspace, slot=None)` | `int` | Lets every frontend of a host go and returns how many. |
 | `stop(workspace, slot=None, *, idem=None)` | `None` | Closes a host, stopping what it runs. |
-
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 #### envs {#client-envs}
 
@@ -872,8 +865,6 @@ with Client.local() as client, client.envs.attached("/path/to/project") as host:
         for printed in terminal:
             sys.stdout.buffer.write(printed)
 ```
-
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 #### chats {#client-chats}
 
@@ -933,8 +924,6 @@ with Client.local() as client:
 
 - Pass `replay=False` to `follow` when the host held the chat before the line you are about to say, and pass that line as `line`; `ask` does both.
 - A host that `start` or `hold` started stands by between turns and folds on its own. Call `rest` to end it at once.
-
-A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 ## Daemons {#daemons}
 
