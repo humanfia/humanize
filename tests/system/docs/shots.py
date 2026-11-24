@@ -256,7 +256,10 @@ _SHARE = 0.003
 #: The share that may in a terminal drawn light: a screen of dark letters on white, where a
 #: letter and its ground are the whole range of a pixel apart, and the little by which a
 #: letter's edge is smoothed otherwise as a path crosses `_FAR` all along it. Nothing that
-#: goes missing hides in it: that is still all of a square (`_PATCH`).
+#: goes missing hides in it: that is still all of a square (`_PATCH`). The interface in a
+#: theme of humanfia's is held to it on its dark side too: its heavy rules and its planes
+#: -- a row picked in pink with dark ink on it, a frame ruled in cyan -- are as far from
+#: their ground there as ink is from white.
 _INK = 0.015
 
 #: And how much of any one square of it may, the square this many half pixels a side: a small
@@ -1557,7 +1560,7 @@ def _strip(keys: str, caption: str, width: int, defs: _Defs, *, dark: bool) -> _
 # --------------------------------------------------------------------------------------
 
 
-def _terminal(svg: str, dark: bool) -> _Sheet:
+def _terminal(svg: str, dark: bool, *, planes: bool = False) -> _Sheet:
     """A terminal window as Rich draws one, as a sheet to draw: in a font of this machine.
 
     Rich names a font to be fetched, which a picture may not: the window is drawn in a
@@ -1583,7 +1586,12 @@ def _terminal(svg: str, dark: bool) -> _Sheet:
         f"</style>{svg}"
     )
     return _Sheet(
-        width, height, content, clear=True, dark=dark, share=_SHARE if dark else _INK
+        width,
+        height,
+        content,
+        clear=True,
+        dark=dark,
+        share=_INK if planes or not dark else _SHARE,
     )
 
 
@@ -1762,7 +1770,7 @@ def _interface(app: App[Any]) -> dict[bool, _Sheet]:
         for dark, name in sides.items():
             _themed(app, name)
             window = _windows(_rendered(app), app.title, only=dark)[dark]
-            drawn[dark] = _terminal(window, dark)
+            drawn[dark] = _terminal(window, dark, planes=True)
     finally:
         _themed(app, was)
     return drawn

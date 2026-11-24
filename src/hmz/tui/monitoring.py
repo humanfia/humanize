@@ -2125,11 +2125,14 @@ class Monitoring(Screen[str | None]):
                 )
             ),
         ]
+        # Cut to the row rather than wrapped under it: a limit's meter is the last thing
+        # on it, and the epic's own page says every one of them whole.
+        room = self.size.width - len(_INDENT) - 2 - len(t("epic")) - len(_DOT)
         return _Row(
             _EPIC,
             f"{_marked(here=self._was == _EPIC)}"
             f"[{'$primary' if working else '$text-muted'}]◫[/] {t('epic')}"
-            f"{_DOT}[$text-muted]{_DOT.join(said)}[/]",
+            f"{_DOT}[$text-muted]{escape(_fits(_DOT.join(said), room))}[/]",
             landing=bool(epic.get("run")),
         )
 
