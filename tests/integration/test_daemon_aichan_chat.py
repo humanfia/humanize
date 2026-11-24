@@ -49,8 +49,8 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     if sys.platform == "linux":
         # Landlock cannot keep her off the daemon's socket (Section 14.5.5 of core.md).
         (tmp_path / "humanize-home").mkdir(exist_ok=True)
-        (tmp_path / "humanize-home" / "settings.yaml").write_text(
-            "sandbox:\n  backend: bwrap\n"
+        (tmp_path / "humanize-home" / "settings.toml").write_text(
+            'sandbox = {backend = "bwrap"}\n'
         )
     with hosting():
         yield at

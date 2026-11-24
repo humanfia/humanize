@@ -19,13 +19,13 @@ import sys
 import tarfile
 import tempfile
 import threading
+import tomllib
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import pytest
-import yaml
 from textual.widgets import OptionList
 
 from hmz import home
@@ -596,7 +596,7 @@ def ssh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) ->
 
 def _written() -> dict[str, dict[str, Any]]:
     """Each daemon as the settings file holds it, by name."""
-    held = yaml.safe_load((home() / "settings.yaml").read_text())
+    held = tomllib.loads((home() / "settings.toml").read_text())
     return {one.pop("name"): one for one in held["daemons"]}
 
 

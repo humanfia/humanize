@@ -30,7 +30,7 @@ hmz daemon pair
 
 ![hmz daemon pair prints a code, then hmz daemon devices lists a paired laptop](/shots/user-daemons-pair.svg)
 
-A code pairs one device once and expires after 10 minutes. If a daemon is already running there, `hmz daemon serve` exits with `hmz: a daemon is already running (pid …)`. Set the `listen` key in [settings.yaml](/reference/settings) instead: the running daemon opens the listener, and keeps it open every time it starts.
+A code pairs one device once and expires after 10 minutes. If a daemon is already running there, `hmz daemon serve` exits with `hmz: a daemon is already running (pid …)`. Set the `listen` key in [settings.toml](/reference/settings) instead: the running daemon opens the listener, and keeps it open every time it starts.
 
 | Option | Meaning |
 | --- | --- |
@@ -39,14 +39,14 @@ A code pairs one device once and expires after 10 minutes. If a daemon is alread
 
 A code needs a route to carry. Without an open listener or `--route`, the command prints `hmz: There is no route to pair over: give one, or listen.` and exits with status 1, and `pair a device…` in the terminal is refused the same way. Add a listener or pass `--route ROUTE`. The daemon waits up to 5 seconds for listeners that are still opening.
 
-For EasyTier, add an entry and a listener to `~/.hmz/settings.yaml` on the remote machine, then run `hmz daemon pair`:
+For EasyTier, add an entry and a listener to `~/.config/humanize/settings.toml` on the remote machine, then run `hmz daemon pair`:
 
-```yaml
-easytier:
-  home:
-    secret: "a secret of at least 16 bytes"
-    nodes: ["tcp://node.example:11010"]
-listen: ["easytier:home"]
+```toml
+listen = ["easytier:home"]
+
+[easytier.home]
+secret = "a secret of at least 16 bytes"
+nodes = ["tcp://node.example:11010"]
 ```
 
 ## In the app
@@ -146,9 +146,9 @@ Humanize tries each route 0.25 s after the previous one, or immediately if all e
 
 ## Good to know
 
-- The desktop app, each browser, and the terminal each keep a separate machine list. The terminal stores its list under the `daemons` key in `settings.yaml`.
+- The desktop app, each browser, and the terminal each keep a separate machine list. The terminal stores its list under the `daemons` key in `settings.toml`.
 - Machine names must start with a letter or digit, followed by letters, digits, `.`, `_`, or `-`. The name `local` is reserved.
 - SSH connections never prompt. Hosts that require a password or have an unknown host key fail.
-- The terminal has no EasyTier form. Add the matching `easytier` entry to the local `settings.yaml`, then add the machine using its pairing code.
+- The terminal has no EasyTier form. Add the matching `easytier` entry to the local `settings.toml`, then add the machine using its pairing code.
 - A daemon holds at most 16 unclaimed pairing codes. Generating a 17th code drops the oldest one.
 - See [Security](/user/security) for details on pairing and permissions for unpaired devices.

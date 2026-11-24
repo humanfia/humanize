@@ -15,7 +15,7 @@ Click the gear button **Settings** in the sidebar. You can also open **Settings*
 
 Settings pages fall into two groups, **App** and **Daemon**. What one folder keeps is not a page of Settings: it is that folder's own dialog, [Workspace settings](#workspace-settings). Each of the three is stored in a different place.
 
-![App pages are kept in this browser or app, Daemon pages in the settings.yaml of the daemon shown, and a folder's Workspace settings with that folder](/diagrams/user-settings-1.svg)
+![App pages are kept in this browser or app, Daemon pages in the settings.toml of the daemon shown, and a folder's Workspace settings with that folder](/diagrams/user-settings-1.svg)
 
 | Group | Page | What it holds | Guide |
 | --- | --- | --- | --- |
@@ -119,8 +119,8 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 ## Where settings are kept
 
 - **App pages** are stored in the browser or the desktop app window. Each browser and device keeps its own values, and clearing site data resets them.
-- **Daemon pages and Workspace settings**, along with what you save in `/settings`, are stored by the daemon in `~/.hmz/settings.yaml` and shared across all interfaces connected to that daemon. See [settings.yaml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
-- Notifications are stored per browser in the app, and in `settings.yaml` for the terminal.
+- **Daemon pages and Workspace settings**, along with what you save in `/settings`, are stored by the daemon in `~/.config/humanize/settings.toml` and shared across all interfaces connected to that daemon. See [settings.toml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
+- Notifications are stored per browser in the app, and in `settings.toml` for the terminal.
 
 ## Good to know
 

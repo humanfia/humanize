@@ -10,10 +10,10 @@ from __future__ import annotations
 import contextlib
 import json
 import socket
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
 
 import hmz.coganchor.models
 from hmz import home
@@ -79,7 +79,7 @@ def _refused(client: Peer, code: int, method: str, **params: Any) -> str:
 
 
 def _file() -> dict[str, Any]:
-    return yaml.safe_load((home() / "settings.yaml").read_text())
+    return tomllib.loads((home() / "settings.toml").read_text())
 
 
 def test_each_family_names_every_method_of_its_namespace() -> None:

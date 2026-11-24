@@ -4615,10 +4615,6 @@ def speaking() -> dict[str, tuple[str, ...]]:
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
     """
-    # Read where it is asked, never at import: the settings are YAML, which is not the
-    # standard library's to read.
-    import yaml
-
     from hmz.coganchor import settings
 
     global _added, _added_at, _declared, _broken
@@ -4633,6 +4629,10 @@ def speaking() -> dict[str, tuple[str, ...]]:
         return (str(at), moved.st_mtime_ns, moved.st_size)
 
     stamp = stamped()
+    if stamp is None:
+        # A YAML file an earlier release left is converted first, where there is one.
+        settings.read()
+        stamp = stamped()
     if stamp is None:
         # No file is an answer, and a cheap one: nothing has been added.
         _added, _added_at, _declared, _broken = {}, None, {}, {}
@@ -4652,7 +4652,7 @@ def speaking() -> dict[str, tuple[str, ...]]:
 
         try:
             held = settings.changes(mending).get(_SPOKEN)
-        except (OSError, yaml.YAMLError) as why:
+        except (OSError, ValueError) as why:
             log.warning("clis in %s could not be fixed: %s", at, why)
         else:
             for one in fixed:

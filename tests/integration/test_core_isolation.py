@@ -73,7 +73,7 @@ def test_what_names_a_test_directory_in_their_home_is_found(
     (theirs / "flowverses").mkdir(parents=True)
     history = theirs / "history.jsonl"
     history.write_text('{"workspace": "/their/own/project"}\n')
-    (theirs / "settings.yaml").write_text("listen: []\n")
+    (theirs / "settings.toml").write_text("listen = []\n")
     monkeypatch.setattr(conftest, "_THEIR_HOME", theirs)
     marks = frozenset({str(tmp_path / "mine")})
     before = conftest.kept_there()

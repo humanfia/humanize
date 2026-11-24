@@ -699,14 +699,14 @@ def test_wrapper_passes_the_backend_the_settings_choose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
-    _settings("sandbox: {backend: bwrap}")
+    _settings('sandbox = {backend = "bwrap"}')
 
     assert wrapper(Fence())[4] == "--sandbox=bwrap"
 
 
 def _settings(said: str) -> None:
     """This machine's settings file, holding what is said."""
-    where = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    where = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
     where.parent.mkdir(parents=True, exist_ok=True)
     where.write_text(said, encoding="utf-8")
 
@@ -715,11 +715,11 @@ def _settings(said: str) -> None:
     ("said", "chose"),
     [
         ("", AUTO),
-        ("sandbox: bwrap", AUTO),
-        ("sandbox: {backend: 3}", AUTO),
-        ("sandbox: {backend: firejail}", AUTO),
-        ("sandbox: {backend: landlock}", LANDLOCK),
-        ("sandbox: {backend: bwrap}", BWRAP),
+        ('sandbox = "bwrap"', AUTO),
+        ("sandbox = {backend = 3}", AUTO),
+        ('sandbox = {backend = "firejail"}', AUTO),
+        ('sandbox = {backend = "landlock"}', LANDLOCK),
+        ('sandbox = {backend = "bwrap"}', BWRAP),
     ],
 )
 def test_chosen_reads_anything_else_as_auto(said: str, chose: str) -> None:
@@ -732,8 +732,8 @@ def test_chosen_reads_anything_else_as_auto(said: str, chose: str) -> None:
     ("said", "named"),
     [
         ("", set[str]()),
-        ("sandbox: {native: codex}", set[str]()),
-        ("sandbox: {native: [codex, 3, grok]}", {"codex", "grok"}),
+        ('sandbox = {native = "codex"}', set[str]()),
+        ('sandbox = {native = ["codex", 3, "grok"]}', {"codex", "grok"}),
     ],
 )
 def test_natives_are_the_kinds_the_settings_name(said: str, named: set[str]) -> None:
@@ -747,8 +747,13 @@ def test_natives_are_the_kinds_the_settings_name(said: str, named: set[str]) -> 
     [
         ("", False, ("Landlock (Linux 5.13", "bubblewrap"), ()),
         ("", True, ("Landlock ABI 4", "network namespace"), ()),
-        ("sandbox: {backend: landlock}", True, ("Landlock ABI 4",), ("bubblewrap",)),
-        ("sandbox: {backend: bwrap}", False, ("bubblewrap",), ("Landlock",)),
+        (
+            'sandbox = {backend = "landlock"}',
+            True,
+            ("Landlock ABI 4",),
+            ("bubblewrap",),
+        ),
+        ('sandbox = {backend = "bwrap"}', False, ("bubblewrap",), ("Landlock",)),
     ],
 )
 def test_needs_names_what_the_chosen_backend_needs(
@@ -835,7 +840,7 @@ def test_enforceable_asks_of_the_backend_the_settings_choose_and_landlocked_of_l
     monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
 ) -> None:
     monkeypatch.setattr("sys.platform", "linux")
-    _settings("sandbox: {backend: bwrap}")
+    _settings('sandbox = {backend = "bwrap"}')
     answering(monkeypatch, asked, b'{"fs":true,"net":true}')
 
     assert enforceable(net=True)

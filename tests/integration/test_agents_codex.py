@@ -586,9 +586,9 @@ def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
 
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", local)],
@@ -639,9 +639,9 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carv
         return None
 
     monkeypatch.setattr("hmz.coganchor.fence.unheld", unheld)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     (tmp_path / "secret").mkdir()
     fence = Fence.of(
@@ -678,9 +678,9 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_it_asks_before_a_comman
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", WRITE)],
@@ -721,9 +721,9 @@ def test_a_codex_its_sandbox_held_is_started_again_inside_the_fence_once_it_asks
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", WRITE)],

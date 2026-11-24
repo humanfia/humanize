@@ -91,7 +91,7 @@ Run `hmz daemon uninstall` to stop the service and remove its file.
 
 Each command prints the file it wrote or removed: `hmz daemon: installed <path>` or `hmz daemon: uninstalled <path>`.
 
-The service does not take `--listen`. It opens the listeners configured in the `listen` setting. See [settings.yaml](/reference/settings).
+The service does not take `--listen`. It opens the listeners configured in the `listen` setting. See [settings.toml](/reference/settings).
 
 ### Set the environment for agents
 

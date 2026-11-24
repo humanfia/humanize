@@ -21,11 +21,11 @@ import sys
 import tempfile
 import threading
 import time
+import tomllib
 from importlib.metadata import version
 from typing import TYPE_CHECKING
 
 import pytest
-import yaml
 
 from hmz import home
 from hmz.coganchor import easytier, settings
@@ -86,7 +86,7 @@ def _gone(pid: int) -> bool:
 
 
 def _daemons() -> list[dict[str, object]]:
-    return yaml.safe_load((home() / "settings.yaml").read_text())["daemons"]
+    return tomllib.loads((home() / "settings.toml").read_text())["daemons"]
 
 
 def test_a_daemon_over_ssh_is_reached_pinned_and_attached(host: Host) -> None:

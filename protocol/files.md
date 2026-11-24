@@ -154,8 +154,8 @@ top-level mapping, joined by `.`; `<x>` in a key path stands for any key of that
 
 **3.2.4** A **flow entry** is the value at `workspaces.<path>.flows.<flow>`.
 
-**3.2.5** An **unreadable** settings file is one that exists but cannot be read, is not valid YAML,
-or does not hold a mapping at its top level.
+**3.2.5** An **unreadable** settings file is one that exists but cannot be read or is not valid
+TOML.
 
 **3.2.6** A **writer** is any hmz process that changes the settings file.
 
@@ -173,11 +173,15 @@ an `-a` item after `<role>=` (Section 7.4 of [CLI]).
 
 #### 3.3.1. Location and format
 
-**3.3.1.1** The settings file MUST be the file `settings.yaml` in the home.
+**3.3.1.1** The settings file MUST be the file `settings.toml` in the home.
 
-**3.3.1.2** The settings file MUST hold one YAML mapping.
+**3.3.1.2** The settings file MUST be one TOML v1.0.0 document, whose top-level table is the
+mapping Section 3 specifies.
 
 **3.3.1.3** hmz MUST NOT create the settings file, or the home, until it writes a setting.
+
+**3.3.1.4** TOML having no null, hmz MUST write a value Section 3 gives as null by leaving its key
+out, and MUST read a key left out as that null.
 
 #### 3.3.2. Reading
 
@@ -200,7 +204,7 @@ the whole value of `nous`, of `clis`, of `backup`, of `daemons`, of `notificatio
 `listen`, of `ice_servers` or of `easytier`, or one runtime.
 
 **3.3.3.2** A writer MUST guard, read and replace the settings file as Section 4.5 states for
-`<home>/settings.yaml`.
+`<home>/settings.toml`.
 
 **3.3.3.3** A writer MUST apply its change to the content the file holds at the time of the write,
 and MUST NOT write back any other value it read earlier.
@@ -875,7 +879,7 @@ Out of scope:
 
 - The epic directories under `<home>/epics/`: Section 6.
 - The chat directories under `<home>/chats/`: Section 6.12.
-- The keys and values of `settings.yaml`: Section 3.
+- The keys and values of `settings.toml`: Section 3.
 - The content of the account directories under `<home>/providers/`: Section 8.4.
 - Directories outside the **home** on **this machine**: Section 7.
 - The state directory of **hmz** on a **machine** other than **this machine**: Section 9.
@@ -953,35 +957,52 @@ Section 4.16.
 
 ### 4.5. Settings
 
-**4.5.1** `<home>/settings.yaml` holds the settings of **hmz**, as a YAML mapping whose keys and
+**4.5.1** `<home>/settings.toml` holds the settings of **hmz**, as a TOML document whose keys and
 values are specified in Section 3.
 
-**4.5.2** `hmz` MUST create `<home>/settings.yaml` when it first writes a setting, with mode `0600`,
+**4.5.2** `hmz` MUST create `<home>/settings.toml` when it first writes a setting, with mode `0600`,
 and MUST keep the mode of an existing file.
 
-**4.5.3** `hmz` MUST write `<home>/settings.yaml` by atomic replacement.
+**4.5.3** `hmz` MUST write `<home>/settings.toml` by atomic replacement.
 
-**4.5.4** Each writer of `<home>/settings.yaml` MUST, by `<home>/.settings.yaml.lock`, keep every
+**4.5.4** Each writer of `<home>/settings.toml` MUST, by `<home>/.settings.toml.lock`, keep every
 other writer out while it reads the file, makes one change and writes the file.
 
 **4.5.5** A writer that cannot keep the other writers out within 30 seconds, or cannot open
-`<home>/.settings.yaml.lock`, MUST proceed without keeping them out.
+`<home>/.settings.toml.lock`, MUST proceed without keeping them out.
 
-**4.5.6** `hmz` MUST create `<home>/.settings.yaml.lock` empty, with mode `0600`, and MUST NOT
+**4.5.6** `hmz` MUST create `<home>/.settings.toml.lock` empty, with mode `0600`, and MUST NOT
 remove it.
 
-**4.5.7** A reader of `<home>/settings.yaml` MUST NOT wait for a writer.
+**4.5.7** A reader of `<home>/settings.toml` MUST NOT wait for a writer, other than while it
+converts the file of Section 4.5.12.
 
-**4.5.8** `hmz` MUST treat a `<home>/settings.yaml` that is missing, unreadable, not valid YAML or
-not a mapping as holding no settings.
+**4.5.8** `hmz` MUST treat a `<home>/settings.toml` that is missing, unreadable or not valid TOML as
+holding no settings.
 
-**4.5.9** `hmz` MUST NOT overwrite a `<home>/settings.yaml` that is unreadable, not valid YAML or
-not a mapping.
+**4.5.9** `hmz` MUST NOT overwrite a `<home>/settings.toml` that is unreadable or not valid TOML.
 
-**4.5.10** `hmz` MUST NOT remove `<home>/settings.yaml`.
+**4.5.10** `hmz` MUST NOT remove `<home>/settings.toml`.
 
-**4.5.11** The **user** MAY delete `<home>/settings.yaml` and `<home>/.settings.yaml.lock` while
+**4.5.11** The **user** MAY delete `<home>/settings.toml` and `<home>/.settings.toml.lock` while
 **hmz** is not running; every setting then takes its default.
+
+**4.5.12** Where `<home>/settings.toml` does not exist and `<home>/settings.yaml`, the settings file
+of an earlier release, does, the first `hmz` process to read or write a setting MUST, keeping the
+other writers out as Section 4.5.4 states, write `<home>/settings.toml` with mode `0600`, holding
+the YAML mapping `<home>/settings.yaml` holds with every null value's key left out, every key a
+string and a key YAML reads as true or false written `on` or `off`; and MUST then rename
+`<home>/settings.yaml` to `<home>/settings.yaml.migrated`, without printing any message.
+
+**4.5.13** `hmz` MUST NOT convert a `<home>/settings.yaml` that is unreadable, not valid YAML or not
+a mapping, and MUST treat the settings file as unreadable (Section 3.2.5) until the **user**
+corrects or removes it.
+
+**4.5.14** Where the conversion of Section 4.5.12 cannot be written, `hmz` MUST read the settings as
+it would have converted them, and MUST NOT report an error.
+
+**4.5.15** Where `<home>/settings.toml` exists, `hmz` MUST NOT read, modify or remove
+`<home>/settings.yaml` or `<home>/settings.yaml.migrated`.
 
 ### 4.6. Prompt history
 
@@ -2604,7 +2625,7 @@ document on which the security of a user's machine, credentials and work depends
 
 - The settings file MUST NOT hold the credentials of any account and refers to an account only by
   its name (Section 3.10.1.1 and Section 3.10.1.2).
-- A settings file that hmz creates, and its lock file `<home>/.settings.yaml.lock`, have mode `0600`
+- A settings file that hmz creates, and its lock file `<home>/.settings.toml.lock`, have mode `0600`
   (Section 3.3.3.4, Section 4.5.2 and Section 4.5.6).
 - The `secret` of an EasyTier entry is stored in the settings file and is at least 16 bytes long
   (Section 3.4.10.2), and so is a TURN `credential` of `ice_servers` (Section 3.4.9.1).

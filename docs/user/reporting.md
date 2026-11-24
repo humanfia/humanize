@@ -32,7 +32,7 @@ Reports go to the Humanize Sentry project.
 
 ## Turn error reports on or off
 
-One machine-wide setting controls reporting: `enable_sentry` in `settings.yaml`. It has three states: on, off, and not answered. When not answered, Humanize sends nothing.
+One machine-wide setting controls reporting: `enable_sentry` in `settings.toml`. It has three states: on, off, and not answered. When not answered, Humanize sends nothing.
 
 ### In the app
 
@@ -105,4 +105,4 @@ Do not report a vulnerability in a public issue. Report it privately at [github.
 - Processes read the reporting setting at startup. If you change it in the app, running processes keep the old setting until they restart.
 - Only the `hmz` terminal interface adds the machine's installed coding agents, accounts, skills, and flowverses to a report. Other processes describe only the running flow and its agents.
 - Only processes that initialize reporting send reports: `hmz`, `hmz exec`, `hmz chat`, runs managed by the daemon, and scripts that call `Hmz().reports()`.
-- See [settings.yaml](/reference/settings) and [Environment variables](/reference/environment) for configuration details, and [Security](/user/security) for what agents can access.
+- See [settings.toml](/reference/settings) and [Environment variables](/reference/environment) for configuration details, and [Security](/user/security) for what agents can access.
