@@ -232,7 +232,7 @@ See [Events and records](/reference/events#messages-of-an-attached-epic) for eve
 | Limit | Value |
 | --- | --- |
 | Frame payload | 33 554 432 bytes. Larger responses fail with 413; larger requests close the session. |
-| Queued frames for a slow session | 64 MiB. Exceeding this drops queued notifications and closes all session subscriptions with `too far behind; attach again` (epics) or `too far behind; subscribe again` (notices). Responses are kept. |
+| Queued frames for a slow session | 64 MiB. Exceeding this drops queued notifications and closes all session subscriptions with `too far behind; attach again` (epics) or `too far behind; subscribe again` (notices). Responses are kept, and so is every notification that ends a subscription, so a client always hears its subscription end. |
 | Write handle file size | 2 147 483 648 bytes |
 | `files.read` or `files.write` chunk | 1 048 576 bytes |
 | Idle handle timeout | 600 seconds |

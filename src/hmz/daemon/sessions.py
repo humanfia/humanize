@@ -8,7 +8,9 @@ subscriptions it holds, and the one queue of everything sent it (Section 6.10.1 
 The daemon never waits on a session. What it sends is queued and written by a thread of the
 session's own; once more than 64 MiB wait in the queue the notifications among them are
 dropped, every response kept, and every subscription of the session ended -- an epic one with
-`gone`, a notices one with `notices.event` saying so -- after the frame being written.
+`gone`, a notices one with `notices.event` saying so -- after the frame being written. What
+ended a subscription is kept as a response is: dropped, its client would follow the
+subscription on, hearing nothing more of it.
 
 A write that carries `idem` is carried out once per device (Section 6.7): :class:`Idems` keeps
 each answer for 600 seconds, the latest 1 024 of each device.
@@ -62,7 +64,8 @@ class Outgoing:
     Args:
       pipe: What the frames go over.
       behind: Called once, off the lock, when more than :data:`BEHIND` waits: the
-        notifications waiting have been dropped by then.
+        notifications waiting have been dropped by then, all but those ending a
+        subscription.
     """
 
     def __init__(self, pipe: Pipe, behind: Callable[[], None]) -> None:
@@ -91,13 +94,16 @@ class Outgoing:
         told = data[4 : 4 + len(_NOTIFIED)] == _NOTIFIED
         if told and self.ended and _sub(data) in self.ended:
             return
+        # One that ends a subscription is never dropped: a subscription ended for an earlier
+        # fall behind, its end dropped by the next, would be heard of no more.
+        droppable = told and not _ends(data)
         with self._lock:
             if self._flushing:
                 # Its last answer is on its way out: nothing after it is, nor fails.
                 return
             if self._closed:
                 raise BrokenPipeError("the session has closed")
-            self._waiting.append((data, told))
+            self._waiting.append((data, droppable))
             self._size += len(data)
             behind = self._size > BEHIND
             if behind:
@@ -140,6 +146,31 @@ class Outgoing:
                 break
         with contextlib.suppress(OSError):
             self._pipe.close()
+
+
+def _ends(frame: bytes) -> bool:
+    """Whether a notification's frame ends its subscription: an epic's `gone`, a notices' `gone`."""
+    if b'"gone"' not in frame:
+        return False
+    try:
+        said: object = json.loads(frame[4:])
+    except ValueError:
+        return False
+    if not isinstance(said, dict):
+        return False
+    told = cast("dict[str, Any]", said)
+    params: object = told.get("params")
+    if not isinstance(params, dict):
+        return False
+    given = cast("dict[str, Any]", params)
+    if told.get("method") == "notices.event":
+        return "gone" in given
+    message: object = given.get("message")
+    return (
+        told.get("method") == "epic.event"
+        and isinstance(message, dict)
+        and cast("dict[str, Any]", message).get("type") == "gone"
+    )
 
 
 def _sub(frame: bytes) -> str:
