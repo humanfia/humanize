@@ -69,6 +69,8 @@ jobs:
               - pyproject.toml
               - uv.lock
               - src/hmz/*
+              # What the command line and the terminal interface say, and their tests read.
+              - src/hmz/words/**
               - tests/conftest.py
               - tests/integration/conftest.py
               - tests/integration/flows/**
@@ -90,6 +92,7 @@ jobs:
             unit-sdk: [*unit, src/hmz/sdk/**, tests/unit/sdk/**]
             unit-tui: [*unit, src/hmz/tui/**, tests/unit/tui/**]
             unit-web: [*unit, src/hmz/web/**, tests/unit/web/**]
+            unit-words: [*unit, tests/unit/words/**]
             # The RPC package holds protocol/openrpc.json to the protocol's text.
             unit-rpc: [*unit, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
             unit-trust: [*unit, src/hmz/trust/**, tests/unit/trust/**]

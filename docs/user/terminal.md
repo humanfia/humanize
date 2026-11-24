@@ -140,13 +140,17 @@ Drag across the transcript to copy from press to release. Double-click to copy a
 
 ## Change colours
 
-By default, the interface uses your terminal's 16 colours and background. Set `TEXTUAL_THEME` to use a Textual theme instead:
+By default, the interface uses the web page's colours: dark, or light where your terminal reports a white background in `COLORFGBG`. Set `TEXTUAL_THEME` to use another theme instead:
 
 ```sh
 TEXTUAL_THEME=nord hmz
 ```
 
-Unknown theme names are ignored. Set `NO_COLOR=1` to turn colour off. See [Themes and language](/user/themes).
+`TEXTUAL_THEME=terminal` uses your terminal's own 16 colours and background. Unknown theme names are ignored. Set `NO_COLOR=1` for the terminal's own colours too. See [Themes and language](/user/themes).
+
+## Panes beside the log
+
+Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
 ## Good to know
 
@@ -155,4 +159,4 @@ Unknown theme names are ignored. Set `NO_COLOR=1` to turn colour off. See [Theme
 - When installed flows have updates, the transcript prints `updates available: …; update from /flow`.
 - On first start, Humanize asks `Report errors to Humanize?`. See [Report a problem](/user/reporting).
 - When a background run finishes or asks a question, a card appears in the corner. See [Notifications](/user/notifications).
-- There is no separate command palette; type `/` for all commands.
+- Type `/` for all commands.

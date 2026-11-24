@@ -151,7 +151,11 @@ ALLOWED: dict[str, set[str]] = {
         # session this machine's is called over.
         "hmz.reach.routes",
         "hmz.rpc",
+        # Every text it says, which is the page's.
+        "hmz.words",
     },
+    # What the command line and the terminal interface say: texts, and nothing that runs.
+    "hmz.words": set(),
     # A client of a daemon: its socket and JSON-RPC, the flow API's budget, the settings.
     "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.rpc", "hmz.runtime"},
     # The page's server: its files, and bridges to daemons over `daemon`'s socket and routes.

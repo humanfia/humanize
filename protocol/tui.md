@@ -82,9 +82,23 @@ It is normative. It is cited by the tag [TUI].
 - [22. Completion and history](#22-completion-and-history)
 - [23. Selecting and copying](#23-selecting-and-copying)
 - [24. Keys](#24-keys)
-- [25. Security Considerations](#25-security-considerations)
-- [26. References](#26-references)
-  - [26.1. Normative References](#261-normative-references)
+- [25. Zones and views](#25-zones-and-views)
+  - [25.1. Zones](#251-zones)
+  - [25.2. The hint line](#252-the-hint-line)
+  - [25.3. Colour and drawing](#253-colour-and-drawing)
+  - [25.4. Order and removal](#254-order-and-removal)
+  - [25.5. Texts](#255-texts)
+- [26. Keys view](#26-keys-view)
+- [27. Navigator and Search](#27-navigator-and-search)
+- [28. New chat and the chat's chips](#28-new-chat-and-the-chats-chips)
+- [29. New epic and the epic's context](#29-new-epic-and-the-epics-context)
+- [30. Environment panes](#30-environment-panes)
+- [31. Flows page and transfers](#31-flows-page-and-transfers)
+- [32. Settings: App and Daemon](#32-settings-app-and-daemon)
+- [33. Monitor, Exomyth and sheets in humanfia](#33-monitor-exomyth-and-sheets-in-humanfia)
+- [34. Security Considerations](#34-security-considerations)
+- [35. References](#35-references)
+  - [35.1. Normative References](#351-normative-references)
 
 ## 1. Introduction
 
@@ -199,11 +213,14 @@ it.
 the flow remembered for the working directory set up for `/flow` and `$` lines, each agent role as
 remembered for the flow or, where nothing is remembered, as Section 16.5.4 fills it.
 
-**3.3** The interface MUST draw in the terminal's own palette, MUST NOT query the terminal for its
-colours, MUST draw failures in red and warnings in yellow, MUST use the theme named by
-`TEXTUAL_THEME` where it names an available one, and MUST honour `NO_COLOR`.
+**3.3** The interface MUST draw in the first of these themes that applies: the one `TEXTUAL_THEME`
+names, where it names an available one; `terminal`, where `NO_COLOR` is set and non-empty; the one
+kept by Settings (Section 32); `humanfia-light`, where `COLORFGBG` says the terminal's background is
+white; `humanfia-dark` (Section 25.3). It MUST NOT query the terminal for its colours, and MUST draw
+failures in red and warnings in yellow or gold.
 
-**3.4** The interface MUST offer no command palette.
+**3.4** The interface MUST offer no command palette other than the views of Section 25 and the
+Search page of Section 27.
 
 **3.5** As it opens, the interface MUST, in the background and without delaying input:
 
@@ -1624,13 +1641,116 @@ states where its row's context holds.
 | 24.1.69 | anywhere | drag, double click, triple click | copy (Section 23) |
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
+| 24.1.72 | app | the key of a view | Section 25.1.4 |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
 **24.3** `shift+enter` MUST break the line where the terminal reports it; `ctrl+j` MUST break the
 line in every terminal.
 
-## 25. Security Considerations
+## 25. Zones and views
+
+### 25.1. Zones
+
+**25.1.1** The log screen MUST have three zones side by side: the _navigator_ on the left, the log
+of Section 4 in the middle, and the _context_ on the right. A zone other than the log MUST take no
+column until a view is open in it.
+
+**25.1.2** A _view_ is one thing opened in the navigator, in the context, or over the whole screen
+as a _page_. A view MUST open only in the place it is specified for, and opening a view MUST NOT
+move or close what is open in another zone.
+
+**25.1.3** A zone with a view open MUST show the view's title in capitals over a heavy rule, in the
+colour of what has the keys while the keys are in it and dim otherwise.
+
+**25.1.4** A view with a key MUST, on that key: open with the keys where it is not open; take the
+keys where it is open and they are elsewhere; and close, the keys going to the editor, where the
+keys are in it. That key MUST do so whatever has the keys.
+
+**25.1.5** `esc` in a zone MUST give the keys to the editor and leave the zone open; `esc` on a
+page MUST close the page.
+
+**25.1.6** A view open as the interface opens MUST NOT take the keys from the editor.
+
+### 25.2. The hint line
+
+**25.2.1** Under the status line the interface MUST draw one _hint line_: every key the view with
+the keys takes, each with what it does, then `esc` with `Back` where a view has the keys, then the
+key of every other view that has one with what it opens. The hint line MUST NOT be drawn where it
+would be empty.
+
+**25.2.2** A view MUST NOT act on a key the hint line does not show while that view has the keys.
+
+### 25.3. Colour and drawing
+
+**25.3.1** The interface MUST have the themes `humanfia-dark` and `humanfia-light`, whose colours
+are those of the web interface's dark and light palettes (Section 3.12 of [WEB]), and the theme
+`terminal`, which names only the terminal's own sixteen colours and its own background.
+
+**25.3.2** In a humanfia theme: what can be followed, and what has the keys, MUST be cyan; what is
+picked out, and the one thing to press, MUST be pink, and a screen MUST NOT draw more than one such
+thing in pink apart from the row under the cursor; green MUST be drawn only in the mark and beside
+cyan, never beside pink; failures MUST be red and warnings gold.
+
+**25.3.3** What the interface draws of its own MUST be drawn with flat planes, heavy rules and
+square corners, and MUST NOT be drawn with rounded corners or shading.
+
+**25.3.4** The box the interface opens with MUST show the mark -- two stems, one diagonal between
+them, and a dot, the dot green -- and the name beside it where the terminal is wide enough.
+
+### 25.4. Order and removal
+
+**25.4.1** In every list a view draws, what waits on the person MUST come first.
+
+**25.4.2** A view MUST ask before it removes anything, naming what is removed.
+
+### 25.5. Texts
+
+**25.5.1** Every text a view draws that is not data MUST be a text the web interface writes ([WEB])
+wherever that interface has a text saying the same thing, word for word in its English, and MUST
+otherwise be a text kept with hmz for that purpose. A view MUST NOT compose such a text where it is
+drawn.
+
+**25.5.2** The texts of a view MUST be drawn in the language of Section 32 where they have a
+translation in it, and in English otherwise.
+
+## 26. Keys view
+
+**26.1** `f1` MUST be the key of the _Keys_ view, which opens in the context and whose hint is
+`keys`.
+
+**26.2** The Keys view MUST list the key of every view that has one with what it opens, then `esc`
+with `Back`, the keys in cyan.
+
+## 27. Navigator and Search
+
+This section is reserved for the navigator's view of every workspace's chats, epics and harness sessions, and the Search page. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 28. New chat and the chat's chips
+
+This section is reserved for the New chat page, the chips of a chat's prompt, and reading a harness session. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 29. New epic and the epic's context
+
+This section is reserved for the New epic page and the context views of an epic: Details, Board, People and Side questions. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 30. Environment panes
+
+This section is reserved for the Files, Terminal and Changes views of an environment, opened in the context. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 31. Flows page and transfers
+
+This section is reserved for the Flows page and the Download, Import and Export dialogs. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 32. Settings: App and Daemon
+
+This section is reserved for the grouping of `/settings` into App and Daemon pages, and the Themes, Language and Notifications pages. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 33. Monitor, Exomyth and sheets in humanfia
+
+This section is reserved for how the monitor, Exomyth and the sheets of Section 15 are drawn to Section 25.3. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 34. Security Considerations
 
 This section is informative. It states no requirement; it gathers the properties stated elsewhere
 in this document that bear on security.
@@ -1679,9 +1799,9 @@ in this document that bear on security.
   19.13.1); the General page holds the answer and says where `HUMANIZE_SENTRY` overrides it
   (Section 19.2.1 and Section 19.2.3).
 
-## 26. References
+## 35. References
 
-### 26.1. Normative References
+### 35.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.

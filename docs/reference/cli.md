@@ -34,10 +34,11 @@ python -m hmz ...
 | `update` | Update hmz to its newest release. |
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
+| `devices` | List and revoke the devices paired with this daemon. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair` and `daemon devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -48,6 +49,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | `0` | The command succeeded. For `exec`, the flow returned or spent its budget. For `web`, `relay serve` and `daemon serve`, a signal stopped it. |
 | `1` | Execution failed: the daemon is unreachable or incompatible, the flow or chat turn failed, a backup target failed, the update did not complete, a delete was not confirmed, or a listener could not open. |
 | `2` | Usage error, or a refusal before start. `exec` and `chat` write `hmz exec: error: <reason>` or `hmz chat: error: <reason>`. |
+| `3` | A [declared command](#declared-commands) could not reach the daemon, or got no answer in time. |
 | `126` | `hmz internal fence` could not put the fence up. |
 | `127` | `hmz internal anchor`, `cred` or `fence` found no `coganchor` binary for this machine, `anchor --native` found no such harness on the target, or `fence` could not start its program. |
 | `129` | `exec` or `chat` ended on SIGHUP. |
@@ -358,6 +360,44 @@ hmz backup --pull EPIC [--to NAME]...
 | No such epic, no such target, no target configured, or a name held from several machines | A usage error. | `2` |
 
 See [Back up to git](/user/backups).
+
+## Declared commands {#declared-commands}
+
+`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
+
+| Option | What it does |
+| --- | --- |
+| `--json` | Prints one JSON document on standard output instead of text, and nothing on standard error. |
+| `--daemon NAME` | Asks the daemon kept under `NAME` instead of this machine's. |
+| `--no-color` | Prints without terminal colours. |
+| `-h`, `--help` | Prints everything about the command: usage, arguments, options, examples, the text and JSON it prints, exit statuses, and the daemon methods it calls. |
+
+A group named alone, such as `hmz devices`, lists its commands.
+
+| Status | Meaning |
+| --- | --- |
+| `0` | The command did what was asked. |
+| `1` | The daemon refused the request. |
+| `2` | The command line could not be read. |
+| `3` | The daemon could not be reached. |
+
+On failure, the command writes `hmz <command>: <message>` to standard error. With `--json` it prints `{"error": {"code": <code>, "message": <message>}}` on standard output instead; `code` is the daemon's error code, `503` if the daemon is unreachable, or `504` if it did not answer in time.
+
+## hmz devices
+
+```text
+hmz devices list
+hmz devices revoke NAME
+hmz devices pair [--route ROUTE]... [--seconds N]
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per device: name, fingerprint, when it was paired, when it was last seen. | `{"devices": [{"name", "fingerprint", "added", "seen"}]}`; `seen` is `null` for a device never seen. |
+| `revoke NAME` | How many sessions were closed. | `{"dropped": <n>}` |
+| `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
+
+`--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
 
 ## hmz internal
 

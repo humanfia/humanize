@@ -80,8 +80,8 @@ async def test_a_chat_is_running_while_the_assistant_answers_and_done_after(
         await typed(pilot, "wait for it")
 
         drawn = await shows(pilot, "still on it", "running…")
-        assert "stop" not in drawn.splitlines()[-1]
-        assert "monitor" not in drawn.splitlines()[-1]
+        assert "stop" not in drawn.splitlines()[-2]
+        assert "monitor" not in drawn.splitlines()[-2]
 
         await typed(pilot, "now")
 
@@ -131,7 +131,7 @@ async def test_a_chat_says_it_is_starting_until_it_has_started(
         await typed(pilot, "hello")
 
         drawn = await shows(pilot, "starting…")
-        assert "starting…" in drawn.splitlines()[-1]
+        assert "starting…" in drawn.splitlines()[-2]
         assert f"◉ {RUNS}" not in drawn
 
         let_go.set()

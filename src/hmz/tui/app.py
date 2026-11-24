@@ -47,8 +47,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
-import pyfiglet
-from rich.box import ROUNDED
+from rich.box import HEAVY
 from rich.console import Group
 from rich.markdown import Markdown
 from rich.markup import escape
@@ -58,7 +57,7 @@ from rich.text import Text
 from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.content import Content
 from textual.message import Message
 from textual.theme import Theme
@@ -77,6 +76,7 @@ from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
+from . import humanfia
 from .asking import Asks, blocks, fields, summary
 from .chats import Resumes
 from .complete import Command, flow_names, hinted, offered, tagged
@@ -132,6 +132,7 @@ from .pick import (
 from .selecting import Choices, Transcript
 from .settings import MOVED, Adjusts, page_of
 from .settings import PAGES as _PAGES
+from .shell import Hints, Shell, Zone, bindings
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -810,11 +811,15 @@ class Humanize(App[None]):
     """A transcript, an editor under it, and a status line under that."""
 
     CSS = """
-    /* Nothing here names a colour of its own. Every surface is the terminal's, and what has
-       to stand out is either one of the sixteen colours the terminal already has a setting
-       for or a reversal of it -- so the interface reads as part of whatever it was opened
-       in, without asking the terminal a single question about itself. */
-    Screen { background: $surface; }
+    /* Nothing here names a colour of its own: every one is the theme's. Humanfia's are the
+       web page's, and the terminal theme's are the sixteen the terminal already has a
+       setting for, so that under it the interface reads as part of whatever it was opened
+       in (`humanfia.py`). */
+    Screen { background: $background; }
+    /* The log in the middle, a zone either side of it that is not there until something is
+       opened in it (`shell.py`). */
+    #zones { width: 1fr; height: 1fr; }
+    #work { width: 1fr; height: 1fr; }
     /* An ANSI surface is transparent, and Textual paints a modal over what is behind it by
        blending -- which over a transparent screen blends with nothing. Named, so a sheet is
        a sheet rather than something the transcript reads through. */
@@ -876,6 +881,8 @@ class Humanize(App[None]):
         # nowhere here for the focus to go.
         Binding("shift+tab", "attach_next", "next view", priority=True),
         Binding("tab", "attach_previous", "previous view", priority=True),
+        # Each view's own key, which opens it from anywhere (`shell.py`).
+        *bindings(),
     ]
 
     def check_action(
@@ -973,6 +980,14 @@ class Humanize(App[None]):
         self._close_btw()
         self._link.close()
         self.exit()
+
+    def get_css_variables(self) -> dict[str, str]:
+        """The theme's variables, with humanfia's own given a value in a theme that has none."""
+        return {**humanfia.FALLBACK, **super().get_css_variables()}
+
+    async def action_view(self, name: str) -> None:
+        """Opens a view, or closes it where it is already the one open in its zone."""
+        await self.shell.toggles(name)
 
     def action_interrupt(self) -> None:
         """Takes back the nearest thing there is to take back, on a press or two or three.
@@ -1102,13 +1117,17 @@ class Humanize(App[None]):
         # have said anything, and under `NO_COLOR` the wrong one there turns the whole
         # interface a single shade of black.
         super().__init__(ansi_color=True)
-        # Drawn in the terminal's own colours rather than a scheme of ours. `TEXTUAL_THEME`
-        # still wins, for anyone who would rather have one -- read here rather than left to
-        # Textual, whose own default for it was settled when this module was imported. One
-        # naming a theme that is not there falls back rather than refusing to start.
+        # Drawn in humanfia's colours, which are the web page's. `TEXTUAL_THEME` still wins,
+        # for anyone who would rather have another -- read here rather than left to Textual,
+        # whose own default for it was settled when this module was imported -- and under
+        # `NO_COLOR` it is the terminal's own colours, which name none. One naming a theme
+        # that is not there falls back rather than refusing to start.
         self.register_theme(_TERMINAL)
-        asked = os.environ.get("TEXTUAL_THEME", "")
-        self.theme = asked if asked in self.available_themes else _TERMINAL.name
+        for theme in humanfia.THEMES.values():
+            self.register_theme(theme)
+        self.theme = humanfia.chosen(os.environ, self.available_themes)
+        #: The zones beside the log, and what is open in them.
+        self.shell = Shell(self)
         #: This interface's end of the runs: everything it draws is a message told through
         #: it, and everything it does to a run is a request asked through it. Attached as it
         #: mounts where none was handed over, through this machine's daemon.
@@ -1537,27 +1556,33 @@ class Humanize(App[None]):
         return [self._runs_of(role) for role in self._named_by]
 
     def compose(self) -> ComposeResult:
-        """The transcript, the offers, the editor, the status. The width is the transcript's.
+        """The transcript, the offers, the editor, the status; a zone either side; the keys.
 
-        Nothing sits beside it. What the flow is doing is on the monitor, which is gone up to
-        when it is wanted: a column saying so the whole time costs a fifth of every line of
-        every transcript, to say something that has usually not changed since it was last
-        looked at.
+        Nothing sits beside the log until it is asked for: a zone is closed, and takes no
+        column, until a view is opened in it, so that a transcript read on its own has the
+        whole width. What the flow is doing is on the monitor, which is gone up to when it
+        is wanted.
         """
-        yield Transcript(id="transcript")
-        yield Choices(id="offers")
-        # Both sides of the same block, right on top of the editor: what is waiting to go on
-        # the left, what it would be going to on the right. Read from the bottom up -- the
-        # last thing typed and the running total sit on the row above the rule.
-        with Horizontal(id="pinned"):
-            yield Static(id="queued")
-            yield Static(id="above")
-        yield Static(id="rule-above", classes="rule")
-        with Horizontal(id="prompt"):
-            yield Static(_YOURS, id="caret")
-            yield Editor(id="editor", show_line_numbers=False)
-        yield Static(id="rule-below", classes="rule")
-        yield Static(id="status")
+        with Horizontal(id="zones"):
+            yield Zone(id="navigator")
+            with Vertical(id="work"):
+                yield Transcript(id="transcript")
+                yield Choices(id="offers")
+                # Both sides of the same block, right on top of the editor: what is waiting
+                # to go on the left, what it would be going to on the right. Read from the
+                # bottom up -- the last thing typed and the running total sit on the row
+                # above the rule.
+                with Horizontal(id="pinned"):
+                    yield Static(id="queued")
+                    yield Static(id="above")
+                yield Static(id="rule-above", classes="rule")
+                with Horizontal(id="prompt"):
+                    yield Static(_YOURS, id="caret")
+                    yield Editor(id="editor", show_line_numbers=False)
+                yield Static(id="rule-below", classes="rule")
+                yield Static(id="status")
+            yield Zone(id="context")
+        yield Hints(id="hints")
 
     def on_mount(self) -> None:
         """Says what this understands, then waits to be told something."""
@@ -1577,6 +1602,7 @@ class Humanize(App[None]):
             target=self._requested, daemon=True, name="humanize-requests"
         ).start()
         self._draw()
+        self.shell.starts()
         self.set_interval(_REFRESH, self._draw)
         self.set_interval(_REFRESH, self._asks_to_install)
         self._asks_what_runs()
@@ -1935,8 +1961,9 @@ class Humanize(App[None]):
         here could only be the copy that was true when the interface opened -- the transcript
         is append-only, so a line written into it is a line about the moment it was written.
 
-        Its title rides in the top border and its corners are round, which is the one boxed
-        thing on the screen: everything after it is text down the terminal. Drawn as a panel
+        Its title rides in the top border and it is ruled heavy and square, as the mark is
+        drawn, which is the one boxed thing on the screen: everything after it is text down
+        the terminal. Drawn as a panel
         rather than as lines of rules, so that every side of it is measured against the same
         width at the moment it is rendered -- lines written to a width guessed before the
         screen was laid out come out of the transcript split down the right-hand edge. And
@@ -1949,14 +1976,14 @@ class Humanize(App[None]):
             None,
             Panel(
                 Group(
-                    Text(self._banner(), style="blue", no_wrap=True),
+                    self._banner(),
                     Text(""),
                     Text(str(metadata("hmz")["Summary"] or "")),
                 ),
                 # Room around it, above and below and at both ends: the name drawn large is
                 # the first thing on the screen and reads as cramped without any.
                 padding=(1, 4),
-                box=ROUNDED,
+                box=HEAVY,
                 border_style="dim",
                 title=f"[dim]Humanize v{version('hmz')}[/dim]",
                 title_align="left",
@@ -1965,22 +1992,28 @@ class Humanize(App[None]):
             shrink=False,
         )
 
-    def _banner(self) -> str:
-        """The name, drawn large.
+    def _banner(self) -> Text:
+        """The mark, and the name beside it.
 
         Returns:
-          The word as block letters where the terminal is wide enough to hold them, and as
-          the small face where it is not. Two of them and no more: a banner that wrapped
-          would be worse than no banner, and one that is picked from a dozen faces by width
-          is a dozen ways for it to be wrong.
+          The H drawn in cells with its dot in the mark's green, and the name set in capitals
+          beside its foot -- the mark alone where the terminal is too narrow for both, since a
+          banner that wrapped would be worse than a smaller one.
         """
-        for face in ("ansi_shadow", "small"):
-            art = pyfiglet.figlet_format("Humanize", font=face).rstrip("\n")
-            drawn = [line for line in art.splitlines() if line.strip()]
-            # Against what is left after the box: a border and four columns of room a side.
-            if max(len(line) for line in drawn) <= self.size.width - 10:
-                return "\n".join(drawn)
-        return "\n".join(drawn)
+        name = "H U M A N I Z E"
+        beside = self.size.width - 10 >= len(humanfia.MARK[0]) + 3 + len(name)
+        drawn = Text(no_wrap=True)
+        for at, row in enumerate(humanfia.MARK):
+            # The dot is the last four columns of the first two rows: green, and the only
+            # green on the screen.
+            dotted = at < 2  # noqa: PLR2004
+            drawn.append(row[:12] if dotted else row, style="bold")
+            if dotted:
+                drawn.append(row[12:], style=f"bold {humanfia.DARK['green']}")
+            if at == len(humanfia.MARK) - 1 and beside:
+                drawn.append(f"   {name}", style="bold")
+            drawn.append("\n" if at < len(humanfia.MARK) - 1 else "")
+        return drawn
 
     def on_print(self, event: events.Print) -> None:
         """Puts something printed under this process into the transcript, as a barred block.

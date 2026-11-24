@@ -43,7 +43,7 @@ async def test_it_opens_on_chat_with_the_model_the_installed_agent_says_it_runs(
 
     # The chat's agent, as its one role and at rest on the status line.
     assert f"assistant · {RUNS}" in drawn
-    assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+    assert f"◉ {RUNS}" in drawn.splitlines()[-2]
 
 
 async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
@@ -58,7 +58,7 @@ async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
         drawn = await shows(pilot, RUNS)
 
         # The flow is held for `$` and `/flow`, and what is said starts the chat.
-        assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+        assert f"◉ {RUNS}" in drawn.splitlines()[-2]
         assert f"◉ {OWN}" not in drawn
         await typed(pilot, "hello")
         await shows(pilot, "heard hello", "◉ done")

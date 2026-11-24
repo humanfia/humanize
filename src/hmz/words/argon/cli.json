@@ -1,0 +1,140 @@
+{
+ "entries": [
+  {
+   "wants": "the word before the line a command takes, as in 'Usage: hmz chat list'",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Usage"
+  },
+  {
+   "wants": "heading over the list of subcommands of a command group",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Commands"
+  },
+  {
+   "wants": "heading over the positional arguments of a command",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Arguments"
+  },
+  {
+   "wants": "heading over the named options of a command",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Options"
+  },
+  {
+   "wants": "heading over example command lines",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Examples"
+  },
+  {
+   "wants": "heading over what the command prints and its JSON fields",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Output"
+  },
+  {
+   "wants": "heading over the list of exit status numbers and their meanings",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Exit codes"
+  },
+  {
+   "wants": "heading over the daemon RPC method names a command calls",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "Daemon calls"
+  },
+  {
+   "wants": "heading over other commands worth reading",
+   "where": "heading of a section of a command's --help, sentence case as the page writes headings, one or two words",
+   "text": "See also"
+  },
+  {
+   "wants": "the placeholder word for optional named options inside a usage line, lower case, as in 'hmz chat list [options]'",
+   "where": "usage line",
+   "text": "options"
+  },
+  {
+   "wants": "what the --json option does: prints one JSON document instead of text",
+   "where": "option description in --help, lower case start, no full stop",
+   "text": "print one JSON document instead of text"
+  },
+  {
+   "wants": "what the --daemon NAME option is: which daemon to ask, by the name it is kept under in the daemon list; this machine's daemon when not given",
+   "where": "option description in --help, lower case start, no full stop",
+   "text": "ask the daemon named in the daemon list, or this machine's daemon"
+  },
+  {
+   "wants": "what the --no-color option does",
+   "where": "option description in --help, lower case start, no full stop",
+   "text": "print without terminal colours"
+  },
+  {
+   "wants": "what -h/--help does",
+   "where": "option description in --help, lower case start, no full stop",
+   "text": "show this help and exit"
+  },
+  {
+   "wants": "meaning of exit status 0: the command did what was asked",
+   "where": "exit status meaning, lower case start, no full stop, a few words",
+   "text": "did what was asked"
+  },
+  {
+   "wants": "meaning of exit status 1: the daemon refused the request and its reason was printed",
+   "where": "exit status meaning, lower case start, no full stop",
+   "text": "the daemon refused the request and its reason was printed"
+  },
+  {
+   "wants": "meaning of exit status 2: the command line could not be read (unknown option, missing argument)",
+   "where": "exit status meaning, lower case start, no full stop",
+   "text": "the command line could not be read"
+  },
+  {
+   "wants": "meaning of exit status 3: the daemon could not be reached",
+   "where": "exit status meaning, lower case start, no full stop",
+   "text": "the daemon could not be reached"
+  },
+  {
+   "wants": "note after an option's description giving its default; keep {value}",
+   "where": "bracketed note in --help, lower case, e.g. 'default: {value}'",
+   "text": "default: {value}"
+  },
+  {
+   "wants": "note after an option's description saying the option may be given more than once",
+   "where": "bracketed note in --help, lower case, a few words",
+   "text": "may be given more than once"
+  },
+  {
+   "wants": "sentence introducing the list of fields of the JSON document a command prints with `--json`; ends with a colon; keep `--json` in backticks",
+   "where": "--help output section",
+   "text": "With `--json`, prints one object with these fields:"
+  },
+  {
+   "wants": "sentence telling the reader to run `{line}` to read everything about one subcommand; keep `{line}` in backticks",
+   "where": "end of a command group's --help",
+   "text": "Run `{line}` to read everything about one command."
+  },
+  {
+   "wants": "sentence telling the reader to run `{line}` for help; keep `{line}` in backticks",
+   "where": "after a usage error",
+   "text": "Run `{line}` for help."
+  },
+  {
+   "wants": "usage error: the word {name} is not the name of any command here",
+   "where": "error line after 'hmz chat: ', lower case start, no full stop",
+   "text": "no command named {name}"
+  },
+  {
+   "wants": "usage error: a subcommand name is required after a command group",
+   "where": "error line after 'hmz chat: ', lower case start, no full stop",
+   "text": "needs a command name"
+  },
+  {
+   "wants": "error: no daemon is kept under the name {name}",
+   "where": "error sentence with full stop",
+   "text": "No daemon is kept under the name {name}."
+  },
+  {
+   "wants": "error: the daemon cannot be reached: {why}",
+   "where": "error line, lower case start, no full stop",
+   "text": "the daemon cannot be reached: {why}"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

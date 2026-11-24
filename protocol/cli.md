@@ -3,7 +3,7 @@
 ## Abstract
 
 This document specifies the command-line interface of hmz: every command, its options and their
-grammars, what it writes to its standard streams, and its exit statuses; and the command line of
+grammars, what it writes to its standard streams, its help, and its exit statuses; and the command line of
 `coganchor`, the program that carries hmz's anchor.
 
 ## Status of This Document
@@ -81,9 +81,22 @@ It is normative. It is cited by the tag [CLI].
   - [15.2. Output](#152-output)
   - [15.3. Exit](#153-exit)
   - [15.4. The chats written down](#154-the-chats-written-down)
-- [16. Security Considerations](#16-security-considerations)
-- [17. References](#17-references)
-  - [17.1. Normative References](#171-normative-references)
+- [16. Declared commands](#16-declared-commands)
+- [17. `hmz devices`](#17-hmz-devices)
+  - [17.1. Synopsis](#171-synopsis)
+  - [17.2. Behaviour](#172-behaviour)
+- [18. `hmz epic` and `hmz hosts`](#18-hmz-epic-and-hmz-hosts)
+- [19. `hmz runs`](#19-hmz-runs)
+- [20. `hmz env`](#20-hmz-env)
+- [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
+- [22. `hmz settings`, `hmz accounts` and `hmz nous`](#22-hmz-settings-hmz-accounts-and-hmz-nous)
+- [23. `hmz runtimes`, `hmz easytier` and `hmz daemons`](#23-hmz-runtimes-hmz-easytier-and-hmz-daemons)
+- [24. `hmz btw`, `hmz ai` and `hmz notices`](#24-hmz-btw-hmz-ai-and-hmz-notices)
+- [25. `hmz skills`](#25-hmz-skills)
+- [26. `hmz help`](#26-hmz-help)
+- [27. Security Considerations](#27-security-considerations)
+- [28. References](#28-references)
+  - [28.1. Normative References](#281-normative-references)
 
 ## 1. Introduction
 
@@ -183,12 +196,17 @@ epilog MUST each be at most thirty words long.
 exec      run an agent flow in this directory
 chat      say one message to an agent in this directory
 web       open this machine's epics in a browser on it
-daemon    serve, reach, pair or install this machine's daemon
+daemon    run, reach, pair and install this machine's daemon
 relay     relay daemons and the devices that reach them
 update    update hmz to its newest release
 backup    back epics up to git repositories, or download them
 internal  internal commands used by Humanize; do not run directly
 ```
+
+followed by each declared command (Section 16) with its summary, in the order of their names.
+
+**3.3.4** The help of a declared command MUST be what Section 16 states, and Section 3.3.2 MUST hold
+of each text in it.
 
 ## 4. Output conventions
 
@@ -196,7 +214,7 @@ internal  internal commands used by Humanize; do not run directly
 
 **4.1.1** A command MUST write to standard output only what a program reading it is to parse: help
 and version text (Section 3), the answers of turns, an NDJSON stream, the lines Section 8 to Section
-10, Section 13 and Section 14 name as standard output, the bytes `hmz daemon connect --stdio`
+10, Section 13 and Section 14 name as standard output, what a declared command answers (Section 16), the bytes `hmz daemon connect --stdio`
 relays, and what Section 11 relays or reports to standard output.
 
 **4.1.2** A command MUST write every diagnostic to standard error.
@@ -234,7 +252,7 @@ the URL carries.
 on every refusal this document assigns status 2.
 
 **5.1.3** A command MUST NOT exit with a status other than 0, 1 and 2, except as Section 5.2
-specifies.
+and Section 16.9 specify.
 
 ### 5.2. Statuses particular to commands
 
@@ -1387,7 +1405,121 @@ a yes MUST be said on standard error and MUST exit with status 1.
 **15.4.7** Each MUST exit with status 0 once done; what the daemon refuses MUST be written and exit
 as Section 15.3.2 states, and a daemon that cannot be reached or started as Section 15.3.4 states.
 
-## 16. Security Considerations
+## 16. Declared commands
+
+**16.1** A _declared command_ is a command written as one declaration: its name, its summary, what it
+takes, example lines, what it prints, the fields of its JSON document, its exit statuses and the
+methods of [OPENRPC] it calls. Section 17 onwards specify the declared commands; `exec`, `web`,
+`daemon`, `relay`, `update` and `internal` are not declared commands.
+
+**16.2** A declared command MUST reach a daemon only as a client of it, through the `Client` of
+Section 4.21 of [PYTHON] with `kind` `cli`, and MUST NOT read or write what a daemon keeps by any
+other way.
+
+**16.3** A group of declared commands, named with no command after it, MUST write its help to
+standard output and exit with status 0.
+
+**16.4** The help of a declared command MUST consist of these parts, in this order, each present
+where the command has it: its usage line; what it does; its arguments; its options, the common
+options of 16.6 and `-h, --help` after its own; its examples, each a line that can be typed and what
+that line does; its output, being what it prints without `--json` and each field of its JSON document
+with its type; its exit statuses with what each means; the methods of [OPENRPC] it calls; and the
+commands to read beside it. The help of a group MUST consist of its usage line, what it is about, and
+each command under it with its summary.
+
+**16.5** Everything the help of a declared command states MUST be read from its declaration, and a
+declared command MUST NOT take an argument, print a field or exit with a status its help does not
+state.
+
+**16.6** Every declared command MUST take `--json`, `--daemon <name>` and `--no-color`. `--daemon`
+MUST name the daemon to ask as Section 23 keeps it, this machine's where it is absent.
+
+**16.7** Under `--json` a declared command MUST write exactly one JSON document and a line feed to
+standard output and nothing else to it, and MUST write nothing to standard error. Where it did what
+it was asked the document MUST hold the fields its help states. Otherwise the document MUST be
+`{"error": {"code": <code>, "message": <message>}}`, `code` being the error's code where a daemon
+answered one (Section 6.6 of [WIRE]), `503` where the daemon cannot be reached and `504` where it
+did not answer in time.
+
+**16.8** Without `--json`, a declared command that did not do what it was asked MUST write `hmz
+<command>: <message>` and a line feed to standard error, `<command>` being its words after `hmz`.
+
+**16.9** A declared command MUST exit with status 0 where it did what it was asked, 1 where the daemon
+refused, 2 on a usage error, and 3 where the daemon cannot be reached or did not answer in time.
+
+**16.10** A usage error of a declared command MUST be written to standard error as `hmz <command>:
+<what is wrong>`, followed by a line naming the `--help` to run.
+
+**16.11** Every text a declared command writes that is not data MUST be a text the web interface
+writes ([WEB]) wherever that interface has a text saying the same thing, word for word in its
+English, and MUST otherwise be a text kept with hmz for that purpose; a declared command MUST NOT
+compose such a text where it is written.
+
+## 17. `hmz devices`
+
+### 17.1. Synopsis
+
+```text
+hmz devices list
+hmz devices revoke <name>
+hmz devices pair [--route <route>]... [--seconds <n>]
+```
+
+**17.1.1** `hmz devices` MUST be a group of declared commands (Section 16) with the summary `list
+and revoke the devices paired with this daemon`.
+
+### 17.2. Behaviour
+
+**17.2.1** `hmz devices list` MUST call `devices.list` and write one line per device, in the
+daemon's order: its name, its fingerprint, when it was added and when it was last seen, in columns.
+Its JSON document MUST be `{"devices": [{"name", "fingerprint", "added", "seen"}]}`, `seen` being
+`null` for a device never seen.
+
+**17.2.2** `hmz devices revoke <name>` MUST call `devices.revoke` with `name` and write how many
+sessions were closed. Its JSON document MUST be `{"dropped": <n>}`.
+
+**17.2.3** `hmz devices pair` MUST call `pair.create` with each `--route` as `routes`, where any is
+given, and `--seconds` as `seconds`, where it is given; it MUST write the code and a line feed to
+standard output, and to standard error when the code expires, in local time. Its JSON document MUST
+be `{"code": <code>, "expires": <seconds since the epoch>}`.
+
+## 18. `hmz epic` and `hmz hosts`
+
+This section is reserved for `hmz epic` and `hmz hosts`, the declared commands of `epic.*` and `hosts.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 19. `hmz runs`
+
+This section is reserved for `hmz runs`, the declared commands of `runs.*`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+
+## 20. `hmz env`
+
+This section is reserved for `hmz env`, the declared commands of `env.*` and `hosts.env.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 21. `hmz flows`, `hmz flowverses` and `hmz workspaces`
+
+This section is reserved for `hmz flows`, `hmz flowverses` and `hmz workspaces`, the declared commands of `flows.*`, `flowverses.*`, `workspaces.*` and `paths.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 22. `hmz settings`, `hmz accounts` and `hmz nous`
+
+This section is reserved for `hmz settings`, `hmz accounts` and `hmz nous`, the declared commands of `settings.*`, `accounts.*` and `nous.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 23. `hmz runtimes`, `hmz easytier` and `hmz daemons`
+
+This section is reserved for `hmz runtimes`, `hmz easytier` and `hmz daemons`, the declared commands of `runtimes.*` and `easytier.*`, and the daemons `--daemon` names. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 24. `hmz btw`, `hmz ai` and `hmz notices`
+
+This section is reserved for `hmz btw`, `hmz ai` and `hmz notices`, the declared commands of `btw.*`, `aichan.*` and `notices.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+## 25. `hmz skills`
+
+This section is reserved for `hmz skills`, which installs for a user's harnesses the skill of using `hmz`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+
+## 26. `hmz help`
+
+This section is reserved for `hmz help`, which writes the declarations of every declared command for a person or as JSON. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+
+## 27. Security Considerations
 
 This section states no requirement; it summarises the security-relevant properties the rest of this
 document states.
@@ -1435,9 +1567,9 @@ document states.
   (Section 3.8.5.6 of [DAEMON]). `hmz web` opens a browser unless `--no-open` is given (Section
   8.2.5).
 
-## 17. References
+## 28. References
 
-### 17.1. Normative References
+### 28.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
