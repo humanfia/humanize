@@ -124,6 +124,12 @@ jobs:
               - src/hmz/**
               - tests/integration/*_core*.py
               - tests/integration/doubles_daemon.py
+              # tests/integration/test_core_cli_help.py holds the methods a command names to
+              # the protocol's, and test_core_cli_reference.py the reference to what the
+              # script writes from the commands.
+              - protocol/openrpc.json
+              - scripts/cli_reference.py
+              - docs/reference/cli.md
               # tests/integration/test_core_ci_caches.py holds it to what the jobs here restore.
               - .github/workflows/cache.yml
             integration-anchor:

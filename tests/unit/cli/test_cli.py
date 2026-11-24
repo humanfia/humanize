@@ -14,7 +14,7 @@ import pytest
 
 import hmz.coganchor.binary
 import hmz.daemon
-from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output
+from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output, summaries
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -64,10 +64,53 @@ def test_help_names_every_command(capsys: pytest.CaptureFixture[str]) -> None:
         main(["--help"])
     assert raised.value.code == 0
     out = capsys.readouterr().out
-    assert out.startswith("usage: hmz")
+    assert out.startswith("Usage: hmz [COMMAND] [ARGS...]\n       hmz --version\n")
     for name, (_, summary) in COMMANDS.items():
-        assert name in out
-        assert summary in out
+        assert f"  {name.ljust(8)}  {summary}\n" in out
+    for name, summary in summaries().items():
+        assert f"  {name.ljust(8)}  {summary}\n" in out
+    # Under what each is about, then what they share and what to run next.
+    headings = [line for line in out.splitlines() if line.endswith(":")]
+    assert headings == [
+        "Chats and epics:",
+        "Past work and backups:",
+        "Daemons and devices:",
+        "This program:",
+        "Shared conventions:",
+        "Options:",
+        "Exit codes:",
+        "Next steps:",
+    ]
+
+
+def test_no_color_is_the_help_of_hmz_without_escapes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "\x1b[1mNext steps\x1b[0m:" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        main(["--no-color", "--help"])
+    assert "\x1b[" not in capsys.readouterr().out
+
+
+def test_the_summaries_are_of_every_command_those_that_read_their_own_line_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    found = summaries()
+    assert list(found)[: len(COMMANDS)] == list(COMMANDS)
+    assert found["exec"] == "run an agent flow in this directory"
+    assert found["devices"] == "list and revoke the devices paired with this daemon"
+    assert found["help"] == "show the help of hmz or of one command"
+
+    # A name in both is routed to the first, and is listed as it.
+    monkeypatch.setitem(COMMANDS, "devices", (main, "an older devices"))
+    assert summaries()["devices"] == "an older devices"
 
 
 @pytest.mark.parametrize("argv", [["bogus"], ["--version", "extra"], ["-x"], ["Exec"]])

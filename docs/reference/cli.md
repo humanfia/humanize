@@ -21,24 +21,30 @@ python -m hmz ...
 | --- | --- |
 | `hmz` | Opens the terminal interface in the current directory. Takes no flags. See [The terminal interface](/user/terminal). |
 | `hmz --version` | Prints `hmz <version>` and exits 0. Works only as the whole command line. |
-| `hmz --help`, `hmz -h` | Lists the commands. |
+| `hmz --help`, `hmz -h` | Prints what `hmz` is, every command under what it is about, the options and exit statuses commands share, and what to run next. The same page as `hmz help`. |
 | `hmz COMMAND --help` | Prints the help of one command. |
+| `hmz help --json` | Prints every command as one JSON document. See [hmz help](#hmz-help). |
 
-| Command | What it does |
-| --- | --- |
-| `exec` | Run an agent flow in this directory. |
-| `chat` | Say one message to an agent in this directory. |
-| `web` | Open this machine's epics in a browser on it. |
-| `daemon` | Run, reach, pair and install this machine's daemon. |
-| `relay` | Relay daemons and the devices that reach them. |
-| `update` | Update hmz to its newest release. |
-| `backup` | Back epics up to git repositories, or download them. |
-| `internal` | Commands Humanize spawns for itself. Do not run them directly. |
-| `devices` | List and revoke the devices paired with this daemon. |
+<!-- command list: written by scripts/cli_reference.py from the commands there are; do not edit by hand -->
 
-There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
+| About | Command | What it does |
+| --- | --- | --- |
+| Chats and epics | `chat` | Say one message to an agent in this directory. |
+|  | `exec` | Run an agent flow in this directory. |
+| Past work and backups | `backup` | Back epics up to git repositories, or download them. |
+| Daemons and devices | `daemon` | Run, reach, pair and install this machine's daemon. |
+|  | `devices` | List and revoke the devices paired with this daemon. |
+|  | `relay` | Relay daemons and the devices that reach them. |
+|  | `web` | Open this machine's epics in a browser on it. |
+| This program | `help` | Show the help of hmz or of one command. |
+|  | `update` | Update hmz to its newest release. |
+|  | `internal` | Internal commands used by Humanize; do not run directly. |
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+<!-- command list: end -->
+
+`hmz help completions bash`, `zsh` or `fish` prints a completion script for that shell; see [hmz help](#hmz-help). Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
+
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update`, `backup` and `help` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -363,7 +369,7 @@ See [Back up to git](/user/backups).
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
+`hmz devices` and `hmz help` are commands written as one declaration. Every such command prints the same kind of help and takes the same options. All but `hmz help` are clients of the daemon; a command that asks no daemon takes no `--daemon`, exits 1 when it refuses, and never exits 3.
 
 | Option | What it does |
 | --- | --- |
@@ -374,6 +380,8 @@ See [Back up to git](/user/backups).
 
 A group named alone, such as `hmz devices`, lists its commands.
 
+Help wraps to the terminal's width, up to 100 columns, and to 80 columns when standard output is not a terminal. Headings are bold where [colour](#output-streams) is allowed and `--no-color` is absent.
+
 | Status | Meaning |
 | --- | --- |
 | `0` | The command did what was asked. |
@@ -383,21 +391,162 @@ A group named alone, such as `hmz devices`, lists its commands.
 
 On failure, the command writes `hmz <command>: <message>` to standard error. With `--json` it prints `{"error": {"code": <code>, "message": <message>}}` on standard output instead; `code` is the daemon's error code, `503` if the daemon is unreachable, or `504` if it did not answer in time.
 
+The sections from here to `hmz internal` are written from the declarations by `scripts/cli_reference.py`.
+
+<!-- declared commands: written by scripts/cli_reference.py from src/hmz/cli/commands; do not edit by hand -->
+
 ## hmz devices
+
+A paired device is a phone, browser or other machine let in to this daemon by claiming a pairing code. These commands list them and revoke one.
 
 ```text
 hmz devices list
 hmz devices revoke NAME
-hmz devices pair [--route ROUTE]... [--seconds N]
+hmz devices pair [options]
 ```
 
-| Command | Text output | `--json` |
-| --- | --- | --- |
-| `list` | One line per device: name, fingerprint, when it was paired, when it was last seen. | `{"devices": [{"name", "fingerprint", "added", "seen"}]}`; `seen` is `null` for a device never seen. |
-| `revoke NAME` | How many sessions were closed. | `{"dropped": <n>}` |
-| `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
+### hmz devices list
 
-`--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+List the paired devices.
+
+```text
+hmz devices list
+```
+
+| Example | What it does |
+| --- | --- |
+| `hmz devices list` | List the paired devices. |
+| `hmz devices list --json \| jq -r '.devices[].name'` | List the paired devices as JSON and print their names with jq. |
+
+One line per device: name, fingerprint, when it was paired, when it was last seen.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `devices` | `list` | The paired devices. |
+| `devices[].name` | `string` | The name the device was paired as. |
+| `devices[].fingerprint` | `string` | Fingerprint of the device's certificate. |
+| `devices[].added` | `string` | When it was paired, ISO 8601. |
+| `devices[].seen` | `string\|null` | When it last opened a session, ISO 8601, or null if never. |
+
+Daemon methods: `devices.list`.
+
+### hmz devices revoke
+
+Revoke one paired device and close its open sessions.
+
+```text
+hmz devices revoke NAME
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `NAME` | The name the device was paired as, as `hmz devices list` prints it. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz devices revoke phone` | Revoke the device paired as `phone`. |
+
+How many sessions were closed.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `dropped` | `integer` | How many of the device's open sessions were closed. |
+
+Daemon methods: `devices.revoke`.
+
+### hmz devices pair
+
+Prints a one-time pairing code. Enter it on the device (in Settings > Daemons, or the desktop app) before it expires.
+
+```text
+hmz devices pair [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `--route ROUTE` | A route the code carries to reach this daemon, or those it listens on. May be given more than once. |
+| `--seconds N` | How long the code can be claimed for, in seconds. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz devices pair --seconds 600` | Make a pairing code that can be claimed for ten minutes. |
+
+The code alone on standard output, and when it expires on standard error.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `code` | `string` | The pairing code. |
+| `expires` | `integer` | When the code stops being claimable, seconds since the Unix epoch. |
+
+Daemon methods: `pair.create`.
+
+## hmz help
+
+Prints the help of hmz, or of the command named. Prints every command at once as text or JSON, and shell completion scripts.
+
+```text
+hmz help [COMMAND...] [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `COMMAND` | The command to read about, as its words after `hmz`; or `completions` and a shell. |
+| `--all` | Print the full help of every command, one after another. |
+
+Asks no daemon, and takes no `--daemon`.
+
+| Example | What it does |
+| --- | --- |
+| `hmz help` | Show the commands of hmz, grouped by what they are about. |
+| `hmz help devices revoke` | Show everything about `hmz devices revoke`. |
+| `hmz help --all` | Print the full help of every command. |
+| `hmz help --json` | Print every command as one JSON document, for an agent to load. |
+| `hmz help --json devices` | Print `hmz devices` and the commands under it as one JSON document. |
+| `hmz help completions bash > ~/.local/share/bash-completion/completions/hmz` | Write the bash completion script to where bash loads completions from. |
+| `hmz help completions zsh > ~/.zfunc/_hmz` | Write the zsh completion script to a directory of zsh's `fpath`. |
+| `hmz help completions fish > ~/.config/fish/completions/hmz.fish` | Write the fish completion script to where fish loads completions from. |
+
+Prints the help text, or the completion script.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `version` | `string` | The version of hmz. |
+| `usage` | `string` | The line hmz itself takes. |
+| `description` | `string` | What hmz is, in a sentence or two. |
+| `conventions` | `object` | What commands share unless their own help says otherwise. |
+| `conventions.options` | `list` | The options commands share, each as an entry of `commands[].arguments`. |
+| `conventions.exit_status` | `object` | What each shared exit code means, by code. |
+| `conventions.json` | `string` | What a command prints with `--json`, when it does what was asked and when it fails. |
+| `groups` | `list` | The commands grouped by what they are about, in the order `hmz --help` lists them. |
+| `groups[].title` | `string` | The heading of the group. |
+| `groups[].commands` | `list` | The names of the commands in the group. |
+| `commands` | `list` | Every command, or only the one named, each holding the commands under it. |
+| `commands[].command` | `string` | The command as it is typed, starting with `hmz`. |
+| `commands[].summary` | `string` | What the command does, in a line. |
+| `commands[].description` | `string` | What the command does, in a paragraph. |
+| `commands[].usage` | `string` | The line the command takes. |
+| `commands[].help` | `string` | The line that prints the command's own help, for a command not described further here. |
+| `commands[].commands` | `list` | The commands under a group, each shaped like this one. |
+| `commands[].arguments` | `list` | What the command takes, positional arguments and options. |
+| `commands[].arguments[].name` | `string` | The argument or option as its help shows it. |
+| `commands[].arguments[].flags` | `list` | The spellings of an option, or the name of a positional argument. |
+| `commands[].arguments[].description` | `string` | What the argument or option is. |
+| `commands[].arguments[].positional` | `boolean` | Whether it is given by position rather than by name. |
+| `commands[].arguments[].required` | `boolean` | Whether it must be given. |
+| `commands[].arguments[].repeatable` | `boolean` | Whether it may be given more than once. |
+| `commands[].arguments[].takes_value` | `boolean` | Whether an option is followed by a value. |
+| `commands[].arguments[].choices` | `list` | The only values it takes, or an empty list for any. |
+| `commands[].arguments[].default` | `any` | Its value when it is not given, or null. |
+| `commands[].examples` | `list` | Command lines to type, each with its `line` and what it `does`. |
+| `commands[].prints` | `string` | What the command prints without `--json`. |
+| `commands[].json` | `list` | The fields of the command's `--json` document, each with `field`, `type` and `description`. |
+| `commands[].exit_status` | `object` | What each exit code of the command means, by code. |
+| `commands[].daemon_methods` | `list` | The daemon methods the command calls. |
+| `commands[].see_also` | `list` | Other commands worth reading beside it. |
+| `shell` | `string` | With `completions`, the shell the script is for. |
+| `script` | `string` | With `completions`, the completion script. |
+
+<!-- declared commands: end -->
 
 ## hmz internal
 
