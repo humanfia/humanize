@@ -406,6 +406,10 @@ class _Methods:
                     continue
                 raise
             break
+        if sub.gone:
+            # Ended as it attached -- the session fell behind before the host named its
+            # client -- so nothing let the host's frontend go yet.
+            hosted.detach(sub.client)
         if session.closed:
             sub.dropped()
             raise _refused(409, "the frontend went while it was saying hello")

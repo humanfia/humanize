@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
+from unittest import mock
 
 import pytest
 
@@ -386,3 +387,76 @@ def test_a_paired_device_still_reaches_everything_else(
     served[f"env.{one}"](_call(f"env.{one}", env="1:w"))
 
     assert hosted.asked == [("c1", {"do": f"env.{one}", "env": "1:w"})]
+
+
+class _Attaching:
+    """A host whose session falls behind while it attaches: the sub ends before its client."""
+
+    def __init__(self) -> None:
+        self.workspace, self.slot = "/w", ""
+        self.detached: list[str] = []
+
+    def attach(self, sub: Any, **_: object) -> str:
+        sub.end("too far behind; attach again")
+        return "c9"
+
+    def detach(self, client: str) -> None:
+        self.detached.append(client)
+
+    def forget(self, sub: object) -> None:
+        del sub
+
+
+class _Attacher:
+    """A session an `epic.attach` is made on: what it is told."""
+
+    def __init__(self) -> None:
+        self.name, self.kind, self.reach = "ana", "web", None
+        self.lock = threading.Lock()
+        self.subs: dict[str, Any] = {}
+        self.closed = False
+        self.told: list[dict[str, Any]] = []
+
+    def named(self) -> str:
+        return "s1"
+
+    def tell(self, method: str, params: dict[str, Any]) -> None:
+        del method
+        self.told.append(params)
+
+
+def test_a_subscription_ended_as_it_attaches_lets_the_hosts_frontend_go(
+    tmp_path: Path,
+) -> None:
+    hosted, session = _Attaching(), _Attacher()
+
+    class _Hosts:
+        def get(self, named: str, slotted: str) -> _Attaching:
+            del named, slotted
+            return hosted
+
+        opened = get
+
+    class _Routes:
+        hosts = _Hosts()
+
+        def session(self, call: object) -> _Attacher:
+            del call
+            return session
+
+    served = methods(cast("Router", _Routes()), {})
+    call = SimpleNamespace(
+        method="epic.attach",
+        params={"workspace": str(tmp_path)},
+        answer=mock.Mock(),
+    )
+
+    served["epic.attach"](cast("Call", call))
+
+    assert hosted.detached == ["c9"]
+    assert session.told == [
+        {
+            "sub": "s1",
+            "message": {"type": "gone", "why": "too far behind; attach again"},
+        }
+    ]

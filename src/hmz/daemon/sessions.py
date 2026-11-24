@@ -8,7 +8,9 @@ subscriptions it holds, and the one queue of everything sent it (Section 6.10.1 
 The daemon never waits on a session. What it sends is queued and written by a thread of the
 session's own; once more than 64 MiB wait in the queue the notifications among them are
 dropped, every response kept, and every subscription of the session ended -- an epic one with
-`gone`, a notices one with `notices.event` saying so -- after the frame being written.
+`gone`, a notices one with `notices.event` saying so -- after the frame being written. That
+includes one ended for an earlier fall behind whose end was still waiting and dropped with the
+rest: its client would otherwise follow the subscription on, hearing nothing more of it.
 
 A write that carries `idem` is carried out once per device (Section 6.7): :class:`Idems` keeps
 each answer for 600 seconds, the latest 1 024 of each device.
@@ -62,7 +64,8 @@ class Outgoing:
     Args:
       pipe: What the frames go over.
       behind: Called once, off the lock, when more than :data:`BEHIND` waits: the
-        notifications waiting have been dropped by then.
+        notifications waiting have been dropped by then; those of them that ended a
+        subscription are sent again by :meth:`again`.
     """
 
     def __init__(self, pipe: Pipe, behind: Callable[[], None]) -> None:
@@ -76,6 +79,8 @@ class Outgoing:
         self._flushing = False
         #: Notices subscriptions ended for being behind, whose notifications go no further.
         self.ended: set[str] = set()
+        #: What ended a subscription and was dropped as the session fell behind.
+        self._lost: list[bytes] = []
         threading.Thread(target=self._writes, daemon=True, name="hmz-session").start()
 
     def recv(self, size: int, /) -> bytes:
@@ -102,6 +107,9 @@ class Outgoing:
             behind = self._size > BEHIND
             if behind:
                 kept = [one for one in self._waiting if not one[1]]
+                self._lost.extend(
+                    one[0] for one in self._waiting if one[1] and _ends(one[0])
+                )
                 self._waiting = collections.deque(kept)
                 self._size = sum(len(one[0]) for one in kept)
             self._lock.notify()
@@ -110,6 +118,21 @@ class Outgoing:
             threading.Thread(
                 target=self._behind, daemon=True, name="hmz-behind"
             ).start()
+
+    def again(self) -> None:
+        """Queues again what ended a subscription and was dropped as the session fell behind.
+
+        A subscription ended for an earlier fall behind is still one its client follows until
+        it hears so, and is ended again with the same words (Section 6.10.1 of wire.md).
+        """
+        with self._lock:
+            lost, self._lost = self._lost, []
+            if self._closed or self._flushing:
+                return
+            for data in lost:
+                self._waiting.append((data, True))
+                self._size += len(data)
+            self._lock.notify()
 
     def close(self) -> None:
         """Closes the pipe now, whatever is still queued."""
@@ -140,6 +163,31 @@ class Outgoing:
                 break
         with contextlib.suppress(OSError):
             self._pipe.close()
+
+
+def _ends(frame: bytes) -> bool:
+    """Whether a notification's frame ends its subscription: an epic's `gone`, a notices' `gone`."""
+    if b'"gone"' not in frame:
+        return False
+    try:
+        said: object = json.loads(frame[4:])
+    except ValueError:
+        return False
+    if not isinstance(said, dict):
+        return False
+    told = cast("dict[str, Any]", said)
+    params: object = told.get("params")
+    if not isinstance(params, dict):
+        return False
+    given = cast("dict[str, Any]", params)
+    if told.get("method") == "notices.event":
+        return "gone" in given
+    message: object = given.get("message")
+    return (
+        told.get("method") == "epic.event"
+        and isinstance(message, dict)
+        and cast("dict[str, Any]", message).get("type") == "gone"
+    )
 
 
 def _sub(frame: bytes) -> str:
@@ -228,7 +276,12 @@ class Session:
             self.out.close()
 
     def behind(self) -> None:
-        """Ends every subscription of a session that has fallen too far behind."""
+        """Ends every subscription of a session that has fallen too far behind.
+
+        Those ended by an earlier fall whose end was dropped with the rest first, in the order
+        they were ended.
+        """
+        self.out.again()
         with self.lock:
             subs = list(self.subs.values())
             notices = list(self.notices)
