@@ -3766,7 +3766,108 @@ This section is reserved for the family of `chat.*`. It states no requirement ye
 
 ### 4.25. `Client.epics` and `Client.hosts`
 
-This section is reserved for the families of `epic.*` and `hosts.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Epics(Family):
+    def attach(self, workspace: str | None = None, *, slot: str | None = None,
+               replay: bool | None = None, since: Mapping[str, Any] | None = None,
+               figures: bool | None = None, scratch: bool | None = None,
+               wait: float | None = None) -> Attached: ...
+    def of(self, sub: str) -> Frontend: ...
+    def ended(self) -> bool: ...
+
+class Frontend:
+    sub: str
+    def start(self, flow: str, task: str | None = None, *, agents=None, envs=None,
+              params=None, budget=None, profile_flow=None, profile_environment=None,
+              resume=None, backup=None, remember=None, idem=None, wait=None) -> Started: ...
+    def say(self, text: str, *, to: str | None = None, idem=None, wait=None) -> None: ...
+    def answer(self, question: str, text: str | None = None, *, value: Any = None,
+               idem=None, wait=None) -> None: ...
+    def face(self, digest: str, *, wait=None) -> Face: ...
+    def stop(self, *, idem=None, wait=None) -> None: ...
+    def force(self, *, idem=None, wait=None) -> int: ...
+    def afk(self, on: bool, role: str | None = None, *, idem=None, wait=None) -> None: ...
+    def claim(self, role: str, *, take: bool | None = None, idem=None, wait=None) -> None: ...
+    def release(self, role: str, *, idem=None, wait=None) -> None: ...
+    def board(self, key: str, value: str | None = None, *, idem=None, wait=None) -> None: ...
+    def aside(self, *, side=None, prompt=None, key=None, fork=None, runs=None, recall=None,
+              kept=None, cwd=None, wait=None) -> dict[str, Any]: ...
+    def unaside(self, side: str, *, wait=None) -> None: ...
+    def status(self, *, wait=None) -> dict[str, Any]: ...
+    def detach(self, *, wait=None) -> None: ...
+    def quit(self, *, idem=None, wait=None) -> None: ...
+
+class Attached(Frontend):
+    client: str; workspace: str; slot: str
+    events: Subscription
+    over: bool
+    def next(self, seconds: float | None = None) -> dict[str, Any] | None: ...
+    def __iter__(self) -> Iterator[dict[str, Any]]: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+
+class Started:  # frozen
+    run: int; slot: str; workspace: str
+
+class Face:     # frozen
+    html: str; title: str
+
+class Hosts(Family):
+    def list(self) -> list[Host]: ...
+    def running(self) -> list[Running]: ...
+    def open(self, workspace: str, slot: str | None = None) -> dict[str, Any]: ...
+    def status(self, workspace: str, slot: str | None = None) -> dict[str, Any]: ...
+    def detach(self, workspace: str, slot: str | None = None) -> int: ...
+    def stop(self, workspace: str, slot: str | None = None, *, idem: str | None = None) -> None: ...
+
+class Host:     # frozen
+    pid: int; workspace: str; started: str; slot: str
+
+class Running:  # frozen
+    workspace: str; slot: str; state: str; run: int; kind: str; flow: str; epic: str
+    chat: str; task: str; asking: tuple[str, ...]; turn: str | None
+```
+
+**4.25.1** `Epics.attach(...)` MUST call `epic.attach` (Section 4.7.1 of [DAEMON]) with what it was
+given and return an `Attached` whose `sub`, `client`, `workspace` and `slot` are those answered and
+whose `events` is the `Subscription` of `epic.event` for that `sub` (Section 4.22.4), holding every
+notification of it from the first the host sent.
+
+**4.25.2** `Epics.of(sub)` MUST return a `Frontend` of that subscription and MUST NOT make the
+client hear anything: it is for a client that hears its notifications by `Client.heard`.
+`Epics.ended()` MUST say whether the client's session has ended.
+
+**4.25.3** Each method of a `Frontend` other than `face` MUST call the method `epic.<its name>` of
+Section 4.8 of [DAEMON], and `face` `epic.face`, with `sub` the frontend's and the parameters of
+the same names it was given, `afk` sending `on` and `face` sending its argument as `hash`; `wait`
+MUST be how many seconds the answer is waited for (Section 4.21.4), and MUST NOT be sent. A
+refusal MUST be raised as `Refused` with the host's message, code and data.
+
+**4.25.4** `start` MUST return a `Started` of the `run`, `slot` and `workspace` answered; `force`
+the `closed` answered; `face` a `Face` of the `html` and `title` answered; `aside` and `status`
+the result; and every other method `None`.
+
+**4.25.5** `Attached.next(seconds)` MUST return the `message` of the next notification of the
+subscription, or `None` where none came within `seconds`, with `None` waiting for as long as it
+takes. Iterating an `Attached` MUST yield each message in order. Both MUST end -- `next` returning
+`None` at once, the iteration stopping -- after the message whose `type` is `gone` (Section 4.9.4
+of [DAEMON]), once the client's session has ended with nothing left to yield (Section 4.9.4.3 of
+[DAEMON]), and once `close()` was called; `over` MUST then be true.
+
+**4.25.6** `Attached.close()` MUST call `epic.detach`, ignoring a refusal of it, and MUST close
+`events`; it MUST NOT stop any epic. Leaving a `with` block of an `Attached` MUST call `close()`.
+
+**4.25.7** `Hosts.list()` MUST call `hosts.list` and return a `Host` for each entry of `held`, in
+order; `Hosts.running()` MUST call `hosts.running` and return a `Running` for each entry of
+`running`, `turn` being `None` where the entry has none (Section 4.6.2 of [DAEMON]).
+
+**4.25.8** `Hosts.open`, `Hosts.status`, `Hosts.detach` and `Hosts.stop` MUST call `hosts.open`,
+`hosts.status`, `hosts.detach` and `hosts.stop` with `workspace` and, where it is not `None`,
+`slot`; `open` and `status` MUST return the result, `detach` its `let_go`, and `stop` `None`.
+
+**4.25.9** `Run` (Section 4.5) MUST make its calls to its epic through a `Frontend` of its
+subscription.
 
 ### 4.26. `Client.runs`, `Client.backups` and `Client.files`
 
