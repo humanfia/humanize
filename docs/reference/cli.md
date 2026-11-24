@@ -399,6 +399,81 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
 
+## hmz btw
+
+```text
+hmz btw ask QUESTION [--to SESSION] [--aside NAME] [-w PATH] [--epic NAME | --chat NAME]
+hmz btw sessions (--epic NAME | --chat NAME)
+hmz btw list [-w PATH] [--epic NAME | --chat NAME]
+hmz btw show ASIDE [-w PATH] [--epic NAME | --chat NAME]
+hmz btw leave (ASIDE | --all) [-w PATH]
+```
+
+Side questions: see [Ask a side question](/user/side-questions). `-w` names the workspace and defaults to the folder the command is run in. Without `--epic` or `--chat`, a command is about the epic in view in that workspace.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `ask QUESTION` | The answer on standard output. The name of a side conversation it opened on standard error. | `{"aside", "to", "question", "answer"}` |
+| `sessions` | One line per session, oldest first: the session as `--to` takes it, and its harness. | `{"sessions": [{"session", "agent", "harness"}]}` |
+| `list` | One line per side conversation: its name, the session it asks, how many questions it has answered, and the question it is answering now. | `{"asides": [{"aside", "to", "question", "said": [{"question", "answer"}]}]}` |
+| `show ASIDE` | Each question on a line starting with `>`, followed by its answer, oldest first. | `{"aside", "to", "question", "said": [{"question", "answer"}]}` |
+| `leave` | `Closed.` | `{"aside": <name>}`; `null` with `--all`. |
+
+`--to` is a session written `<agent>/<n>`. With `--chat` and no `--to`, `ask` asks the chat's newest session; without `--chat`, `--to` is required. `--aside` goes on in a side conversation already open, with the session it already asks, so `--to` can be left out; without `--aside`, `ask` opens a new one. `leave` takes one name or `--all`, never neither.
+
+## hmz ai
+
+```text
+hmz ai new TASK [--scope {daemon,workspace,epic}] [-w PATH] [--epic NAME] [--nous NOUS]
+                [--preset {read-only,danger-full-access}] [--wait] [--timeout SECONDS]
+hmz ai list
+hmz ai rename ID TITLE
+hmz ai forget ID [-y]
+hmz ai say ID TEXT [--no-wait] [--timeout SECONDS]
+hmz ai wait ID [--timeout SECONDS]
+hmz ai stop ID
+```
+
+Conversations with [Ai-chan](/user/ai-chan). `ID` is the conversation's number, as `hmz ai list` prints it.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `new TASK` | The conversation's number; with `--wait`, Ai-chan's answer after it. | `{"id", "workspace", "slot", "answer", "mode"}`; `answer` and `mode` are `null` without `--wait`. |
+| `list` | One line per conversation, newest first: its number, state, scope, preset, nous and title. | `{"conversations": [{"id", "title", "scope", "workspace", "epic", "nous", "preset", "slot", "state", "created", "latest", "updated"}]}` |
+| `rename ID TITLE` | `Renamed` | `{"id", "title"}` |
+| `forget ID` | `Deleted` | `{"id"}` |
+| `say ID TEXT` | What Ai-chan said; nothing with `--no-wait`. | `{"id", "answer", "mode"}`; `answer` and `mode` are `null` with `--no-wait`. |
+| `wait ID` | What Ai-chan said. | `{"id", "answer", "mode"}` |
+| `stop ID` | `Stopped` | `{"id"}` |
+
+Without `--scope`, `new` scopes the conversation to the epic if `--epic` is given, else to the workspace if `-w` is given, else to the daemon. For a workspace or epic scope, `-w` defaults to the folder the command is run in. `--nous` defaults to the nous the last conversation was started with, and `--preset` to `read-only`.
+
+`say` answers what Ai-chan waits on, or is said into her turn while she is answering, and carries on a conversation that was folded away. `mode` is `listen` when her turn is over; any other value means she asks a question mid-turn, which the next `say` answers. `--timeout` defaults to 600 seconds; when it passes the command exits with status 3.
+
+`forget` asks on standard error before deleting unless `-y` is given. With `--json`, or when standard input is not a terminal, it asks nobody and exits with status 1 unless `-y` is given.
+
+## hmz notices
+
+```text
+hmz notices list [--after ID] [--kind KIND]...
+hmz notices follow [--after ID] [--kind KIND]...
+```
+
+The daemon's notices: see [Notifications](/user/notifications). `KIND` is `done`, `failed`, `stopped`, `asked` or `listening`, and may be given more than once.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per notice, oldest first: its number, the local time, its kind, the chat or epic it is about, and what it says. | `{"notices": [{"id", "kind", "workspace", "slot", "epic", "chat", "flow", "task", "role", "text", "at"}], "last": <id>}` |
+| `follow` | The same line for each notice as it arrives. | One notice object per line. |
+
+`last` is the number of the newest notice the daemon has made, whatever `--kind` leaves out. Pass it to `follow --after` to miss nothing in between:
+
+```sh
+hmz notices follow --after "$(hmz notices list --json | jq .last)"
+```
+
+Without `--after`, `follow` prints only notices made from then on. It runs until you press <kbd>ctrl+c</kbd> and then exits with status 130.
+
 ## hmz internal
 
 Humanize spawns these six internal commands for its own processes. Use this reference to diagnose failures; do not run them directly.

@@ -507,6 +507,72 @@ with Client.local() as client:
         print(device.name, device.seen)
 ```
 
+#### btw {#client-btw}
+
+Side questions, as `btw.*` serves them.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace, *, epic=None, chat=None)` | list of `Aside` | The side conversations open about an epic or a chat, in the order opened. An `Aside` has `aside`, `to`, `question` (the one being answered, `""` for none) and `said`, a tuple of `Answer`. |
+| `sessions(*, epic=None, chat=None)` | list of `Session` | The sessions of one epic or one chat, oldest first. A `Session` has `key` (`<agent>/<n>`, what `ask` takes as `to`), `agent` and `harness`. Raises `ValueError` unless exactly one is named. |
+| `ask(workspace, question, *, to, aside=None, epic=None, chat=None, wait=None)` | `Answer` | Asks a side question and waits for its answer. An `Answer` has `aside`, `to`, `question` and `answer`. With `aside=None` a new side conversation is opened and named. |
+| `leave(workspace, aside=None)` | `None` | Closes one side conversation, or every one of the workspace. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    session = client.btw.sessions(chat="20261117T100000-ab12cd")[-1]
+    first = client.btw.ask("/home/me/project", "What changed?", to=session.key,
+                           chat="20261117T100000-ab12cd")
+    print(first.answer)
+    client.btw.leave("/home/me/project", first.aside)
+```
+
+#### aichan {#client-aichan}
+
+Conversations with Ai-chan. `create`, `list`, `rename` and `forget` are `aichan.*`; `say`, `heard` and `stop` attach to the conversation's host and drive it with `epic.*`, detaching afterwards.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `create(task, *, scope="daemon", workspace=None, epic=None, nous=None, preset=None, idem=None)` | `Made` | Starts a conversation. A `Made` has `id`, `workspace` and `slot`. |
+| `list()` | list of `Conversation` | Every conversation, newest first. A `Conversation` has `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `slot`, `state`, `created`, `latest` and `updated`. |
+| `get(id)` | `Conversation` | One conversation. Raises `Refused` with `code` 404 if there is none. |
+| `rename(id, title, *, idem=None)` | `None` | Changes its title. |
+| `forget(id, *, idem=None)` | `None` | Deletes it for good and closes its host. |
+| `say(id, text, *, hear=True, wait=None)` | `Reply` or `None` | Answers what she waits on, or says the line into her open turn, then waits for what she says. A `Reply` has `text` and `mode` (`listen` when her turn is over). Returns `None` with `hear=False`. |
+| `heard(id, *, wait=None)` | `Reply` | Waits while her turn is open and returns what she waits on you with. |
+| `stop(id)` | `None` | Stops her open turn. Raises `Refused` if she is not answering. |
+
+`say` and `heard` carry on a conversation that was folded away. Both raise `TimeoutError` if `wait` seconds pass first, and `Refused` with `code` 409 if the conversation is over because it failed or crashed.
+
+```python
+with Client.local() as client:
+    made = client.aichan.create("Which epics failed today?", nous="claude/claude-sonnet-4-5")
+    print(client.aichan.heard(made.id, wait=600).text)
+    print(client.aichan.say(made.id, "And yesterday?", wait=600).text)
+```
+
+#### notices {#client-notices}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(after=None)` | list of `Notice` | The notices kept after one, oldest first, the latest 200. A `Notice` has `id`, `kind`, `workspace`, `slot`, `epic`, `chat`, `flow`, `task`, `role`, `text` and `at`. |
+| `last()` | `int` | The number of the newest notice, `0` if there is none. |
+| `kept(after=None)` | `(list of Notice, int)` | Both of the above from one call. |
+| `follow(after=None)` | iterator of `Notice` | Each notice as it is made. Subscribes again by itself if the daemon ends the subscription for falling behind, and unsubscribes when closed. Raises `ConnectionError` once the session has ended. |
+| `subscribe(after=None)` | `Subscription` | The raw subscription: each item is `{"sub", "notice"}`, or `{"sub", "gone"}` once if the session fell too far behind. |
+| `unsubscribe(subscription)` | `None` | Ends a subscription, given as the `Subscription` or its `sub`. |
+
+`hmz.sdk.families.notices.KINDS` lists the kinds: `done`, `failed`, `stopped`, `asked` and `listening`.
+
+```python
+with Client.local() as client:
+    for notice in client.notices.follow(after=client.notices.last()):
+        if notice.kind == "asked":
+            print(notice.epic, notice.text)
+```
+
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 ## Daemons {#daemons}

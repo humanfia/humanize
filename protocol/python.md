@@ -3790,7 +3790,132 @@ This section is reserved for the families of `runtimes.*` and `easytier.*`. It s
 
 ### 4.31. `Client.btw`, `Client.aichan` and `Client.notices`
 
-This section is reserved for the families of `btw.*`, `aichan.*` and `notices.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class SideQuestions(Family):
+    def list(self, workspace: str, *, epic: str | None = None,
+             chat: str | None = None) -> list[Aside]: ...
+    def sessions(self, *, epic: str | None = None,
+                 chat: str | None = None) -> list[Session]: ...
+    def ask(self, workspace: str, question: str, *, to: str, aside: str | None = None,
+            epic: str | None = None, chat: str | None = None,
+            wait: float | None = None) -> Answer: ...
+    def leave(self, workspace: str, aside: str | None = None) -> None: ...
+
+class Answer:        # frozen
+    aside: str; to: str; question: str; answer: str
+
+class Aside:         # frozen
+    aside: str; to: str; question: str; said: tuple[Answer, ...]
+
+class Session:       # frozen
+    key: str; agent: str; harness: str
+
+class AiChan(Family):
+    def create(self, task: str, *, scope: str = "daemon", workspace: str | None = None,
+               epic: str | None = None, nous: str | None = None,
+               preset: str | None = None, idem: str | None = None) -> Made: ...
+    def list(self) -> list[Conversation]: ...
+    def get(self, id: int) -> Conversation: ...
+    def rename(self, id: int, title: str, *, idem: str | None = None) -> None: ...
+    def forget(self, id: int, *, idem: str | None = None) -> None: ...
+    def say(self, id: int, text: str, *, hear: bool = True,
+            wait: float | None = None) -> Reply | None: ...
+    def heard(self, id: int, *, wait: float | None = None) -> Reply: ...
+    def stop(self, id: int) -> None: ...
+
+class Conversation:  # frozen
+    id: int; title: str; scope: str; workspace: str; epic: str; nous: str; preset: str
+    slot: str; state: str; created: str; latest: str; updated: str
+
+class Made:          # frozen
+    id: int; workspace: str; slot: str
+
+class Reply:         # frozen
+    text: str; mode: str
+
+class Notices(Family):
+    def list(self, after: int | None = None) -> list[Notice]: ...
+    def last(self) -> int: ...
+    def kept(self, after: int | None = None) -> tuple[list[Notice], int]: ...
+    def subscribe(self, after: int | None = None) -> Subscription: ...
+    def unsubscribe(self, subscription: Subscription | str) -> None: ...
+    def follow(self, after: int | None = None) -> Generator[Notice]: ...
+
+class Notice:        # frozen
+    id: int; kind: str; workspace: str; slot: str; epic: str; chat: str; flow: str
+    task: str; role: str; text: str; at: float
+    @classmethod
+    def of(cls, said: Mapping[str, Any]) -> Notice: ...
+```
+
+**4.31.1** `SideQuestions.list(workspace, epic, chat)` MUST call `btw.list` and return its `asides`
+in the daemon's order, the `said` of each as `Answer`s.
+
+**4.31.2** `SideQuestions.ask(workspace, question, to, aside, epic, chat)` MUST call `btw.ask` and
+return its result as an `Answer`; where `aside` is `None` it MUST send a name of its own making,
+new for every call. `wait` MUST be how long the answer is waited for (Section 4.22).
+
+**4.31.3** `SideQuestions.leave(workspace, aside)` MUST call `btw.leave`, with no `aside` where it
+is `None`.
+
+**4.31.4** `SideQuestions.sessions` MUST take exactly one of `epic` and `chat`, else raise
+`ValueError` and call nothing; it MUST read `sessions` from `runs.get` for an epic and from
+`chat.get` for a chat, and return one `Session` for each, in that order, `key` being
+`<agent>/<n>`, `<n>` counting that agent's sessions from 1, and `harness` its `backend`.
+
+**4.31.5** `AiChan.create` MUST call `aichan.create` and return a `Made` of its `id`, `workspace`
+and `slot`; `list()` MUST call `aichan.list` and return its conversations in the daemon's order;
+`rename(id, title)` and `forget(id)` MUST call `aichan.rename` and `aichan.forget`.
+
+**4.31.6** `AiChan.get(id)` MUST return the conversation of that `id` among those of `aichan.list`,
+and MUST raise `Refused` with `code` 404, `There is no Ai-chan #<id>.`, where there is none.
+
+**4.31.7** `AiChan.say`, `AiChan.heard` and `AiChan.stop` MUST each read the conversation as
+`get(id)` does and attach to its host with `epic.attach` `{workspace, slot, replay: false}`, and
+MUST let go of it with `epic.detach` however they end; a detach that is refused or cannot be made
+MUST NOT be raised.
+
+**4.31.8** `AiChan.say(id, text)` MUST read the host's status (`epic.status`) until it holds a
+question or its `turn` is `running`, and MUST then call `epic.answer` with the first question it
+holds and `text`, or `epic.say` with `text` where it holds none. With `hear` true it MUST then read
+the status until it holds a question it did not hold when `text` was sent, and return a `Reply` of
+that question's `text` and `mode`; with `hear` false it MUST return `None`.
+
+**4.31.9** `AiChan.heard(id)` MUST read the host's status until it holds a question, and return a
+`Reply` of the first one's `text` and `mode`.
+
+**4.31.10** While `say` or `heard` waits, a status that holds no question, whose `turn` is not
+`running` and whose `ended` says how it ended, other than `stopped`, MUST raise `Refused` with `code` 409 and that `why`, or
+`This conversation failed. Start a new one.` where it says none; and `wait` seconds passing, where
+it is not `None`, MUST raise `TimeoutError`.
+
+**4.31.11** `AiChan.stop(id)` MUST call `epic.stop` on the host, and for a conversation whose
+`state` is `folded` MUST attach to nothing and raise `Refused` with `code` 409, `Ai-chan is not
+answering, so there is nothing to stop`.
+
+**4.31.12** `Notices.kept(after)` MUST call `notices.list` once and return its `notices`, oldest
+first, and its `last`; `list(after)` MUST return the first of the two and `last()` the second.
+
+**4.31.13** `Notices.subscribe(after)` MUST call `notices.subscribe` and return the `Subscription`
+(Section 4.22) of its `sub`, which is told the `params` of each `notices.event`: `{sub, notice}`,
+or `{sub, gone}`. `unsubscribe` MUST take that `Subscription`, which it MUST also close, or a `sub`,
+and call `notices.unsubscribe`.
+
+**4.31.14** `Notices.follow(after)` MUST subscribe and yield each notice it is told as a `Notice`,
+for as long as it is iterated. Told `gone`, it MUST subscribe again after the last notice it
+yielded, or, where it yielded none, after `after`, or the `last` its first subscription was
+answered with where `after` is `None`. Closed, it MUST unsubscribe, and a refusal of that MUST NOT
+be raised. Once the session has ended it MUST raise `ConnectionError`.
+
+**4.31.17** `AiChan.list()` MUST return `""` for a text a conversation's entry holds `null` for.
+
+**4.31.16** The `METHODS` of these three families MUST name the methods of `btw.*`, `aichan.*` and
+`notices.*` alone. The calls `AiChan` makes of `epic.*` and `SideQuestions.sessions` makes of
+`runs.get` and `chat.get` are named by the families of those methods (Section 4.22.2), and MUST be
+made as Section 4.22.3 states.
+
+**4.31.15** `Notice.of(said)` MUST return the `Notice` of one notice as a daemon says it (Section
+4.19.1.2 of [DAEMON]).
 
 ## 5. Security Considerations
 
