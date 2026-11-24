@@ -150,7 +150,7 @@ Every other CLI, including LiteLLM, has no list of its own: Humanize passes each
 ## Good to know
 
 - In Claude Code, skills use `/`, so `$` lists only flows.
-- A CLI reports its commands when its conversation opens. Before the first turn, the list is short and unknown `/` lines pass through as text; after the first turn, unknown `/` names fail with `no such command`.
+- A CLI reports its commands when its conversation opens. Before the first turn, the list is short and unknown `/` lines pass through as text; after the first turn, unknown `/` names fail with `No such command`.
 - Commands that open an interactive CLI dialog, such as `/config`, `/login` or `/permissions`, are refused.
 - Humanize stops any `!` command it runs after 10 minutes.
 - A chat's `/prefer` setting is saved with the chat and persists when you resume it.

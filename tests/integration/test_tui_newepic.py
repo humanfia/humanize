@@ -10,6 +10,7 @@ from hmz.daemon.link import Link
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Entry
 from hmz.tui.shell import Zone
+from hmz.tui.views import newepic
 from hmz.tui.views.newepic import NewEpic
 from tests.integration.doubles_tui import (
     MODEL,
@@ -114,7 +115,7 @@ async def test_ctrl_e_sets_an_epic_up_on_one_page_and_ctrl_o_reads_it_beside_its
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await until(pilot, lambda: "^E new epic" in screen(app), "the hint line")
+        await until(pilot, lambda: "^E New epic" in screen(app), "the hint line")
 
         await pilot.press("ctrl+e")
         await until(pilot, lambda: isinstance(app.screen, NewEpic), "the page")
@@ -206,3 +207,21 @@ async def test_ctrl_e_sets_an_epic_up_on_one_page_and_ctrl_o_reads_it_beside_its
         await pilot.press("ctrl+e")
         await until(pilot, lambda: not isinstance(app.screen, NewEpic), "it to close")
         assert len(app.screen_stack) == 1
+
+
+async def test_the_page_opens_on_the_folder_it_is_asked_for(
+    workspace: Path, tmp_path: Path
+) -> None:
+    del workspace
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+
+        await newepic.opens(app, folder=str(other))
+
+        # On that folder, which has no flow of its own as the interface's has.
+        await on(pilot, NewEpic)
+        await shows(pilot, "New epic", "No flow installed yet.")
+        assert OWN not in screen(app)

@@ -43,7 +43,7 @@ Humanize checks each line you send in this order and applies the first rule that
 2. A `/` line that names a Humanize command runs that command.
 3. In a chat, a line starting with `$`, `/`, `!` or `@` goes to the chat's harness. See [Commands, skills and files in a chat](/user/chat-input).
 4. `$<flow> <task>` starts that flow on the task, such as `$ralph_loop fix the build`. If the flow is not set up here yet, `/flow` opens on it first, holding the task. See [Start an epic](/user/epics). If a question is waiting, the line answers it instead.
-5. Any other `/` line fails with `hmz: no such command: /<name>`.
+5. Any other `/` line fails with ``hmz: No such command: `/<name>`.``
 6. Anything else goes to the agent: it starts or continues the chat, steers the running flow, or answers a waiting question. See [Chat with an agent](/user/chat), [Talk to a running flow](/user/steering) and [Answer a flow's questions](/user/questions).
 
 If a command does not work in your current view, Humanize tells you where it works. Command arguments split like shell words, so quote arguments that contain spaces.
@@ -69,7 +69,7 @@ The list also completes arguments: flows after `/flow` and `$`, the nine pages a
 | Command | What it does | More |
 | --- | --- | --- |
 | `/flow [flow] [task]` | Set up a flow, or start one on a task. | [Find and install flows](/user/flows), [Start an epic](/user/epics) |
-| `/epics [@daemon]` | View and manage epics here or on another daemon. | [History and search](/user/history) |
+| `/epics [@daemon]` | View and manage the epics here, or those of another daemon. | [History and search](/user/history) |
 | `/resume` | Resume the last epic here; in a chat, pick an earlier chat. | [Resume a run](/user/resuming), [Organise chats](/user/manage-chats) |
 | `/stop` | Stop the flow or the chat's turn. | [Stop a run](/user/stopping) |
 | `/exit`, `/quit` | Quit. You can leave a running flow running. | [Leave it running and come back](/user/leaving) |
@@ -97,11 +97,11 @@ The interface keeps the last 2000 lines of up to 32 transcripts.
 
 ## Read the status line
 
-The left side shows the current state: `starting…`, the active agents and their elapsed time (in a chat, `running…` then `done`), `waiting for you`, or, when idle, the agent (outside a chat, the flow that is set up) and the folder. Prefixes mark active modes: `afk` when agents may not ask you, `details` when tool calls are visible, `btw` in btw mode, and `2 flow updates` when installed flows have newer releases. After you copy text, it shows `copied` for two seconds.
+The left side shows the current state: `Starting…`, the active agents and their elapsed time (in a chat, `Running…` then `Done`), `Waiting for you`, or, when idle, the agent (outside a chat, the flow that is set up) and the folder. Prefixes mark active modes: `afk` when agents may not ask you, `Details` when tool calls are visible, `btw` in btw mode, and `2 flow updates` when installed flows have newer releases. After you copy text, it shows `Copied` for two seconds.
 
-Two prefixes mark what the terminal follows. When you open an epic or chat on another daemon with `follow` from `/epics @<name>`, you see `@<daemon> · <folder>` and the transcript shows `following <path> on <daemon>; esc comes back`. Press <kbd>esc</kbd> at the prompt to return to that daemon's list. A new Ai-chan conversation shows `Ai-chan · new · <scope>` until your first line; a conversation you follow shows `Ai-chan#<n> · <scope>`. See [History and search](/user/history) and [Ai-chan](/user/ai-chan).
+Two prefixes mark what the terminal follows. When you open an epic or chat on another daemon with `follow` from `/epics @<name>`, you see `@<daemon> · <folder>` and the transcript shows `Following <path> on <daemon>; esc comes back.` Press <kbd>esc</kbd> at the prompt to return to that daemon's list. A new Ai-chan conversation shows `Ai-chan · New · <scope>` until your first line; a conversation you follow shows `Ai-chan#<n> · <scope>`. See [History and search](/user/history) and [Ai-chan](/user/ai-chan).
 
-The right side lists only the keys that work right now, such as `enter send`, `shift+tab switch view`, `/ commands`, `← monitor` and what the next <kbd>ctrl+c</kbd> does. In a narrow terminal, hints drop from the left of the key list; the state on the left side is never cut.
+The right side lists only the keys that work right now, such as `enter Send`, `shift+tab Next view`, `/ Commands`, `← Monitor` and what the next <kbd>ctrl+c</kbd> does. Every hint is a key and then what it does, in the web page's words. In a narrow terminal, hints drop from the left of the key list; the state on the left side is never cut.
 
 ## Use menus
 
@@ -192,8 +192,8 @@ Press <kbd>ctrl+o</kbd> to open the **Epic** pane to the right of the log. It ha
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.
-- When a new release is out, the transcript prints ``hmz <version> is out: run `hmz update` to update`` once. See [Install and update](/user/install).
-- When installed flows have updates, the transcript prints `updates available: …; update from /flow`.
+- When a new release is out, the transcript prints ``hmz <version> is out; run `hmz update` to update.`` once. See [Install and update](/user/install).
+- When installed flows have updates, the transcript prints ``Flow updates available: …; install them from `/flow`.``
 - On first start, Humanize asks `Report errors to Humanize?`. See [Report a problem](/user/reporting).
 - When a background run finishes or asks a question, a card appears in the corner. See [Notifications](/user/notifications).
 - Type `/` for all commands.

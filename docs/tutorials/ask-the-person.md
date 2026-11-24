@@ -122,7 +122,7 @@ Run `hmz` in your project. On the first run, set a budget: type `/flow sign_off`
 /flow sign_off Add a discount code to checkout
 ```
 
-The question and its context appear in the transcript, ending with `form · 2 fields — press Enter to open`.
+The question and its context appear in the transcript, ending with `Form of 2 fields · Enter opens it`.
 
 1. Press <kbd>enter</kbd> on the empty prompt. The form opens at the bottom.
 2. Press <kbd>1</kbd> to pick `approve`.

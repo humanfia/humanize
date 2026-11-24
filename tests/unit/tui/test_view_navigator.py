@@ -380,21 +380,44 @@ async def test_the_menu_of_a_row_offers_the_pages_actions_and_does_the_one_taken
         assert ("chat.archive", {"chat": "c-old"}) in daemon.asked
 
 
-async def test_new_chat_and_new_epic_fall_back_to_what_the_prompt_has_for_them(
+async def test_new_chat_and_new_epic_open_their_pages_on_the_folder_asked_for(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(navigator, "views", lambda: {"navigator": VIEW})
+    opened: list[tuple[str, str]] = []
+
+    async def chat(_app: object, *, folder: str = "") -> None:
+        opened.append(("chat", folder))
+
+    async def epic(_app: object, *, flow: str = "", folder: str = "") -> None:
+        del flow
+        opened.append(("epic", folder))
+
+    monkeypatch.setattr(navigator.newchat, "opens", chat)
+    monkeypatch.setattr(navigator.newepic, "opens", epic)
     app = _Stands()
     async with app.run_test(size=(120, 30)) as pilot:
-        await _opened(pilot, Daemon(str(tmp_path)), Kept(tmp_path / "kept.json"))
+        listing = await _opened(
+            pilot, Daemon(str(tmp_path)), Kept(tmp_path / "kept.json")
+        )
 
+        # The keys open the pages on the interface's own folder.
         await pilot.press("N")
         await pilot.press("n")
         await pilot.pause()
+        assert opened == [("epic", ""), ("chat", "")]
 
-        assert app.did == ["flow", "chat"]
-        assert isinstance(app.focused, Input)
+        # And a folder's own menu opens them on that folder, whichever it is.
+        await _onto(pilot, listing, "g:/far/empty")
+        await pilot.press("full_stop")
+        await pilot.pause()
+        assert isinstance(app.screen, Acts)
+        app.screen.dismiss("chat")
+        for _ in range(100):
+            await pilot.pause(0.01)
+            if len(opened) > 2:
+                break
+        assert opened[2:] == [("chat", "/far/empty")]
 
 
 async def test_opened_with_the_interface_it_stays_closed_on_a_narrow_terminal(
@@ -459,6 +482,8 @@ async def test_only_a_folder_nothing_ran_in_is_offered_to_be_forgotten(
             await pilot.pause()
             return found
 
+        # A folder that is gone is one nothing is started in.
         assert await offered("g:/far/other") == ["search", "copy", "fold"]
-        assert await offered("g:/far/empty") == ["search", "copy", "fold", "forget"]
+        there = ["chat", "epic", "search", "copy", "fold", "forget"]
+        assert await offered("g:/far/empty") == there
         assert "chat" in await offered(f"g:{tmp_path}")

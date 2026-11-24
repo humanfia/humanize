@@ -238,7 +238,7 @@ async def test_a_budget_is_set_and_read_in_the_terminal(world: World) -> None:
         await pilot.press("escape")
         await on(pilot, Confirms)
         await pilot.press("enter")
-        await shows(pilot, f"set up: /flow {_FLOW} <task> starts it")
+        await shows(pilot, f"Flow set up; `/flow {_FLOW} <task>` starts it.")
         await _settled(pilot)
 
         # -- the epic's own page, with its meters -----------------------------------
@@ -259,7 +259,7 @@ async def test_a_budget_is_set_and_read_in_the_terminal(world: World) -> None:
         await pilot.press("escape")
         await pilot.press("right")
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
 
 
 # -- the command line -----------------------------------------------------------------

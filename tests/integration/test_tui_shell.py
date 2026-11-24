@@ -32,7 +32,7 @@ async def test_f1_opens_the_keys_beside_the_log_and_esc_gives_the_prompt_the_key
         context = app.query_one("#context", Zone)
         assert app.theme == "humanfia-dark"
         assert not context.has_class("open")
-        await until(pilot, lambda: "F1 keys" in screen(app), "the hint line")
+        await until(pilot, lambda: "F1 Keys" in screen(app), "the hint line")
 
         await pilot.press("f1")
         await until(pilot, lambda: "KEYS" in screen(app), "the keys")

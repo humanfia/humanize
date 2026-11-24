@@ -98,7 +98,7 @@ async def test_a_line_is_the_task_and_the_agent_s_answer_is_drawn(
         await opened(pilot)
         await typed(pilot, "hello")
 
-        drawn = await shows(pilot, "heard hello", "◉ done")
+        drawn = await shows(pilot, "heard hello", "◉ Done")
 
     assert "❯ hello" in drawn
     (argv,) = started(workspace)
@@ -148,11 +148,11 @@ async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
         await shows(pilot, "still on it")
 
         await pilot.press("ctrl+c")
-        await shows(pilot, "press ctrl+c again to stop the flow")
-        assert "stopping the flow" not in screen(app)
+        await shows(pilot, "Press ctrl+c again to stop the flow")
+        assert "topping the flow" not in screen(app)
 
         await pilot.press("ctrl+c")
-        await shows(pilot, "stopping the flow", "turn cut off")
+        await shows(pilot, "topping the flow", "turn cut off")
         await until(pilot, lambda: ended(workspace) == "stopped", "the run to end")
         assert app.is_running  # the interface stays, for the next run
 
@@ -161,11 +161,11 @@ async def test_stop_ends_a_run_waiting_on_you_without_asking(workspace: Path) ->
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, f"/flow {TALKS} hello")
-        await shows(pilot, "waiting for you")
+        await shows(pilot, "Waiting for you")
 
         await typed(pilot, "/stop")
 
-        await shows(pilot, "stopping the flow")
+        await shows(pilot, "topping the flow")
         await until(pilot, lambda: ended(workspace) == "stopped", "the run to end")
 
 
@@ -212,7 +212,7 @@ async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_t
         await opened(pilot)
         await typed(pilot, f"/flow {TALKS} wait first")
         # Read already: a run lands on the agent of the first conversation it opens.
-        await shows(pilot, "still on it", "─ reading ")
+        await shows(pilot, "still on it", "─ Reading ")
         await typed(pilot, "more")
         await shows(pilot, "heard wait first then more")
 
@@ -228,7 +228,7 @@ async def test_what_the_agent_stops_to_ask_is_shown_and_answered_in_its_conversa
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, f"/flow {TALKS} ask me")
-        await shows(pilot, "─ reading ", "Which colour? (red / blue)", "type an answer")
+        await shows(pilot, "─ Reading ", "Which colour? (red / blue)", "ype an answer")
 
         await typed(pilot, "blue")
 
@@ -248,15 +248,15 @@ async def test_a_question_the_flow_asks_of_its_own_is_shown_and_answered_where_y
         # and the question put where it is read rather than on a transcript nobody reads.
         drawn = await shows(
             pilot,
-            "─ reading ",
+            "─ Reading ",
             "❯ make it so",
             "Ship heard make it so?",
-            "type an answer",
+            "ype an answer",
         )
         assert "all agents" not in drawn
         await typed(pilot, "yes")
 
-        await shows(pilot, "heard yes", "the flow is done")
+        await shows(pilot, "heard yes", "Flow done")
     assert heard(workspace) == ["make it so", "yes"]
 
 
@@ -365,7 +365,7 @@ async def test_a_question_asked_as_a_form_is_read_then_answered_on_its_sheet(
             "Ship the parser change?",
             "the change · diff · +2 \N{MINUS SIGN}1 in 1 file",
             "table · 2 rows",
-            "form · 3 fields \N{EM DASH} press Enter to open",
+            "Form of 3 fields · Enter opens it",
         )
         assert "return s.strip()" in drawn
         assert not isinstance(app.screen, Asks)
@@ -432,7 +432,7 @@ async def test_esc_keeps_the_form_s_draft_and_words_typed_go_into_it(
         record = asked_as_form()
         tell(app, record)
         tell(app, pending(record))
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
 
         # Words typed at the prompt open the form with them in the field they answer.
         await typed(pilot, "looks fine")
@@ -462,7 +462,7 @@ async def test_json_typed_at_a_form_is_its_answer_and_a_choice_s_number_opens_it
         record = asked_as_form()
         tell(app, record)
         tell(app, pending(record))
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
 
         await typed(pilot, "1")
         await on(pilot, Asks)
@@ -490,7 +490,7 @@ async def test_a_form_withdrawn_while_open_comes_down_saying_why(
         record = asked_as_form()
         tell(app, record)
         tell(app, pending(record))
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
         await pilot.press("enter")
         await on(pilot, Asks)
 
@@ -500,7 +500,7 @@ async def test_a_form_withdrawn_while_open_comes_down_saying_why(
         await until(
             pilot, lambda: not isinstance(app.screen, Asks), "the sheet to close"
         )
-        await shows(pilot, "withdrawn: the run ended")
+        await shows(pilot, "Withdrawn: the run ended")
 
 
 async def test_a_form_held_by_another_frontend_waits_for_it(workspace: Path) -> None:
@@ -517,7 +517,7 @@ async def test_a_form_held_by_another_frontend_waits_for_it(workspace: Path) -> 
             "Waiting for web",
             "The custom view is in the web page",
         )
-        assert "press Enter to open" not in drawn
+        assert "Enter opens it" not in drawn
 
 
 async def test_what_an_outworlder_is_shown_is_on_its_own_transcript(
@@ -543,7 +543,7 @@ async def test_what_an_outworlder_is_shown_is_on_its_own_transcript(
         assert "3 of 5" not in screen(app)  # not on the transcript being read
 
         await pilot.press("tab")
-        await shows(pilot, "human was shown", "3 of 5 tests pass")
+        await shows(pilot, "human was shown something", "3 of 5 tests pass")
 
 
 async def test_flow_opens_on_the_roles_of_an_epic_another_frontend_started(
@@ -573,7 +573,7 @@ async def test_flow_opens_on_the_roles_of_an_epic_another_frontend_started(
             # Saved under that flow's name, for the next epic of it.
             await gives_a_budget(pilot)
             await leaves(pilot)
-            await shows(pilot, "changes will apply to the next epic")
+            await shows(pilot, "changes apply to the next epic")
         finally:
             link.close()
     assert Hmz(workspace).settings.flow == OWN

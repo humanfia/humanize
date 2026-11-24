@@ -154,7 +154,7 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
 
         # A flow, which a chat is not: its epic goes where the flow menu said.
         await typed(pilot, f"${OWN} hello")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
 
     assert Hmz().backups.wait(60)
@@ -201,7 +201,7 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} hello")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 

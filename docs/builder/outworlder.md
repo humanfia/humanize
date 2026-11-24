@@ -146,7 +146,7 @@ Start the flow in the app or `hmz` to see questions appear as the flow runs. See
 
 ### In the terminal
 
-![The terminal interface with the same question: the coder's note, the diff, the Checks table and the line form, 2 fields, press Enter to open](/shots/builder-outworlder-terminal.svg)
+![The terminal interface with the same question: the coder's note, the diff, the Checks table and the line saying it is a form of 2 fields that Enter opens](/shots/builder-outworlder-terminal.svg)
 
 ## Handle nobody being there
 

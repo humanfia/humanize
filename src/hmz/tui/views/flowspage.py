@@ -29,8 +29,10 @@ from textual.widgets.option_list import Option
 
 from hmz.tui import flows, humanfia
 from hmz.tui.pick import bad, declared_of, iffy, why_not
-from hmz.tui.shell import Hints, View, views
+from hmz.tui.shell import Hints, View
 from hmz.words import t
+
+from . import newepic
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -613,13 +615,7 @@ class FlowsPage(Screen[None]):
         app, name = cast("Any", self._interface()), one.name
 
         async def starts() -> None:
-            if "newepic" in views():
-                await app.shell.opens("newepic")
-                takes = getattr(app.screen, "takes_flow", None)
-                if callable(takes):
-                    takes(name)
-            else:
-                app.action_flow(name)
+            await newepic.opens(app, flow=name)
 
         self.dismiss()
         app.call_later(starts)

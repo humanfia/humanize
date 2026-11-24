@@ -136,7 +136,7 @@ async def test_exit_leaves_a_chat_a_host_holds_going_without_asking(
     host, other = chatting
     app = Humanize(link=linked(host))
     async with app.run_test(size=SIZE) as pilot:
-        await shows(pilot, "still on it", "running…")
+        await shows(pilot, "still on it", "Running…")
 
         await typed(pilot, "/exit")
 
@@ -157,5 +157,5 @@ async def test_two_ctrl_c_in_an_attached_interface_stop_the_run_for_everybody(
 
         await pilot.press("ctrl+c", "ctrl+c")
 
-        await shows(pilot, "stopping the flow")
+        await shows(pilot, "topping the flow")
         await until(pilot, lambda: host.status()["state"] == "idle", "the run to end")

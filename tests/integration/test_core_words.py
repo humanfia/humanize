@@ -17,6 +17,7 @@ import pytest
 from hmz import words
 from hmz.cli import tree
 from hmz.tui import shell
+from hmz.tui.app import commands as said_at_the_prompt
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -41,6 +42,7 @@ SAID_THROUGH_T = (
     "src/hmz/tui/complete.py",
     "src/hmz/tui/asking.py",
     "src/hmz/tui/epic.py",
+    "src/hmz/tui/app.py",
 )
 
 
@@ -74,6 +76,8 @@ def _declared() -> Iterator[tuple[str, str]]:
         for text in (view.title, view.hint, *(does for _, does in view.keys)):
             if text:
                 yield name, text
+    for command in said_at_the_prompt():
+        yield f"/{command.name}", command.about
 
 
 def test_every_text_a_command_or_a_view_declares_is_one_of_the_words() -> None:

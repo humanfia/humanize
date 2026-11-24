@@ -100,7 +100,6 @@ def own_views(monkeypatch: pytest.MonkeyPatch) -> None:
     found = {name: view for name, view in shell.views().items() if name in OWN}
     monkeypatch.setattr(shell, "views", lambda: found)
     # The page asks by the name it imported, which is its own to stand in for.
-    monkeypatch.setattr("hmz.tui.views.flowspage.views", lambda: found)
 
 
 @pytest.fixture
@@ -233,7 +232,12 @@ async def test_new_epic_closes_the_page_and_sets_the_flow_up(
     del store
     started: list[str] = []
     app = _Stands()
-    monkeypatch.setattr(app, "action_flow", started.append, raising=False)
+
+    async def opens(_app: object, *, flow: str = "", folder: str = "") -> None:
+        del folder
+        started.append(flow)
+
+    monkeypatch.setattr("hmz.tui.views.flowspage.newepic.opens", opens)
     async with app.run_test(size=(120, 30)) as pilot:
         page = FlowsPage()
         await app.push_screen(page)

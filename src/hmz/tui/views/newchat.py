@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Final, cast
+from weakref import WeakKeyDictionary
 
 from rich.markup import escape
 from textual import work
@@ -56,7 +57,7 @@ if TYPE_CHECKING:
     from textual import events
     from textual.app import App, ComposeResult
 
-__all__ = ["VIEWS", "Chip", "NewChat"]
+__all__ = ["VIEWS", "Chip", "NewChat", "opens"]
 
 #: How often what waits is read again, in seconds: as often as the page reads it.
 _EVERY: Final = 4.0
@@ -153,19 +154,21 @@ class NewChat(Screen[None]):
         ("tab", "Next"),
         ("shift+tab", "Previous"),
         ("enter", "Start"),
-        ("enter", "choose"),
+        ("enter", "Choose"),
         ("enter", "Open"),
     )
 
-    def __init__(self, at: Desk) -> None:
-        """Opens on a new chat of the directory the interface was opened in.
+    def __init__(self, at: Desk, *, folder: str = "") -> None:
+        """Opens on a new chat of a folder.
 
         Args:
           at: The interface it is opened in.
+          folder: The folder the chat is to be of, or "" for the directory the interface
+            was opened in.
         """
         super().__init__()
         self._desk = at
-        self._folder = at.workspace
+        self._folder = folder or at.workspace
         self._place = Place()
         self._agent = ""
         self._permission = DEFAULT
@@ -223,7 +226,7 @@ class NewChat(Screen[None]):
     def _hints(self) -> None:
         held = self.focused
         enter = (
-            "choose"
+            "Choose"
             if isinstance(held, Chip)
             else "Open"
             if isinstance(held, OptionList)
@@ -515,33 +518,24 @@ def _first(clis: dict[str, Any]) -> str:
     return ""
 
 
-class _Leaves(Screen[None]):
-    """What the page's key opens while the page is open: nothing, and the page closes.
+#: The folder each interface's page is to open on the next time it is made.
+_ON: WeakKeyDictionary[App[Any], str] = WeakKeyDictionary()
 
-    A view's key is the way in and the way out (Section 25.1.4 of [TUI]); the shell opens a
-    page by putting what its view makes on the screen, so what is made the second time takes
-    itself and the page off again.
+
+async def opens(app: App[Any], *, folder: str = "") -> None:
+    """Opens the New chat page of an interface on a folder.
+
+    Args:
+      app: The interface, which has the shell the page is opened by.
+      folder: The folder the chat is to be of, or "" for the one the interface is open in.
     """
-
-    DEFAULT_CSS = "_Leaves { background: transparent; }"
-
-    def on_mount(self) -> None:
-        """Leaves, and has the page leave where it is the one under this."""
-        app = cast("App[None]", self.app)  # pyright: ignore[reportUnknownMemberType]
-
-        async def leaves() -> None:
-            await app.pop_screen()
-            # And whatever the page opened over itself: a harness session being read.
-            while any(isinstance(one, NewChat) for one in app.screen_stack):
-                await app.pop_screen()
-
-        app.call_later(leaves)
+    if folder:
+        _ON[app] = folder
+    await cast("Any", app).shell.opens("newchat")
 
 
 def _made(app: App[None]) -> Screen[None]:
-    if any(isinstance(one, NewChat) for one in app.screen_stack):
-        return _Leaves()
-    return NewChat(desk(app))
+    return NewChat(desk(app), folder=_ON.pop(app, ""))
 
 
 VIEWS = (

@@ -40,4 +40,4 @@ def _made(_app: App[None]) -> Keys:
     return Keys()
 
 
-VIEWS = (View("keys", "context", "Keys", _made, key="f1", hint="keys"),)
+VIEWS = (View("keys", "context", "Keys", _made, key="f1", hint="Keys"),)

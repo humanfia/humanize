@@ -95,7 +95,7 @@ async def _chatting(pilot: Pilot[None]) -> None:
     """Says one thing to the stand-in, so that the chat and its environment are open."""
     await opened(pilot)
     await typed(pilot, "hello")
-    await shows(pilot, "heard hello", "◉ done")
+    await shows(pilot, "heard hello", "◉ Done")
 
 
 async def test_a_file_is_read_beside_the_chat_and_esc_gives_the_prompt_the_keys_back(

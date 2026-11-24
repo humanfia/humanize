@@ -54,7 +54,7 @@ hmz
 
 The terminal interface opens on a new chat. The line above the prompt shows the active agent: the harness, model, and effort. On first run, a box asks `Report errors to Humanize?`. Answer `yes` or `no`.
 
-If the line says `no agent installed`, return to step 2. To switch agents, type `/settings workspace` and open **Chat agent**.
+If the line says `No harness installed`, return to step 2. To switch agents, type `/settings workspace` and open **Chat agent**.
 
 ## 4. Chat with the agent
 
@@ -123,7 +123,7 @@ Press <kbd>→</kbd> to return to the agent's transcript.
 
 ## 9. Stop the run
 
-Left alone, the run stops after ten minutes once the current turn finishes. To stop it now, press <kbd>ctrl+c</kbd>. The transcript says `— press ctrl+c again to stop the flow —`. Press <kbd>ctrl+c</kbd> again within three seconds. Typing `/stop` stops the run immediately without confirmation.
+Left alone, the run stops after ten minutes once the current turn finishes. To stop it now, press <kbd>ctrl+c</kbd>. The transcript says `— Press ctrl+c again to stop the flow —`. Press <kbd>ctrl+c</kbd> again within three seconds. Typing `/stop` stops the run immediately without confirmation.
 
 ![The transcript after ctrl+c twice: the flow is stopping and the open turn is cut off](/shots/tutorials-first-task-terminal-stopped.svg)
 

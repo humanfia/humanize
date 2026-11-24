@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual.app import App, ComposeResult
 
 from hmz.tui import humanfia, shell
 from hmz.tui.pick import AiForgets, AiMarks, AiRenames
-from hmz.tui.views.aichan import VIEWS, Conversations
+from hmz.tui.views.aichan import VIEWS, Conversations, keeps, remembers
+from hmz.tui.views.navigator import Kept
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _one(
@@ -51,11 +55,13 @@ class _Daemon:
 class _Host(App[None]):
     """An interface that is the view, and what it was told to follow and to start."""
 
-    def __init__(self, daemon: _Daemon, marks: AiMarks) -> None:
+    def __init__(
+        self, daemon: _Daemon, marks: AiMarks, kept: Kept | None = None
+    ) -> None:
         super().__init__()
         self.followed: list[dict[str, Any]] = []
         self.started = 0
-        self._daemon, self._marks = daemon, marks
+        self._daemon, self._marks, self._kept = daemon, marks, kept
 
     def get_css_variables(self) -> dict[str, str]:
         return {**humanfia.FALLBACK, **super().get_css_variables()}
@@ -66,6 +72,7 @@ class _Host(App[None]):
             news=self._starts,
             asks=self._daemon,
             marks=self._marks,
+            kept=self._kept,
         )
 
     def _starts(self) -> None:
@@ -248,3 +255,38 @@ async def test_the_one_the_log_follows_is_read_as_it_is_said_in_and_left_when_de
         await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
         await pilot.pause()
     assert left == [3]
+
+
+async def test_what_is_pinned_and_unread_is_kept_for_the_next_interface(
+    tmp_path: Path,
+) -> None:
+    kept = Kept(tmp_path / "navigator.json")
+    kept.group = "date"
+    kept.marks("pinned", "a-chat", on=True)
+    daemon = _Daemon(_one(1, "old", "2026-01-01"), _one(2, "new", "2026-01-02"))
+    app = _Host(daemon, AiMarks(), kept)
+
+    async with app.run_test(size=(60, 20)) as pilot:
+        await _listed(app, pilot)
+        await pilot.press("down", "p")  # the newest, which is first: pinned
+        await pilot.press("down", "u")  # the other: unread
+        await pilot.pause()
+
+    again = AiMarks()
+    remembers(again, Kept(tmp_path / "navigator.json"))
+    assert again.pinned == {2}
+    assert again.unread == {1}
+    # Beside the navigator's own, which it leaves as it found them.
+    held = Kept(tmp_path / "navigator.json")
+    assert held.group == "date"
+    assert held.all("pinned") == {"a-chat"}
+
+    # And what is read, up to when, and what was let go of.
+    again.pinned.clear()
+    again.reads(_one(1, "old", "2026-01-01"))
+    keeps(again, Kept(tmp_path / "navigator.json"))
+    last = AiMarks()
+    remembers(last, Kept(tmp_path / "navigator.json"))
+    assert (last.pinned, last.unread) == (set(), set())
+    assert last.seen == {1: "2026-01-01"}
+    assert last.is_unread(_one(1, "old", "2026-01-05"))

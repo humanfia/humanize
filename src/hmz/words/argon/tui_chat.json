@@ -1,19 +1,9 @@
 {
  "entries": [
   {
-   "wants": "what the up and down arrow keys do in a list of a chat's chips and actions: move the cursor to the row above or below",
-   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
-   "text": "move"
-  },
-  {
-   "wants": "what the enter key does on a chip (Folder, Environment, Model, Effort, Permissions): opens the list its value is changed from",
-   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
-   "text": "choose"
-  },
-  {
    "wants": "what the up and down arrow keys do while reading what was said in a harness session: scroll it",
-   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
-   "text": "scroll"
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, one word",
+   "text": "Scroll"
   },
   {
    "wants": "a chat was started in another folder than the one this terminal interface was opened in, named by {folder}; it is read by opening hmz in that folder",

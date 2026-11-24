@@ -132,5 +132,5 @@ async def test_the_terminal_says_no_agent_is_installed(world: World) -> None:
     async with world.tui(size=(100, 20)) as (app, pilot):
         await pilot.pause(1.5)
         await typed(pilot, _TASK)
-        await shows(pilot, "no coding agent is installed")
+        await shows(pilot, "No coding agent is installed")
         shots.tui(app, f"{_PAGE}-no-agent")

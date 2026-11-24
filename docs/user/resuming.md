@@ -83,14 +83,14 @@ When `/resume` or `resume epic` cannot run, it shows one of these messages:
 
 | Message | Meaning |
 | --- | --- |
-| `no flow has been run here, so there is nothing to resume` | No epic in this directory. |
-| `no epic here was of a flow that can be resumed, so there is nothing to resume` | Every epic here is of a flow that is not resumable. |
+| `No flow has run here, so there is nothing to resume.` | No epic in this directory. |
+| `No epic here was of a flow that can be resumed, so there is nothing to resume.` | Every epic here is of a flow that is not resumable. |
 | `<flow> does not support resuming, so <epic> cannot be resumed` | The flow is not currently resumable. |
 | `<epic> cannot be resumed: <why>` | The flow can no longer be loaded. |
-| `<epic> cannot be read, so there is nothing to resume` | The epic's record is unreadable. |
+| `<epic> cannot be read, so there is nothing to resume.` | The epic's record is unreadable. |
 | `<epic> has no saved state to resume: enter a task to start the flow from the beginning` | The run ended before saving state. |
 | `<epic> cannot be resumed here: <why>` | An imported epic whose folder or commit is not on this machine. |
-| `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` | An epic is running. See [Stop a run](/user/stopping). In `/epics` the message is `a flow is running; press ctrl+c twice to stop it before resuming another`. |
+| `An epic cannot be resumed while a flow is running; press ctrl+c twice to stop it first.` | An epic is running. See [Stop a run](/user/stopping). In `/epics` the message is `a flow is running; press ctrl+c twice to stop it before resuming another`. |
 | `/resume takes no arguments: it resumes the last epic here; use /epics to choose another epic` | You passed an argument to `/resume`. |
 
 On the command line, `hmz exec --resume` prints `hmz exec: error: <flow> does not support resuming, so there is no run to resume` or `hmz exec: error: <flow> has no run to resume here: none saved any progress`.

@@ -54,11 +54,11 @@ To switch accounts or models automatically on failure, set up a fallback: see [N
 
 | What you see | Cause | Fix |
 | --- | --- | --- |
-| `hmz: no coding agent is installed` in the terminal | Humanize found no coding agent CLI on this machine. | Install one and sign in to it: see [Coding agents](/user/agents). |
+| `hmz: No coding agent is installed.` in the terminal | Humanize found no coding agent CLI on this machine. | Install one and sign in to it: see [Coding agents](/user/agents). |
 | `HarnessNotInstalled: codex is not installed here: npm i -g @openai/codex` | The line names a CLI that is not installed. | Run the install command the message ends with, or name a CLI you have. |
 | The agent works in your terminal, but the app or the login service cannot find it | The daemon did not get your shell's `PATH`. | Put the CLI's directory on `PATH` in your login shell's profile, then restart the daemon: see [The daemon](/user/daemon). |
 
-![The terminal interface answering a message with hmz: no coding agent is installed](/shots/user-troubleshooting-no-agent.svg)
+![The terminal interface answering a message that no coding agent is installed](/shots/user-troubleshooting-no-agent.svg)
 
 ![hmz exec refused: HarnessNotInstalled, codex is not installed here, followed by its install command](/shots/user-troubleshooting-refused.svg)
 

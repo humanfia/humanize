@@ -293,7 +293,7 @@ def test_a_role_is_claimed_and_left_in_the_app(world: World) -> None:
 async def test_a_question_is_answered_in_the_terminal(world: World) -> None:
     _asked(world)
     async with world.tui(size=(100, 46)) as (app, pilot):
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-terminal")
         reel = shots.Reel(f"{_PAGE}-terminal-form")
@@ -316,7 +316,7 @@ async def test_a_question_is_answered_in_the_terminal(world: World) -> None:
         await _settled(pilot)
         reel.tui(app, hold=1.4, caption="typed at the prompt")
         await pilot.press("enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
         reel.tui(app, hold=3.5, keys="enter", poster=True)
         reel.save()
@@ -325,16 +325,16 @@ async def test_a_question_is_answered_in_the_terminal(world: World) -> None:
 async def test_a_role_is_claimed_and_left_in_the_terminal(world: World) -> None:
     _asked(world)
     async with world.tui(size=(100, 30)) as (app, pilot):
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
         await _settled(pilot, 1.0)
         for _ in range(4):
             await pilot.press("shift+tab")
             await _settled(pilot)
             await pilot.press(*"/claim", "enter")
             await _settled(pilot, 0.6)
-            if "only you can answer for reviewer" in _screen(app):
+            if "Only you can answer for reviewer" in _screen(app):
                 break
-        await shows(pilot, "only you can answer for reviewer")
+        await shows(pilot, "Only you can answer for reviewer")
         await pilot.press(*"/afk", "enter")
         await shows(pilot, "away as reviewer")
         await _settled(pilot, 1.5)

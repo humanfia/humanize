@@ -145,7 +145,7 @@ def test_the_page_is_a_view_opened_over_the_screen_by_ctrl_e() -> None:
     (view,) = VIEWS
 
     assert (view.name, view.zone, view.key) == ("newepic", "page", "ctrl+e")
-    assert (view.title, view.hint) == ("New epic", "new epic")
+    assert (view.title, view.hint) == ("New epic", "New epic")
 
 
 async def test_it_opens_holding_what_the_folder_last_set_the_flow_up_with() -> None:

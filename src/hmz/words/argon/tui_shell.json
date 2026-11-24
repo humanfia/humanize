@@ -6,11 +6,6 @@
    "text": "Keys"
   },
   {
-   "wants": "what the F1 key does: opens the list of keys",
-   "where": "key hint on the bottom line of the terminal interface, one lower-case word or two",
-   "text": "keys"
-  },
-  {
    "wants": "what the esc key does in the keys pane and any pane: goes back to the prompt",
    "where": "key hint, reuse the page's own word for going back",
    "text": "Back"

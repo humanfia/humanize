@@ -67,7 +67,7 @@ class Session(Screen[str | None]):
     ]
 
     #: The keys it takes, as the hint line says them.
-    KEYS: ClassVar = (("↑↓", "scroll"), ("enter", "Continue in chat"))
+    KEYS: ClassVar = (("↑↓", "Scroll"), ("enter", "Continue in chat"))
 
     def __init__(
         self, at: Desk, workspace: str = "", named: str = "", session: str = ""

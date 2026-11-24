@@ -66,7 +66,7 @@ async def ran(pilot: Pilot[None]) -> None:
     """Runs the workspace's own flow on `hello`, to its end."""
     await set_up_own_flow(pilot)
     await typed(pilot, f"${OWN} hello")
-    await shows(pilot, "the flow is done")
+    await shows(pilot, "Flow done")
 
 
 def kept_as_an_epic(workspace: Path, task: str) -> Path:
@@ -165,7 +165,7 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} make it so")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
 
         await typed(pilot, "/resume")
 
@@ -223,7 +223,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
         await set_up_own_flow(pilot)
         began = time.time()
         await typed(pilot, f"${OWN} make it so")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         (epic,) = epics(workspace)
         (session,) = Kept(workspace).sessions(epic)
         claude_logged(tmp_path / "claude-home", workspace, session.ident, began)
@@ -264,7 +264,7 @@ async def test_a_chat_is_not_among_the_epics(workspace: Path) -> None:
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         assert len(chats(workspace)) == 1
 
         await typed(pilot, "/epics")
@@ -282,7 +282,7 @@ async def test_what_an_earlier_hmz_kept_of_a_chat_is_an_epic_read_and_never_carr
         await opened(pilot)
         # No chat to carry on, though it reads as one had here.
         await typed(pilot, "/resume")
-        await shows(pilot, "no chat has been had here")
+        await shows(pilot, "No chat has been had here")
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)

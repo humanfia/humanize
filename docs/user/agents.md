@@ -144,7 +144,7 @@ On startup, the daemon queries in the background every account it has never quer
 
 ## Good to know
 
-- If no coding agent is installed, the terminal says `hmz: no coding agent is installed`.
+- If no coding agent is installed, the terminal says `hmz: No coding agent is installed.`.
 - If no installed agent supports a flow role, the app shows **No harness installed here can fill it.**
 - If a CLI has reported no models yet, the terminal says so under its empty model list; select **Check again** to query it.
 - When nothing is saved for a chat or a role, the terminal never selects `litellm` by itself, and selects `dsh` only when its key is set.

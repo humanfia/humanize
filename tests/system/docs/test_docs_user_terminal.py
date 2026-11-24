@@ -115,4 +115,4 @@ async def test_the_views_of_a_running_flow_are_stepped_through(world: World) -> 
         )
         reel.save()
         await pilot.press("ctrl+c", "ctrl+c")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")

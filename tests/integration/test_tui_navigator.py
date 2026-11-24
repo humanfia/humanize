@@ -60,13 +60,13 @@ async def _two(pilot: Pilot[None], workspace: Path) -> tuple[str, str]:
     """Has one chat, leaves it to fold away, and has a second, which is on the screen."""
     await opened(pilot)
     await typed(pilot, "first")
-    await shows(pilot, "heard first", "◉ done")
+    await shows(pilot, "heard first", "◉ Done")
     await typed(pilot, "/clear")
     await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
     (folding,) = chats(workspace)
     await until(pilot, lambda: bool((read(folding) or Ran(folding)).ended), "the fold")
     await typed(pilot, "second")
-    await shows(pilot, "heard second", "◉ done")
+    await shows(pilot, "heard second", "◉ Done")
     first, second = chats(workspace)
     return first.name, second.name
 
@@ -138,14 +138,14 @@ async def test_a_chat_is_opened_in_the_log_from_the_navigator(workspace: Path) -
         await pilot.press("enter")
 
         # As one picked on `/resume` is: folded away, it is carried on by the next line.
-        await shows(pilot, f"say something to continue chat {first}")
+        await shows(pilot, f"Say something to continue chat {first}")
         await until(
             pilot, lambda: getattr(app.focused, "id", "") == "editor", "the prompt"
         )
         assert app.showing() == first
         assert "heard second" not in screen(app)
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
         assert len(chats(workspace)) == 2
 
 
@@ -178,7 +178,7 @@ async def test_an_epic_is_gone_into_from_the_navigator(workspace: Path) -> None:
     async with app.run_test(size=WIDE) as pilot:
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} hello")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         (epic,) = epics(workspace)
         navigator = await _lists(pilot, app, epic.name)
         await shows(pilot, "hello")
@@ -222,7 +222,7 @@ async def test_search_finds_a_chat_by_what_was_typed_and_opens_it(
 
         await pilot.press("enter")
         await until(pilot, lambda: len(app.screen_stack) == 1, "Search to close")
-        await shows(pilot, f"say something to continue chat {first}")
+        await shows(pilot, f"Say something to continue chat {first}")
         assert app.showing() == first
 
 

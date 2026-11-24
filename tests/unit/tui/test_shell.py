@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from textual.app import App, ComposeResult
+from textual.screen import Screen
 from textual.widgets import Input, Static
 
 from hmz.tui import humanfia, shell
@@ -179,3 +180,67 @@ async def test_a_zone_is_widened_a_step_at_a_time_and_is_narrow_again_after_the_
         assert context.widens() == ""
         await pilot.pause()
         assert context.outer_size.width == 48
+
+
+class _Turning(Static, can_focus=True):
+    """A pane whose keys are other keys once it has been turned."""
+
+    turned = False
+
+    def hint_keys(self) -> list[tuple[str, str]]:
+        return [("enter", "Close" if self.turned else "Open")]
+
+
+async def test_a_view_that_says_its_own_keys_is_asked_for_them_as_the_line_is_drawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    turning = View("turning", "context", "Search", lambda _: _Turning("x"), key="f3")
+    _with(monkeypatch, turning)
+    async with _Stands().run_test(size=(120, 30)) as pilot:
+        app = pilot.app
+        await pilot.press("f3")
+        await pilot.pause()
+        assert str(app.query_one(Hints).render()) == "enter Open   esc Back"
+
+        pane = app.query_one(_Turning)
+        pane.turned = True
+        shell.hinting(pane)
+        await pilot.pause()
+
+        assert str(app.query_one(Hints).render()) == "enter Close   esc Back"
+
+
+class _Page(Screen[None]):
+    """A page with a way out of its own, which counts the times it was taken."""
+
+    left = 0
+
+    def closes(self) -> None:
+        type(self).left += 1
+        self.dismiss(None)
+
+
+async def test_a_pages_key_closes_it_by_its_own_way_out_while_it_is_on_top(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page = View("page", "page", "Open", lambda _: _Page(), key="f4", hint="Open")
+    _with(monkeypatch, page)
+    async with _Stands().run_test(size=(120, 30)) as pilot:
+        app = pilot.app
+        await pilot.press("f4")
+        await pilot.pause()
+        assert isinstance(app.screen, _Page)
+
+        # Under another screen the key is not the page's to be closed by.
+        await app.push_screen(Screen[None]())
+        await pilot.press("f4")
+        await pilot.pause()
+        assert (len(app.screen_stack), _Page.left) == (3, 0)
+        await app.pop_screen()
+
+        await pilot.press("f4")
+        await pilot.pause()
+
+        # Left by its own way out, which is where a page keeps what it held.
+        assert len(app.screen_stack) == 1
+        assert _Page.left == 1

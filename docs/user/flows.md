@@ -189,7 +189,7 @@ hmz workspaces complete '~/co'   # complete a partly typed path
 - You cannot uninstall a flow while another installed flow depends on it. Uninstall the dependent flow first.
 - In the app and from `hmz flowverses`, installing, switching, uninstalling and removing a flowverse are refused while an epic is running on the machine: `An epic is running: flows change once none is.`
 - A flowverse name starts with a letter or digit, uses letters, digits, `.`, `-` and `_`, and cannot be `official`, `local` or `user`.
-- While a flow is running in the terminal, `/flow` only opens that flow's roles, and `$` returns `hmz: cannot choose a flow while one is running`.
+- While a flow is running in the terminal, `/flow` only opens that flow's roles, and `$` returns `hmz: A flow cannot be chosen while one is running.`.
 - Opening the terminal fetches all flowverses in the background without installing updates, skipping any index you have edited by hand. When updates are available, the status line shows `1 flow update`.
 - Flows that fail to load appear in red in the terminal along with the error message.
 - To publish your own flows or host a flowverse, see [Publish and version a flow](/builder/publishing).

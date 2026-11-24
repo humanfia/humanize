@@ -40,10 +40,10 @@ from hmz import state
 from hmz.tui import humanfia
 from hmz.tui.chats import Deletes, Renames
 from hmz.tui.pick import Action, Acts, Popup, _popup
-from hmz.tui.shell import View, views
+from hmz.tui.shell import View
 from hmz.words import t
 
-from . import _rows
+from . import _rows, newchat, newepic
 from ._rows import CHAT, EPIC, HARNESS, Asks, Row
 
 if TYPE_CHECKING:
@@ -106,8 +106,12 @@ class Kept:
     """What one person keeps of the list: its grouping, and the rows pinned, unread, folded.
 
     In Humanize's state directory, beside the prompt history: a way of looking, which is no
-    loss to lose and nothing a daemon is asked to hold.
+    loss to lose and nothing a daemon is asked to hold. Another view's lists of the same
+    kind are kept beside the navigator's, each under a name of its own.
     """
+
+    #: The lists kept: the navigator's, then Ai-chan's (`hmz.tui.views.aichan`).
+    LISTS: ClassVar = ("pinned", "unread", "shut", "ai-pinned", "ai-unread", "ai-seen")
 
     def __init__(self, at: Path | None = None) -> None:
         """Reads what is kept.
@@ -131,7 +135,7 @@ class Kept:
             held = cast("dict[str, Any]", read)
         group = held.get("group")
         self._group = group if isinstance(group, str) and group in GROUPS else GROUPS[0]
-        for which in ("pinned", "unread", "shut"):
+        for which in self.LISTS:
             listed = held.get(which)
             self._lists[which] = (
                 [str(one) for one in cast("list[object]", listed)]
@@ -164,6 +168,14 @@ class Kept:
         rest = [one for one in self._lists[which] if one != name]
         self._lists[which] = ([*rest, name] if on else rest)[-_KEPT:]
         self._writes()
+
+    def keeps(self, lists: Mapping[str, Sequence[str]]) -> None:
+        """Keeps some of the lists as a whole, each in the order given, where one is another."""
+        self.reads()
+        now = {which: list(names)[-_KEPT:] for which, names in lists.items()}
+        if any(self._lists[which] != names for which, names in now.items()):
+            self._lists.update(now)
+            self._writes()
 
     def _writes(self) -> None:
         try:
@@ -713,22 +725,13 @@ class Navigator(Vertical):
             _rows.interface(self._host).shell.home()
         self._draws()
 
-    async def action_new_chat(self) -> None:
-        """A new chat: the New chat page where there is one, and `/chat` until there is."""
-        to = _rows.interface(self._host)
-        if "newchat" in views():
-            await to.shell.opens("newchat")
-            return
-        to.shell.home()
-        await self._host.run_action("chat")
+    async def action_new_chat(self, folder: str = "") -> None:
+        """A new chat, of a folder or of this interface's own: on the New chat page."""
+        await newchat.opens(self._host, folder=folder)
 
-    async def action_new_epic(self) -> None:
-        """A new epic: the New epic page where there is one, and `/flow` until there is."""
-        to = _rows.interface(self._host)
-        if "newepic" in views():
-            await to.shell.opens("newepic")
-            return
-        await self._host.run_action("flow")
+    async def action_new_epic(self, folder: str = "") -> None:
+        """A new epic, of a folder or of this interface's own: on the New epic page."""
+        await newepic.opens(self._host, folder=folder)
 
     def action_pin(self) -> None:
         """Pins the row under the cursor, or takes its pin away."""
@@ -852,21 +855,22 @@ class Navigator(Vertical):
 
     def _folder_menu(self, path: str, group: Group | None = None) -> None:
         """What a folder offers: a new chat or epic in it, Search in it, forgetting it."""
-        ours = _rows.same(path, _rows.here())
+        # A folder that is gone is one nothing is started in.
+        there = group is None or not group.missing
         acts = [
             Action(
                 "chat",
                 t("New chat here"),
                 "",
-                lambda: self._host.run_worker(self.action_new_chat()),
-                lambda: ours,
+                lambda: self._host.run_worker(self.action_new_chat(path)),
+                lambda: there,
             ),
             Action(
                 "epic",
                 t("New epic here"),
                 "",
-                lambda: self._host.run_worker(self.action_new_epic()),
-                lambda: ours,
+                lambda: self._host.run_worker(self.action_new_epic(path)),
+                lambda: there,
             ),
             Action("search", t("Search here"), "", lambda: self._searches(path)),
             Action(

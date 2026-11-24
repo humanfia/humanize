@@ -160,9 +160,9 @@ def test_it_is_drawn_in_humanfias_colours_unless_asked_otherwise(
         (Humanize.in_btw, False),
         (Humanize.leaves_btw, False),
         # On a chat with no turn open, as its host would refuse it.
-        (Humanize.refused_stop, "no turn is open, so there is nothing to stop"),
+        (Humanize.refused_stop, "No turn is open, so there is nothing to stop."),
         (Humanize.refused_resume, ""),
-        (Humanize.refused_chat, "the chat is already on the screen"),
+        (Humanize.refused_chat, "The chat is already open."),
         (Humanize.refused_prefer, ""),
     ],
 )

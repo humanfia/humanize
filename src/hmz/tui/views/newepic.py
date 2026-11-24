@@ -1163,6 +1163,41 @@ class NewEpic(Form[None]):
 #: What each interface's page held when it was last left.
 _DRAFTS: WeakKeyDictionary[App[Any], Draft] = WeakKeyDictionary()
 
+#: The flow and the folder each interface's page is to open on the next time it is made.
+_ON: WeakKeyDictionary[App[Any], tuple[str, str]] = WeakKeyDictionary()
+
+
+async def opens(app: App[Any], *, flow: str = "", folder: str = "") -> None:
+    """Opens the New epic page of an interface on a flow and a folder.
+
+    Args:
+      app: The interface, which has the shell the page is opened by.
+      flow: The flow to start, by name, or "" for the one the page would open on.
+      folder: The folder the epic is to be of, or "" for the one the page would open on.
+    """
+    if flow or folder:
+        _ON[app] = (flow, folder)
+    await cast("Any", app).shell.opens("newepic")
+
+
+def _opening(app: App[Any]) -> Draft | None:
+    """What the page opens holding: what it last held, turned to what was asked for."""
+    draft = _DRAFTS.get(app)
+    flow, folder = _ON.pop(app, ("", ""))
+    if not flow and not folder:
+        return draft
+    typed = dict(draft.typed) if draft is not None else {}
+    if flow and draft is not None and flow != draft.flow:
+        # Another flow's rows are not this one's: what every flow has is carried over.
+        typed = {row: said for row, said in typed.items() if row in (_FOLDER, _TASK)}
+    if folder:
+        typed[_FOLDER] = folder
+    return Draft(
+        flow or (draft.flow if draft is not None else ""),
+        typed,
+        draft.cursor if draft is not None else _TASK,
+    )
+
 
 def _asks(method: str, params: Mapping[str, Any], *, writes: bool = False) -> Any:
     """One call of this machine's daemon."""
@@ -1226,11 +1261,8 @@ def _made(app: App[None]) -> NewEpic:
     From the log alone: over a sheet, the monitor or an environment the key is theirs, and on
     the page itself it closes it.
     """
-    top = app.screen
-    if isinstance(top, NewEpic):
-        top.closes()
-        raise SkipAction
     if len(app.screen_stack) > 1:
+        _ON.pop(app, None)
         raise SkipAction
     host = cast("Humanize", app)
     here = str(Path(host.hmz.workspace).resolve())
@@ -1271,7 +1303,7 @@ def _made(app: App[None]) -> NewEpic:
         folder=here,
         picks=picks,
         refuses=refuses,
-        draft=_DRAFTS.get(app),
+        draft=_opening(app),
         keep=lambda draft: _kept(app, draft),
     )
 
@@ -1349,4 +1381,4 @@ async def _picked(
     return written(chosen) if chosen is not None else None
 
 
-VIEWS = (View("newepic", "page", "New epic", _made, key="ctrl+e", hint="new epic"),)
+VIEWS = (View("newepic", "page", "New epic", _made, key="ctrl+e", hint="New epic"),)

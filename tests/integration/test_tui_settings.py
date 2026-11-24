@@ -111,7 +111,7 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
         await shows(pilot, "● on")
         await leaves(pilot)
 
-        await shows(pilot, "showing details")
+        await shows(pilot, "Details are on")
     assert kept(tmp_path)["details"] is True
 
     async with Humanize().run_test(size=SIZE) as pilot:

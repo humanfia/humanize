@@ -453,7 +453,7 @@ def test_the_view_is_details_in_the_context_on_ctrl_g() -> None:
         "Details",
         "ctrl+g",
     )
-    assert view.keys == (("↑↓", "move"), ("enter", "choose"))
+    assert view.keys == (("↑↓", "Move"), ("enter", "Choose"))
     assert isinstance(Place(), tuple)
 
 

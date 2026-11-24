@@ -56,7 +56,7 @@ from hmz.tui.pick import (
     _rpc,
     chatting,
 )
-from hmz.tui.shell import Hints, View, views
+from hmz.tui.shell import View, hinting
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -367,9 +367,9 @@ class Side(Vertical, can_focus=True, can_focus_children=False):
 
     # -- The keys -------------------------------------------------------------------------------
 
-    def keys(self) -> list[tuple[str, str]]:
+    def hint_keys(self) -> list[tuple[str, str]]:
         """Every key the tab that is open takes, each with what it does there now."""
-        pairs = [("←/→", "tab"), ("↑/↓", "move")]
+        pairs = [("←→", "Tab"), ("↑↓", "Move")]
         row = self._under()
         if self.tab == _BOARD and self._epic.board() is not None:
             if row:
@@ -397,16 +397,9 @@ class Side(Vertical, can_focus=True, can_focus_children=False):
         return pairs
 
     def _hints(self) -> None:
-        """Draws the hint line with this tab's keys, while the view has the keys."""
-        if not self.has_focus:
-            return
-        others = [
-            (view.key, view.hint)
-            for view in views().values()
-            if view.key and view.hint and view.name != NAME
-        ]
-        for line in self._interface().query(Hints):
-            line.says([*self.keys(), ("esc", "Back"), *others])
+        """Has the hint line say this tab's keys, which the shell asks for as it draws."""
+        if self.has_focus:
+            hinting(self)
 
     def on_key(self, event: events.Key) -> None:
         """Takes a key the hint line shows, and leaves every other to whoever has it next."""
@@ -421,7 +414,7 @@ class Side(Vertical, can_focus=True, can_focus_children=False):
             listing.action_cursor_up()
         elif key == "down":
             listing.action_cursor_down()
-        elif key in dict(self.keys()):
+        elif key in dict(self.hint_keys()):
             self._does(key)
         else:
             return
@@ -562,7 +555,7 @@ class Side(Vertical, can_focus=True, can_focus_children=False):
         """Takes a click on a row as enter on it."""
         event.stop()
         self.focus()
-        if "enter" in dict(self.keys()):
+        if "enter" in dict(self.hint_keys()):
             self._does("enter")
 
     def _tab_rows(self) -> tuple[list[_Row], str]:
@@ -991,7 +984,7 @@ VIEWS = (
         "Epic",
         _made,
         key="ctrl+o",
-        hint="epic panel",
-        keys=(("←/→", "tab"), ("↑/↓", "move")),
+        hint="Epic panel",
+        keys=(("←→", "Tab"), ("↑↓", "Move")),
     ),
 )

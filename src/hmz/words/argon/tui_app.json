@@ -1,0 +1,827 @@
+{
+ "entries": [
+  {
+   "wants": "names one view of the terminal interface inside the sentence `/stop is only available on {works}, not on {here}`: the monitor, the screen that draws the running epic",
+   "where": "fragment said inside a longer sentence, lower case, no full stop, with its article",
+   "text": "the monitor"
+  },
+  {
+   "wants": "names one view of the terminal interface inside the sentence `/stop is only available on {works}, not on {here}`: the home transcript, the interface's own log before any agent's conversation is read",
+   "where": "fragment said inside a longer sentence, lower case, no full stop, with its article",
+   "text": "the home transcript"
+  },
+  {
+   "wants": "names one view of the terminal interface inside the sentence `/stop is only available on {works}, not on {here}`: the transcript of one agent",
+   "where": "fragment said inside a longer sentence, lower case, no full stop, with its article",
+   "text": "an agent's transcript"
+  },
+  {
+   "wants": "names one view of the terminal interface inside the sentence `/stop is only available on {works}, not on {here}`: the transcript of what one outworlder (a person's role in an epic) is asked",
+   "where": "fragment said inside a longer sentence, lower case, no full stop, with its article",
+   "text": "an outworlder's transcript"
+  },
+  {
+   "wants": "names one view of the terminal interface inside the sentence `/btw is only available on {works}, not on {here}`: an Ai-chan conversation",
+   "where": "fragment said inside a longer sentence, lower case, no full stop, with its article",
+   "text": "an Ai-chan conversation"
+  },
+  {
+   "wants": "a slash command typed in a view it does not work in: `/{name}` is only available on {works} (one or more views, already worded), not on {here} (the view on the screen, already worded)",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/{name}` is only available on {works}, not on {here}."
+  },
+  {
+   "wants": "`/btw` typed in a view with no session to ask: it is only available on {works}, not on {here}; and `/ai` asks Ai-chan about the epic as a whole",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/btw` is only available on {works}, not on {here}; `/ai` asks Ai-chan about the epic."
+  },
+  {
+   "wants": "`/btw` typed on an agent that has opened no session yet: a side question is asked of a session; `/ai` asks Ai-chan about the epic",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "A side question is asked of a session, and this agent has none yet; `/ai` asks Ai-chan about the epic."
+  },
+  {
+   "wants": "`/btw` typed where the session meant is gone: no conversation was found for {target}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No conversation was found for {target}."
+  },
+  {
+   "wants": "a line starting with `/` that names no command: no such command, then `/{name}`",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No such command: `/{name}`."
+  },
+  {
+   "wants": "a switch command (`/afk`, `/claim`) given a word that is neither `on` nor `off`: `on` or `off` was expected, not {said}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Expected `on` or `off`, not {said}."
+  },
+  {
+   "wants": "`/resume` typed while a flow is running: an epic cannot be resumed while a flow is running; press ctrl+c twice to stop it first",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "An epic cannot be resumed while a flow is running; press ctrl+c twice to stop it first."
+  },
+  {
+   "wants": "`/resume` typed while a flow told to stop has not gone yet: an epic cannot be resumed while the flow is still stopping; it is finishing the turn it was in",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "An epic cannot be resumed while the flow is still stopping; it is finishing the turn it was in."
+  },
+  {
+   "wants": "`/stop` typed while the flow is already stopping: the flow is already stopping; it is finishing the turn it was in",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "The flow is already stopping; it is finishing the turn it was in."
+  },
+  {
+   "wants": "`/stop` typed in a chat whose agent is not answering: no turn is open, so there is nothing to stop",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No turn is open, so there is nothing to stop."
+  },
+  {
+   "wants": "`/stop` typed in an Ai-chan conversation while she is not answering: Ai-chan is not answering, so there is nothing to stop",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Ai-chan is not answering, so there is nothing to stop."
+  },
+  {
+   "wants": "`/stop` typed with no flow running: no flow is running",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No flow is running."
+  },
+  {
+   "wants": "`/chat` typed while the chat is already on the screen",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "The chat is already open."
+  },
+  {
+   "wants": "`/prefer` typed outside a chat: `/prefer` works only in a chat, and `/chat` goes back to it",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/prefer` works only in a chat; `/chat` goes back to it."
+  },
+  {
+   "wants": "`/env` typed where no environment is open: no environment is open here",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No environment is open here."
+  },
+  {
+   "wants": "`/afk` typed on the transcript of an outworlder another frontend holds: {role} is held by {who}, so whether it is away cannot be said from here",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{role} is held by {who}, so whether it is away cannot be said from here."
+  },
+  {
+   "wants": "`/claim` typed on the transcript of an outworlder another frontend holds: {role} is held by {who}, so it cannot be claimed here",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{role} is held by {who}, so it cannot be claimed here."
+  },
+  {
+   "wants": "why a line typed was never sent to an agent, said after `never sent: `: the flow stopped",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "the flow stopped"
+  },
+  {
+   "wants": "why a line typed was never sent to an agent, said after `never sent: `: the flow ended",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "the flow ended"
+  },
+  {
+   "wants": "said after a first ctrl+c with nothing running: press ctrl+c again to exit",
+   "where": "dim line in the transcript, drawn between two dashes; sentence case, no full stop",
+   "text": "Press ctrl+c again to exit"
+  },
+  {
+   "wants": "said after a first ctrl+c while a flow runs: press ctrl+c again to stop the flow",
+   "where": "dim line in the transcript, drawn between two dashes; sentence case, no full stop",
+   "text": "Press ctrl+c again to stop the flow"
+  },
+  {
+   "wants": "installed flows have newer releases: updates are available, {listed} (each flow with its version and the newer one); they are installed from `/flow`",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Flow updates available: {listed}; install them from `/flow`."
+  },
+  {
+   "wants": "a newer release of hmz is out: hmz {version} is out; run `hmz update` to update",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "hmz {version} is out; run `hmz update` to update."
+  },
+  {
+   "wants": "heading drawn across the transcript when stepping to another agent's: which transcript is being read, {name}",
+   "where": "dim heading between two rules; sentence case, no full stop, starting with the page's word for reading",
+   "text": "Reading {name}"
+  },
+  {
+   "wants": "heading drawn across the transcript when stepping to another agent's: which transcript is being read, {name}, and that the agent holds {n} conversations",
+   "where": "dim heading between two rules; sentence case, no full stop; parts separated by ` · `",
+   "text": "Reading {name} · {n} conversations"
+  },
+  {
+   "wants": "heading drawn across the transcript where the flow whose transcript it was is gone: that flow has gone",
+   "where": "dim heading between two rules; sentence case, no full stop",
+   "text": "That flow has gone"
+  },
+  {
+   "wants": "names the transcript of one outworlder inside the heading `Reading <name>`, after the word Reading: `outworlder {role}`",
+   "where": "two words in the middle of a heading, lower case",
+   "text": "outworlder {role}"
+  },
+  {
+   "wants": "how one conversation of an agent is named in a heading after the agent's name: conversation {n}",
+   "where": "two words after ` · `, lower case",
+   "text": "conversation {n}"
+  },
+  {
+   "wants": "after an agent's name where it holds several conversations: conversation {at} of {total}",
+   "where": "after ` · `, lower case, no full stop",
+   "text": "conversation {at} of {total}"
+  },
+  {
+   "wants": "status line where a chat has no agent to talk to: no agent",
+   "where": "word on the status line at the bottom of the terminal interface; sentence case with a capital first letter, no full stop",
+   "text": "No agent"
+  },
+  {
+   "wants": "status line while the flow waits for somebody else to say what next: waiting for {who}",
+   "where": "word on the status line at the bottom of the terminal interface; sentence case with a capital first letter, no full stop",
+   "text": "Waiting for {who}"
+  },
+  {
+   "wants": "hint on the status line while a flow runs: ctrl+c pressed twice stops it",
+   "where": "after ` · ` on the status line; lower case, starting with `ctrl+c`",
+   "text": "ctrl+c twice to stop"
+  },
+  {
+   "wants": "status line with nothing running and no flow set up: no flow set up",
+   "where": "word on the status line at the bottom of the terminal interface; sentence case with a capital first letter, no full stop",
+   "text": "No flow set up"
+  },
+  {
+   "wants": "status line marker: {n} installed flows have a newer release",
+   "where": "word on the status line at the bottom of the terminal interface; sentence case with a capital first letter, no full stop; counts with {n}",
+   "text": "{n} flow updates",
+   "one": "{n} flow update"
+  },
+  {
+   "wants": "line above the prompt where the flow's agents cannot be named because no coding agent is installed",
+   "where": "word on the status line at the bottom of the terminal interface; sentence case with a capital first letter, no full stop",
+   "text": "No harness installed"
+  },
+  {
+   "wants": "mark on the line of one outworlder above the prompt, after its role name: the single noun `outworlder` (Humanize's own word for a person's role in an epic)",
+   "where": "one lower-case word after a middle dot on a line above the prompt of the terminal interface, beside the marks `reading` and `unread` of the agents' lines",
+   "text": "outworlder"
+  },
+  {
+   "wants": "mark saying which frontend holds an outworlder role: {who}'s",
+   "where": "possessive of a name, as short as it can be",
+   "text": "{who}'s"
+  },
+  {
+   "wants": "after a line waiting above the prompt: the agent {agent} has been handed it and holds it now -- `with {agent}`",
+   "where": "after ` · `, lower case",
+   "text": "with {agent}"
+  },
+  {
+   "wants": "last row of the lines waiting above the prompt, written after an ellipsis: {n} more typed messages are waiting that are not shown -- `{n} more waiting`",
+   "where": "one short row after `… `; starts with `{n}`, lower case, no plus sign, no full stop; counts with {n}",
+   "text": "{n} more waiting",
+   "one": "{n} more waiting"
+  },
+  {
+   "wants": "last row of a long message waiting above the prompt, written after an ellipsis: {n} more lines of it are not shown -- `{n} more lines`",
+   "where": "one short row after `… `; starts with `{n}`, lower case, no plus sign, no full stop; counts with {n}",
+   "text": "{n} more lines",
+   "one": "{n} more line"
+  },
+  {
+   "wants": "last row of the lines waiting above the prompt, written after an ellipsis: {lines} more lines of this message are not shown (always two or more) and {n} more messages are waiting -- `{lines} more lines and {n} more waiting`",
+   "where": "one short row after `… `; starts with `{lines}`, lower case, no plus sign, no full stop; the same wording whether {n} is one or many",
+   "text": "{lines} more lines and {n} more waiting",
+   "one": "{lines} more lines and {n} more waiting"
+  },
+  {
+   "wants": "enter runs the slash command typed",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop",
+   "text": "Run"
+  },
+  {
+   "wants": "shift+tab switches to the next view (another agent's transcript)",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop",
+   "text": "Next view"
+  },
+  {
+   "wants": "shift+enter starts a new line in the prompt",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop",
+   "text": "New line"
+  },
+  {
+   "wants": "the left arrow goes up to the monitor, the screen that draws the running epic",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop; the one word the screen is called",
+   "text": "Monitor"
+  },
+  {
+   "wants": "ctrl+c was pressed once: what the key does now is said as `Again to stop` -- pressed again it stops the flow",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop; starts with `again`, written with a capital",
+   "text": "Again to stop"
+  },
+  {
+   "wants": "ctrl+c was pressed once: what the key does now is said as `Again to exit` -- pressed again it exits",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop; starts with `again`, written with a capital",
+   "text": "Again to exit"
+  },
+  {
+   "wants": "ctrl+c exits the interface",
+   "where": "what a key does, written on the status line of the terminal interface right after the key's name (as in `enter Send`, `esc Cancel`); one to three words, sentence case with a capital first letter, no full stop; one word",
+   "text": "Exit"
+  },
+  {
+   "wants": "`/afk` on one outworlder's transcript turned on: you are away as {role}; agents that ask are told nobody is here",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "You are away as {role}; agents that ask are told nobody is here."
+  },
+  {
+   "wants": "`/afk` on one outworlder's transcript turned off: you are here as {role}; agents may stop and ask you",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "You are here as {role}; agents may stop and ask you."
+  },
+  {
+   "wants": "`/afk` turned on: you are away; agents that ask are told nobody is here",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "You are away; agents that ask are told nobody is here."
+  },
+  {
+   "wants": "`/afk` turned off: you are here; an agent may stop and ask you",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "You are here; an agent may stop and ask you."
+  },
+  {
+   "wants": "`/claim` turned on: only you can answer for {role}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Only you can answer for {role}."
+  },
+  {
+   "wants": "`/claim` turned off: anyone can answer for {role}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Anyone can answer for {role}."
+  },
+  {
+   "wants": "said on entering btw mode, after `btw · <session>`: each line typed is a question; `/btw` or esc leaves",
+   "where": "dim, after the mode's name; sentence case, no full stop",
+   "text": "Every line is a side question; `/btw` or esc leaves"
+  },
+  {
+   "wants": "said on leaving btw mode: side questions ended",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case, no full stop",
+   "text": "Side questions ended"
+  },
+  {
+   "wants": "said on leaving btw mode for a reason: side questions ended, {why}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case, no full stop; the reason after a colon",
+   "text": "Side questions ended: {why}"
+  },
+  {
+   "wants": "why btw mode was left, said after `Side questions ended: `: a new flow started",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "a new flow started"
+  },
+  {
+   "wants": "a side question typed while the last one is still being answered",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "A side question is still being answered."
+  },
+  {
+   "wants": "a side question could not be asked: `/btw` could not read the flow's progress, {why}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; the reason after a colon; ends with the reason `{why}` and nothing after it: no full stop, since the reason may be a sentence of its own",
+   "text": "`/btw` could not read the flow's progress: {why}"
+  },
+  {
+   "wants": "a side question could not be asked: `/btw` could not start, {why}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; the reason after a colon; ends with the reason `{why}` and nothing after it: no full stop, since the reason may be a sentence of its own",
+   "text": "`/btw` could not start: {why}"
+  },
+  {
+   "wants": "a side question came back with nothing: the agent returned no answer",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "The agent returned no answer."
+  },
+  {
+   "wants": "said after a new Ai-chan conversation is set up with `/ai`: the next line you say starts the conversation; `/clear` drops it",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Your next line starts the conversation; `/clear` drops it."
+  },
+  {
+   "wants": "what `/ai` does while an Ai-chan conversation is followed: carry another Ai-chan conversation on, or start one",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Continue another Ai-chan conversation, or start one"
+  },
+  {
+   "wants": "`/flow <name>` or `$<name>` typed while a flow runs: a flow cannot be chosen while one is running",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "A flow cannot be chosen while one is running."
+  },
+  {
+   "wants": "a flow named that does not exist: no such flow, {name}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; the name after a colon",
+   "text": "No such flow: {name}."
+  },
+  {
+   "wants": "a flow named by an old name: no such flow, {name}; a flow of {whose} is called {now} now",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No such flow: {name}; a flow of {whose} is called {now} now."
+  },
+  {
+   "wants": "the set-up menu of a flow was walked out of: the flow is not set up, and nothing started",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "The flow is not set up, and nothing started."
+  },
+  {
+   "wants": "a flow was set up: `/flow {flow} <task>` starts it",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case; keep `<task>` exactly",
+   "text": "Flow set up; `/flow {flow} <task>` starts it."
+  },
+  {
+   "wants": "a running epic's roles were changed: the current epic keeps its original roles, and changes apply to the next epic",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "The running epic keeps its roles; changes apply to the next epic."
+  },
+  {
+   "wants": "a flow started while one runs or is starting: a flow is already running",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "A flow is already running."
+  },
+  {
+   "wants": "something was said with no coding agent installed: no coding agent is installed",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No coding agent is installed."
+  },
+  {
+   "wants": "a line typed while following another machine's daemon {daemon}: an epic is started there with `n` on `/epics @{daemon}`; esc comes back here",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; keep `/epics @{daemon}` exactly",
+   "text": "An epic is started on {daemon} with `n` on `/epics @{daemon}`, and esc comes back here."
+  },
+  {
+   "wants": "error reporting was enabled at first start: it is enabled, and `/settings` turns it off",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Error reporting is enabled, and `/settings` turns it off."
+  },
+  {
+   "wants": "error reporting was declined at first start: it is disabled, and `/settings` turns it on",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Error reporting is disabled, and `/settings` turns it on."
+  },
+  {
+   "wants": "error reporting was enabled in settings",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Error reporting is enabled."
+  },
+  {
+   "wants": "error reporting was disabled in settings",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Error reporting is disabled."
+  },
+  {
+   "wants": "`/settings flowverses` typed while a flow runs: the flowverses are on `/flow` now, which offers them while no flow runs",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Flowverses are on `/flow` now, which offers them while no flow runs."
+  },
+  {
+   "wants": "`/settings flowverses` typed: the flowverses are on `/flow` now",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Flowverses are on `/flow` now."
+  },
+  {
+   "wants": "`/settings <page>` naming no page: `/settings` has no page {page}; the pages are {pages}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/settings` has no page {page}; the pages are {pages}."
+  },
+  {
+   "wants": "details were turned on: tool calls, thinking and backend output are shown",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Details are on: tool calls, thinking and backend output are shown."
+  },
+  {
+   "wants": "details were turned off: only the responses of turns are shown",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Details are off: only the responses of turns are shown."
+  },
+  {
+   "wants": "the settings saved for this directory were cleared: Humanize opens without them on next launch",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Cleared the settings saved for this folder; Humanize opens without them next time."
+  },
+  {
+   "wants": "a coding agent's account was asked again for its models and listed {n}: {cli} supports {n} models as {name}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case; counts with {n}; the same verb `supports` for one and for many",
+   "text": "{cli} supports {n} models as {name}.",
+   "one": "{cli} supports {n} model as {name}."
+  },
+  {
+   "wants": "a coding agent's account would not list its models: could not get models for {cli} as {name}; retry from the model row of an agent using this account",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Could not get models for {cli} as {name}; retry from the model row of an agent using this account."
+  },
+  {
+   "wants": "a coding agent's account would not list its models: could not get models for {cli} as {name}, {why}; retry from the model row of an agent using this account",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Could not get models for {cli} as {name}: {why}; retry from the model row of an agent using this account."
+  },
+  {
+   "wants": "`/epics` given something that names no daemon: `/epics` takes a daemon as `@<name>`; the daemons are {names}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; keep `@<name>` exactly",
+   "text": "`/epics` takes a daemon as `@<name>`; the daemons are {names}."
+  },
+  {
+   "wants": "an epic of another machine is followed: following {there} on {daemon}; esc comes back",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Following {there} on {daemon}; esc comes back."
+  },
+  {
+   "wants": "`/resume` given arguments: it takes none; it resumes the last epic here, and `/epics` chooses another",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/resume` takes no arguments; it resumes the last epic here, and `/epics` chooses another."
+  },
+  {
+   "wants": "`/resume` with nothing to resume: no flow has been run here, so there is nothing to resume",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No flow has run here, so there is nothing to resume."
+  },
+  {
+   "wants": "`/resume` with nothing to resume: no epic here was of a flow that can be resumed, so there is nothing to resume",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No epic here was of a flow that can be resumed, so there is nothing to resume."
+  },
+  {
+   "wants": "`/resume` on an epic whose record cannot be read: {name} cannot be read, so there is nothing to resume",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{name} cannot be read, so there is nothing to resume."
+  },
+  {
+   "wants": "`/resume` on an epic whose flow will not load: {name} cannot be resumed, {why}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; the reason after a colon; ends with the reason `{why}` and nothing after it: no full stop, since the reason may be a sentence of its own",
+   "text": "{name} cannot be resumed: {why}"
+  },
+  {
+   "wants": "`/resume` on an epic whose flow does not support it: {flow} does not support resuming, so {name} cannot be resumed",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{flow} does not support resuming, so {name} cannot be resumed."
+  },
+  {
+   "wants": "`/resume` on an epic of another place: {name} cannot be resumed here, {why}",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case; the reason after a colon; ends with the reason `{why}` and nothing after it: no full stop, since the reason may be a sentence of its own",
+   "text": "{name} cannot be resumed here: {why}"
+  },
+  {
+   "wants": "`/resume` on an epic that saved no state: {name} has no saved state to resume; enter a task to start the flow from the beginning",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{name} has no saved state to resume; enter a task to start the flow from the beginning."
+  },
+  {
+   "wants": "an epic is being resumed: resuming {name}, running {flow} from saved state",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Resuming {name}, running {flow} from saved state."
+  },
+  {
+   "wants": "`/resume` in a chat with no chat to resume: no chat has been had here, so there is nothing to resume",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "No chat has been had here, so there is nothing to resume."
+  },
+  {
+   "wants": "under a harness's own session in the list of chats to resume, starting with the harness's name: `{harness} session, read-only; a copy goes on as a chat`",
+   "where": "one line under a row of a list; starts with `{harness}` and no article, no full stop",
+   "text": "{harness} session, read-only; a copy goes on as a chat"
+  },
+  {
+   "wants": "under a harness's own session in the list of chats to resume, starting with the harness's name: `{harness} session, read-only; it cannot be continued in a chat`",
+   "where": "one line under a row of a list; starts with `{harness}` and no article, no full stop",
+   "text": "{harness} session, read-only; it cannot be continued in a chat"
+  },
+  {
+   "wants": "a chat picked to carry on cannot be read: chat {chat} cannot be read, so it cannot be continued",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "Chat {chat} cannot be read, so it cannot be continued."
+  },
+  {
+   "wants": "a chat that had ended was put on the screen: say something to continue chat {name}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "Say something to continue chat {name}."
+  },
+  {
+   "wants": "`/chat` given arguments: `/chat` takes no arguments",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/chat` takes no arguments."
+  },
+  {
+   "wants": "`/prefer` given something else: `/prefer` takes `native` or `flow`",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "`/prefer` takes `native` or `flow`."
+  },
+  {
+   "wants": "`/prefer` alone says what applies: `$<name>` runs {what} (already worded: the skill, or the flow) where it names both; the setting is {prefer}, {whose} (already worded: where the setting is from)",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case; keep `$<name>` exactly",
+   "text": "`$<name>` runs {what} where it names both ({prefer}, {whose})."
+  },
+  {
+   "wants": "`/prefer` set for this chat: `$<name>` runs {what} (already worded: the skill, or the flow) where it names both, in this chat",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case; keep `$<name>` exactly",
+   "text": "`$<name>` runs {what} where it names both, in this chat."
+  },
+  {
+   "wants": "where the `/prefer` setting is from, at the end of a sentence: from this chat",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "from this chat"
+  },
+  {
+   "wants": "where the `/prefer` setting is from, at the end of a sentence: from the settings file",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "from the settings file"
+  },
+  {
+   "wants": "an outworlder role this interface held is now another's: {role} is {who}'s to answer now",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "{role} is {who}'s to answer now."
+  },
+  {
+   "wants": "an outworlder role this interface held was released: {role} is anybody's to answer now",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "{role} is anybody's to answer now."
+  },
+  {
+   "wants": "printed as the interface exits because the daemon went away: disconnected from the epics",
+   "where": "after `hmz: ` on the terminal once the interface has closed; sentence case, no full stop",
+   "text": "Disconnected from the epics"
+  },
+  {
+   "wants": "another frontend is stopping the flow: {who} is stopping the flow",
+   "where": "dim line in the transcript, drawn between two dashes; sentence case, no full stop",
+   "text": "{who} is stopping the flow"
+  },
+  {
+   "wants": "the flow is being stopped",
+   "where": "dim line in the transcript, drawn between two dashes; sentence case, no full stop",
+   "text": "Stopping the flow"
+  },
+  {
+   "wants": "the flow ended of its own accord: the flow is done",
+   "where": "dim line in the transcript, drawn between two dashes; sentence case, no full stop",
+   "text": "Flow done"
+  },
+  {
+   "wants": "where an agent's harness runs: {agent}'s harness runs here, on this machine",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case, no full stop",
+   "text": "{agent}'s harness runs here, on this machine"
+  },
+  {
+   "wants": "where an agent's harness runs: {agent}'s harness runs on its environment's machine",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case, no full stop",
+   "text": "{agent}'s harness runs on its environment's machine"
+  },
+  {
+   "wants": "where an agent's harness runs: {agent}'s harness runs on the runtime {where}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case, no full stop",
+   "text": "{agent}'s harness runs on the runtime {where}"
+  },
+  {
+   "wants": "an agent's turn has begun: {agent} is working",
+   "where": "dim line in the transcript; sentence case, no full stop",
+   "text": "{agent} is working"
+  },
+  {
+   "wants": "an agent's turn has ended: it worked for {seconds} seconds",
+   "where": "dim line in the transcript, before ` · <agent>`; sentence case, no full stop, the seconds written `{seconds}s`",
+   "text": "Worked for {seconds}s"
+  },
+  {
+   "wants": "under a shell command that printed nothing: no output",
+   "where": "dim, in brackets in the transcript; sentence case, no full stop, without the brackets",
+   "text": "No output"
+  },
+  {
+   "wants": "a line typed on the transcript of an outworlder another frontend holds: {role} is {who}'s to answer, not yours",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{role} is {who}'s to answer, not yours."
+  },
+  {
+   "wants": "a line typed on the transcript of an outworlder that asks nothing now: {role} is not asking anything now; read another transcript to say it to an agent",
+   "where": "refusal printed in red in the transcript of the terminal interface, right after the prefix `hmz: `; one sentence, sentence case",
+   "text": "{role} is not asking anything now; read another transcript to say it to an agent."
+  },
+  {
+   "wants": "the epic's timeline was asked for before the epic was written down: the epic has not been written yet",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "The epic has not been written yet."
+  },
+  {
+   "wants": "under a question another frontend holds the role of: it is {who}'s to answer",
+   "where": "dim line under a question, sentence case, no full stop",
+   "text": "It is {who}'s to answer"
+  },
+  {
+   "wants": "under a question whose role this interface claimed: yours to answer; type an answer, or `/afk` to stop being asked",
+   "where": "dim line under a question, sentence case, no full stop",
+   "text": "Yours to answer · type an answer, or `/afk` to stop being asked"
+  },
+  {
+   "wants": "under a question anybody may answer: type an answer, or `/afk` to stop being asked",
+   "where": "dim line under a question, sentence case, no full stop",
+   "text": "Type an answer, or `/afk` to stop being asked"
+  },
+  {
+   "wants": "under a question that is a form of {n} fields: it is a form of {n} fields, and Enter opens it",
+   "where": "dim line under a question; sentence case, no full stop; counts with {n}; parts may be separated by ` · `",
+   "text": "Form of {n} fields · Enter opens it",
+   "one": "Form of {n} field · Enter opens it"
+  },
+  {
+   "wants": "under a question with a custom view: the custom view is in the web page at {url}; Enter answers here with the plain form",
+   "where": "dim line under a question, one sentence",
+   "text": "The custom view is in the web page at {url}; Enter answers here with the plain form."
+  },
+  {
+   "wants": "under a question with a custom view: the custom view is in the web page (`hmz web`); Enter answers here with the plain form",
+   "where": "dim line under a question, one sentence; keep `hmz web` in backticks",
+   "text": "The custom view is in the web page (`hmz web`); Enter answers here with the plain form."
+  },
+  {
+   "wants": "on an outworlder's transcript: {role} was shown something",
+   "where": "dim line in the transcript, sentence case, no full stop",
+   "text": "{role} was shown something"
+  },
+  {
+   "wants": "why a question was withdrawn where no reason was given, said after `Withdrawn: `: it went away",
+   "where": "fragment said inside a longer sentence, lower case, no full stop",
+   "text": "it went away"
+  },
+  {
+   "wants": "the form being answered was withdrawn: the question was withdrawn, {why}",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case; the reason after a colon; ends with the reason `{why}` and nothing after it: no full stop, since the reason may be a sentence of its own",
+   "text": "The question was withdrawn: {why}"
+  },
+  {
+   "wants": "an answer was sent to a question that had gone: the question went away before it was answered (answered elsewhere, or the run moved on)",
+   "where": "quiet (dim) notice in the transcript of the terminal interface; one short sentence, sentence case",
+   "text": "The question went away before it was answered (answered elsewhere, or the run moved on)."
+  },
+  {
+   "wants": "messages typed ({n} of them) were sent to {agent}, which ended its turn without acknowledging them; the count itself is not written",
+   "where": "dim line in the transcript; sentence case, no full stop; `them` for many and `it` for exactly one, otherwise the same words; no number in the text",
+   "text": "Sent to {agent}, which ended its turn without acknowledging them",
+   "one": "Sent to {agent}, which ended its turn without acknowledging it"
+  },
+  {
+   "wants": "lines typed were sent to the agent and not acknowledged, {why}",
+   "where": "dim line in the transcript; sentence case, the reason after a colon",
+   "text": "Sent to the agent and not acknowledged: {why}"
+  },
+  {
+   "wants": "lines typed were never sent, {why}",
+   "where": "dim line in the transcript; sentence case, the reason after a colon",
+   "text": "Never sent: {why}"
+  },
+  {
+   "wants": "what `/exit` does while a flow runs: exit; a running flow can be left running",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Exit · a running flow can be left running"
+  },
+  {
+   "wants": "what `/flow` does: set up a flow, or start one on a task",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Set up a flow, or start one on a task"
+  },
+  {
+   "wants": "what `/flow` does while a flow runs: set up the running flow's agents",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Set up the running flow's agents"
+  },
+  {
+   "wants": "what `/btw` does: ask side questions of the agent session on the screen (say `this session`, not harness session); esc or `/btw` stops",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Ask side questions of this session; esc or /btw stops"
+  },
+  {
+   "wants": "what `/btw` does in btw mode: ask one more; alone, it leaves btw mode (esc too)",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Ask one more · alone, it leaves btw mode (Esc too)"
+  },
+  {
+   "wants": "what `/ai` does: talk to Ai-chan, who operates hmz for you",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Talk to Ai-chan, who operates hmz for you"
+  },
+  {
+   "wants": "what `/epics` does: view and manage the epics here, or those of another daemon",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "View and manage the epics here, or those of another daemon"
+  },
+  {
+   "wants": "what `/resume` does: resume the last epic in this directory",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Resume the last epic in this folder"
+  },
+  {
+   "wants": "what `/resume` does in a chat: resume an earlier chat here",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Resume an earlier chat here"
+  },
+  {
+   "wants": "what `/env` does: files, changes and a terminal of the run's environments",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Files, changes and a terminal of the run's environments"
+  },
+  {
+   "wants": "what `/settings` does: every setting, on the pages {pages}",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop; the pages after a colon",
+   "text": "Every setting: {pages}"
+  },
+  {
+   "wants": "what `/clear` does: clear the screen",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Clear the screen"
+  },
+  {
+   "wants": "what `/clear` does in a chat: start a new chat",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Start a new chat"
+  },
+  {
+   "wants": "what `/afk` does: toggle whether an agent may ask you",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Toggle whether an agent may ask you"
+  },
+  {
+   "wants": "what `/claim` does: answer for this outworlder exclusively; `off` releases it",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Answer for this outworlder exclusively; `off` releases it"
+  },
+  {
+   "wants": "what `/stop` does: stop the flow without confirmation",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Stop the flow without asking"
+  },
+  {
+   "wants": "what `/stop` does in a chat: stop the turn, and go on with the chat",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Stop the turn, and go on with the chat"
+  },
+  {
+   "wants": "what `/chat` does: back to the chat, which went on while a flow was on the screen",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop",
+   "text": "Back to the chat, which went on while a flow was on the screen"
+  },
+  {
+   "wants": "what `/prefer` does: what `$<name>` runs where it names both a skill and a flow",
+   "where": "what a slash command is for, beside its name in the list offered as `/` is typed in the terminal interface; one short line, sentence case, no full stop; keep `$<name>` exactly",
+   "text": "What `$<name>` runs where it names both a skill and a flow"
+  },
+  {
+   "wants": "mark on the line of one outworlder saying whose it is to answer: this interface holds the role, so it is yours -- the possessive word `yours`, as another holder is written `<name>'s`",
+   "where": "one lower-case word after a middle dot on a line above the prompt of the terminal interface, beside the marks `reading` and `unread` of the agents' lines",
+   "text": "yours"
+  },
+  {
+   "wants": "mark on the line of one outworlder: nobody is here for it, it is away",
+   "where": "one lower-case word after a middle dot on a line above the prompt of the terminal interface, beside the marks `reading` and `unread` of the agents' lines",
+   "text": "away"
+  },
+  {
+   "wants": "mark on the line of one outworlder: it is asking a question now",
+   "where": "one lower-case word after a middle dot on a line above the prompt of the terminal interface, beside the marks `reading` and `unread` of the agents' lines",
+   "text": "asking"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

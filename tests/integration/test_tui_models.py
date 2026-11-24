@@ -59,7 +59,7 @@ async def test_a_model_found_by_checking_again_takes_the_efforts_it_was_found_wi
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
-        await shows(pilot, "◉ no agent")  # set up on no model: the stand-in said none
+        await shows(pilot, "◉ No agent")  # set up on no model: the stand-in said none
         await typed(pilot, "/flow")
         await on(pilot, Flows)
         await opens(pilot, "goal")
@@ -81,7 +81,7 @@ async def test_a_model_found_by_checking_again_takes_the_efforts_it_was_found_wi
         await on(pilot, Agent)
         await picks(pilot, "effort", "low")
         await leaves(pilot)
-        await shows(pilot, "set up: /flow goal <task> starts it")
+        await shows(pilot, "Flow set up; `/flow goal <task>` starts it.")
     from hmz.daemon import Hmz
 
     assert Hmz().settings.agents("goal")["worker"].spec == f"claude/{MODEL}:low"

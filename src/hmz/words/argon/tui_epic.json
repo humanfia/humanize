@@ -1,14 +1,9 @@
 {
  "entries": [
   {
-   "wants": "what the ctrl+e key does from anywhere in the terminal interface: opens the New epic page",
-   "where": "key hint on the bottom line of the terminal interface, lower case, two words at most",
-   "text": "new epic"
-  },
-  {
    "wants": "what the ctrl+o key does from anywhere in the terminal interface: opens the panel about the epic that is open, beside the log (its details, board, people and side questions)",
-   "where": "key hint on the bottom line of the terminal interface, lower case, one or two words",
-   "text": "epic panel"
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, two words",
+   "text": "Epic panel"
   },
   {
    "wants": "what the ctrl+s key does on the New epic page: starts the epic with what the page holds",
@@ -57,13 +52,8 @@
   },
   {
    "wants": "what the left and right arrow keys (and the digits 1 to 4) do in the epic panel: go to the previous or next tab (Details, Board, People, Side questions)",
-   "where": "key hint on the bottom line of the terminal interface, lower case, one or two words",
-   "text": "tab"
-  },
-  {
-   "wants": "what the up and down arrow keys do in the epic panel: move to the line above or below",
-   "where": "key hint on the bottom line of the terminal interface, lower case, one word",
-   "text": "move"
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, one word",
+   "text": "Tab"
   },
   {
    "wants": "shown in the Board tab of the epic panel when the epic's flow never asks a person anything and so keeps no board",
