@@ -3,7 +3,7 @@
 Over `stdio:ssh`, the other machine is this one under a home of its own, reached by the
 stand-in `ssh` of `doubles_ssh`, whose `hmz daemon connect --stdio` starts that home's daemon
 as the real one would start the one installed there. Over `tcp`, it is `hmz daemon serve`
-under a home of its own, listening on loopback, paired from the code `hmz daemon pair` makes.
+under a home of its own, listening on loopback, paired from the code `hmz devices pair` makes.
 Over `easytier`, it is that same daemon behind the stand-in EasyTier network of
 `doubles_easytier`, whose serving end lets its TCP port through, never EasyTier's fixed one.
 """
@@ -469,7 +469,7 @@ class _Served:
         """A pairing code it makes, over `routes` or its listener's."""
         said = [one for route in routes for one in ("--route", route)]
         return subprocess.run(
-            [sys.executable, "-m", "hmz", "daemon", "pair", *said],
+            [sys.executable, "-m", "hmz", "devices", "pair", *said],
             env=self.env,
             capture_output=True,
             text=True,

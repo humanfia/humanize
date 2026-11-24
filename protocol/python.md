@@ -4042,7 +4042,98 @@ MUST be a graph that `nous.set` reads as the same graph.
 
 ### 4.30. `Client.runtimes` and `Client.easytier`
 
-This section is reserved for the families of `runtimes.*` and `easytier.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Runtimes(Family):                       # hmz.sdk.families.runtimes
+    def list(self) -> Listed: ...
+    def set(self, backend: str, name: str, fields: Mapping[str, Any] | None = None, *,
+            replace: bool = False, idem: str | None = None) -> Listed: ...
+    def remove(self, backend: str, name: str, *, idem: str | None = None) -> Listed: ...
+    def check(self, backend: str, name: str, *, wait: float | None = None) -> Checked: ...
+    def hosts(self) -> tuple[Host, ...]: ...
+    def import_(self, names: Sequence[str], *, update: bool = False,
+                idem: str | None = None) -> Listed: ...
+
+class Listed:    # frozen
+    local: dict[str, Any]; runtimes: tuple[Runtime, ...]; blanks: dict[str, dict[str, Any]]
+
+class Runtime:   # frozen
+    backend: str; name: str; made: str; fields: dict[str, Any]
+
+class Checked:   # frozen
+    reached: bool; why: str; cpus: float; memory: int; gpus: tuple[str, ...]
+    short: tuple[str, ...]; said: dict[str, Any]
+
+class Host:      # frozen
+    alias: str; host: str; user: str; port: int; saved: bool; said: dict[str, Any]
+
+class EasyTier(Family):                       # hmz.sdk.families.easytier
+    def list(self) -> tuple[Network, ...]: ...
+    def set(self, name: str, nodes: Sequence[str], *, secret: str | None = None,
+            idem: str | None = None) -> tuple[Network, ...]: ...
+    def remove(self, name: str, *, idem: str | None = None) -> tuple[Network, ...]: ...
+    def nodes(self) -> tuple[Node, ...]: ...
+
+class Network:   # frozen
+    name: str; nodes: tuple[str, ...]; secret: bool
+
+class Node:      # frozen
+    url: str; name: str; version: str; up: bool | None; uptime: float | None
+
+class Client:
+    @classmethod
+    def named(cls, name: str) -> Client: ...
+```
+
+The family `Runtimes` of this section is the calls of `runtimes.*` on a daemon, and is distinct from
+`hmz.sdk.Runtimes` (Section 4.10), which reads and writes the runtimes of the calling process's own
+machine.
+
+**4.30.1** `Runtimes.list()` MUST call `runtimes.list` and return a `Listed`: `local` and `blanks`
+as the daemon answered them, and each runtime, in the daemon's order, as a `Runtime` whose `fields`
+are every member the daemon answered of it other than `backend`, `name` and `made`.
+
+**4.30.2** `Runtimes.set(backend, name, fields, replace=...)` MUST call `runtimes.set` with
+`backend`, `name`, `fields`, an empty object where it is `None`, and `replace` `true` where it is
+true; `Runtimes.remove(backend, name)` MUST call `runtimes.remove`; and
+`Runtimes.import_(names, update=...)` MUST call `runtimes.import` with `names` as a list and
+`update` `true` where it is true. Each MUST return the `Listed` of what the daemon answered.
+
+**4.30.3** `Runtimes.check(backend, name, wait=...)` MUST call `runtimes.check`, waiting `wait`
+seconds for the answer where it is given (Section 4.21.4), and return a `Checked`: `reached`, `why`
+the result's `said`, `cpus`, `memory`, `gpus` and `short`, and `said` the whole result.
+
+**4.30.4** `Runtimes.hosts()` MUST call `runtimes.hosts` and return each host, in the daemon's
+order, as a `Host` whose `said` is everything the daemon answered of it.
+
+**4.30.5** `EasyTier.list()` MUST call `easytier.list` and return each entry as a `Network`, whose
+`secret` is whether one is written and never the secret.
+
+**4.30.6** `EasyTier.set(name, nodes, secret=...)` MUST call `easytier.set` with `name`, `nodes` as
+a list and, where it is not `None`, `secret`; `EasyTier.remove(name)` MUST call `easytier.remove`.
+Each MUST return the entries the daemon answered, as `list()` does.
+
+**4.30.7** `EasyTier.nodes()` MUST call `easytier.nodes` and return each node as a `Node`, `name`
+and `version` being `""` and `up` and `uptime` `None` where the daemon said nothing of them.
+
+**4.30.8** `Runtimes.METHODS` MUST be `runtimes.list`, `runtimes.set`, `runtimes.remove`,
+`runtimes.check`, `runtimes.hosts` and `runtimes.import`, and `EasyTier.METHODS` `easytier.list`,
+`easytier.set`, `easytier.remove` and `easytier.nodes`.
+
+**4.30.9** `Client.named(name)` MUST return a `Client` (Section 4.21) of a session with the daemon
+the registry of Section 4.14 keeps under `name`, reached as `Registry.remotes()` reaches it (Section
+4.14.6, Section 4.14.9) with `install` `False`: over its routes in order, pinning the id it answers
+where none is pinned, and never installing `hmz` on a machine that has none. It MUST wait for a
+daemon that is `connecting` or `installing` until it is `up` or `failed`.
+
+**4.30.10** `Client.named` MUST raise `LookupError` where the registry keeps no daemon under
+`name`, and `OSError` where the daemon cannot be reached, its message how the daemon stands
+(Section 4.14.7); either way it MUST leave nothing running that it started to reach the daemon.
+
+**4.30.11** Section 4.21.2 to Section 4.21.7 and Section 4.22 MUST hold of the `Client` that
+`Client.named` returns.
+
+**4.30.12** `Client.close()` on a `Client` that `Client.named` returned MUST also close the session
+and stop every process started to reach the daemon (Section 4.14.11).
 
 ### 4.31. `Client.btw`, `Client.aichan` and `Client.notices`
 

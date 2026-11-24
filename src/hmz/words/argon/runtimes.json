@@ -1,0 +1,760 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz runtimes`: list, write, check and remove the runtimes environments are put on",
+   "where": "command summary in a --help listing",
+   "text": "list, write, check and remove the runtimes environments are put on"
+  },
+  {
+   "wants": "paragraph for `hmz runtimes`, at most 28 words: a runtime is a machine an environment can be put on, other than the daemon's own, written down under a backend and a name; `-e` of `hmz exec` and `hmz chat` names it as `<backend>@<name>`. Keep the backticks exactly",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "A runtime is a machine an environment runs on, other than the daemon's own. `-e` of `hmz exec` and `hmz chat` names it as `<backend>@<name>`."
+  },
+  {
+   "wants": "refusal of a `--set` value that is not written as FIELD=VALUE: {value} is not FIELD=VALUE (keep {value} and FIELD=VALUE in capitals)",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "{value} is not FIELD=VALUE."
+  },
+  {
+   "wants": "refusal: {backend} is not a runtime backend; the backends are {backends} (keep both placeholders)",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "{backend} is not a runtime backend; the backends are {backends}."
+  },
+  {
+   "wants": "refusal: there is no {backend} runtime called {name} (keep both placeholders)",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "There is no {backend} runtime called {name}."
+  },
+  {
+   "wants": "the BACKEND argument of the `hmz runtimes` commands: what kind of runtime it is: `ssh`, `docker`, `swarm`, `apple-container` or `slurm`; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "what kind of runtime it is: `ssh`, `docker`, `swarm`, `apple-container` or `slurm`"
+  },
+  {
+   "wants": "the NAME argument of the `hmz runtimes` commands: the name the runtime is written down under, as `hmz runtimes list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name the runtime is written down under, as `hmz runtimes list` prints it"
+  },
+  {
+   "wants": "JSON field runtimes: every runtime written down after this command, in the daemon's order",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every runtime written down after this command, in the daemon's order"
+  },
+  {
+   "wants": "JSON field backend: the runtime's backend: ssh, docker, swarm, apple-container or slurm",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the runtime's backend: ssh, docker, swarm, apple-container or slurm"
+  },
+  {
+   "wants": "JSON field name: the name the runtime is written down under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the runtime is written down under"
+  },
+  {
+   "wants": "JSON field made: how the runtime came to be written down: `typed`, or `imported` from the SSH config; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how the runtime came to be written down: `typed`, or `imported` from the SSH config"
+  },
+  {
+   "wants": "JSON field fields: the runtime's other fields by name, as `--set` takes them; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the runtime's other fields by name, as `--set` takes them"
+  },
+  {
+   "wants": "JSON field local: the daemon's own machine, where work runs that names no runtime: host, system, machine, cpus, and memory in bytes",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the daemon's own machine, where work runs that names no runtime: host, system, machine, cpus, and memory in bytes"
+  },
+  {
+   "wants": "JSON field blanks: for each backend, every field a runtime of it has, with the value the field has when it is not set",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "for each backend, every field a runtime of it has, with the value the field has when it is not set"
+  },
+  {
+   "wants": "summary of `hmz runtimes list`: list the runtimes, and this machine",
+   "where": "command summary in a --help listing",
+   "text": "list the runtimes, and this machine"
+  },
+  {
+   "wants": "example: list the runtimes",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the runtimes"
+  },
+  {
+   "wants": "example: print every field an ssh runtime has, with its default",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print every field an ssh runtime has, with its default"
+  },
+  {
+   "wants": "what `hmz runtimes list` prints as text: a first line for the daemon's own machine (`local` and its host name), then one line per runtime: backend, name, and how it was made; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "A first line for the daemon's own machine (`local` and its host name), then one line per runtime: backend, name, and how it was made."
+  },
+  {
+   "wants": "summary of `hmz runtimes show`: print one runtime's fields, or the fields a backend takes",
+   "where": "command summary in a --help listing",
+   "text": "print one runtime's fields, or the fields a backend takes"
+  },
+  {
+   "wants": "paragraph for `hmz runtimes show BACKEND [NAME]`, at most 28 words: prints one runtime's fields as lines `field=value`, the form `--set` takes; without NAME, the fields a new runtime of the backend starts with. Keep the backticks and NAME in capitals",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Prints one runtime's fields as lines `field=value`, the form `--set` takes. Without NAME, prints the fields a new runtime of the backend starts with."
+  },
+  {
+   "wants": "the optional NAME argument of `hmz runtimes show`: the runtime to print; left out, the fields a new runtime of the backend starts with",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the runtime to print; left out, the fields a new runtime of the backend starts with"
+  },
+  {
+   "wants": "example: print the fields of the ssh runtime `gpu-box`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the fields of the ssh runtime `gpu-box`"
+  },
+  {
+   "wants": "example: print every field a docker runtime takes, with its default",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print every field a docker runtime takes, with its default"
+  },
+  {
+   "wants": "what `hmz runtimes show` prints as text: one line per field, `field=value`; a list or a mapping is written as JSON; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per field, `field=value`; a list or a mapping is written as JSON."
+  },
+  {
+   "wants": "JSON field name: the runtime's name, or null where only a backend was named",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the runtime's name, or null where only a backend was named"
+  },
+  {
+   "wants": "JSON field made: how the runtime was made, `typed` or `imported`, or null where only a backend was named; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how the runtime was made, `typed` or `imported`, or null where only a backend was named"
+  },
+  {
+   "wants": "JSON field fields: every field of the runtime by name, the ones it does not set at their defaults",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every field of the runtime by name, the ones it does not set at their defaults"
+  },
+  {
+   "wants": "summary of `hmz runtimes set`: add a runtime, or with `--replace` change one; keep the backticks",
+   "where": "command summary in a --help listing",
+   "text": "add a runtime, or with `--replace` change one"
+  },
+  {
+   "wants": "paragraph for `hmz runtimes set BACKEND NAME`, at most 28 words: writes a runtime down; a name already written is refused unless `--replace` is given, which changes it and keeps the fields this line does not set. Keep the backticks",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Writes a runtime down. A name already written is refused unless `--replace` is given, which changes it and keeps the fields this line does not set."
+  },
+  {
+   "wants": "the --set FIELD=VALUE option of `hmz runtimes set`, at most 28 words: one field of the runtime, as `hmz runtimes show BACKEND` lists them; repeat it for each item of a list, and write `FIELD=KEY=VALUE` for each pair of a mapping. Keep the backticks and capitals",
+   "where": "option description, lower case start, no full stop, at most 28 words",
+   "text": "one field of the runtime, as `hmz runtimes show BACKEND` lists them; repeat for each list item, and write `FIELD=KEY=VALUE` for each pair of a mapping"
+  },
+  {
+   "wants": "the --replace switch of `hmz runtimes set`: change the runtime already written under this backend and name, keeping the fields this line does not set",
+   "where": "option description, lower case start, no full stop",
+   "text": "change the runtime already written under this backend and name, keeping the fields this line does not set"
+  },
+  {
+   "wants": "example: add the ssh host 10.0.0.7 as the runtime `gpu-box`, logging in as `me` on port 2222; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the ssh host 10.0.0.7 as the runtime `gpu-box`, logging in as `me` on port 2222"
+  },
+  {
+   "wants": "example: add a docker runtime `lab` on the daemon reached through the ssh runtime `gpu-box`, with a default image and GPUs 0 and 1; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a docker runtime `lab` on the daemon reached through the ssh runtime `gpu-box`, with a default image and GPUs 0 and 1"
+  },
+  {
+   "wants": "example: change `gpu-box` to pass ssh the option `Compression=yes`, keeping its other fields; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "change `gpu-box` to pass ssh the option `Compression=yes`, keeping its other fields"
+  },
+  {
+   "wants": "example: add a Slurm runtime `cluster` on partition `gpu`, account `lab`, with a four-hour time limit; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a Slurm runtime `cluster` on partition `gpu`, account `lab`, with a four-hour time limit"
+  },
+  {
+   "wants": "example: change the docker runtime `lab`: clear its GPUs and give its run arguments as a JSON array; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "change the docker runtime `lab`: clear its GPUs and give its run arguments as a JSON array"
+  },
+  {
+   "wants": "what `hmz runtimes set` prints as text: the one word `Saved`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Saved`."
+  },
+  {
+   "wants": "summary of `hmz runtimes remove`: remove one runtime",
+   "where": "command summary in a --help listing",
+   "text": "remove one runtime"
+  },
+  {
+   "wants": "example: remove the ssh runtime `gpu-box`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "remove the ssh runtime `gpu-box`"
+  },
+  {
+   "wants": "what `hmz runtimes remove` prints as text: the one word `Removed`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Removed`."
+  },
+  {
+   "wants": "summary of `hmz runtimes check`: reach one runtime and print what it has",
+   "where": "command summary in a --help listing",
+   "text": "reach one runtime and print what it has"
+  },
+  {
+   "wants": "paragraph for `hmz runtimes check BACKEND NAME`, at most 28 words: reaches the runtime the way an environment put on it would, and prints what it has: CPUs, memory, GPUs, version, and what it is short of",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Reaches the runtime the way an environment put on it would, and prints what it has: CPUs, memory, GPUs, version, and what it is short of."
+  },
+  {
+   "wants": "example: check that the ssh runtime `gpu-box` answers, and print what it has; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "check that the ssh runtime `gpu-box` answers, and print what it has"
+  },
+  {
+   "wants": "example: print the GPUs the docker runtime `lab` reports; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the GPUs the docker runtime `lab` reports"
+  },
+  {
+   "wants": "what `hmz runtimes check` prints as text: one line per field of the answer: the field's name, then its value",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per field of the answer: the field's name, then its value."
+  },
+  {
+   "wants": "exit status 4 of `hmz runtimes check`: the runtime did not answer; its reason is in `said`; keep the backticks",
+   "where": "meaning of an exit status in --help, lower case start, no full stop",
+   "text": "the runtime did not answer; its reason is in `said`"
+  },
+  {
+   "wants": "JSON field reached: whether the runtime answered at all",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the runtime answered at all"
+  },
+  {
+   "wants": "JSON field said: why it did not answer, in its own words; empty where it did",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "why it did not answer, in its own words; empty where it did"
+  },
+  {
+   "wants": "JSON field home: the home directory of the login, for an ssh host",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the home directory of the login, for an ssh host"
+  },
+  {
+   "wants": "JSON field cpus: how many CPUs it has",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many CPUs it has"
+  },
+  {
+   "wants": "JSON field memory: its memory in bytes",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "its memory in bytes"
+  },
+  {
+   "wants": "JSON field gpus: its GPUs, by device id",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "its GPUs, by device id"
+  },
+  {
+   "wants": "JSON field usable: the GPUs that answer, for a docker daemon whose host could be asked; null where it could not",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the GPUs that answer, for a docker daemon whose host could be asked; null where it could not"
+  },
+  {
+   "wants": "JSON field gpu_memory: the memory of its smallest GPU in bytes, or 0 where unknown",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the memory of its smallest GPU in bytes, or 0 where unknown"
+  },
+  {
+   "wants": "JSON field runtimes: the OCI runtimes a docker daemon offers, its default first",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the OCI runtimes a docker daemon offers, its default first"
+  },
+  {
+   "wants": "JSON field version: the version of the docker daemon, of Apple's container system, or of Slurm",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the version of the docker daemon, of Apple's container system, or of Slurm"
+  },
+  {
+   "wants": "JSON field short: what the runtime was written down as handing out that it has not got",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the runtime was written down as handing out that it has not got"
+  },
+  {
+   "wants": "JSON field nodes: the host names of a swarm's or a Slurm partition's nodes that can be given work",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host names of a swarm's or a Slurm partition's nodes that can be given work"
+  },
+  {
+   "wants": "summary of `hmz runtimes hosts`: list the hosts of the SSH config on the daemon's machine",
+   "where": "command summary in a --help listing",
+   "text": "list the hosts of the SSH config on the daemon's machine"
+  },
+  {
+   "wants": "example: list the hosts of the SSH config",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the hosts of the SSH config"
+  },
+  {
+   "wants": "example: print the hosts of the SSH config not yet saved as runtimes",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the hosts of the SSH config not yet saved as runtimes"
+  },
+  {
+   "wants": "what `hmz runtimes hosts` prints as text: one line per host: its alias, the machine it reaches, user, port, and `Saved` where an ssh runtime of its name is written down; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per host: its alias, the machine it reaches, user, port, and `Saved` where an ssh runtime of its name is written down."
+  },
+  {
+   "wants": "JSON field hosts: every Host of ~/.ssh/config on the daemon's machine, as ssh resolves it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every Host of ~/.ssh/config on the daemon's machine, as ssh resolves it"
+  },
+  {
+   "wants": "JSON field alias: the name the SSH config gives the host",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the SSH config gives the host"
+  },
+  {
+   "wants": "JSON field host: the machine it reaches (HostName)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the machine it reaches (HostName)"
+  },
+  {
+   "wants": "JSON field user: the user it logs in as",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the user it logs in as"
+  },
+  {
+   "wants": "JSON field port: the port it dials",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the port it dials"
+  },
+  {
+   "wants": "JSON field identity_files: the key files the SSH config names for it; empty where ssh picks its own",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the key files the SSH config names for it; empty where ssh picks its own"
+  },
+  {
+   "wants": "JSON field proxy_jump: the host it is reached through, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the host it is reached through, or empty"
+  },
+  {
+   "wants": "JSON field saved: whether an ssh runtime of that name is already written down",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether an ssh runtime of that name is already written down"
+  },
+  {
+   "wants": "summary of `hmz runtimes import`: import hosts from the SSH config as ssh runtimes",
+   "where": "command summary in a --help listing",
+   "text": "import hosts from the SSH config as ssh runtimes"
+  },
+  {
+   "wants": "the HOST arguments of `hmz runtimes import`: the hosts to import, each by its Host in the SSH config, as `hmz runtimes hosts` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the hosts to import, each by its Host in the SSH config, as `hmz runtimes hosts` prints it"
+  },
+  {
+   "wants": "the --update switch of `hmz runtimes import`: write a runtime imported before again, as its host stands in the SSH config now",
+   "where": "option description, lower case start, no full stop",
+   "text": "write a runtime imported before again, as its host stands in the SSH config now"
+  },
+  {
+   "wants": "example: import the hosts `gpu-box` and `build-box` of the SSH config as ssh runtimes; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "import the hosts `gpu-box` and `build-box` of the SSH config as ssh runtimes"
+  },
+  {
+   "wants": "example: bring the runtime imported from `gpu-box` up to date with the SSH config; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "bring the runtime imported from `gpu-box` up to date with the SSH config"
+  },
+  {
+   "wants": "what `hmz runtimes import` prints as text: the one word `Imported`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Imported`."
+  },
+  {
+   "wants": "summary of `hmz easytier`: list, write and remove this machine's EasyTier networks",
+   "where": "command summary in a --help listing",
+   "text": "list, write and remove this machine's EasyTier networks"
+  },
+  {
+   "wants": "paragraph for `hmz easytier`, at most 28 words: an EasyTier entry names one private network: a secret and the shared nodes two machines meet through; machines whose entries share a secret and a node reach each other with no open port",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "An EasyTier entry names one private network: a secret and the shared nodes machines meet through. Machines sharing a secret and a node reach each other without open ports."
+  },
+  {
+   "wants": "refusal: give `--secret-stdin` or `--secret-env`, not both; keep the backticks",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Give `--secret-stdin` or `--secret-env`, not both."
+  },
+  {
+   "wants": "refusal: the environment variable {name} is not set (keep {name})",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "The environment variable {name} is not set."
+  },
+  {
+   "wants": "the NAME argument of the `hmz easytier` commands, at most 28 words: the name of the EasyTier entry, which a route or a listener names as `easytier:<name>`: letters, digits, ., _ and -. Keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the EasyTier entry, which a route or a listener names as `easytier:<name>`: letters, digits, ., _ and -"
+  },
+  {
+   "wants": "JSON field networks: every EasyTier entry after this command",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every EasyTier entry after this command"
+  },
+  {
+   "wants": "JSON field name: the name of the EasyTier entry",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the EasyTier entry"
+  },
+  {
+   "wants": "JSON field nodes: the shared nodes the network meets through, each a URL such as tcp://host:port",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the shared nodes the network meets through, each a URL such as tcp://host:port"
+  },
+  {
+   "wants": "JSON field secret: whether a secret is written for the entry; the secret itself is never printed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether a secret is written for the entry; the secret itself is never printed"
+  },
+  {
+   "wants": "summary of `hmz easytier list`: list the EasyTier entries, without their secrets",
+   "where": "command summary in a --help listing",
+   "text": "list the EasyTier entries, without their secrets"
+  },
+  {
+   "wants": "example: list the EasyTier entries",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the EasyTier entries"
+  },
+  {
+   "wants": "example: print the names of the EasyTier entries",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names of the EasyTier entries"
+  },
+  {
+   "wants": "what `hmz easytier list` prints as text: one line per entry: its name, `true` or `false` for whether a secret is written, and its nodes; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per entry: its name, `true` or `false` for whether a secret is written, and its nodes."
+  },
+  {
+   "wants": "summary of `hmz easytier set`: add an EasyTier entry, or change its nodes or secret",
+   "where": "command summary in a --help listing",
+   "text": "add an EasyTier entry, or change its nodes or secret"
+  },
+  {
+   "wants": "paragraph for `hmz easytier set NAME`, at most 28 words: writes an EasyTier entry; a new entry needs a node and a secret of at least 16 bytes; written again, it keeps the secret and the nodes this line does not give",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Writes an EasyTier entry. A new entry needs a node and a secret of at least 16 bytes; written again, it keeps any secret and nodes not given here."
+  },
+  {
+   "wants": "the --node URL option of `hmz easytier set`: a shared node the network meets through, as `tcp://host:port` (or udp, ws, wss, quic or wg); `hmz easytier nodes` lists ones to use; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "a shared node the network meets through, as `tcp://host:port` (or udp, ws, wss, quic or wg); `hmz easytier nodes` lists ones to use"
+  },
+  {
+   "wants": "the --secret-stdin switch of `hmz easytier set`, at most 28 words: read the secret from standard input; a secret is never taken from the command line and never printed",
+   "where": "option description, lower case start, no full stop",
+   "text": "read the secret from standard input; a secret is never taken from the command line and never printed"
+  },
+  {
+   "wants": "the --secret-env VAR option of `hmz easytier set`: read the secret from the environment variable VAR",
+   "where": "option description, lower case start, no full stop",
+   "text": "read the secret from the environment variable VAR"
+  },
+  {
+   "wants": "example: add the entry `lab` with a new random secret read from standard input; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the entry `lab` with a new random secret read from standard input"
+  },
+  {
+   "wants": "example: add the entry `lab` with the secret in the environment variable `LAB_SECRET`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the entry `lab` with the secret in the environment variable `LAB_SECRET`"
+  },
+  {
+   "wants": "example: change the nodes of `lab`, keeping its secret; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "change the nodes of `lab`, keeping its secret"
+  },
+  {
+   "wants": "what `hmz easytier set` prints as text: the one word `Saved`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Saved`."
+  },
+  {
+   "wants": "summary of `hmz easytier remove`: remove an EasyTier entry the daemon does not listen on",
+   "where": "command summary in a --help listing",
+   "text": "remove an EasyTier entry the daemon does not listen on"
+  },
+  {
+   "wants": "example: remove the EasyTier entry `lab`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "remove the EasyTier entry `lab`"
+  },
+  {
+   "wants": "what `hmz easytier remove` prints as text: the one word `Removed`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Removed`."
+  },
+  {
+   "wants": "summary of `hmz easytier nodes`: list the shared EasyTier nodes to choose from",
+   "where": "command summary in a --help listing",
+   "text": "list the shared EasyTier nodes to choose from"
+  },
+  {
+   "wants": "example: list the shared nodes and how each has stood",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the shared nodes and how each has stood"
+  },
+  {
+   "wants": "example: print the URLs of the shared nodes that are up",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the URLs of the shared nodes that are up"
+  },
+  {
+   "wants": "what `hmz easytier nodes` prints as text: one line per node: its URL, whether it is up, its uptime over 24 hours, its EasyTier version, and its name",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per node: its URL, whether it is up, its uptime over 24 hours, its EasyTier version, and its name."
+  },
+  {
+   "wants": "JSON field nodes: the shared EasyTier nodes on offer",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the shared EasyTier nodes on offer"
+  },
+  {
+   "wants": "JSON field url: the URL to give `--node`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the URL to give `--node`"
+  },
+  {
+   "wants": "JSON field name: what the node's monitor calls it: where it is and who runs it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the node's monitor calls it: where it is and who runs it"
+  },
+  {
+   "wants": "JSON field version: the EasyTier version it runs, or empty where unknown",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the EasyTier version it runs, or empty where unknown"
+  },
+  {
+   "wants": "JSON field up: whether it answered last, or null where unknown",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether it answered last, or null where unknown"
+  },
+  {
+   "wants": "JSON field uptime: the share of the last 24 hours it was up, from 0 to 1, or null where unknown",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the share of the last 24 hours it was up, from 0 to 1, or null where unknown"
+  },
+  {
+   "wants": "summary of `hmz daemons`: list, add, pair and remove the daemons of other machines",
+   "where": "command summary in a --help listing",
+   "text": "list, add, pair and remove the daemons of other machines"
+  },
+  {
+   "wants": "paragraph for `hmz daemons`, at most 28 words: the daemons of other machines this machine can reach, each kept under a name with its routes; give a name to `--daemon` on any command to ask that daemon. Keep the backticks",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "The daemons of other machines this machine can reach, each kept under a name with its routes. Give a name to `--daemon` on any command to ask that daemon."
+  },
+  {
+   "wants": "the NAME argument of the `hmz daemons` commands: the name the daemon is kept under: letters, digits, ., _ and -; it is what `--daemon` takes; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name the daemon is kept under: letters, digits, ., _ and -; it is what `--daemon` takes"
+  },
+  {
+   "wants": "JSON field name: the name the daemon is kept under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the daemon is kept under"
+  },
+  {
+   "wants": "JSON field id: the daemon id pinned for it, or empty until it is first reached over a trusted route",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the daemon id pinned for it, or empty until it is first reached over a trusted route"
+  },
+  {
+   "wants": "JSON field routes: its routes, in the order they are tried",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "its routes, in the order they are tried"
+  },
+  {
+   "wants": "JSON field daemons: this machine's daemon as `local` first, then every daemon kept, in order; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "this machine's daemon as `local` first, then every daemon kept, in order"
+  },
+  {
+   "wants": "summary of `hmz daemons list`: list this machine's daemon and the daemons of other machines",
+   "where": "command summary in a --help listing",
+   "text": "list this machine's daemon and the daemons of other machines"
+  },
+  {
+   "wants": "example: list the daemons",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the daemons"
+  },
+  {
+   "wants": "example: print the names `--daemon` takes; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names `--daemon` takes"
+  },
+  {
+   "wants": "what `hmz daemons list` prints as text: one line per daemon: its name, its daemon id where one is pinned, and its routes",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per daemon: its name, its daemon id where one is pinned, and its routes."
+  },
+  {
+   "wants": "summary of `hmz daemons add`: add a daemon by its routes",
+   "where": "command summary in a --help listing",
+   "text": "add a daemon by its routes"
+  },
+  {
+   "wants": "paragraph for `hmz daemons add NAME ROUTE...`, at most 28 words: keeps a daemon under a name with its routes; a first route that is not ssh needs `--id`; a pairing code carries both, see `hmz daemons pair`. Keep the backticks",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Keeps a daemon under a name with its routes. A first route that is not ssh needs `--id`; a pairing code carries both, see `hmz daemons pair`."
+  },
+  {
+   "wants": "the ROUTE arguments of `hmz daemons add`: a route, tried in the order given: `stdio:ssh://[user@]host[:port]`, `tcp://host:port`, `ws://…`, `wss://…`, `relay:wss://…`, `webrtc:wss://…` or `easytier:<entry>`. Keep everything in backticks exactly as written",
+   "where": "argument description, lower case start, no full stop",
+   "text": "a route, tried in the order given: `stdio:ssh://[user@]host[:port]`, `tcp://host:port`, `ws://…`, `wss://…`, `relay:wss://…`, `webrtc:wss://…` or `easytier:<entry>`"
+  },
+  {
+   "wants": "the --id ID option of `hmz daemons add`: the daemon id to pin, 52 characters, as the other machine's daemon reports it; needed unless the first route is ssh",
+   "where": "option description, lower case start, no full stop",
+   "text": "the daemon id to pin, 52 characters, as the other machine's daemon reports it; needed unless the first route is ssh"
+  },
+  {
+   "wants": "the --replace switch of `hmz daemons add`: write over the daemon already kept under this name",
+   "where": "option description, lower case start, no full stop",
+   "text": "write over the daemon already kept under this name"
+  },
+  {
+   "wants": "example: add the host `gpu-box` of your SSH config as the daemon `gpu`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the host `gpu-box` of your SSH config as the daemon `gpu`"
+  },
+  {
+   "wants": "example: add a daemon reached over ssh first, then over a TCP port",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a daemon reached over ssh first, then over a TCP port"
+  },
+  {
+   "wants": "example: add a daemon reached over the EasyTier entry `lab`, pinning its daemon id; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a daemon reached over the EasyTier entry `lab`, pinning its daemon id"
+  },
+  {
+   "wants": "example: add a daemon reached through a relay, then over a WebSocket, pinning its daemon id",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a daemon reached through a relay, then over a WebSocket, pinning its daemon id"
+  },
+  {
+   "wants": "what `hmz daemons add` prints as text: the one word `Added`, or `Saved` with `--replace`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Added`, or `Saved` with `--replace`."
+  },
+  {
+   "wants": "summary of `hmz daemons remove`: forget how to reach one daemon",
+   "where": "command summary in a --help listing",
+   "text": "forget how to reach one daemon"
+  },
+  {
+   "wants": "example: remove the daemon `gpu` from the list; nothing on its machine changes; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "remove the daemon `gpu` from the list; nothing on its machine changes"
+  },
+  {
+   "wants": "what `hmz daemons remove` prints as text: the one word `Removed`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Removed`."
+  },
+  {
+   "wants": "JSON field name: the name of the daemon that was removed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the daemon that was removed"
+  },
+  {
+   "wants": "summary of `hmz daemons show`: print one daemon's id and routes, and with `--connect` reach it; keep the backticks",
+   "where": "command summary in a --help listing",
+   "text": "print one daemon's id and routes, and with `--connect` reach it"
+  },
+  {
+   "wants": "the --connect switch of `hmz daemons show`: reach the daemon over its routes and print its state and hmz version; exits with status 3 where it cannot be reached",
+   "where": "option description, lower case start, no full stop",
+   "text": "reach the daemon over its routes and print its state and hmz version; exits with status 3 where it cannot be reached"
+  },
+  {
+   "wants": "example: print the routes kept for the daemon `gpu`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the routes kept for the daemon `gpu`"
+  },
+  {
+   "wants": "example: check that the daemon `gpu` can be reached, and print its version; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "check that the daemon `gpu` can be reached, and print its version"
+  },
+  {
+   "wants": "what `hmz daemons show` prints as text: one line per field: the field's name, then its value",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per field: the field's name, then its value."
+  },
+  {
+   "wants": "JSON field state: `up` once reached with `--connect`; null where it was not asked; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`up` once reached with `--connect`; null where it was not asked"
+  },
+  {
+   "wants": "JSON field version: the hmz version the daemon runs, where it was reached with `--connect`; null otherwise; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the hmz version the daemon runs, where it was reached with `--connect`; null otherwise"
+  },
+  {
+   "wants": "summary of `hmz daemons pair`: add a daemon from a pairing code made on its machine",
+   "where": "command summary in a --help listing",
+   "text": "add a daemon from a pairing code made on its machine"
+  },
+  {
+   "wants": "paragraph for `hmz daemons pair NAME CODE`, at most 28 words: claims a pairing code `hmz devices pair` printed on the other machine: pairs this machine as a device of that daemon, and keeps the daemon under NAME. Keep the backticks and NAME in capitals",
+   "where": "paragraph of --help, one or two sentences, at most 28 words in all",
+   "text": "Claims a pairing code `hmz devices pair` printed on the other machine: pairs this machine as a device of that daemon, and keeps the daemon under NAME."
+  },
+  {
+   "wants": "the CODE argument of `hmz daemons pair`: the pairing code, which starts with `hmz-pair:`; or `-` to read it from standard input; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the pairing code, which starts with `hmz-pair:`; or `-` to read it from standard input"
+  },
+  {
+   "wants": "the --device NAME option of `hmz daemons pair`: the name this machine is paired as on that daemon; this machine's host name where not given",
+   "where": "option description, lower case start, no full stop",
+   "text": "the name this machine is paired as on that daemon; this machine's host name where not given"
+  },
+  {
+   "wants": "the --replace switch of `hmz daemons pair`: write over the daemon already kept under this name",
+   "where": "option description, lower case start, no full stop",
+   "text": "write over the daemon already kept under this name"
+  },
+  {
+   "wants": "example: claim a pairing code and keep its daemon as `gpu`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "claim a pairing code and keep its daemon as `gpu`"
+  },
+  {
+   "wants": "example: make a pairing code on `gpu-box` over ssh and claim it here, pairing this machine as `laptop`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "make a pairing code on `gpu-box` over ssh and claim it here, pairing this machine as `laptop`"
+  },
+  {
+   "wants": "what `hmz daemons pair` prints as text: the one word `Added`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "The one word `Added`."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

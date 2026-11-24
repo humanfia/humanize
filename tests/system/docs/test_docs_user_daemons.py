@@ -4,7 +4,7 @@ A second machine, `devbox`, whose daemon is real and listens on a port of loopba
 the app by its pairing code, listed in Settings with the devices paired with it, turned to
 from the foot of the sidebar and written this machine's settings by Batch apply; the form
 that adds a machine over SSH; the same in the terminal interface's
-`/settings daemons`; and `hmz daemon pair` and `hmz daemon devices` on the command line.
+`/settings daemons`; and `hmz devices pair` and `hmz devices list` on the command line.
 
 Run it by naming it: `uv run pytest tests/system/docs/test_docs_user_daemons.py`.
 """
@@ -359,6 +359,6 @@ async def test_a_machine_is_added_in_the_terminal(world: World) -> None:
 def test_a_code_is_made_and_devices_are_listed(world: World) -> None:
     _paired(world)
     reel = shots.Reel(f"{_PAGE}-pair")
-    reel.cli(["hmz", "daemon", "pair"], columns=100, rows=9, hold=3.5)
-    reel.cli(["hmz", "daemon", "devices"], columns=100, rows=9, hold=3.5)
+    reel.cli(["hmz", "devices", "pair"], columns=100, rows=9, hold=3.5)
+    reel.cli(["hmz", "devices", "list"], columns=100, rows=9, hold=3.5)
     reel.save()

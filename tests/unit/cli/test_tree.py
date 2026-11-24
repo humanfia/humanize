@@ -240,11 +240,50 @@ def test_this_machines_daemon_is_asked_as_the_command_line(
     monkeypatch.setattr(hmz.sdk.Client, "local", local)
 
     assert tree.reach("") is local.return_value
-    local.assert_called_once_with(kind="cli")
+    assert tree.reach("local") is local.return_value
+    assert local.mock_calls == [mock.call(kind="cli"), mock.call(kind="cli")]
+
+
+def test_another_machines_daemon_is_asked_by_the_name_it_is_kept_under(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    named = mock.Mock()
+    monkeypatch.setattr(hmz.sdk.Client, "named", named)
+
+    assert tree.reach("gpu") is named.return_value
+    named.assert_called_once_with("gpu")
+
+
+def test_a_name_no_daemon_is_kept_under_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        hmz.sdk.Client, "named", mock.Mock(side_effect=LookupError("none"))
+    )
+
     with pytest.raises(
         hmz.sdk.Refused, match=r"No daemon is kept under the name far\."
-    ):
+    ) as refused:
         tree.reach("far")
+    assert refused.value.code == 404
+
+    assert main(["devices", "list", "--daemon", "far"]) == tree.REFUSED
+    assert capsys.readouterr().err == (
+        "hmz devices list: No daemon is kept under the name far.\n"
+    )
+
+
+def test_a_daemon_kept_that_cannot_be_reached_ends_as_one_that_cannot(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        hmz.sdk.Client, "named", mock.Mock(side_effect=ConnectionError("no route"))
+    )
+
+    assert main(["devices", "list", "--daemon", "gpu", "--json"]) == tree.UNREACHED
+    assert json.loads(capsys.readouterr().out) == {
+        "error": {"code": 503, "message": "the daemon cannot be reached: no route"}
+    }
 
 
 def test_a_session_is_opened_when_first_wanted_and_closed_after(

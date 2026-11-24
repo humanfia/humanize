@@ -115,6 +115,31 @@ hmz chat -e ssh@gpu-box/~/shop "Add a discount code to checkout"
 
 You can omit the directory only when the runtime has a saved **Workdir**. In the app and terminal, you assign a flow's environment roles when you [start an epic](/user/epics). See [Environments and runtimes](/reference/environments) for the full syntax.
 
+### Manage runtimes
+
+`hmz runtimes` does what the Runtimes page does. Every command takes `--json` and `--daemon NAME`; run any of them with `--help` for its fields and examples.
+
+```sh
+hmz runtimes hosts
+hmz runtimes import gpu-box
+hmz runtimes set docker sandbox --set endpoint=ssh:gpu-box --set image=ubuntu:24.04
+hmz runtimes show docker sandbox
+hmz runtimes check ssh gpu-box
+hmz runtimes set ssh gpu-box --replace --set workdir=~/shop
+hmz runtimes remove docker sandbox
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz runtimes list` | Lists this machine and every saved runtime. |
+| `hmz runtimes show BACKEND [NAME]` | Prints a runtime's fields as `field=value`, or, without `NAME`, every field the backend takes with its default. |
+| `hmz runtimes set BACKEND NAME --set FIELD=VALUE` | Adds a runtime. With `--replace`, changes a saved one and keeps the fields you do not set. |
+| `hmz runtimes check BACKEND NAME` | Reaches the runtime and prints what it has. Exits with status 4 if it did not answer. |
+| `hmz runtimes hosts` and `hmz runtimes import HOST...` | Lists the hosts of your SSH config and imports them. |
+| `hmz runtimes remove BACKEND NAME` | Removes a runtime. |
+
+Repeat `--set` for each item of a list field (`--set gpus=0 --set gpus=1`), and write `FIELD=KEY=VALUE` for a mapping (`--set options=Compression=yes`). See the [CLI reference](/reference/cli#hmz-runtimes).
+
 ## Fall back to another runtime
 
 List backup runtimes in **Falls back to** using `BACKEND:NAME` entries such as `ssh:build-1`. Humanize tries the list in order if the primary runtime is unreachable, lacks the work directory, hits its container, task, or job limit, lacks requested role resources, or exceeds **Max wait** in Slurm.
