@@ -111,12 +111,12 @@ def _notices_gone(sub: str) -> bytes:
     )
 
 
-def test_what_ended_a_subscription_is_not_dropped_by_falling_behind_again(
+def test_what_ended_a_subscription_and_was_dropped_is_sent_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(sessions, "BEHIND", 1000)
     pipe = _Pipe()
-    out = Outgoing(pipe, mock.Mock())
+    out = Outgoing(pipe, lambda: out.again())  # noqa: PLW0108 -- made after
     out.sendall(_answer(0))  # being written while the rest wait
     # Ended for an earlier fall behind, and not written yet when the session falls again.
     out.sendall(_gone("s1"))
