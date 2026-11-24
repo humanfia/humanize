@@ -83,7 +83,7 @@ class _Devbox:
                 sys.executable,
                 "-m",
                 "hmz",
-                "daemon",
+                "devices",
                 "pair",
                 "--route",
                 f"tcp://{_DEVBOX}:{self.port}",

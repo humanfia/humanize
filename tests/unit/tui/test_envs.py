@@ -261,7 +261,7 @@ def test_a_bridge_writes_the_terminal_out_and_sends_what_is_typed_until_left(
     )
     inbox.close()
 
-    assert ended == "left; it keeps running"
+    assert ended == "Left; it keeps running."
     assert _out(showing) == b"before\n$ "
     assert asked == [
         ("env.term.input", {"term": "t1", "data": base64.b64encode(b"ls\r").decode()}),
@@ -295,7 +295,7 @@ def test_a_bridge_acknowledges_what_it_wrote_and_ends_with_the_terminal(
     reading.join()
     inbox.close()
 
-    assert ended == "exited with status 3"
+    assert ended == "Exited with status 3."
     assert asked == [
         ("env.term.ack", {"term": "t1", "bytes": ACK_EVERY}),
         ("env.term.ack", {"term": "t1", "bytes": 1024}),
@@ -318,7 +318,7 @@ def test_a_bridge_writes_out_only_its_own_terminal(
     ended = bridge(lambda method, params: None, inbox, stdin=keyboard, stdout=screen)
     inbox.close()
 
-    assert ended == "exited with status 0"
+    assert ended == "Exited with status 0."
     assert _out(showing) == b"mine"
 
 
@@ -331,7 +331,7 @@ def test_a_bridge_says_how_the_host_failed_it(piped: tuple[int, int, int, int]) 
         raise ValueError("There is no terminal t1.")
 
     assert bridge(refuses, inbox, stdin=keyboard, stdout=screen) == (
-        "ended: There is no terminal t1."
+        "Failed: There is no terminal t1."
     )
     inbox.close()
 
@@ -407,7 +407,7 @@ async def test_a_commit_is_not_answered_without_a_message(amend: str) -> None:
         said = "" if answers else str(form.query_one("#tuning", Label).content)
 
     assert answers == []
-    assert "message is required" in said
+    assert "Write a commit message first." in said
 
 
 def _reach(envs: list[dict[str, Any]], of: list[str]) -> Reach:

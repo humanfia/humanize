@@ -30,11 +30,16 @@ reader's theme asks for. A scene calls nothing twice and says nothing of it:
   if it is not as it began, both sides are taken again, and a page that changes under every
   take fails its scene, so no pair is of two instants. Each side is held to its own
   screenshot. The window drawn around it and the pointer over it are of the same side;
-- a terminal is one screen in two terminals: hmz draws in the terminal's own colours, so the
-  dark picture is of a terminal with a dark profile and the light one of a terminal with a
-  light profile -- a white window, dark ink, sixteen colours that read on white, its two
-  whites greys as such a profile has them (`_profiles`). The interface's screen is rendered
-  once and exported in each, and a command runs once;
+- the terminal interface opens in humanfia, which has a light theme and a dark one as the
+  page has: the screen as it stands is drawn in each (`_interface`), the light picture in a
+  light window and the dark in a dark one, and the app is left in the theme it was in;
+- a command's output is one terminal's in two profiles: a command writes in the terminal's
+  own colours, so the dark picture is of a terminal with a dark profile and the light one
+  of a terminal with a light profile -- a white window, dark ink, sixteen colours that read
+  on white, its two whites greys as such a profile has them (`_profiles`) -- and a command
+  runs once. The interface started in the terminal's colours (`TEXTUAL_THEME=terminal`,
+  which `docs/user/themes.md` is about) is drawn the same way: rendered once, exported in
+  each profile;
 - where the colours are the scene's own subject the two files may be one picture: a page a
   scene pins to Light or Dark in its settings draws that side whatever the system asks, and
   a terminal interface started in a theme of Textual's (`TEXTUAL_THEME`) names every colour
@@ -251,7 +256,10 @@ _SHARE = 0.003
 #: The share that may in a terminal drawn light: a screen of dark letters on white, where a
 #: letter and its ground are the whole range of a pixel apart, and the little by which a
 #: letter's edge is smoothed otherwise as a path crosses `_FAR` all along it. Nothing that
-#: goes missing hides in it: that is still all of a square (`_PATCH`).
+#: goes missing hides in it: that is still all of a square (`_PATCH`). The interface in a
+#: theme of humanfia's is held to it on its dark side too: its heavy rules and its planes
+#: -- a row picked in pink with dark ink on it, a frame ruled in cyan -- are as far from
+#: their ground there as ink is from white.
 _INK = 0.015
 
 #: And how much of any one square of it may, the square this many half pixels a side: a small
@@ -1552,7 +1560,7 @@ def _strip(keys: str, caption: str, width: int, defs: _Defs, *, dark: bool) -> _
 # --------------------------------------------------------------------------------------
 
 
-def _terminal(svg: str, dark: bool) -> _Sheet:
+def _terminal(svg: str, dark: bool, *, planes: bool = False) -> _Sheet:
     """A terminal window as Rich draws one, as a sheet to draw: in a font of this machine.
 
     Rich names a font to be fetched, which a picture may not: the window is drawn in a
@@ -1578,7 +1586,12 @@ def _terminal(svg: str, dark: bool) -> _Sheet:
         f"</style>{svg}"
     )
     return _Sheet(
-        width, height, content, clear=True, dark=dark, share=_SHARE if dark else _INK
+        width,
+        height,
+        content,
+        clear=True,
+        dark=dark,
+        share=_INK if planes or not dark else _SHARE,
     )
 
 
@@ -1623,7 +1636,9 @@ def _profiles() -> dict[bool, TerminalTheme]:
     return {False: light, True: SVG_EXPORT_THEME}
 
 
-def _windows(console: Console, title: str, *, own: bool = False) -> dict[bool, str]:
+def _windows(
+    console: Console, title: str, *, own: bool = False, only: bool | None = None
+) -> dict[bool, str]:
     """What a console recorded, as the terminal window Rich draws, on each side.
 
     Args:
@@ -1632,9 +1647,12 @@ def _windows(console: Console, title: str, *, own: bool = False) -> dict[bool, s
       own: Whether what it recorded names every colour itself, as an interface in a theme
         of its own does: nothing of it is the terminal's, and both sides are one picture, the
         dark window.
+      only: The one side wanted, or None for both.
     """
     said: dict[bool, str] = {}
     for dark, profile in _profiles().items():
+        if only is not None and dark != only:
+            continue
         svg = console.export_svg(
             title=title, theme=_profiles()[True] if own else profile, clear=False
         )
@@ -1671,13 +1689,49 @@ def _screen(lines: Sequence[Text], columns: int, title: str) -> dict[bool, _Shee
     }
 
 
-def _interface(app: App[Any]) -> dict[bool, _Sheet]:
-    """The terminal interface's screen as it stands, in a terminal of each side.
+def _sides(app: App[Any]) -> dict[bool, str] | None:
+    """The two themes an interface in one of humanfia's is drawn in: its light and its dark.
 
-    What `App.export_screenshot` does, but for the terminal's profile, which that leaves to
-    Rich: the screen is rendered once, and exported in the dark profile and in the light one.
-    An app started in a theme of Textual's names every colour itself, and is one picture.
+    Returns:
+      The preset's two themes by side, or None for an app in the terminal's own colours or
+      in a theme of Textual's, which has no other side.
     """
+    from hmz.tui import humanfia
+
+    name = app.current_theme.name
+    if name not in humanfia.THEMES:
+        return None
+    key = name.rpartition("-")[0]
+    return {False: f"{key}-light", True: f"{key}-dark"}
+
+
+def _themed(app: App[Any], name: str) -> None:
+    """Puts the interface in a theme at once, restyled before anything else is done."""
+    from hmz.tui.selecting import Transcript
+
+    if app.theme == name:
+        return
+    app.theme = name
+    app.refresh_css(animate=False)
+    # What a transcript holds was drawn in the colours of the moment it was written: its
+    # rows are drawn again, as a change of the terminal's width draws them, and what is
+    # selected over them stays selected.
+    for screen in app.screen_stack:
+        for transcript in screen.query(Transcript):
+            held = cast("Any", transcript)
+            if held._drawn_at <= 0:  # noqa: SLF001 -- nothing drawn yet to draw again
+                continue
+            held._rows.clear()  # noqa: SLF001
+            held._lines.clear()  # noqa: SLF001
+            held._joined, held._widest = None, 0  # noqa: SLF001
+            for written in held._written:  # noqa: SLF001
+                held._drew(written)  # noqa: SLF001
+            held._measured()  # noqa: SLF001
+            transcript.refresh()
+
+
+def _rendered(app: App[Any]) -> Console:
+    """The screen as it stands, printed on a console that recorded it."""
     running = cast("Any", app)
     width, height = app.size
     console = _console(width, height)
@@ -1688,12 +1742,38 @@ def _interface(app: App[Any]) -> dict[bool, _Sheet]:
             simplify=False,
         )
     )
-    return {
-        dark: _terminal(svg, dark)
-        for dark, svg in _windows(
-            console, app.title, own=not app.current_theme.ansi
-        ).items()
-    }
+    return console
+
+
+def _interface(app: App[Any]) -> dict[bool, _Sheet]:
+    """The terminal interface's screen as it stands, on each side.
+
+    What `App.export_screenshot` does, on both sides of what the interface is drawn in. In
+    one of humanfia's themes, which is what it opens in, the screen is drawn in the preset's
+    light theme for the light picture and in its dark theme for the dark one, at the same
+    instant, and left in the theme the scene had it in. In the terminal's own colours
+    (`TEXTUAL_THEME=terminal`) it is rendered once and exported in a terminal of each
+    profile, which that theme leaves to Rich. An app started in a theme of Textual's names
+    every colour itself and has no other side: it is one picture.
+    """
+    sides = _sides(app)
+    if sides is None:
+        return {
+            dark: _terminal(svg, dark)
+            for dark, svg in _windows(
+                _rendered(app), app.title, own=not app.current_theme.ansi
+            ).items()
+        }
+    was = app.theme
+    drawn: dict[bool, _Sheet] = {}
+    try:
+        for dark, name in sides.items():
+            _themed(app, name)
+            window = _windows(_rendered(app), app.title, only=dark)[dark]
+            drawn[dark] = _terminal(window, dark, planes=True)
+    finally:
+        _themed(app, was)
+    return drawn
 
 
 #: The colours a terminal names, as Rich names them.
@@ -1993,9 +2073,9 @@ def tui(app: App[Any], name: str, *, most: int = STILL) -> Path:
     """Writes a still of the terminal interface's screen: `docs/public/shots/<name>.svg`.
 
     The screen is the running app's own, as `App.export_screenshot` renders it, in the
-    terminal window Rich draws, titled as the app is: in a terminal with a light profile for
-    the light picture and a dark one for the dark, since the interface draws in the
-    terminal's colours (an app started in a theme of Textual's is one picture, twice). Call
+    terminal window Rich draws, titled as the app is: in humanfia's light theme for the
+    light picture and its dark theme for the dark (in the terminal's own colours, a terminal
+    of each profile; an app started in a theme of Textual's is one picture, twice). Call
     it inside `async with world.tui() as (app,
     pilot):`, after `await pilot.pause()` has let the screen settle.
 

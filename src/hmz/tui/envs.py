@@ -118,7 +118,7 @@ __all__ = [
 PANELS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("files", "Files", ("files",)),
     ("changes", "Changes", ("git", "git_worktree")),
-    ("shell", "Shell", ("shell",)),
+    ("shell", "Terminal", ("shell",)),
     ("snapshots", "Snapshots", ("rewind",)),
 )
 
@@ -778,10 +778,16 @@ async def _read(desk: Desk, path: str, cap: int = LARGE) -> Read:
                 break
         if not moved:
             return Read(b"".join(chunks), etag, size, whole)
-    raise OSError(f"{path} kept changing while it was read")
+    raise OSError(t("{path} kept changing while it was being read", path=path))
 
 
 # -- The shell ----------------------------------------------------------------------------------
+
+
+class _Failed(str):
+    """How a shell ended, where it ended because the terminal or the host was lost."""
+
+    __slots__ = ()
 
 
 def bridge(
@@ -838,7 +844,9 @@ def bridge(
                         continue  # another terminal's, told while this one was opening
                     kind = message.get("type")
                     if kind == "term_exit":
-                        return f"exited with status {message.get('status')}"
+                        return t(
+                            "Exited with status {status}.", status=message.get("status")
+                        )
                     if kind != "term":
                         continue
                     data = _decoded(message.get("data"))
@@ -848,14 +856,14 @@ def bridge(
             if stdin in ready:
                 typed = os.read(stdin, 4096)
                 if not typed:
-                    return "left; it keeps running"
+                    return t("Left; it keeps running.")
                 sent, leaves = escape_.typed(typed)
                 if sent:
                     ask("env.term.input", {"term": term, "data": _encoded(sent)})
                 if leaves:
-                    return "left; it keeps running"
+                    return t("Left; it keeps running.")
     except Exception as why:  # noqa: BLE001 -- the terminal or the host gone, said
-        return f"ended: {why}"
+        return _Failed(t("Failed: {why}", why=why))
     finally:
         restore()
         if previous is not None:
@@ -910,7 +918,15 @@ async def _shell(host: App[Any], desk: Desk, term: str = "") -> None:
         or stdout is None
         or not (stdin.isatty() and stdout.isatty())
     ):
-        say(f"hmz: a shell in {desk.named} needs this to be a terminal", "red")
+        say(
+            "hmz: "
+            + t(
+                "A shell in {name} cannot be opened because hmz is not running in a "
+                "terminal.",
+                name=desk.named,
+            ),
+            "red",
+        )
         return
     cols, rows = _size()
     # Taking whatever a terminal says from before it is open: a new shell's prompt is told
@@ -942,7 +958,8 @@ async def _shell(host: App[Any], desk: Desk, term: str = "") -> None:
         inbox.close()
     # A refusal of what was typed -- a paired device's, among them -- said as one.
     say(
-        f"shell in {desk.named}: {ended}", "red" if ended.startswith("ended") else "dim"
+        t("Shell in {name}: {ended}", name=desk.named, ended=ended),
+        "red" if isinstance(ended, _Failed) else "dim",
     )
 
 
@@ -1152,7 +1169,7 @@ class _Listing(Sheet[str]):
 
     def keys(self) -> list[Key]:
         """This sheet's keys for its list, in the order they are reached for."""
-        return [Key("enter", "open"), Key("esc", "back")]
+        return [Key("enter", t("Open")), Key("esc", t("Back"))]
 
     def actions(self) -> list[Action]:
         """Searching, for a list that is searched."""
@@ -1301,8 +1318,6 @@ class _Listing(Sheet[str]):
 class Envs(_Listing):
     """The environments of the epic or chat in front of you, by role: each one's panels."""
 
-    asked = "Environments"
-
     def __init__(self, reach: Reach, host: App[Any]) -> None:
         """Lists the environments.
 
@@ -1314,7 +1329,8 @@ class Envs(_Listing):
         self._reach = reach
         self._host = host
         self._stops: Callable[[], None] = lambda: None
-        self.about = "Every environment the run in front of you uses."
+        self.asked = t("Environments")
+        self.about = t("Every environment that this chat or epic uses.")
         self._rows_now = self._rows()
 
     def _rows(self) -> list[_Row]:
@@ -1327,7 +1343,7 @@ class Envs(_Listing):
         return rows
 
     def crumb(self) -> str:
-        return "Environments"
+        return t("Environments")
 
     def on_mount(self) -> None:
         self._stops = self._reach.watching(lambda: self.shows(self._rows(), self._said))
@@ -1336,7 +1352,11 @@ class Envs(_Listing):
         self._stops()
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]no environment is open here[/]"
+        return (
+            ""
+            if self._rows_now
+            else f"[$text-muted]{t('No environment is open here yet.')}[/]"
+        )
 
     def chosen(self, row: str) -> None:
         env = next((one for one in self._reach.envs() if one.get("id") == row), None)
@@ -1349,8 +1369,12 @@ def about(env: Mapping[str, Any]) -> str:
     """What one environment is, in a line: backend, provider, workdir, facts, and closed."""
     facts = cast("dict[str, Any]", env.get("facts") or {})
     sized = [
-        f"{facts[key]} {what}"
-        for key, what in (("cpu", "CPUs"), ("memory", "memory"), ("gpu_count", "GPUs"))
+        t(what, n=facts[key], size=facts[key])
+        for key, what in (
+            ("cpu", "{n} CPUs"),
+            ("memory", "{size} memory"),
+            ("gpu_count", "{n} GPUs"),
+        )
         if facts.get(key)
     ]
     return _DOT.join(
@@ -1360,7 +1384,7 @@ def about(env: Mapping[str, Any]) -> str:
             env.get("provider"),
             env.get("workdir"),
             *sized,
-            *(() if env.get("open", True) else ("closed",)),
+            *(() if env.get("open", True) else (t("closed"),)),
         )
         if one
     )
@@ -1423,11 +1447,13 @@ class _Page(_Listing):
 
     def crumb(self) -> str:
         title = next(title for name, title, _ in PANELS if name == self.PAGE)
-        return f"{self._desk.named} · {title}"
+        return f"{self._desk.named} · {t(title)}"
 
     def page_keys(self) -> list[Key]:
         """`tab`, where there is another page to step to."""
-        return [Key("tab", "page")] if len(panels_of(self._desk.env)) > 1 else []
+        return (
+            [Key("tab", t("Next page"))] if len(panels_of(self._desk.env)) > 1 else []
+        )
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "page":
@@ -1450,14 +1476,21 @@ _NEW = "\x1dnew"
 class Terminals(_Listing):
     """The terminals left running in an environment, and a new one."""
 
-    asked = "Terminal"
-    about = "Come back to a shell left running here, or open another."
     SEARCHES: ClassVar = False
 
     def __init__(self, alive: Sequence[Mapping[str, Any]]) -> None:
         super().__init__()
+        self.asked = t("Terminals")
+        self.about = t(
+            "Come back to a terminal left running in this environment, or open a new "
+            "one."
+        )
         self._rows_now = [
-            _Row(_NEW, t("New terminal"), "a login shell of its own"),
+            _Row(
+                _NEW,
+                t("New terminal"),
+                t("a new login shell of its own in this environment"),
+            ),
             *(
                 _Row(
                     str(one.get("term")),
@@ -1510,7 +1543,7 @@ class Named(Form[str]):
     def action_done(self) -> None:
         said = self._typed_in.get("value", "").strip()
         if not said:
-            self._wrong = f"{self._label} is required"
+            self._wrong = t("This needs an answer.")
             self._fill()
             return
         self.dismiss(said)
@@ -1536,21 +1569,24 @@ class Sure(Popup):
 
     CSS = _BOX.format(name="Sure")
 
-    def __init__(self, asked: str, about: str = "", doing: str = "yes") -> None:
+    def __init__(self, asked: str, about: str = "", doing: str = "") -> None:
         """Asks.
 
         Args:
           asked: The question.
           about: What doing it does.
-          doing: What the button that does it says.
+          doing: What the button that does it says, or "" for the page's Yes.
         """
         super().__init__()
         self.asked = escape(asked)
         self.about = escape(about)
-        self._doing = doing
+        self._doing = doing or t("Yes")
 
     def rows(self) -> list[tuple[str, str, str]]:
-        return [("yes", self._doing, "do it"), ("no", "cancel", "leave it as it is")]
+        return [
+            ("yes", self._doing, t("does what was asked")),
+            ("no", t("Cancel"), t("changes nothing")),
+        ]
 
 
 #: What the question about a write refused as a conflict is answered with.
@@ -1569,14 +1605,24 @@ class Conflict(Popup):
           path: The file.
         """
         super().__init__()
-        self.asked = f"{escape(path)} changed on disk"
-        self.about = "Since it was read, something else wrote it."
+        self.asked = t(
+            "{name} changed in the environment since you opened it.", name=escape(path)
+        )
+        self.about = t("Something else wrote this file on disk since you read it.")
 
     def rows(self) -> list[tuple[str, str, str]]:
         return [
-            (RELOAD, "reload", "throw yours away and read it again"),
-            (KEEP, "keep mine", "write yours over it"),
-            (COMPARE, "show diff", "what is on disk against yours"),
+            (
+                RELOAD,
+                t("Reload"),
+                t("throws away your edit and reads the file again"),
+            ),
+            (KEEP, t("Keep mine"), t("writes your edit over what is on disk")),
+            (
+                COMPARE,
+                t("Show the diff"),
+                t("compares what is on disk with your edit"),
+            ),
         ]
 
 
@@ -1661,17 +1707,17 @@ class Files(_Page):
 
     def keys(self) -> list[Key]:
         return [
-            Key("enter", "open"),
-            Key("backspace", "up"),
-            Key("n", "file"),
-            Key("N", "folder"),
-            Key("r", "rename"),
-            Key("d", "delete"),
-            Key("e", "$EDITOR"),
-            Key("ctrl+p", "open…"),
-            Key("?", "find"),
+            Key("enter", t("Open")),
+            Key("backspace", t("Up")),
+            Key("n", t("New file")),
+            Key("N", t("New folder")),
+            Key("r", t("Rename")),
+            Key("d", t("Delete")),
+            Key("e", t("External editor")),
+            Key("ctrl+p", t("Go to file")),
+            Key("?", t("Search in files")),
             *self.page_keys(),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         ]
 
     def on_mount(self) -> None:
@@ -1730,7 +1776,9 @@ class Files(_Page):
             posixpath.dirname(path) == self._path
             and int(entry.get("size") or 0) > LARGE
         ):
-            self.fails(f"{posixpath.basename(path)} is larger than 5 MiB: {_OUTSIDE}")
+            self.fails(
+                _too_large(posixpath.basename(path), int(entry.get("size") or 0))
+            )
             return
         self._interface().push_screen(
             Editing(self._desk, path, self._host, line=line),
@@ -1787,9 +1835,12 @@ class Files(_Page):
         self.run_worker(self._finds(), group="do")
 
     async def _makes(self, *, folder: bool) -> None:
-        what = "folder" if folder else "file"
         named = await self._interface().push_screen_wait(
-            Named(f"New {what} in {self._path}", "name", f"what the {what} is called")
+            Named(
+                t("New folder") if folder else t("New file"),
+                t("Folder name") if folder else t("File name"),
+                self._path,
+            )
         )
         if not named:
             return
@@ -1808,7 +1859,7 @@ class Files(_Page):
 
     async def _renames(self, row: str) -> None:
         named = await self._interface().push_screen_wait(
-            Named(f"Rename {row}", "name", "what it is called now", row)
+            Named(t("New name for {name}", name=row), t("New name"), "", row)
         )
         if not named or named == row:
             return
@@ -1854,7 +1905,7 @@ class Files(_Page):
 
     async def _finds(self) -> None:
         query = await self._interface().push_screen_wait(
-            Named(f"Search {self._desk.named}", "text", "what to look for in its files")
+            Named(t("Search in files"), t("Search"), self._desk.named)
         )
         if not query:
             return
@@ -1879,12 +1930,13 @@ class Files(_Page):
 class Opens(_Listing):
     """Every file of an environment, narrowed by typing, to open one."""
 
-    asked = "Open a file"
-
     def __init__(self, paths: Sequence[str], *, truncated: bool = False) -> None:
         super().__init__()
-        self.about = f"{len(paths)} files" + (
-            ", and more not listed" if truncated else ""
+        self.asked = t("Go to file")
+        self.about = (
+            t("{n} files, and more not shown", n=len(paths))
+            if truncated
+            else t("{n} files", n=len(paths))
         )
         self._rows_now = [_Row(one, one) for one in paths]
 
@@ -1896,8 +1948,6 @@ class Opens(_Listing):
 class Matches(_Listing):
     """Every line a search found, to open a file at one."""
 
-    asked = "Found"
-
     def __init__(
         self,
         query: str,
@@ -1906,8 +1956,15 @@ class Matches(_Listing):
         truncated: bool = False,
     ) -> None:
         super().__init__()
-        self.about = f"{len(matches)} lines with {query!r}" + (
-            ", and more not listed" if truncated else ""
+        self.asked = t("Search in files")
+        self.about = (
+            t(
+                "{n} lines with {query}, and more not shown",
+                n=len(matches),
+                query=repr(query),
+            )
+            if truncated
+            else t("{n} lines with {query}", n=len(matches), query=repr(query))
         )
         self._rows_now = [
             _Row(
@@ -1958,17 +2015,34 @@ async def _edits_outside(host: App[Any], desk: Desk, path: str) -> None:
             if answer == COMPARE:
                 now = await _read(desk, path, cap=sys.maxsize)
                 await host.push_screen_wait(
-                    Diff(f"{path}: on disk → yours", unified(now.data, after, path))
+                    Diff(
+                        t("{path} · on disk and your edit", path=path),
+                        unified(now.data, after, path),
+                    )
                 )
                 continue
-            say(f"{path}: kept what is on disk; your edit was dropped", "dim")
+            say(
+                t("{path}: kept what is on disk and dropped your edit", path=path),
+                "dim",
+            )
             return
-        say(f"saved {path} in {desk.named}", "dim")
+        say(t("Saved {path} back into {name}", path=path, name=desk.named), "dim")
         return
 
 
-#: Why a file is not opened in the editor here, and what opens it instead.
-_OUTSIDE = "e opens it in your own editor"
+#: What opens a file the editor here does not, said after why it does not.
+_OUTSIDE = "Press e to open it in your own editor."
+
+
+def _too_large(name: str, size: int) -> str:
+    """That a file is too large for the editor here, and what opens it instead."""
+    said = t(
+        "{name} is {size}; files over {limit} are not opened here.",
+        name=name,
+        size=_sized(size),
+        limit=_sized(LARGE),
+    )
+    return f"{said} {t(_OUTSIDE)}"
 
 
 class Editing(ModalScreen[str | None]):
@@ -2001,7 +2075,10 @@ class Editing(ModalScreen[str | None]):
         self._etag: str | None = None
         self._saved = ""
         self._loaded = False
-        self._state = "Reading…"
+        self._state = t("Reading…")
+        #: Whether what the status line says of saving is that it is saved, which an edit
+        #: takes off it.
+        self._settled = False
         self._timer: Timer | None = None
         self._lock = asyncio.Lock()
         self._conflict = False
@@ -2045,14 +2122,17 @@ class Editing(ModalScreen[str | None]):
             return
         named = posixpath.basename(self._path)
         if not read.whole:
-            self.dismiss(f"{named} is {_sized(read.size)}: {_OUTSIDE}")
+            self.dismiss(_too_large(named, read.size))
             return
         try:
             if b"\0" in read.data[:8192]:
                 raise UnicodeDecodeError("utf-8", b"", 0, 1, "a NUL")  # noqa: TRY301
             text = read.data.decode("utf-8")
         except UnicodeDecodeError:
-            self.dismiss(f"{named} is not text: {_OUTSIDE}")
+            self.dismiss(
+                t("{name} is not text and cannot be opened here.", name=named)
+                + f" {t(_OUTSIDE)}"
+            )
             return
         self._etag = read.etag
         self._saved = text
@@ -2071,11 +2151,12 @@ class Editing(ModalScreen[str | None]):
         area = self._area()
         row, column = area.cursor_location
         dirty = self._loaded and area.text != self._saved
-        state = self._state or ("● edited" if dirty else "")
+        state = self._state or (f"● {t('Unsaved')}" if dirty else "")
         self.query_one("#status", Static).update(
-            f"[b]{escape(self._path)}[/]  Ln {row + 1}, Col {column + 1}"
+            f"[b]{escape(self._path)}[/]  "
+            + t("Ln {line}, Col {column}", line=row + 1, column=column + 1)
             + (f"  [$text-muted]{escape(state)}[/]" if state else "")
-            + "   [$text-muted]ctrl+s save · esc close[/]"
+            + f"   [$text-muted]ctrl+s {t('Save')}{_DOT}esc {t('Close')}[/]"
         )
 
     @on(TextArea.SelectionChanged, "#code")
@@ -2086,8 +2167,8 @@ class Editing(ModalScreen[str | None]):
     def _edited(self) -> None:
         if not self._loaded:
             return
-        if self._state in ("Saved", ""):
-            self._state = ""
+        if self._settled:
+            self._state, self._settled = "", False
         if self._timer is not None:
             self._timer.stop()
         self._timer = (
@@ -2116,7 +2197,7 @@ class Editing(ModalScreen[str | None]):
                 return True
             if self._conflict and not over:
                 return False
-            self._state = "Saving…"
+            self._state = t("Saving…")
             self._says()
             try:
                 said = await self._desk.asks(
@@ -2128,17 +2209,17 @@ class Editing(ModalScreen[str | None]):
             except Exception as why:  # noqa: BLE001 -- a conflict is asked about
                 if _conflicted(why):
                     self._conflict = True
-                    self._state = "conflict: changed on disk"
+                    self._state = t("Conflict")
                     self._says()
                     self.run_worker(self._resolves(), group="conflict", exclusive=True)
                 else:
-                    self._state = f"not saved: {why}"
+                    self._state = t("Not saved: {why}", why=why)
                     self._says()
                 return False
             self._etag = str(said.get("etag") or "")
             self._saved = text
             self._conflict = False
-            self._state = "Saved"
+            self._state, self._settled = t("Saved"), True
             self._says()
         if self.dirty():
             # Typed into while it was being written: what was typed is written next.
@@ -2169,7 +2250,7 @@ class Editing(ModalScreen[str | None]):
                 mine = self._area().text.encode("utf-8")
                 await self._ui().push_screen_wait(
                     Diff(
-                        f"{self._path}: on disk → yours",
+                        t("{path} · on disk and your edit", path=self._path),
                         unified(disk.data, mine, self._path),
                     )
                 )
@@ -2208,9 +2289,13 @@ class Editing(ModalScreen[str | None]):
             return
         sure = await self._ui().push_screen_wait(
             Sure(
-                f"Close {posixpath.basename(self._path)} without saving?",
+                t(
+                    "{name} has edits not written to the environment. Close and lose "
+                    "them?",
+                    name=posixpath.basename(self._path),
+                ),
                 self._state,
-                "close",
+                t("Close"),
             )
         )
         if sure == "yes":
@@ -2233,11 +2318,16 @@ class Commit(Form[tuple[str, bool]]):
         return [
             Question(
                 "message",
-                "message",
-                "what the commit says",
+                t("Message"),
+                t("Commit message"),
                 needed=not self._typed_in.get("message", "").strip(),
             ),
-            Question("amend", "amend", "replace the last commit instead", kind="steps"),
+            Question(
+                "amend",
+                t("Amend"),
+                t("amend the commit checked out instead of adding a new one"),
+                kind="steps",
+            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -2247,7 +2337,7 @@ class Commit(Form[tuple[str, bool]]):
         return held == "message"
 
     def done_about(self) -> str:
-        return "commits what is staged"
+        return t("commit what is staged")
 
     def _ask(self) -> None:
         self.query_one("#asked", Label).update(t("Commit"))
@@ -2258,7 +2348,7 @@ class Commit(Form[tuple[str, bool]]):
         said = self._typed_in.get("message", "").strip()
         amend = self._typed_in.get("amend") == "on"
         if not said:
-            self._wrong = "message is required"
+            self._wrong = t("Write a commit message first.")
             self._fill()
             return
         self.dismiss((said, amend))
@@ -2285,12 +2375,12 @@ class Changes(_Page):
           host: The interface.
         """
         super().__init__(desk, host)
-        self.asked = f"{desk.named}: changes"
+        self.asked = f"{desk.named}: {t('Changes')}"
         self._stops: Callable[[], None] = lambda: None
         self._files: list[Mapping[str, Any]] = []
 
     def crumb(self) -> str:
-        return "Changes"
+        return t("Changes")
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in self._OWN:
@@ -2299,23 +2389,36 @@ class Changes(_Page):
 
     def keys(self) -> list[Key]:
         return [
-            Key("enter", "diff"),
-            Key("s", "stage"),
-            Key("u", "unstage"),
-            Key("x", "discard"),
-            Key("c", "commit"),
-            Key("r", "refresh"),
+            Key("enter", t("Show the diff")),
+            Key("s", t("Stage Changes")),
+            Key("u", t("Unstage Changes")),
+            Key("x", t("Discard Changes")),
+            Key("c", t("Commit")),
+            Key("r", t("Refresh")),
             *self.page_keys(),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         ]
 
     def actions(self) -> list[Action]:
         return [
-            Action("stage-all", "stage all", "stage every change", self._stages_all),
             Action(
-                "unstage-all", "unstage all", "unstage everything", self._unstages_all
+                "stage-all",
+                t("Stage All Changes"),
+                t("stage every change"),
+                self._stages_all,
             ),
-            Action("commit", "commit…", "commit what is staged", self.action_commit),
+            Action(
+                "unstage-all",
+                t("Unstage All Changes"),
+                t("unstage everything staged"),
+                self._unstages_all,
+            ),
+            Action(
+                "commit",
+                t("Commit"),
+                t("commit what is staged"),
+                self.action_commit,
+            ),
             *super().actions(),
         ]
 
@@ -2430,11 +2533,17 @@ class Snapshots(_Page):
           host: The interface.
         """
         super().__init__(desk, host)
-        self.asked = f"{desk.named}: snapshots"
-        self.about = "Rewinding puts its files back as they were at that snapshot."
+        self.asked = f"{desk.named}: {t('Snapshots')}"
+        self.about = t(
+            "Rewinding puts the environment's files back as they were at that snapshot."
+        )
 
     def keys(self) -> list[Key]:
-        return [Key("enter", "rewind"), *self.page_keys(), Key("esc", "back")]
+        return [
+            Key("enter", t("Rewind")),
+            *self.page_keys(),
+            Key("esc", t("Back")),
+        ]
 
     def on_mount(self) -> None:
         self.run_worker(self._reads(), group="list", exclusive=True)
@@ -2464,7 +2573,7 @@ class Snapshots(_Page):
             self.fails(why)
             return
         self._said = ""
-        self._desk.reach.say(f"rewound {self._desk.named} to {ref}", "dim")
+        self._desk.reach.say(t("Rewound the environment to {ref}.", ref=ref), "dim")
         self.dismiss(None)
 
 
@@ -2498,7 +2607,11 @@ def opens_env(host: App[Any], reach: Reach, named: str = "") -> str:
     env = _matching(envs, named) if named else None
     if named and env is None:
         roles = sorted({str(one.get("role")) for one in envs})
-        return f"/env: no environment {named!r} here; choose {', '.join(roles)}"
+        return t(
+            "/env {name}: no such environment here; choose {roles}.",
+            name=named,
+            roles=", ".join(roles),
+        )
     host.push_screen(Envs(reach, host))
     if env is not None:
         opens_page(host, Desk(env, reach), default_panel(env))

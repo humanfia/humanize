@@ -189,6 +189,12 @@ Press <kbd>ctrl+e</kbd> at the log to open **New epic**. The page is one form, r
 
 Press <kbd>ctrl+o</kbd> to open the **Epic** pane to the right of the log. It has the app's four tabs: **Details**, **Board**, **People** and **Side questions**. Press <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>4</kbd> to switch tabs; the bottom line lists what the open tab's keys do. The pane reopens on the tab and row you left.
 
+### The monitor and Exomyth
+
+Two pages draw a run rather than list it, and both use the colours of the app. The monitor (<kbd>←</kbd> on an empty prompt) draws each agent as a flat block in a heavy square frame with a stripe in the agent's lane colour down its left side, and marks each handover between two blocks with `╱`. Exomyth (<kbd>ctrl+e</kbd> on the monitor) draws each span of the trace as a heavy block in the lane colour of its category. On both, cyan is where the cursor is or what you can open, and pink is the one thing picked: the node of a person the flow is asking, or the span under the cursor. Their key lines use the app's words, such as **Open**, **Back**, **Graph**, **List** and **Details**.
+
+See [Watch a run](/user/watch-a-run) and [Trace a run with Exomyth](/user/tracing).
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.

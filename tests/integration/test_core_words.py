@@ -45,6 +45,9 @@ SAID_THROUGH_T = (
     "src/hmz/tui/epic.py",
     "src/hmz/tui/app.py",
     "src/hmz/tui/pick.py",
+    "src/hmz/tui/envs.py",
+    "src/hmz/tui/monitoring.py",
+    "src/hmz/tui/exomyth.py",
 )
 
 #: What is held to more than that: no literal text reaches the screen of these but through
