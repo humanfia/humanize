@@ -39,8 +39,9 @@ See [Desktop app](/reference/desktop) for files specific to Humanize Desktop.
 
 ```text
 <home>/
-├── settings.yaml
-├── .settings.yaml.lock
+├── settings.toml
+├── .settings.toml.lock
+├── settings.yaml.migrated
 ├── history.jsonl
 ├── web-port
 ├── providers/<cli>/<name>/
@@ -57,8 +58,9 @@ See [Desktop app](/reference/desktop) for files specific to Humanize Desktop.
 
 | Path | Holds | Mode | If you delete it |
 | --- | --- | --- | --- |
-| `settings.yaml` | Every setting. See [settings.yaml](/reference/settings). | `0600` | Every setting takes its default. |
-| `.settings.yaml.lock` | An empty file each writer of `settings.yaml` locks. | `0600` | Made again. |
+| `settings.toml` | Every setting. See [settings.toml](/reference/settings). | `0600` | Every setting takes its default. |
+| `.settings.toml.lock` | An empty file each writer of `settings.toml` locks. | `0600` | Made again. |
+| `settings.yaml.migrated` | The YAML settings file an earlier release kept, left after its conversion to `settings.toml`. Never read. | As it was | Nothing changes. |
 | `history.jsonl` | Lines you submitted at the prompt of `hmz`. One JSON object a line: `at` (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), `workdir`, `text`. Appended, never trimmed. | umask | Prompt history is empty. |
 | `web-port` | The port the last `hmz web` listened on, as digits. | umask | `hmz web` has no remembered port. |
 | `providers/<cli>/<name>/` | One account. See [The account directory](#account-directory). | `0700` | The account no longer exists. |
@@ -254,7 +256,7 @@ Never delete `daemon.sock`, `daemon.json`, or `daemon.lock` while the daemon run
 | `<tmp>/hmz-dsh-<random>/`, `hmz-gateway-<random>/`, `hmz-homes-<random>/` | The configuration of one `dsh` process, of one LiteLLM gateway process (with its account's credentials, mode `0600`), and the homes of turns run on another machine. Mode `0700`. | When the agent or session ends |
 | `<tmp>/hmz-sessions-<random>/` | Sessions a flow stored in its state, for an epic with no resume journal. | When the epic ends |
 | `<tmp>/hmz-env-<random>/` | A copy of a file of an environment while your editor has it open from the terminal interface. | When the editor closes |
-| `<tmp>/hmz-private-<random>/` | The home and the temporary directory of the private daemons of one Python process, with a copy of `settings.yaml`. | When the last of them closes |
+| `<tmp>/hmz-private-<random>/` | The home and the temporary directory of the private daemons of one Python process, with a copy of `settings.toml`. | When the last of them closes |
 | `<tmp>/humanize-<random>/` | The container id and a mirror for one container, service or job of an environment. | With the container, service or job |
 | `${XDG_RUNTIME_DIR:-<tmp>}/humanize-ssh-<uid>/` | Shared ssh connections. Mode `0700`. Under `/tmp` when the path would be too long for a socket. | Each socket, 120 seconds after its last use |
 | `/dev/shm/hmz-<pid>-<16 hex digits>-<random>/` | Linux only. Copies of an account's credential files staged for one CLI process. Mode `0700`. | When that process ends |

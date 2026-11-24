@@ -228,7 +228,7 @@ export const SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'Daemon and wire', link: '/reference/daemon' },
         { text: 'Events and records', link: '/reference/events' },
         { text: 'Trace formats', link: '/reference/tracing' },
-        { text: 'settings.yaml', link: '/reference/settings' },
+        { text: 'settings.toml', link: '/reference/settings' },
         { text: 'Environment variables', link: '/reference/environment' },
         { text: 'Files on disk', link: '/reference/files' },
       ],

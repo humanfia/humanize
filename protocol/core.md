@@ -321,7 +321,7 @@ epics apart from every frontend, and serves every frontend over the sessions of 
 **2.6.2** A **frontend** is a way for a user to start, watch and steer epics: the command line, the
 terminal interface (TUI), the web interface, or the desktop application for macOS or for Windows.
 
-**2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
+**2.6.3** The **settings file** is the file `settings.toml` in the home (Section 3 of [FILES]).
 
 **2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
 client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
@@ -725,7 +725,7 @@ Out of scope:
 - The flow-facing API through which a flow declares roles, permissions, hooks, tools and budgets:
   Section 3 of [PYTHON].
 - The `-a` command-line option and exit statuses: [CLI].
-- The `nous` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
+- The `nous` and `clis` keys of `settings.toml`: Section 3 of [FILES].
 - Where an epic keeps the sessions of its agents: Section 3.
 - How usage and cost are displayed while an epic runs: Section 10.
 
@@ -1806,7 +1806,7 @@ removed.
 
 **4.14.1.1** The user MUST be able to add as a harness any command that speaks the Agent Client
 Protocol, under the name of the program it runs, and hmz MUST record it under `clis` in
-`settings.yaml`, as Section 3 of [FILES] states.
+`settings.toml`, as Section 3 of [FILES] states.
 
 **4.14.1.2** hmz MUST refuse to add a command whose program is a built-in harness under any alias, a
 command that is empty, and a name other than the program's own.

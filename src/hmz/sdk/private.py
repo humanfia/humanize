@@ -160,11 +160,12 @@ class _Place:
             if self._holding > 1:
                 return
             made = Path(tempfile.mkdtemp(prefix="hmz-private-"))
-            settings = home() / "settings.yaml"
             (made / "home").mkdir()
             (made / "tmp").mkdir()
-            if settings.is_file():
-                shutil.copyfile(settings, made / "home" / "settings.yaml")
+            # The YAML one too, where it is not converted yet: the private home converts it.
+            for name in ("settings.toml", "settings.yaml"):
+                if (home() / name).is_file():
+                    shutil.copyfile(home() / name, made / "home" / name)
             self._made = made
             self._was = {name: os.environ.get(name) for name in _PLACES}
             self._tempdir = tempfile.tempdir

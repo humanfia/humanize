@@ -18,12 +18,11 @@ import json
 import os
 import sys
 import tempfile
+import tomllib
 from dataclasses import dataclass
 from importlib.metadata import version as installed
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import yaml
 
 if TYPE_CHECKING:
     import pytest
@@ -255,4 +254,4 @@ def written(*daemons: dict[str, object]) -> None:
     from hmz.coganchor import settings
 
     settings.changes(lambda held: held.__setitem__("daemons", list(daemons)))
-    assert yaml.safe_load(settings.where().read_text())["daemons"]
+    assert tomllib.loads(settings.where().read_text())["daemons"]

@@ -111,13 +111,12 @@ jobs:
         env:
           EPICS_TOKEN: ${{ secrets.EPICS_TOKEN }}
         run: |
-          mkdir -p ~/.hmz
-          cat > ~/.hmz/settings.yaml <<EOF
-          backup:
-            targets:
-              - name: nightly
-                url: https://x-access-token:${EPICS_TOKEN}@github.com/OWNER/epics.git
-                policies: [end]
+          mkdir -p ~/.config/humanize
+          cat > ~/.config/humanize/settings.toml <<EOF
+          [[backup.targets]]
+          name = "nightly"
+          url = "https://x-access-token:${EPICS_TOKEN}@github.com/OWNER/epics.git"
+          policies = ["end"]
           EOF
 
       - name: Run the flow
@@ -186,9 +185,9 @@ The job uploads this file, together with `events.ndjson`, as the `epic` artifact
 
 ## 8. Back up the epic to git
 
-The workflow configures a backup target named `nightly` in `settings.yaml` with the `end` policy, which backs up the epic when the run finishes. Passing `--backup nightly` sends the epic to that repository, and `hmz exec` waits up to 60 seconds for the push to finish before exiting.
+The workflow configures a backup target named `nightly` in `settings.toml` with the `end` policy, which backs up the epic when the run finishes. Passing `--backup nightly` sends the epic to that repository, and `hmz exec` waits up to 60 seconds for the push to finish before exiting.
 
-To inspect the backups on your machine, add the `nightly` target to your local `~/.hmz/settings.yaml` with a `url` your git client can access, then list the contents:
+To inspect the backups on your machine, add the `nightly` target to your local `~/.config/humanize/settings.toml` with a `url` your git client can access, then list the contents:
 
 ```sh
 hmz backup --list

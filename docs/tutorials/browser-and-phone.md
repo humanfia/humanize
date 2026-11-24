@@ -91,11 +91,10 @@ Connect your page to a daemon on a second machine, `devbox`.
 
 ### On devbox
 
-Add a TCP listener to `~/.hmz/settings.yaml` on `devbox`:
+Add a TCP listener to `~/.config/humanize/settings.toml` on `devbox`:
 
-```yaml
-listen:
-  - tcp://0.0.0.0:41817
+```toml
+listen = ["tcp://0.0.0.0:41817"]
 ```
 
 Generate a one-time pairing code:

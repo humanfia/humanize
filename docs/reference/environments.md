@@ -69,26 +69,24 @@ Machines reached over `ssh` require Linux or macOS on x86-64 or aarch64, `/bin/s
 
 ## Saved runtimes
 
-Save machines under `runtimes.<backend>.<name>` in `settings.yaml` inside the Humanize home. Start each name with a letter or digit, followed by letters, digits, `.`, `_`, or `-`. Omitted fields take their defaults.
+Save machines under `runtimes.<backend>.<name>` in `~/.config/humanize/settings.toml`. Start each name with a letter or digit, followed by letters, digits, `.`, `_`, or `-`. Omitted fields take their defaults.
 
-```yaml
-runtimes:
-  ssh:
-    build-box:
-      host: 10.0.0.2
-      user: alex
-      workdir: ~/shop
-      fallback: [docker:box]
-  docker:
-    box:
-      image: python:3.12
-      cpus: 8
-      memory: 17179869184
-      harness: local
-  slurm:
-    hpc:
-      partition: gpu
-      max_wait: 600
+```toml
+[runtimes.ssh.build-box]
+host = "10.0.0.2"
+user = "alex"
+workdir = "~/shop"
+fallback = ["docker:box"]
+
+[runtimes.docker.box]
+image = "python:3.12"
+cpus = 8
+memory = 17179869184
+harness = "local"
+
+[runtimes.slurm.hpc]
+partition = "gpu"
+max_wait = 600
 ```
 
 ### Common fields

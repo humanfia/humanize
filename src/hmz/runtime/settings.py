@@ -33,8 +33,6 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
-import yaml
-
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
@@ -627,7 +625,7 @@ class Settings:
 
         try:
             self._held = settings.changes(marked)
-        except (OSError, yaml.YAMLError):
+        except (OSError, ValueError):
             # Remembered for as long as this is, which is all it can be.
             change(self._held)
 
