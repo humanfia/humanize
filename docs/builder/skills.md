@@ -245,7 +245,7 @@ Fakes record the permission without enforcing it. See [Test a flow](/builder/tes
 - A role with workdir write access can also write `/tmp`, `/var/tmp` and `$TMPDIR`. `deny("/tmp")` does not remove this access, though `deny("/tmp/x")` blocks `/tmp/x`.
 - Coding agents always keep access to their own state, sign-in and temporary files, regardless of rules.
 - `cursor-agent` and `mcode` cannot fill a role with `network=False` because their web search runs on vendor servers: opening the session raises `HarnessSandboxed`. So does a custom CLI that declares no `hosts` (see [Gateways, LiteLLM and custom CLIs](/user/gateways)).
-- `dsh`, `litellm` and custom CLIs ignore skills. Roles filled by them run without the flow's skills.
+- `litellm` and custom CLIs ignore skills. Roles filled by them run without the flow's skills. `dsh` gets them, except when its harness runs on another machine.
 - A single-file flow (`.hmz/flows/name.py`) has no `skills/` folder. Convert it to a directory to bundle skills.
 - A human (`Outworlder`) has no skills. Calling `derive` with a non-empty `skills` on an `Outworlder` raises `CapabilityNotGranted`.
 - When calling a subflow, the agent you pass must hold at least the permission the callee's role declares, or the call raises `PermissionTooNarrow`. See [Call another flow](/builder/calling-flows).

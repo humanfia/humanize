@@ -27,7 +27,8 @@ Humanize does not install, change or disable your skills. Each CLI loads them fr
 | `opencode` | `~/.config/opencode/skills/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skills/`, `.agents/skills/`, `.claude/skills/` |
 | `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | Only in a project you trusted in pi |
 | `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
-| `dsh`, `litellm` | None | None |
+| `dsh` | `~/.dsh/skills/`, `~/.agents/skills/` | `.dsh/skills/`, `.agents/skills/`, at the project's root |
+| `litellm` | None | None |
 
 ## Use a skill in a chat
 
@@ -93,7 +94,9 @@ Switch the preference with `/prefer native` or `/prefer flow`, or in the app und
 - A skill's name is the `name` in its `SKILL.md` front matter, or its folder's name when it states none.
 - As the first message of a Kimi Code chat, `/name` is sent as plain text, because Kimi lists its skills only once the conversation exists. Call the skill from the second message on.
 - If a flow's skill shares a name with one of yours, the session uses the flow's skill and leaves yours untouched on disk.
-- `dsh` and `litellm` load no skills. Roles with skills still run on them, without the skills.
+- `litellm` loads no skills. Roles with skills still run on it, without the skills.
+- `dsh` gets the flow's skills as a copy beside the patch its runtime starts with, read after the project's skills and before yours, and removed when the runtime closes. A session kept in a run's epic still reads your skills, and keeps your static `skill-filesystem` settings (custom folders, a moved home, a disabled provider); a dynamic or structural change to that provider is reported as unsupported. A change to a session's skills applies from its next turn, in the same conversation. A flow skill that cannot be copied is left out with a warning and tried again next turn.
+- A `dsh` agent whose harness runs on another machine gets neither the flow's skills nor yours from this machine.
 - `opencode` and `mimo` do not get a temporary home; Humanize passes the flow's skills in each run's configuration. Both CLIs also read a `skill/` folder beside their own `skills/` folders, such as `.opencode/skill/`.
 - If a git-referenced skill cannot be fetched, the run fails before its first turn, and the error names the role that asked for it. A repository fetched before keeps working offline.
 - Moving a CLI's home with an environment variable such as `CODEX_HOME` moves its skills folder with it.
