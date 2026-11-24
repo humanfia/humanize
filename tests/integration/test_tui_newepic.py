@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.daemon.link import Link
+from hmz.runtime.epic import JOURNAL, epics
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Entry
 from hmz.tui.shell import Zone
@@ -27,6 +28,7 @@ from tests.integration.doubles_tui import (
     shows,
     stand_in,
     tell,
+    typed,
     until,
 )
 
@@ -77,9 +79,14 @@ CODER, ROUNDS = "\x1eagent\x1ecoder", "\x1eparam\x1erounds"
 
 
 @pytest.fixture
-def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
-    """The stand-in `claude` on `PATH`, and a flow of the workspace's own to start."""
-    del asking
+def workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None, daemon: object
+) -> Path:
+    """The stand-in `claude` on `PATH`, and a flow of the workspace's own to start.
+
+    Over a daemon of this process, so that the side question's session outlives no test.
+    """
+    del asking, daemon
     at = stand_in(tmp_path, monkeypatch)
     own_flow(at, ASKS)
     return at
@@ -180,6 +187,11 @@ async def test_ctrl_e_sets_an_epic_up_on_one_page_and_ctrl_o_reads_it_beside_its
         await until(pilot, lambda: len(app.screen_stack) == 1, "it asked")
         await shows(pilot, "btw ·", "heard how far", "D Close")
         assert heard(workspace).count("say hello") == 1
+        # Closed, it is gone from the list, and its session with it.
+        await pilot.press("d")
+        await shows(pilot, "Close the side question with")
+        await pilot.press("enter")
+        await shows(pilot, "No side question yet")
         await pilot.press("3")
         await shows(pilot, "reviewer", "enter Claim")
 
@@ -207,6 +219,17 @@ async def test_ctrl_e_sets_an_epic_up_on_one_page_and_ctrl_o_reads_it_beside_its
         await pilot.press("ctrl+e")
         await until(pilot, lambda: not isinstance(app.screen, NewEpic), "it to close")
         assert len(app.screen_stack) == 1
+
+        # Stopped, so that no host of it outlives the test waiting to be answered.
+        await typed(pilot, "/stop")
+        await shows(pilot, "topping the flow")
+        await until(
+            pilot,
+            lambda: any(
+                '"ended"' in (epic / JOURNAL).read_text() for epic in epics(workspace)
+            ),
+            "the run to end",
+        )
 
 
 async def test_the_page_opens_on_the_folder_it_is_asked_for(
