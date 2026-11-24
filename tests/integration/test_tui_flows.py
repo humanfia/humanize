@@ -201,7 +201,7 @@ async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
         await typed(pilot, "/flow")
         await on(pilot, Flows)
         await opens(pilot, OWN)
-        await shows(pilot, "profile flow", "profile environment")
+        await shows(pilot, "Profile flow", "Profile environment")
         await picks(pilot, "\x1eprofile-flow", "on")
         await picks(pilot, "\x1eprofile-environment", "on")
         await shows(pilot, "samples the flow's own Python")

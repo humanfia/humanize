@@ -1,0 +1,512 @@
+{
+ "entries": [
+  {
+   "wants": "under the question that asks whether to remove a flowverse: {n} installed flows go with it (are uninstalled with it); counts with {n}",
+   "where": "one sentence in a confirmation box of a sheet of the terminal interface's /flow menu",
+   "text": "{n} installed flows go with it.",
+   "one": "{n} installed flow goes with it."
+  },
+  {
+   "wants": "what the Remove button of that box does: removes the flowverse now",
+   "where": "a button's one-line description, lower case, no full stop, under 6 words",
+   "text": "removes the flowverse now"
+  },
+  {
+   "wants": "what the Cancel button of that box does: keeps the flowverse",
+   "where": "a button's one-line description, lower case, no full stop, under 6 words",
+   "text": "keeps the flowverse"
+  },
+  {
+   "wants": "what finishing the Add flowverse form does: clones the flowverse's index; flows are installed from it next",
+   "where": "one line under a form, lower case, no full stop",
+   "text": "clones the flowverse's index; flows are installed from it next"
+  },
+  {
+   "wants": "what a flowverse is, said on the Add flowverse form: a git repository indexing flows as flows/[<user>/]<flow>/<version>/flow.yaml, one manifest per release; its index is cloned under {path}; flows installed from it are offered as @<name>/[<user>/]<flow>. Keep the two path patterns and {path} exactly",
+   "where": "a paragraph of up to 45 words on a form",
+   "text": "A git repository indexing flows as flows/[<user>/]<flow>/<version>/flow.yaml, one manifest per release. Its index is cloned under {path}. Flows installed from it are offered as @<name>/[<user>/]<flow>."
+  },
+  {
+   "wants": "refusal on the Add flowverse form when no URL was typed: a URL is required",
+   "where": "a short error line, sentence case, with full stop",
+   "text": "This needs a URL."
+  },
+  {
+   "wants": "what the 'profile flow' switch means when on: samples the flow's own Python",
+   "where": "a one-line description of a switch, lower case, no full stop",
+   "text": "samples the flow's own Python"
+  },
+  {
+   "wants": "what the 'profile environment' switch means when on: samples the programs agents start",
+   "where": "a one-line description of a switch, lower case, no full stop",
+   "text": "samples the programs agents start"
+  },
+  {
+   "wants": "what either profiling switch means when off: the epic is traced only, not profiled",
+   "where": "a one-line description of a switch, lower case, no full stop, 2 or 3 words",
+   "text": "traced only"
+  },
+  {
+   "wants": "what the Installed card of /flow holds: flows ready to run, those installed and your own",
+   "where": "a one-line description on a card, lower case, no full stop",
+   "text": "flows ready to run, those installed and your own"
+  },
+  {
+   "wants": "what the Flowverses card of /flow holds: indexes of flows to install, update and add to",
+   "where": "a one-line description on a card, lower case, no full stop",
+   "text": "indexes of flows to install, update and add to"
+  },
+  {
+   "wants": "what the first screen of /flow is for: flows to run, and the flowverses more are installed from",
+   "where": "one sentence under a menu's title",
+   "text": "Flows to run, and the flowverses more are installed from."
+  },
+  {
+   "wants": "what the Installed page of /flow is for: flows ready to run here; pick one to set it up and run it, or install more from a flowverse",
+   "where": "one sentence under a menu's title",
+   "text": "Flows ready to run here; pick one to set it up and run it, or install more from a flowverse."
+  },
+  {
+   "wants": "what the roles page of one flow is for: set up each role, an agent (CLI, account, model and effort) or an environment; then what the flow takes and what an epic may spend",
+   "where": "one or two sentences under a menu's title, up to 35 words",
+   "text": "Set up each role, an agent (CLI, account, model and effort) or an environment. Then set what the flow takes and what an epic may spend."
+  },
+  {
+   "wants": "what the Flowverses page of /flow is for: indexes of flows to install, cloned under {path}; fetching, adding and removing one happen at once (not held until Save)",
+   "where": "one or two sentences under a menu's title; keep {path}",
+   "text": "Indexes of flows to install, cloned under {path}. Fetching, adding and removing one happen at once."
+  },
+  {
+   "wants": "what the page of one flowverse is for: the flows {name} lists, each at its newest release; open one for its other releases; installing happens at once",
+   "where": "one or two sentences under a menu's title; keep {name}",
+   "text": "The flows {name} lists, each at its newest release. Open one for its other releases; installing happens at once."
+  },
+  {
+   "wants": "what the page of one flow's releases is for: releases of {name}, newest first; pick one to install it or switch to it",
+   "where": "one or two sentences under a menu's title; keep {name}",
+   "text": "Releases of {name}, newest first. Pick one to install it or switch to it."
+  },
+  {
+   "wants": "said while a release is being installed: Installing {name} {version}…  (ends with the ellipsis character …)",
+   "where": "a progress line under a list; keep {name} and {version}",
+   "text": "Installing {name} {version}…"
+  },
+  {
+   "wants": "said while a flow is being uninstalled: Uninstalling {name}…  (ends with the ellipsis character …)",
+   "where": "a progress line under a list; keep {name}",
+   "text": "Uninstalling {name}…"
+  },
+  {
+   "wants": "said while a flowverse is being removed: Removing {name}…  (ends with the ellipsis character …)",
+   "where": "a progress line under a list; keep {name}",
+   "text": "Removing {name}…"
+  },
+  {
+   "wants": "refusal when an install, fetch or removal is asked for while another is still under way: wait for the one under way to finish",
+   "where": "a short line under a list, sentence case, with full stop",
+   "text": "Wait for the one under way to finish."
+  },
+  {
+   "wants": "said once a release is installed: {name} {version} is installed",
+   "where": "a result line under a list, with full stop; keep {name} and {version}",
+   "text": "{name} {version} is installed."
+  },
+  {
+   "wants": "said once a release is installed along with the flows it needs: {name} {version} is installed, with {needs} (a list of flows and versions)",
+   "where": "a result line under a list, with full stop; keep {name}, {version} and {needs}",
+   "text": "{name} {version} is installed, with {needs}."
+  },
+  {
+   "wants": "said once a flow is uninstalled: {name} is uninstalled",
+   "where": "a result line under a list, with full stop; keep {name}",
+   "text": "{name} is uninstalled."
+  },
+  {
+   "wants": "said once a flowverse is removed: {name} is removed",
+   "where": "a result line under a list, with full stop; keep {name}",
+   "text": "{name} is removed."
+  },
+  {
+   "wants": "key hint: what enter does on an installed flow of /flow: sets it up",
+   "where": "a key hint of one or two words, sentence case, no full stop",
+   "text": "Set up"
+  },
+  {
+   "wants": "key hint: what enter does on a flow a flowverse lists: shows its releases",
+   "where": "a key hint of one word, sentence case, no full stop",
+   "text": "Releases"
+  },
+  {
+   "wants": "how many flows there are: {n} flows; counts with {n}",
+   "where": "a count on a card, lower case",
+   "text": "{n} flows",
+   "one": "{n} flow"
+  },
+  {
+   "wants": "said on the Installed card where no flow is chosen to run yet: none chosen",
+   "where": "two words on a card, lower case",
+   "text": "none chosen"
+  },
+  {
+   "wants": "said under a list a search has narrowed to nothing: no flow matches",
+   "where": "a short line under a list, sentence case, with full stop",
+   "text": "No flow matches."
+  },
+  {
+   "wants": "said under the list of flowverses a search has narrowed to nothing: no flowverse matches",
+   "where": "a short line under a list, sentence case, with full stop",
+   "text": "No flowverse matches."
+  },
+  {
+   "wants": "said under the list of releases a search has narrowed to nothing: no release matches",
+   "where": "a short line under a list, sentence case, with full stop",
+   "text": "No release matches."
+  },
+  {
+   "wants": "what the 'Browse Flowverses' button does: browse the flowverses for flows to install",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "browse the flowverses for flows to install"
+  },
+  {
+   "wants": "what the Update button does: installs the newest release the flow's flowverse lists",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "installs the newest release its flowverse lists"
+  },
+  {
+   "wants": "what the Uninstall button does: uninstalls the flow under the cursor",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "uninstalls the flow under the cursor"
+  },
+  {
+   "wants": "button label: copy the flow under the cursor into this project (workspace) so it can be edited",
+   "where": "a button label of two words, sentence case",
+   "text": "Copy here"
+  },
+  {
+   "wants": "what that copy button does: copies the flow into this project to edit it",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "copies the flow into this workspace to edit it"
+  },
+  {
+   "wants": "said once a flow is copied into the project: copied to {path}; it can be edited there, and {name} now names the copy",
+   "where": "a result line under a list, with full stop; keep {path} and {name}",
+   "text": "Copied to {path}; edit it there, and {name} now names the copy."
+  },
+  {
+   "wants": "beside an agent role, which account it runs as: as {name}",
+   "where": "two words on a row, lower case; keep {name}",
+   "text": "as {name}"
+  },
+  {
+   "wants": "what the Parameters row of a flow is: what the flow itself takes",
+   "where": "a one-line description of a row, lower case, no full stop",
+   "text": "what the flow itself takes"
+  },
+  {
+   "wants": "value of the Parameters row where nothing was changed: the defaults",
+   "where": "one word on a row, lower case",
+   "text": "defaults"
+  },
+  {
+   "wants": "value of the Budget row where a budget is set: set",
+   "where": "one word on a row, lower case",
+   "text": "set"
+  },
+  {
+   "wants": "what the Budget row is: what an epic may spend: {limits}",
+   "where": "a one-line description of a row, lower case, no full stop; keep {limits}",
+   "text": "what an epic may spend: {limits}"
+  },
+  {
+   "wants": "the limits where no budget is set: none set; an epic needs one",
+   "where": "a short phrase after a colon, lower case, no full stop",
+   "text": "none set; an epic needs one"
+  },
+  {
+   "wants": "the limits where a budget is set: stops at {limits}",
+   "where": "a short phrase after a colon, lower case, no full stop; keep {limits}",
+   "text": "stops at {limits}"
+  },
+  {
+   "wants": "what the Backup row is: where each epic is backed up",
+   "where": "a one-line description of a row, lower case, no full stop",
+   "text": "where each epic is backed up"
+  },
+  {
+   "wants": "what the Backup row is where the targets are the default ones: where each epic is backed up (the defaults)",
+   "where": "a one-line description of a row, lower case, no full stop",
+   "text": "where each epic is backed up (the defaults)"
+  },
+  {
+   "wants": "said where a flow declares no role to set up: {name} has no roles to set up; it works only with you",
+   "where": "a line under a list, with full stop; keep {name}",
+   "text": "{name} has no roles to set up; it works only with you."
+  },
+  {
+   "wants": "failure: the flow {name} failed to load",
+   "where": "a red line under a list, with full stop; keep {name}",
+   "text": "The flow {name} failed to load."
+  },
+  {
+   "wants": "failure: the flow {name} failed to load: {why}",
+   "where": "a red line under a list, no full stop after {why}; keep {name} and {why}",
+   "text": "The flow {name} failed to load: {why}"
+  },
+  {
+   "wants": "what follows from a flow failing to load on its roles page: nothing can be set up",
+   "where": "a short sentence with full stop",
+   "text": "Nothing can be set up."
+  },
+  {
+   "wants": "title of the form that sets a flow's budget: Set the budget for {name}",
+   "where": "a form's title, sentence case, no full stop; keep {name}",
+   "text": "Set the budget for {name}"
+  },
+  {
+   "wants": "what the budget form says: an epic stops at whichever limit it reaches first; at least one limit is required; leave a limit empty or 0 for none",
+   "where": "one or two sentences under a form's title",
+   "text": "An epic stops at whichever limit it reaches first. At least one limit is required; leave a limit empty or 0 for none."
+  },
+  {
+   "wants": "refusal where a flow's backup row is opened and there is no backup target: add one in /settings backup. Keep /settings backup exactly",
+   "where": "a short warning line with full stop",
+   "text": "No backup target yet; add one in /settings backup."
+  },
+  {
+   "wants": "refusal on saving a flow where roles are not set up yet: {roles} (a list of role names) not set up yet",
+   "where": "a short warning line with full stop; keep {roles}",
+   "text": "{roles} not set up yet."
+  },
+  {
+   "wants": "refusal on saving a flow with no budget: this flow needs a budget; set the budget first",
+   "where": "a short warning line with full stop",
+   "text": "This flow needs a budget; set the budget first."
+  },
+  {
+   "wants": "state of a flowverse whose index is cloned and untouched: fetched",
+   "where": "one word chip on a row, lower case",
+   "text": "fetched"
+  },
+  {
+   "wants": "state of a flowverse whose index is not cloned yet: not fetched",
+   "where": "two word chip on a row, lower case",
+   "text": "not fetched"
+  },
+  {
+   "wants": "state of a flowverse whose index has something written into it: edited",
+   "where": "one word chip on a row, lower case",
+   "text": "edited"
+  },
+  {
+   "wants": "state of a flowverse that is a directory with no git origin: no origin",
+   "where": "two word chip on a row, lower case",
+   "text": "no origin"
+  },
+  {
+   "wants": "where a flowverse is from when it is a directory with no git origin",
+   "where": "a short phrase on a row, lower case, no full stop",
+   "text": "local folder"
+  },
+  {
+   "wants": "how many flows of a flowverse are installed: {n} installed",
+   "where": "a count on a row, lower case; keep {n}",
+   "text": "{n} installed"
+  },
+  {
+   "wants": "what the 'Add flowverse' button does: adds a git repository indexing flows",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "adds a git repository indexing flows"
+  },
+  {
+   "wants": "what the Fetch button does: takes what the flowverse's index says now",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "takes what the flowverse's index says now"
+  },
+  {
+   "wants": "what the Remove button of a flowverse does: removes it and every flow installed out of it",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "removes it and every flow installed out of it"
+  },
+  {
+   "wants": "warning naming a manifest of a flowverse that was skipped: skipped {where}: {why}",
+   "where": "a warning line, sentence case, no full stop after {why}; keep {where} and {why}",
+   "text": "Skipped {where}: {why}"
+  },
+  {
+   "wants": "warning naming a manifest of a flowverse that was skipped, with more skipped besides: skipped {where}: {why}, and {n} more",
+   "where": "a warning line, sentence case, no full stop; keep {where}, {why} and {n}",
+   "text": "Skipped {where}: {why}, and {n} more"
+  },
+  {
+   "wants": "button label: install the release {version}",
+   "where": "a button label, sentence case; keep {version}",
+   "text": "Install {version}"
+  },
+  {
+   "wants": "button label: switch to the release {version} (an older or other release than the installed one)",
+   "where": "a button label, sentence case; keep {version}",
+   "text": "Switch to {version}"
+  },
+  {
+   "wants": "what the Install button does: installs this release and the flows it needs",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "installs this release and the flows it needs"
+  },
+  {
+   "wants": "what the Uninstall button on a flowverse's page does: uninstalls the installed flow",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "uninstalls the installed flow"
+  },
+  {
+   "wants": "mark beside a release that is a prerelease",
+   "where": "one word chip on a row, lower case",
+   "text": "prerelease"
+  },
+  {
+   "wants": "what a release needs: needs {name} {spec} (another flow and a version range)",
+   "where": "a short phrase on a row, lower case; keep {name} and {spec}",
+   "text": "needs {name} {spec}"
+  },
+  {
+   "wants": "what the Save button of /flow does: runs this flow, set up as it is here",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "runs this flow, set up as it is here"
+  },
+  {
+   "wants": "what the Save button of /flow says where nothing is changed: nothing to save yet",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "nothing to save yet"
+  },
+  {
+   "wants": "what Open does in the menu of an installed flow: sets its agents up",
+   "where": "a menu item's one-line description, lower case, no full stop",
+   "text": "sets its agents up"
+  },
+  {
+   "wants": "what Open does in the menu of a flowverse: shows the flows it lists",
+   "where": "a menu item's one-line description, lower case, no full stop",
+   "text": "shows the flows it lists"
+  },
+  {
+   "wants": "why a flow cannot be installed, updated or uninstalled now: an epic is going; flows are installed, updated and uninstalled once it ends",
+   "where": "one sentence on the Flows page, with full stop",
+   "text": "An epic is going; flows are installed, updated and uninstalled once it ends."
+  },
+  {
+   "wants": "said on the Flows page beside a flow of the project's or the user's own, which has no release: your own",
+   "where": "two words on a row, lower case",
+   "text": "your own"
+  },
+  {
+   "wants": "said on the Flows page where no flowverse is added: no flowverse yet",
+   "where": "a short line, sentence case, with full stop",
+   "text": "No flowverse yet."
+  },
+  {
+   "wants": "said on the page of one flow where it declares no parameters: takes no parameters",
+   "where": "a short phrase, lower case, no full stop",
+   "text": "takes no parameters"
+  },
+  {
+   "wants": "where a downloaded chat is opened: carry it on with /resume in a chat. Keep /resume exactly",
+   "where": "a short phrase after a semicolon, lower case, no full stop",
+   "text": "carry it on with /resume in a chat"
+  },
+  {
+   "wants": "where a downloaded epic is opened: open it from /epics. Keep /epics exactly",
+   "where": "a short phrase after a semicolon, lower case, no full stop",
+   "text": "open it from /epics"
+  },
+  {
+   "wants": "what the Download list is: every epic and chat the backup target holds, by machine and folder, newest first; enter downloads one here, as an import does",
+   "where": "one or two sentences under a title",
+   "text": "Every epic and chat the backup target holds, by machine and folder, newest first. Enter downloads one here, as an import does."
+  },
+  {
+   "wants": "what the Fetch button of the Download list does: fetches {target} again",
+   "where": "a button's one-line description, lower case, no full stop; keep {target}",
+   "text": "fetches {target} again"
+  },
+  {
+   "wants": "what the Target button of the Download list does: picks another backup target",
+   "where": "a button's one-line description, lower case, no full stop",
+   "text": "picks another backup target"
+  },
+  {
+   "wants": "title of the Download list: Download from {target}",
+   "where": "a title, sentence case, no full stop; keep {target}",
+   "text": "Download from {target}"
+  },
+  {
+   "wants": "said on a row of the Download list for an epic that names no task: no task",
+   "where": "two words on a row, lower case",
+   "text": "no task"
+  },
+  {
+   "wants": "refusal to download what is here already: {name} is here already; {then} (where {then} says how to open it)",
+   "where": "a line under a list, no full stop after {then}; keep {name} and {then}",
+   "text": "{name} is here already; {then}"
+  },
+  {
+   "wants": "said while one epic is downloaded: Downloading {name}…  (ends with the ellipsis character …)",
+   "where": "a progress line; keep {name}",
+   "text": "Downloading {name}…"
+  },
+  {
+   "wants": "said once an epic is downloaded: downloaded {name} into {folder}; {then} (where {then} says how to open it)",
+   "where": "a result line, sentence case, no full stop after {then}; keep {name}, {folder} and {then}",
+   "text": "Downloaded {name} into {folder}; {then}"
+  },
+  {
+   "wants": "added after that where the downloaded epic cannot be resumed on this machine: it cannot be resumed here: {why}",
+   "where": "a clause, lower case, no full stop after {why}; keep {why}",
+   "text": "it cannot be resumed here: {why}"
+  },
+  {
+   "wants": "what the Import page is: an epic somebody exported, a .hmzepic file, is read back in under the folder it ran in",
+   "where": "one sentence under a page's title",
+   "text": "An epic somebody exported, a .hmzepic file, is read back in under the folder it ran in."
+  },
+  {
+   "wants": "what the Export page is: pick an epic; the whole of it is written as one .hmzepic archive, with its trace, credentials struck out",
+   "where": "one or two sentences under a page's title",
+   "text": "Pick an epic; the whole of it is written as one .hmzepic archive, with its trace, credentials struck out."
+  },
+  {
+   "wants": "said on a transfer page where nothing is moving and nothing has moved: no transfer yet",
+   "where": "a short line, sentence case, with full stop",
+   "text": "No transfer yet."
+  },
+  {
+   "wants": "said once an epic is exported: exported {name} to {path} ({size})",
+   "where": "a result line, sentence case, with full stop; keep {name}, {path} and {size}",
+   "text": "Exported {name} to {path} ({size})."
+  },
+  {
+   "wants": "said while an epic is exported: Exporting {name}…  (ends with the ellipsis character …)",
+   "where": "a progress line; keep {name}",
+   "text": "Exporting {name}…"
+  },
+  {
+   "wants": "said once an epic is imported: imported into {folder}",
+   "where": "a result line, sentence case, with full stop; keep {folder}",
+   "text": "Imported into {folder}."
+  },
+  {
+   "wants": "said under a transfer page: a transfer goes on when this page is closed",
+   "where": "one sentence with full stop",
+   "text": "A transfer goes on when this page is closed."
+  },
+  {
+   "wants": "how long a transfer has taken so far: {n} s (seconds, abbreviated)",
+   "where": "a short count beside a progress bar; keep {n}",
+   "text": "{n} s"
+  },
+  {
+   "wants": "said on the Export page where no epic is recorded on this machine: no epic to export yet",
+   "where": "a short line, sentence case, with full stop",
+   "text": "No epic to export yet."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

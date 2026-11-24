@@ -31,6 +31,8 @@ SAID_THROUGH_T = (
     "src/hmz/cli/commands",
     "src/hmz/tui/shell.py",
     "src/hmz/tui/views",
+    "src/hmz/tui/flows.py",
+    "src/hmz/tui/stored.py",
 )
 
 

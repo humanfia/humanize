@@ -152,6 +152,12 @@ TEXTUAL_THEME=nord hmz
 
 Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
+## Flows page
+
+Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installed** lists the flows you can run, with any that has a newer release first and marked `↑`. **Flowverses** lists the indexes more flows are installed from, with when each was fetched. <kbd>tab</kbd> turns from one to the other, the bottom line lists the keys of the list you are in, and <kbd>esc</kbd> goes back one list and then closes the page. See [Find and install flows](./flows.md#in-the-terminal).
+
+The Download, Import and Export pages move epics between machines. A transfer goes on when you close its page with <kbd>esc</kbd>; open any of the three again to see where it stands. See [Export and import a run](./export.md) and [Back up to git](./backups.md).
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.

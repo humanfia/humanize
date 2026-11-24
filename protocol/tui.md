@@ -1049,7 +1049,7 @@ the name `-f` takes.
 **16.2.2** Each installed flow MUST show its release and, where its index lists a newer one, that
 newer release; the flow in force MUST be marked `✔`.
 
-**16.2.3** The Installed page MUST offer **Install more…**, **Update** where an update is listed,
+**16.2.3** The Installed page MUST offer **Browse Flowverses**, **Update** where an update is listed,
 **Uninstall** for an installed flow, **Copy here** for a flow not of this project, and **Search…**.
 
 **16.2.4** **Uninstall** MUST be refused while another installed flow needs the flow.
@@ -1069,8 +1069,8 @@ directory under the flowverses home that is not a clone, each with whether it is
 fetched, edited, or has no origin, its URL with any credential hidden, how many flows it lists, how
 many are installed and how many have updates.
 
-**16.3.2** The Flowverses page MUST offer **Add flowverse…**, a form taking a repository and an
-optional name; **Fetch** or **Fetch again**; **Remove**, except for `official`, asked first in a box
+**16.3.2** The Flowverses page MUST offer **Add flowverse**, a form taking a repository and an
+optional name; **Fetch**; **Remove**, except for `official`, asked first in a box
 that says how many installed flows go with it; and **Search…**.
 
 **16.3.3** One flowverse's page MUST list each flow its index lists at its newest release, with what
@@ -1642,6 +1642,15 @@ states where its row's context holds.
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 | 24.1.72 | app | the key of a view | Section 25.1.4 |
+| 24.1.73 | Flows page | `tab` | the other tab (Section 31.1.1) |
+| 24.1.74 | Flows page, installed flow | `enter`, `n`, `u`, `s`, `x` | open, new epic, update, switch release, uninstall (Section 31.1.3) |
+| 24.1.75 | Flows page, flowverse | `enter`, `a`, `f`, `x` | open, add, fetch, remove (Section 31.1.4) |
+| 24.1.76 | Flows page, flow of a flowverse | `enter`, `i`, `x`, `f` | releases, install, uninstall, fetch (Section 31.1.5) |
+| 24.1.77 | Flows page, release | `enter`, `x` | install or switch to, uninstall (Section 31.1.5) |
+| 24.1.78 | Download page | `enter`, `f`, `t` | download, fetch again, next target (Section 31.2.3) |
+| 24.1.79 | Import page | `enter` | ask for the file (Section 31.2.4) |
+| 24.1.80 | Export page | `enter` | export the epic (Section 31.2.5) |
+| 24.1.81 | a page | `esc` | back one list, then close (Section 25.1.5) |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
@@ -1740,7 +1749,79 @@ This section is reserved for the Files, Terminal and Changes views of an environ
 
 ## 31. Flows page and transfers
 
-This section is reserved for the Flows page and the Download, Import and Export dialogs. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 31.1. The Flows page
+
+**31.1.1** `ctrl+l` MUST be the key of the _Flows_ view, a page whose hint is `Flows`. The page MUST
+be headed `FLOWS` over a heavy rule and MUST have two tabs, `Installed` and `Flowverses`, the open
+one cyan, and MUST open on `Installed`. `tab` MUST turn from one tab to the other.
+
+**31.1.2** `Installed` MUST list every flow there is to run here -- those installed from a
+flowverse and the user's own -- each with its release, and MUST list first, marked, each flow whose
+flowverse lists a newer release, with that release. Above the list it MUST say how many flows there
+are and, where any has a newer release, how many do: the count of Section 3.6.
+
+**31.1.3** On an installed flow: `enter` MUST open what it says of itself and what it declares --
+its agent roles, its environment roles and its params; `n` MUST start a new epic of it, on the New
+epic page (Section 29) where there is one and otherwise as `/flow <flow>` does (Section 7.9.2), the
+page closing; `u` MUST install the newest release its flowverse lists; `s` MUST list its releases,
+of which `enter` installs or switches to one; `x` MUST uninstall it.
+
+**31.1.4** `Flowverses` MUST list every flowverse except the project's and the user's own, each
+with when its index was fetched or that it is not, where it is fetched from with any credential
+hidden, and how many flows it lists, has installed and has updates for. `a` MUST ask for a
+repository and an optional name and add it; `f` MUST fetch the one under the cursor; `x` MUST
+remove it; `enter` MUST list the flows it lists, each at its newest release with what of it is
+installed, naming each manifest it skipped and why.
+
+**31.1.5** On a flow a flowverse lists: `i` MUST install its newest release; `enter` MUST list its
+releases newest first, the installed one and prereleases marked, of which `enter` installs or
+switches to one; `x` MUST uninstall it.
+
+**31.1.6** The page MUST ask before it uninstalls a flow, naming the flow, and before it removes a
+flowverse, naming it and saying how many installed flows go with it (Section 25.4.2).
+
+**31.1.7** While an epic is going the page MUST say that flows are installed, updated and
+uninstalled once it ends, and MUST refuse to install, update or uninstall one, or to remove a
+flowverse a flow is installed from, saying so again where it was asked (Section 3.9).
+
+**31.1.8** One install, uninstall, fetch, add or removal MUST run at a time, without stopping the
+page from drawing or taking keys; the page MUST say what is under way, refuse another until it is
+done, and say what came of it under the list and in the transcript. The page MUST NOT fetch an
+index unasked.
+
+**31.1.9** `esc` MUST go back one list, and from a tab MUST close the page. The page MUST show its
+own hint line, saying exactly the keys the list open takes (Section 25.2.2).
+
+**31.1.10** What the page lists and what it says of what was done MUST be what `/flow` lists and
+says (Section 16), and `/flow` MUST go on working as Section 16 states.
+
+### 31.2. Transfers
+
+**31.2.1** _Download_, _Import_ and _Export_ MUST each be a page view, named `download`, `import`
+and `export`, with no key of its own, headed by its name in capitals over a heavy rule.
+
+**31.2.2** A _transfer_ is one download, import or export. A transfer MUST run without stopping
+the interface from drawing or taking keys, and MUST go on when its page is closed. Each of the
+three pages MUST list the transfers of the interface, newest first: one still going with what it is
+moving, a bar that moves and how long it has taken, saying that it goes on when the page is closed;
+one ended with what came of it, a failure in red. What came of a transfer MUST also be said in the
+transcript.
+
+**31.2.3** Download MUST list what one backup target holds as Section 19.10.3 and 19.10.4 state,
+fetched without delaying input, and MUST open on the first target; `enter` MUST download the epic
+or chat under the cursor, `f` MUST fetch the target again, and `t`, where there is more than one
+target, MUST turn to the next. What is here already MUST be marked `Here` and MUST NOT be
+downloaded again, saying how it is opened. Where there is no target the page MUST say so and where
+one is added.
+
+**31.2.4** Import MUST ask for a `.hmzepic` by path, finished as it is typed (Section 15.4), as it
+opens where no import is listed and on `enter`, and MUST read the file in as Section 17.1.5 states
+for an import, saying the folder it was imported into.
+
+**31.2.5** Export MUST list every epic recorded on this machine, newest first, each with when it
+began, its flow or `chat`, its task, how it ended and the folder it ran in; `enter` MUST ask where
+the archive goes as Section 17.2.6 states for an export and write it there, saying where it landed
+and how big it is. Opened for one epic, it MUST ask where that epic goes at once.
 
 ## 32. Settings: App and Daemon
 

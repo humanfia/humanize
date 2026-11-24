@@ -391,7 +391,7 @@ async def test_a_flowverse_is_added_in_the_terminal(
         await shows(pilot, "humanfia/flowverse")
         await _settled(pilot)
         await pilot.press("tab", "enter")
-        await shows(pilot, "Add a flowverse")
+        await shows(pilot, "Add flowverse")
         await pilot.press(*_INDEX)
         await pilot.pause(0.3)
         await pilot.press("enter")

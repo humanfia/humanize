@@ -4318,6 +4318,9 @@ class Humanize(App[None]):
         """
         for one in event.lines:
             self.show(one)
+        # Said by the Flows page too, as each thing lands: what it updated or uninstalled is
+        # no longer one to count.
+        self._recounts_updates()
 
     @work
     async def _quick_flow(self, named: str, task: str) -> None:

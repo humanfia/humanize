@@ -200,6 +200,8 @@ class Shell:
     def __init__(self, app: App[None]) -> None:
         """Holds the interface the zones are part of."""
         self._app = app
+        #: The page each view that is one last opened as, by the view's name.
+        self._pages: dict[str, Widget] = {}
 
     def zone(self, where: Where) -> Zone:
         """One of the two zones."""
@@ -229,6 +231,7 @@ class Shell:
 
             if not isinstance(made, Screen):
                 raise TypeError(f"the page {name!r} is not a screen")
+            self._pages[name] = made
             await self._app.push_screen(cast("Screen[None]", made))
         else:
             await self.zone(view.zone).shows(view, made, keys=keys)
@@ -249,6 +252,12 @@ class Shell:
         from inside it closes it.
         """
         view = views()[name]
+        if view.zone == "page" and self._pages.get(name) in self._app.screen_stack:
+            # Open already: its key closes it where it is on top, and does nothing where
+            # something was opened over it -- never a second one over the first.
+            if self._app.screen is self._pages[name]:
+                self._app.pop_screen()
+            return
         if view.zone == "page" or self.zone(view.zone).view is not view:
             await self.opens(name)
         elif self.held() is view:
