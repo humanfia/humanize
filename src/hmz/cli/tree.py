@@ -10,6 +10,9 @@ Every command here is a client of a daemon (:class:`hmz.sdk.Client`) and takes t
 options: `--json` for one JSON document instead of text, `--daemon` for a daemon other than
 this machine's, and `--no-color`. It answers with the same exit statuses: 0 done, 1 refused by
 the daemon, 2 a line that cannot be read, 3 a daemon that cannot be reached.
+
+But for a command that is `local`, which asks no daemon: what it does is done on this machine,
+to this user's own files, so it takes no `--daemon`, and it is refused here or not at all.
 """
 
 from __future__ import annotations
@@ -147,6 +150,8 @@ class Command:
     run: Callable[[Call], int | None] | None = None
     passes: Callable[[list[str]], int] | None = None
     commands: tuple[Command, ...] = ()
+    local: bool = False
+    """Whether it asks no daemon: it then takes no `--daemon` and never ends unreached."""
 
     def texts(self) -> Iterable[str]:
         """Every text this command and the ones under it say."""
@@ -163,6 +168,8 @@ class Command:
             yield one.says
         for status in self.exits:
             yield status.says
+        if self.local:
+            yield _LOCALLY.says
         for under in self.commands:
             yield from under.texts()
 
@@ -185,6 +192,22 @@ EXITS: Final = (
     Exit(UNREAD, "the command line could not be read"),
     Exit(UNREACHED, "the daemon could not be reached"),
 )
+
+#: What a command that asks no daemon ends with where it will not do what was asked.
+_LOCALLY: Final = Exit(REFUSED, "the request was refused and the reason was printed")
+
+
+def _common(command: Command) -> tuple[Arg, ...]:
+    """What a command takes after its own: every common option a daemon is not asked by."""
+    if not command.local:
+        return COMMON
+    return tuple(arg for arg in COMMON if arg.name != "daemon")
+
+
+def _statuses(command: Command) -> list[Exit]:
+    """The statuses a command ends with, in order: the common ones, then its own."""
+    common = (EXITS[0], _LOCALLY, EXITS[2]) if command.local else EXITS
+    return sorted((*common, *command.exits), key=lambda one: one.code)
 
 
 @dataclass
@@ -358,7 +381,7 @@ def helps(path: Sequence[str], command: Command) -> str:
     if command.passes is not None:
         return "\n".join(out) + "\n"
     placed = [arg for arg in command.args if arg.positional]
-    named = [arg for arg in (*command.args, *COMMON) if not arg.positional]
+    named = [arg for arg in (*command.args, *_common(command)) if not arg.positional]
     section("Arguments", _listed([(_flags(arg), _said(arg)) for arg in placed]))
     section(
         "Options",
@@ -379,8 +402,10 @@ def helps(path: Sequence[str], command: Command) -> str:
         fields = [[one.name, one.kind, t(one.says)] for one in command.output]
         output.extend(f"    {line}" for line in table(fields))
     section("Output", output)
-    statuses = sorted((*EXITS, *command.exits), key=lambda one: one.code)
-    section("Exit codes", _listed([(str(one.code), t(one.says)) for one in statuses]))
+    section(
+        "Exit codes",
+        _listed([(str(one.code), t(one.says)) for one in _statuses(command)]),
+    )
     if command.methods:
         section("Daemon calls", [f"  {', '.join(command.methods)}"])
     section("See also", [f"  hmz {one} --help" for one in command.see])
@@ -415,7 +440,7 @@ def described(path: Sequence[str], command: Command) -> dict[str, Any]:
             "choices": list(arg.choices),
             "default": arg.default,
         }
-        for arg in (*command.args, *COMMON)
+        for arg in (*command.args, *_common(command))
     ]
     said["examples"] = [
         {"line": one.line, "does": t(one.says)} for one in command.examples
@@ -425,10 +450,7 @@ def described(path: Sequence[str], command: Command) -> dict[str, Any]:
         {"field": one.name, "type": one.kind, "description": t(one.says)}
         for one in command.output
     ]
-    said["exit_status"] = {
-        str(one.code): t(one.says)
-        for one in sorted((*EXITS, *command.exits), key=lambda one: one.code)
-    }
+    said["exit_status"] = {str(one.code): t(one.says) for one in _statuses(command)}
     said["daemon_methods"] = list(command.methods)
     said["see_also"] = [f"hmz {one}" for one in command.see]
     return said
@@ -480,7 +502,7 @@ def _parser(path: tuple[str, ...], command: Command) -> _Parser:
         # Nothing but `--help`: `runs` walks the groups itself.
         parser.add_argument("_rest", nargs="*")
         return parser
-    for arg in (*command.args, *COMMON):
+    for arg in (*command.args, *_common(command)):
         _adds(parser, arg)
     return parser
 
@@ -528,7 +550,9 @@ def runs(argv: Sequence[str]) -> int:
         parser.parse_args(rest)
         parser.error(t("needs a command name"))
     given = parser.parse_args(rest)
-    call = Call(path, given, json=given.json, daemon=given.daemon or "")
+    call = Call(
+        path, given, json=given.json, daemon=getattr(given, "daemon", None) or ""
+    )
     if command.run is None:
         raise RuntimeError(f"{' '.join(path)} does nothing")
     try:
@@ -539,6 +563,10 @@ def runs(argv: Sequence[str]) -> int:
     except TimeoutError as why:
         _failed(call, path, 504, str(why))
     except OSError as why:
+        if command.local:
+            # A file of this machine's that would not be read or written: nobody was asked.
+            _failed(call, path, 0, str(why))
+            return REFUSED
         from .output import unreached
 
         _failed(call, path, 503, unreached(why).removeprefix("hmz: "))

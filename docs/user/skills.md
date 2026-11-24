@@ -1,6 +1,6 @@
 ---
 title: Skills
-description: Find out which skills an agent carries, use one in a chat, and see what a flow adds for its roles.
+description: Find out which skills an agent carries, use one in a chat, see what a flow adds for its roles, and teach an agent to use hmz.
 ---
 
 # Skills
@@ -11,7 +11,7 @@ A skill is a folder holding a `SKILL.md`: instructions a coding agent loads when
 
 ## Find your skills
 
-Humanize does not install, change or disable your skills. Each CLI loads them from its own folders, one skill per `<name>/SKILL.md` subfolder. Every agent of a CLI carries that CLI's skills in every chat and flow.
+Humanize does not change or disable your skills. It installs exactly one, the [hmz skill](#teach-an-agent-to-use-hmz), and only when you run `hmz skills add`. Each CLI loads them from its own folders, one skill per `<name>/SKILL.md` subfolder. Every agent of a CLI carries that CLI's skills in every chat and flow.
 
 | CLI | Yours | The project's |
 | --- | --- | --- |
@@ -82,6 +82,29 @@ Humanize starts each role's session in a temporary home built for that process. 
 A flow stores its skills in its `skills/` folder or references them by git URL. Installing a flow fetches its git skills once so runs need no network. An uninstalled flow, such as one in `.hmz/flows/`, fetches its git skills on each run.
 
 To customize a flow's skills, copy the flow into your project with **Copy here** in the terminal (see [Find and install flows](/user/flows)) and edit its `skills/` folder. To add skills to a flow you write, see [Skills](/builder/skills) in the Builder Guide.
+
+## Teach an agent to use hmz
+
+The hmz skill tells a coding agent how to use the `hmz` command line: how to find a command, what every command shares, and one line per command. Install it for every CLI installed on this machine:
+
+```sh
+hmz skills add
+```
+
+1. Run `hmz skills add`. It writes a folder `hmz` holding `SKILL.md` into each installed CLI's own skills folder, the first folder under **Yours** in the table above, and prints each path.
+2. Run `hmz skills list` to see each CLI's folder and whether the skill there is `Current`, `Older`, `Not installed` or `Not written by hmz`.
+3. After `hmz update`, run `hmz skills add` again to replace an `Older` skill.
+
+| To | Run |
+| --- | --- |
+| Install for some CLIs only, installed or not | `hmz skills add --for claude --for codex` |
+| Install into a folder several CLIs share | `hmz skills add --dir ~/.agents/skills` |
+| Read the skill without installing it | `hmz skills show` |
+| Remove it everywhere | `hmz skills remove` |
+
+`hmz skills remove` asks before each removal; pass `--yes` to skip the question. It removes only the skill `hmz skills add` wrote. If a folder already holds a skill named `hmz` that Humanize did not write, `add` refuses and `remove` leaves it alone.
+
+The skill is generated from the commands of the hmz that writes it, so it never describes a command that hmz lacks. `dsh` and `litellm` cannot be named with `--for`; for `dsh`, use `--dir ~/.dsh/skills`. For all options, see the [CLI reference](/reference/cli#hmz-skills).
 
 ## Resolve name collisions with flows
 

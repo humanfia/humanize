@@ -93,6 +93,9 @@ It is normative. It is cited by the tag [CLI].
 - [23. `hmz runtimes`, `hmz easytier` and `hmz daemons`](#23-hmz-runtimes-hmz-easytier-and-hmz-daemons)
 - [24. `hmz btw`, `hmz ai` and `hmz notices`](#24-hmz-btw-hmz-ai-and-hmz-notices)
 - [25. `hmz skills`](#25-hmz-skills)
+  - [25.1. Synopsis](#251-synopsis)
+  - [25.2. The skill](#252-the-skill)
+  - [25.3. Behaviour](#253-behaviour)
 - [26. `hmz help`](#26-hmz-help)
 - [27. Security Considerations](#27-security-considerations)
 - [28. References](#28-references)
@@ -1513,7 +1516,113 @@ This section is reserved for `hmz btw`, `hmz ai` and `hmz notices`, the declared
 
 ## 25. `hmz skills`
 
-This section is reserved for `hmz skills`, which installs for a user's harnesses the skill of using `hmz`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+### 25.1. Synopsis
+
+```text
+hmz skills add [--for <harness>]... [--dir <path>]
+hmz skills list [--for <harness>]... [--dir <path>]
+hmz skills remove [--for <harness>]... [--dir <path>] [-y | --yes]
+hmz skills show
+```
+
+**25.1.1** `hmz skills` MUST be a group of declared commands (Section 16) with the summary `install,
+list and remove the hmz skill for using the CLI`.
+
+**25.1.2** The commands of `hmz skills` are _local_: they MUST NOT reach a daemon, and what they read
+and write is the files of the user running them, on the machine they run on. Notwithstanding 16.6 and
+16.9, a local command MUST NOT take `--daemon`, MUST NOT exit with status 3, and MUST exit with status
+1 where it refuses what it was asked; its help MUST state `--json` and `--no-color` alone as common
+options and the statuses 0, 1 and 2 alone as common statuses. A file it cannot read or write MUST be
+a refusal. Under `--json` the `code` of its error document (16.7) MUST be `0`.
+
+**25.1.3** The _hmz skill_ is a directory named `hmz` holding a file `SKILL.md`, and a file
+`reference.md` where 25.2.5 has one. A _skills directory_ is a directory a harness loads its user's
+skills from, one directory per skill. The skills directory _of a harness_ MUST be the first
+directory, of those that harness loads its user's skills from, that is under the harness's own home;
+else the first under the directory programs keep their configuration in; else the first it shares
+with other harnesses under the user's home. A harness that loads its user's skills from no directory
+has none.
+
+**25.1.4** `--for <harness>` MUST name a harness by any name `-a` takes for it (Section 7.4), whether
+or not it is installed; a name no harness answers to, and a harness that has no skills directory,
+MUST be refused. `--dir <path>` MUST name a skills directory by its path, and an empty path MUST be a usage error. A directory
+reached by more than one of them is one place. The _places_ of a line are
+the skills directory of each harness named and the directory `--dir` gives; where a line names
+neither, they are those 25.3 states for its command.
+
+### 25.2. The skill
+
+**25.2.1** `SKILL.md` MUST begin with YAML front matter between two lines of `---`, holding `name`,
+being `hmz`; `description`, one text saying what the skill is for and when to load it; and
+`metadata`, a mapping holding `written-by`, being `hmz skills add`, and `hmz-version`, being the
+version of the hmz that wrote the file.
+
+**25.2.2** A skill is _hmz's own_ where the `metadata` of its `SKILL.md` holds `written-by` with the
+value `hmz skills add`. Anything else in the place of the hmz skill, but a directory holding nothing,
+is _foreign_.
+
+**25.2.3** After its front matter, `SKILL.md` MUST state, in this order: what `hmz` is; how to read
+about its commands, being `hmz --help`, `hmz COMMAND --help`, and `hmz help --json` where that command
+exists (Section 26); what every declared command shares, being `--json` and the error document of
+16.7, `--daemon`, each exit status of 16.9 with what it means, and which commands are local
+(25.1.2); and every declared command, groups
+and the commands under them, each as one line holding its usage line and its summary.
+
+**25.2.4** `SKILL.md` MUST then state each of these sequences for which, of every step, some declared
+command declares the method named, and MUST NOT state the others: starting a chat and reading the
+answer (`chat.start`, then `chat.get`); starting an epic and following it (`epic.start`, then
+`epic.attach` or `epic.status`); answering a question an epic asks (`epic.status` or `epic.attach`,
+then `epic.answer`); listing the runs and exporting one (`runs.list`, then `runs.bundle`). A step MUST
+be written as the first example line of its command with what that line does, or as its usage line
+and summary where it declares no example.
+
+**25.2.5** Where a `SKILL.md` stating every declared command would be longer than 500 lines, it MUST
+instead state only the commands `hmz` is followed by, each as one line, and link `reference.md`; and
+`reference.md` MUST state every declared command as 25.2.3 has them.
+
+**25.2.6** Everything the skill states of a command MUST be read from that command's declaration
+(Section 16) when the skill is written, and 16.11 MUST hold of every other text in it.
+
+### 25.3. Behaviour
+
+**25.3.1** `hmz skills add` MUST write the hmz skill into each of its places, making the directories
+that are missing; where the line names no place, its places are the skills directories of the
+harnesses installed on this machine, and a line with none MUST be refused. Where any of its places
+holds a foreign skill it MUST be refused, naming that place, having written nothing anywhere. It MUST
+replace hmz's own skill where one is there. It MUST write one line per place, naming the harness and
+the path of the `SKILL.md`. Its JSON document MUST be `{"version": <version>, "written": [{"harness",
+"path", "changed"}]}`, `harness` being `null` for a place of no harness and `changed` being whether
+any file there was written, removed or replaced with different text.
+
+**25.3.2** `hmz skills list` MUST write one line per place: the harness, with a note where it is not
+installed on this machine; its skills directory; and the state of the hmz skill there. Where the line
+names no place, its places are the skills directories of every harness that has one, in the order of
+the harnesses, and then each other directory a harness loads its user's skills from that holds
+anything in the place of the hmz skill, as a place of no harness. The state MUST be `absent` where nothing is there, `foreign` for a foreign skill, and
+for hmz's own `current` where its `hmz-version` is this hmz's version and `older` otherwise. Its JSON
+document MUST be `{"version": <version>, "harnesses": [{"harness", "installed", "directory", "path",
+"state", "version"}]}`, `path` being where the `SKILL.md` is or would be written and `version` being
+the `hmz-version` of hmz's own skill and `null` otherwise.
+
+**25.3.3** `hmz skills remove` MUST remove hmz's own skill from each of its places that holds one:
+the `SKILL.md` and the `reference.md`, and then the directory `hmz` where nothing else is in it. It
+MUST NOT remove or change a foreign skill: one in a place the line names MUST be refused, having
+removed nothing, and one in any other place MUST be passed over. Where the line names no place, its
+places are those of 25.3.2. Its JSON document MUST be `{"removed": [{"harness", "path"}]}`, `path`
+being the path of the `SKILL.md` removed; where there is nothing to remove it MUST say so and exit
+with status 0.
+
+**25.3.4** Without `--yes`, `hmz skills remove` MUST ask on standard error before removing each
+skill, read the answer from standard input, and leave in place each one not answered `y` or `yes`;
+where standard input is not a terminal, or `--json` is given, it MUST instead be refused, having
+removed nothing.
+
+**25.3.5** `hmz skills show` MUST write the `SKILL.md` `hmz skills add` would write now, and MUST
+write no file. Its JSON document MUST be `{"name": "hmz", "version": <version>, "files": [{"name",
+"text"}]}`, holding every file of the skill, `SKILL.md` first.
+
+**25.3.6** hmz MUST NOT write, change or remove any skill in a user's skills directories but as this
+section states.
 
 ## 26. `hmz help`
 

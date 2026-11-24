@@ -35,10 +35,11 @@ python -m hmz ...
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
 | `devices` | List and revoke the devices paired with this daemon. |
+| `skills` | Install, list and remove the hmz skill for using the CLI. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update`, `backup` and `skills` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -363,7 +364,7 @@ See [Back up to git](/user/backups).
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
+`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help. [`hmz skills`](#hmz-skills) is declared the same way but asks no daemon.
 
 | Option | What it does |
 | --- | --- |
@@ -398,6 +399,40 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 | `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+
+## hmz skills
+
+```text
+hmz skills add [--for HARNESS]... [--dir PATH]
+hmz skills list [--for HARNESS]... [--dir PATH]
+hmz skills remove [--for HARNESS]... [--dir PATH] [-y]
+hmz skills show
+```
+
+Install the hmz skill: a folder `hmz` holding a `SKILL.md` that tells a coding agent how to use the `hmz` command line. The skill is written from the commands' own declarations, so it lists the commands of the hmz that wrote it. See [Skills](/user/skills#teach-an-agent-to-use-hmz).
+
+These commands ask no daemon and start none. They take `--json` and `--no-color` but not `--daemon`, and exit `0`, `1` when refused, or `2` on a usage error; under `--json` the error's `code` is `0`.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `add` | One line per skill written: the harness and the path of its `SKILL.md`. | `{"version", "written": [{"harness", "path", "changed"}]}`; `changed` is `false` where the files already held the same text. |
+| `list` | One line per harness: its name, its user-level skills folder, and `Current`, `Older`, `Not installed` or `Not written by hmz`. | `{"version", "harnesses": [{"harness", "installed", "directory", "path", "state", "version"}]}`; `state` is `current`, `older`, `absent` or `foreign`. |
+| `remove` | One line per skill removed. | `{"removed": [{"harness", "path"}]}` |
+| `show` | The `SKILL.md` that `add` would write. Writes nothing. | `{"name", "version", "files": [{"name", "text"}]}` |
+
+| Option | What it does |
+| --- | --- |
+| `--for HARNESS` | Names one harness, by any name `-a` takes, installed or not. Repeatable. |
+| `--dir PATH` | Names a skills folder by its path; the skill is the folder `hmz` inside it. `harness` is `null` in JSON for it, and for a folder harnesses share. |
+| `-y`, `--yes` | `remove` only: removes without asking. Required when standard input is not a terminal, and with `--json`. |
+
+Without `--for` or `--dir`, `add` writes for every harness installed on this machine and is refused where none is; `list` shows every harness that has a skills folder, then any other folder a harness reads that holds a skill named `hmz`; `remove` removes the skill from all of those.
+
+- A harness's folder is the first user-level folder in its row of the table in [Skills](/user/skills#find-your-skills). `dsh` and `litellm` have none to name with `--for`; for `dsh`, pass `--dir ~/.dsh/skills`.
+- `add` replaces a skill it wrote before. It refuses, writing nothing anywhere, when a folder holds a skill named `hmz` that it did not write.
+- `remove` deletes `SKILL.md` and `reference.md`, then the `hmz` folder if nothing else is in it. It never removes a skill hmz did not write: it refuses one in a folder you named, and skips it otherwise.
+- `current` means the skill's front matter records this hmz's version; `older` means any other version. Run `hmz skills add` again after `hmz update`.
+- A skill that would pass 500 lines keeps one line per top-level command in `SKILL.md` and lists every command in `reference.md` beside it.
 
 ## hmz internal
 

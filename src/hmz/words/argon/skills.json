@@ -1,0 +1,375 @@
+{
+ "entries": [
+  {
+   "wants": "summary of the command group `hmz skills`: install, list and remove the hmz skill, which teaches a harness to use the hmz command line; say 'the hmz skill', no backticks; must name what the skill is for",
+   "where": "command summary in a --help listing",
+   "text": "install, list and remove the hmz skill for using the CLI"
+  },
+  {
+   "wants": "paragraph for `hmz skills`: the hmz skill is a `SKILL.md` that tells a harness how to use the `hmz` command line; hmz installs no other skill and changes none of yours; keep the backticks; AT MOST 28 WORDS",
+   "where": "paragraph of --help; at most 28 words in all, count them",
+   "text": "The hmz skill is a `SKILL.md` telling a harness how to use the `hmz` command line. `hmz` installs no other skill and changes none of yours."
+  },
+  {
+   "wants": "summary of `hmz skills add`: write the hmz skill into the user-level skills folder of each installed harness",
+   "where": "command summary in a --help listing",
+   "text": "write the hmz skill into each installed harness's skills folder"
+  },
+  {
+   "wants": "paragraph for `hmz skills add`: writes the folder `hmz` into the user-level skills folder of every installed harness, or of those named; running it again replaces it; a skill named hmz that hmz did not write is never replaced; keep the backticks; AT MOST 28 WORDS",
+   "where": "paragraph of --help; at most 28 words in all, count them",
+   "text": "Writes the folder `hmz` into the user-level skills folder of every installed harness, or those named. Running it again replaces it, unless `hmz` did not write it."
+  },
+  {
+   "wants": "summary of `hmz skills list`: show, per harness, where its user-level skills folder is and whether the hmz skill is installed there and current",
+   "where": "command summary in a --help listing",
+   "text": "show each harness's skills folder and the hmz skill's state"
+  },
+  {
+   "wants": "summary of `hmz skills remove`: remove the hmz skill that `hmz skills add` wrote; keep the backticks",
+   "where": "command summary in a --help listing",
+   "text": "remove the hmz skill that `hmz skills add` wrote"
+  },
+  {
+   "wants": "paragraph for `hmz skills remove`: removes the hmz skill wherever `hmz skills add` wrote it, or only from the harnesses named; asks first unless `--yes` is given; never removes a skill hmz did not write; keep the backticks; AT MOST 28 WORDS",
+   "where": "paragraph of --help; at most 28 words in all, count them",
+   "text": "Removes the hmz skill wherever `hmz skills add` wrote it, or from the harnesses named. Asks first unless `--yes` is given. Never removes a skill `hmz` did not write."
+  },
+  {
+   "wants": "summary of `hmz skills show`: print the `SKILL.md` that `hmz skills add` would write, without writing anything; keep the backticks",
+   "where": "command summary in a --help listing",
+   "text": "print the `SKILL.md` that `hmz skills add` would write"
+  },
+  {
+   "wants": "the `--for HARNESS` option of `hmz skills add`: install for this harness only, by the name `hmz skills list` prints (for example claude or codex), whether or not it is installed; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "install for this harness only, by the name `hmz skills list` prints (such as claude or codex), whether or not it is installed"
+  },
+  {
+   "wants": "the `--for HARNESS` option of `hmz skills list` and `hmz skills remove`: only this harness, by the name `hmz skills list` prints; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "only this harness, by the name `hmz skills list` prints"
+  },
+  {
+   "wants": "the `--dir PATH` option of `hmz skills add`, `list` and `remove`: a skills folder to use instead of any harness's own; the skill is the folder `hmz` inside it; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "a skills folder to use instead of any harness's own; the skill is the folder `hmz` inside it"
+  },
+  {
+   "wants": "the `-y, --yes` option of `hmz skills remove`: remove without asking first",
+   "where": "option description, lower case start, no full stop",
+   "text": "remove without asking first"
+  },
+  {
+   "wants": "example `hmz skills add`: install the skill for every harness installed on this machine",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "install the skill for every harness installed on this machine"
+  },
+  {
+   "wants": "example `hmz skills add --for claude --for codex`: install the skill for Claude Code and Codex only",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "install the skill for Claude Code and Codex only"
+  },
+  {
+   "wants": "example `hmz skills add --dir ~/.agents/skills`: install the skill into the skills folder several harnesses share",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "install the skill into the skills folder several harnesses share"
+  },
+  {
+   "wants": "example `hmz skills list`: show where each harness keeps its skills and whether the hmz skill is there",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "show where each harness keeps its skills and whether the hmz skill is there"
+  },
+  {
+   "wants": "example `hmz skills list --json | jq -r '.harnesses[] | select(.state == \"older\") | .harness'`: print the harnesses whose hmz skill was written by another version of hmz",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "print the harnesses whose hmz skill was written by another version of hmz"
+  },
+  {
+   "wants": "example `hmz skills remove`: remove the hmz skill from every harness, asking first",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "remove the hmz skill from every harness, asking first"
+  },
+  {
+   "wants": "example `hmz skills remove --for codex --yes`: remove the hmz skill from Codex without asking",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "remove the hmz skill from Codex without asking"
+  },
+  {
+   "wants": "example `hmz skills show`: print the skill without installing it",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "print the skill without installing it"
+  },
+  {
+   "wants": "example `hmz skills show --json | jq -r '.files[].name'`: print the names of the files the skill is made of",
+   "where": "what an example command line does, lower case start, no full stop",
+   "text": "print the names of the files the skill is made of"
+  },
+  {
+   "wants": "what `hmz skills add` prints: one line per skill written, naming the harness and the path of its `SKILL.md`; keep the backticks",
+   "where": "what the command prints without --json, one sentence",
+   "text": "One line per skill written, naming the harness and the path of its `SKILL.md`."
+  },
+  {
+   "wants": "what `hmz skills list` prints: one line per harness: its name, its user-level skills folder, and whether the hmz skill there is current, older, not installed, or not written by hmz",
+   "where": "what the command prints without --json, one sentence",
+   "text": "One line per harness: its name, its user-level skills folder, and whether the hmz skill there is current, older, not installed, or not written by hmz."
+  },
+  {
+   "wants": "what `hmz skills remove` prints: one line per skill removed, with its path",
+   "where": "what the command prints without --json, one sentence",
+   "text": "One line per skill removed, with its path."
+  },
+  {
+   "wants": "what `hmz skills show` prints: the text of `SKILL.md` as it would be written; keep the backticks",
+   "where": "what the command prints without --json, one sentence",
+   "text": "The text of `SKILL.md` as it would be written."
+  },
+  {
+   "wants": "JSON field `version`: the version of hmz the skill is written by",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the version of hmz the skill is written by"
+  },
+  {
+   "wants": "JSON field `written`: the skills written, one per folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the skills written, one per folder"
+  },
+  {
+   "wants": "JSON field `written[].harness` / `removed[].harness`: the harness whose own skills folder it is, or null for any other folder (one given with `--dir`, or one several harnesses share); keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness whose own skills folder it is, or null for any other folder (one given with `--dir`, or one several harnesses share)"
+  },
+  {
+   "wants": "JSON field `written[].path`: the path of the `SKILL.md` written; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the path of the `SKILL.md` written"
+  },
+  {
+   "wants": "JSON field `written[].changed`: whether the file was written, false where it already held the same text",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the file was written, false where it already held the same text"
+  },
+  {
+   "wants": "JSON field `harnesses`: every harness that has a user-level skills folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every harness that has a user-level skills folder"
+  },
+  {
+   "wants": "JSON field `harnesses[].harness`: the harness's name, as `--for` takes it, or null for a folder that is not one harness's own (one given with `--dir`, or one several harnesses share); keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness's name, as `--for` takes it, or null for a folder that is not one harness's own (one given with `--dir`, or one several harnesses share)"
+  },
+  {
+   "wants": "JSON field `harnesses[].installed`: whether the harness itself is installed on this machine",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the harness itself is installed on this machine"
+  },
+  {
+   "wants": "JSON field `harnesses[].directory`: the harness's user-level skills folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness's user-level skills folder"
+  },
+  {
+   "wants": "JSON field `harnesses[].path`: where the hmz skill's `SKILL.md` is, or would be written; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where the hmz skill's `SKILL.md` is, or would be written"
+  },
+  {
+   "wants": "JSON field `harnesses[].state`: one of `current` (written by this version of hmz), `older` (written by another version), `absent` (not installed), `foreign` (a skill named hmz that hmz did not write); keep the backticks and the four words exactly; may be up to 40 words",
+   "where": "description of one field of a JSON document, lower case start, no full stop, up to 40 words",
+   "text": "one of `current` (written by this version of hmz), `older` (written by another version), `absent` (not installed), or `foreign` (a skill named hmz that hmz did not write)"
+  },
+  {
+   "wants": "JSON field `harnesses[].version`: the version of hmz that wrote the installed skill, or null where there is none",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the version of hmz that wrote the installed skill, or null where there is none"
+  },
+  {
+   "wants": "JSON field `removed`: the skills removed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the skills removed"
+  },
+  {
+   "wants": "JSON field `removed[].path`: the path of the `SKILL.md` removed; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the path of the `SKILL.md` removed"
+  },
+  {
+   "wants": "JSON field `name`: the skill's name, which is `hmz`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the skill's name, which is `hmz`"
+  },
+  {
+   "wants": "JSON field `files`: the files the skill is made of, `SKILL.md` first; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the files the skill is made of, `SKILL.md` first"
+  },
+  {
+   "wants": "JSON field `files[].name`: the file's name inside the skill's folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the file's name inside the skill's folder"
+  },
+  {
+   "wants": "JSON field `files[].text`: the file's whole text",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the file's whole text"
+  },
+  {
+   "wants": "meaning of exit status 1 for a command that asks no daemon: the request was refused and the reason was printed",
+   "where": "meaning of an exit status in --help, lower case start, no full stop",
+   "text": "the request was refused and the reason was printed"
+  },
+  {
+   "wants": "message of `hmz skills add`: the skill was installed for the harness {harness} at {path}; short, like 'Installed for {harness}: {path}'; keep {harness} and {path}",
+   "where": "message printed by the command, one sentence, no full stop",
+   "text": "Installed for {harness}: {path}"
+  },
+  {
+   "wants": "message of `hmz skills add --dir`: the skill was installed at {path}; short, like 'Installed: {path}'; keep {path}",
+   "where": "message printed by the command, one sentence, no full stop",
+   "text": "Installed: {path}"
+  },
+  {
+   "wants": "message of `hmz skills remove`: the skill at {path} was removed; short, like 'Removed: {path}'; keep {path}",
+   "where": "message printed by the command, one sentence, no full stop",
+   "text": "Removed: {path}"
+  },
+  {
+   "wants": "message of `hmz skills remove` when the hmz skill is installed nowhere it looked: there is no hmz skill to remove",
+   "where": "message printed by the command, one sentence",
+   "text": "No hmz skill is installed."
+  },
+  {
+   "wants": "error of `hmz skills add` when no harness is installed on this machine: says so and tells the person to name a harness with `--for` or a folder with `--dir`; keep the backticks",
+   "where": "message printed by the command, one sentence or two",
+   "text": "No harness is installed here. Name a harness with `--for` or a folder with `--dir`."
+  },
+  {
+   "wants": "error: there is no harness named {name}; tells the person `hmz skills list` prints the names; keep {name} and the backticks",
+   "where": "message printed by the command, one sentence or two",
+   "text": "There is no harness named {name}. `hmz skills list` prints the names."
+  },
+  {
+   "wants": "error: the harness {name} loads no skills from a folder of its own, so there is nowhere to install the skill for it; suggests giving a folder with `--dir`; keep {name} and the backticks",
+   "where": "message printed by the command, one sentence or two",
+   "text": "The harness {name} loads no skills from a folder of its own. Give a folder with `--dir`."
+  },
+  {
+   "wants": "error: {path} holds a skill named hmz that hmz did not write, so it was left as it is; keep {path}",
+   "where": "message printed by the command, one sentence",
+   "text": "{path} holds a skill named hmz that hmz did not write, so it was left as it is."
+  },
+  {
+   "wants": "error of `hmz skills remove` run with nobody at a terminal to ask and without `--yes`: removing asks first, so run it again with `--yes`; keep the backticks",
+   "where": "message printed by the command, one sentence or two",
+   "text": "Removing asks first. Run it again with `--yes`."
+  },
+  {
+   "wants": "state word in the list of `hmz skills list` for a folder holding a skill named hmz that hmz did not write; two to four words, sentence case, like 'Not written by hmz'",
+   "where": "cell of a table printed in a terminal, beside the cells 'Current', 'Older' and 'Not installed'",
+   "text": "Not written by hmz"
+  },
+  {
+   "wants": "the `description` of the hmz skill's front matter, which a coding agent reads to decide when to load the skill: use this skill to work with Humanize through the hmz command line: starting and following chats and epics, running flows, answering their questions, reading and exporting runs, and managing settings, accounts, environments and devices of a Humanize daemon; load it whenever the task mentions hmz or Humanize; do NOT use backticks or colons (it is a YAML value); one or two sentences, up to 50 words",
+   "where": "front matter description of a SKILL.md, read by an AI coding agent; up to 50 words; no backticks, no colon characters",
+   "text": "Works with Humanize through the hmz command line to start and follow chats and epics, run flows, answer their questions, read and export runs, and manage settings, accounts, environments and devices of a Humanize daemon. Load it whenever the task mentions hmz or Humanize."
+  },
+  {
+   "wants": "opening paragraph of the skill: `hmz` is the command line of Humanize, which runs AI coding agents on a person's own machines; every command is a client of a Humanize daemon, which hmz starts on this machine when none is running; everything written below is generated from the commands' own declarations, so it matches what `--help` prints; keep the backticks; up to 60 words",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; up to 60 words",
+   "text": "`hmz` is the command line of Humanize, which runs AI coding agents on a person's own machines. Every command is a client of a Humanize daemon, which `hmz` starts on this machine when none is running. Everything written below is generated from the commands' own declarations, so it matches what `--help` prints."
+  },
+  {
+   "wants": "heading over the part of the skill that says how to discover commands",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Discovering commands"
+  },
+  {
+   "wants": "what `hmz --help` does: lists every command with one line about each; write only the description (the command is printed beside it)",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; lower case start, no full stop, the command line is printed before it",
+   "text": "lists every command with one line about each"
+  },
+  {
+   "wants": "what `hmz <command> --help` does: prints everything about one command: its arguments, options, examples, what it prints, the fields of its JSON document and its exit codes; write only the description",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; lower case start, no full stop, the command line is printed before it",
+   "text": "prints everything about one command: its arguments, options, examples, what it prints, the fields of its JSON document and its exit codes"
+  },
+  {
+   "wants": "what `hmz help --json` does: prints every command's declaration as one JSON document, for reading by a program; write only the description",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; lower case start, no full stop, the command line is printed before it",
+   "text": "prints every command's declaration as one JSON document, for reading by a program"
+  },
+  {
+   "wants": "heading over the part of the skill listing the conventions every command shares",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Conventions"
+  },
+  {
+   "wants": "convention: pass `--json` to any command to get exactly one JSON document on standard output and nothing else there; prefer it when a program reads the answer; keep the backticks",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one or two sentences",
+   "text": "Pass `--json` to any command to get one JSON document on standard output and nothing else there. Prefer it when a program reads the answer."
+  },
+  {
+   "wants": "convention: under `--json` a command that fails prints this document instead, and exits with a status other than 0 (the document is shown after the sentence, so end with a colon)",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence ending with a colon",
+   "text": "Under `--json`, a command that fails prints this document instead and exits with a status other than 0:"
+  },
+  {
+   "wants": "convention: `--daemon NAME` asks another daemon than this machine's, by the name it is kept under in the daemon list; keep the backticks",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence",
+   "text": "`--daemon NAME` asks another daemon than this machine's, by the name it is kept under in the daemon list."
+  },
+  {
+   "wants": "sentence introducing the list of exit statuses every command ends with; ends with a colon",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence ending with a colon",
+   "text": "Every command ends with one of these exit statuses:"
+  },
+  {
+   "wants": "sentence under the heading 'Commands' of the skill: each line below is one command's usage and what it does; run the command with `--help` for its options, examples and JSON fields; keep the backticks",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one or two sentences",
+   "text": "Each line below is one command's usage and what it does. Run the command with `--help` for its options, examples and JSON fields."
+  },
+  {
+   "wants": "sentence of the skill used when the command list is too long for one file: every command is listed in the file reference.md beside this one; the text must contain the markdown link `[reference.md](reference.md)` exactly",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence",
+   "text": "Every command is listed in [reference.md](reference.md) beside this file."
+  },
+  {
+   "wants": "heading over worked examples in the skill: sequences of commands that do a common job from start to end",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Common sequences"
+  },
+  {
+   "wants": "sentence under that heading: each step is a line as the command's own help gives it; replace its values with your own",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence",
+   "text": "Each step is a line as the command's own help gives it; replace its values with your own."
+  },
+  {
+   "wants": "title of a worked sequence: start a chat and read the answer",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Start a chat and read the answer"
+  },
+  {
+   "wants": "title of a worked sequence: start an epic and follow it",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Start an epic and follow it"
+  },
+  {
+   "wants": "title of a worked sequence: answer a question an epic asks",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "Answer a question an epic asks"
+  },
+  {
+   "wants": "title of a worked sequence: list the runs and export one",
+   "where": "heading in a SKILL.md file read by an AI coding agent, sentence case, no full stop",
+   "text": "List the runs and export one"
+  },
+  {
+   "wants": "convention, an exception to the ones before it: these commands only read and write files on this machine, so they ask no daemon, take no `--daemon`, never exit with status 3, and exit with 1 when they refuse; the commands follow the sentence, so end with a colon; keep the backticks",
+   "where": "prose of a SKILL.md file read by an AI coding agent that is learning to use the hmz command line; one sentence ending with a colon",
+   "text": "These commands only read and write files on this machine, so they ask no daemon, take no `--daemon`, never exit with status 3, and exit with 1 when they refuse:"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}
