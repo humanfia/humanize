@@ -1203,6 +1203,12 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
+**4.6.2.9** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
+run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
+request granted and a schema asked for in the prompt, and MUST say so once per agent. An agent with
+web search off, or with a setting only `grok -p` carries, MUST be refused as its session opens, and
+a fork of its conversation MUST be refused, each naming the lock's source.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
