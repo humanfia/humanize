@@ -5,7 +5,7 @@ description: Know what each word in Humanize means, and where you meet it in the
 
 # Concepts
 
-Humanize uses a small vocabulary. This page defines each word and shows where you find it.
+Humanize is infrastructure for running flows, not a flow itself: a flow is a program, and Humanize schedules the nous it asks for, in the environments it names, under a budget. It uses a small vocabulary for this. This page defines each word and shows where you find it.
 
 ![Four frontends attach to one daemon. The daemon holds an epic, one run of a flow. Each role of the flow is filled by a nous or by you, and turns work in an environment on a runtime.](/diagrams/user-concepts-1.svg)
 

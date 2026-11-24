@@ -5,14 +5,19 @@
 // It opens as a project's page does: its mark and its name, the repository's description under
 // them, the button that gets it, the one to the documentation and the command that installs it;
 // and under those one window that plays the real product, a scene at a time (HomeStage.vue).
-// Below, the loop itself, drawn and moving (HomeLoop.vue); where to get it for each platform;
-// and the doors into the documentation. There is no sentence on it but the description: what it
-// has to say, the pictures say, and its few words are in copy.ts.
+// Below, where Humanize is going, drawn and moving (HomeScale.vue): one flow, a field of
+// agents and environments, one month, one task; then the claim, that Humanize is the
+// infrastructure a flow runs on, and the four parts that carry it; where to get it for each
+// platform; and the doors into the documentation. Its words are in copy.ts.
+//
+// It is drawn in humanfia.ai's manner, as the organisation's own pages are: ink on a cool paper,
+// colour in flat planes, hairlines and square plates, a hard offset where a thing is lifted, and
+// nothing blurred, lit or rounded. The green is the mark's, and stands beside cyan, never pink.
 import { withBase } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import HomeLoop from './HomeLoop.vue'
+import HomeScale from './HomeScale.vue'
 import HomeStage from './HomeStage.vue'
-import { BANNER, WORDS } from './copy'
+import { BANNER, INFRA, PILLARS, WORDS } from './copy'
 import { detectOS, INSTALL, installers, RELEASES, REPO, type Installers, type OS } from './release'
 
 // A platform is offered what it can really get (release.ts). macOS downloads its disk image:
@@ -44,7 +49,7 @@ async function copy(from: string) {
 }
 onBeforeUnmount(() => clearTimeout(clear))
 
-/** Whether the reader stopped what moves: the stage has the control, and the loop follows it. */
+/** Whether the reader stopped what moves: the stage has the control, and the drawing follows it. */
 const paused = ref(false)
 
 /** The documentation's sections, each with a small drawing: a flag, a person, a wrench, a book. */
@@ -101,7 +106,26 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
       </div>
     </section>
 
-    <section class="hm-wrap hm-loop"><HomeLoop :paused="paused" /></section>
+    <section class="hm-wrap hm-scale"><HomeScale :paused="paused" /></section>
+
+    <section class="hm-wrap hm-infra">
+      <p class="hm-kicker">{{ INFRA.kicker }}</p>
+      <h2>{{ INFRA.head }}</h2>
+      <p class="hm-lead">{{ INFRA.lead }}</p>
+      <ul class="hm-pillars">
+        <li v-for="pillar in PILLARS" :key="pillar.label">
+          <a :href="withBase(pillar.href)">
+            <span class="hm-pillar-label">{{ pillar.label }}</span>
+            <h3>{{ pillar.head }}</h3>
+            <p>{{ pillar.text }}</p>
+            <span class="hm-pillar-go">
+              {{ INFRA.more }}
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path :d="ARROW" /></svg>
+            </span>
+          </a>
+        </li>
+      </ul>
+    </section>
 
     <section id="get" class="hm-wrap hm-end">
       <ul class="hm-platforms">
@@ -171,63 +195,38 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
 </template>
 
 <style>
-/* The page's own colours: humanfia.ai's ink, paper, pink and cyan, and the green of Humanize's
-   mark, by the names this page draws with, set once for the light theme and once for the dark.
-   They are scoped to the page's root, so no other page can come to depend on them. */
+/* The page's own colours, by the names this page draws with: they are humanfia.ai's, the ink,
+   the paper and its sheet, the two greys between, the hairline, Hyacine's pink and cyan and the
+   green of the mark, each taken from the site's own token (theme/style.css, humanfia/chrome.css)
+   so that the page follows the theme as every other page does. They are scoped to the page's
+   root, so no other page can come to depend on them. */
 .hm {
-  --hm-ink: #0f1519;
-  --hm-paper: #eef4f6;
-  --hm-bg: #f5f8f9;
-  --hm-sheet: #ffffff;
-  --hm-fg: var(--hm-ink);
-  --hm-fg-2: #46545c;
-  --hm-fg-3: #65747c;
+  --hm-ink: #141a1f;
+  --hm-paper: #e8f0f2;
+  --hm-bg: var(--vp-c-bg);
+  --hm-sheet: var(--vp-c-bg-elv);
+  --hm-fg: var(--vp-c-text-1);
+  --hm-fg-2: var(--vp-c-text-2);
+  --hm-fg-3: var(--vp-c-text-3);
   --hm-ring: var(--hm-fg);
-  --hm-pink: #ec6fa3;
-  --hm-pink-text: #b83a72;
-  --hm-cyan: #1fb3c7;
-  --hm-green: #76b900;
-  --hm-green-text: #4c7a00;
-  --hm-rule: color-mix(in srgb, var(--hm-ink) 11%, transparent);
-  --hm-rule-strong: color-mix(in srgb, var(--hm-ink) 24%, transparent);
-  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 30%, var(--hm-sheet));
-  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 26%, var(--hm-sheet));
-  /* The window's ground and edge, what its shadow is made of, and how bright it is lit. */
-  --hm-house: #ffffff;
-  --hm-edge: color-mix(in srgb, var(--hm-ink) 14%, transparent);
-  --hm-shade: #1c3640;
-  --hm-glow: 0.42;
-  --hm-grid: color-mix(in srgb, var(--hm-ink) 7%, transparent);
+  --hm-pink: var(--hmz-accent-2);
+  --hm-cyan: var(--hmz-accent);
+  --hm-cyan-text: var(--hmz-cyan-ink);
+  --hm-green: var(--hmz-green);
+  --hm-green-text: var(--hmz-green-ink);
+  --hm-rule: var(--vp-c-divider);
+  /* The construction lines under the hero, and the plane behind it: cyan at a whisper. */
+  --hm-grid: var(--hmz-con-line);
+  --hm-plane: color-mix(in srgb, var(--hm-cyan) 16%, var(--hm-bg));
+  /* A plate's corner is cut, not moulded. */
+  --hm-radius: 2px;
+  --hm-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --hm-mono: var(--vp-font-family-mono);
-}
-.dark .hm {
-  --hm-bg: #0a0f12;
-  --hm-sheet: #121a1f;
-  --hm-fg: var(--hm-paper);
-  --hm-fg-2: #aebdc3;
-  --hm-fg-3: #82939a;
-  --hm-pink: #ff94c2;
-  --hm-pink-text: #ffa8cf;
-  --hm-cyan: #4fd8ea;
-  --hm-green: #8fd400;
-  --hm-green-text: #a5e03a;
-  --hm-rule: color-mix(in srgb, var(--hm-paper) 11%, transparent);
-  --hm-rule-strong: color-mix(in srgb, var(--hm-paper) 24%, transparent);
-  --hm-pink-fill: color-mix(in srgb, var(--hm-pink) 30%, var(--hm-sheet));
-  --hm-cyan-fill: color-mix(in srgb, var(--hm-cyan) 26%, var(--hm-sheet));
-  --hm-house: #10181d;
-  --hm-edge: color-mix(in srgb, var(--hm-paper) 22%, transparent);
-  --hm-shade: #000000;
-  --hm-glow: 0.6;
-  --hm-grid: color-mix(in srgb, var(--hm-paper) 6%, transparent);
 }
 
 /* The page is its own layout: the theme's content column and its prose styles are not used. */
 .hm-page .VPContent {
-  background: #f5f8f9;
-}
-.dark .hm-page .VPContent {
-  background: #0a0f12;
+  background: var(--vp-c-bg);
 }
 .hm {
   position: relative;
@@ -260,32 +259,36 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   margin: 0 auto;
 }
 
-/* ---- the sky: a fine grid that fades out, lit in two colours from above ------------------ */
+/* ---- the ground: construction lines, and one flat plane ---------------------------------- */
 
 .hm-sky {
   position: absolute;
   inset: 0 0 auto;
   height: 880px;
   pointer-events: none;
-  /* It comes in under the site's bar, so there is no seam where the bar ends. */
-  mask-image: linear-gradient(transparent, #000 200px);
 }
 .hm-sky::before,
 .hm-sky::after {
   content: '';
   position: absolute;
-  inset: 0;
 }
+/* The lines a poster is set out on. They come in under the site's bar, so there is no seam
+   where the bar ends, and run out before the page's sections begin. */
 .hm-sky::before {
+  inset: 0;
   background:
     linear-gradient(var(--hm-grid) 1px, transparent 1px) 50% 0 / 56px 56px,
     linear-gradient(90deg, var(--hm-grid) 1px, transparent 1px) 50% 0 / 56px 56px;
-  mask-image: radial-gradient(ellipse 62% 70% at 50% 0%, #000 20%, transparent 78%);
+  mask-image: linear-gradient(transparent, #000 200px, #000 62%, transparent);
 }
+/* The disc: a plane behind the name, loud enough to be a shape and no louder. */
 .hm-sky::after {
-  background:
-    radial-gradient(38% 46% at 28% 0%, color-mix(in srgb, var(--hm-cyan) 22%, transparent), transparent 70%),
-    radial-gradient(38% 46% at 72% 0%, color-mix(in srgb, var(--hm-pink) 20%, transparent), transparent 70%);
+  top: -150px;
+  left: calc(50% + min(22vw, 300px));
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: var(--hm-plane);
 }
 
 /* ---- the hero: the mark and the name, the description, and what gets it ------------------ */
@@ -338,6 +341,9 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   margin: min(clamp(26px, 3.2vw, 38px), 4.5svh) 0 min(clamp(40px, 5.4vw, 68px), 6svh);
 }
 
+/* Square plates. The first is the ink, and a green edge slides out from under it at the
+   pointer: the mark's own relation between the large plane and the small green thing beside it.
+   The other is drawn in outline. */
 .hm-btn {
   display: inline-flex;
   align-items: center;
@@ -345,23 +351,22 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   gap: 9px;
   height: 46px;
   padding: 0 20px;
-  border-radius: 12px;
+  border-radius: var(--hm-radius);
   font-size: 15px;
   line-height: 1;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
-  background: var(--hm-sheet);
-  box-shadow:
-    inset 0 0 0 1px var(--hm-rule-strong),
-    0 1px 2px color-mix(in srgb, var(--hm-shade) 8%, transparent);
+  background: var(--hm-bg);
+  box-shadow: inset 0 0 0 2px var(--hm-fg);
   transition:
-    transform 0.2s,
-    box-shadow 0.2s,
-    background-color 0.2s;
+    transform 0.35s var(--hm-ease),
+    box-shadow 0.35s var(--hm-ease),
+    background-color 0.25s;
 }
 .hm-btn svg,
 .hm-out svg,
 .hm-cmd svg,
+.hm-pillar-go svg,
 .hm-door-go {
   flex: none;
   width: 16px;
@@ -375,23 +380,21 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
 .hm .hm-btn.go {
   color: var(--hm-bg);
   background: var(--hm-fg);
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--hm-shade) 20%, transparent),
-    0 8px 20px -8px color-mix(in srgb, var(--hm-shade) 45%, transparent);
+  box-shadow: 0 0 0 0 var(--hm-green);
 }
 .hm-btn:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 0 0 1px var(--hm-fg-3),
-    0 6px 14px -6px color-mix(in srgb, var(--hm-shade) 24%, transparent);
+  background: color-mix(in srgb, var(--hm-fg) 8%, var(--hm-bg));
 }
 .hm .hm-btn.go:hover {
-  box-shadow:
-    0 2px 4px color-mix(in srgb, var(--hm-shade) 20%, transparent),
-    0 14px 28px -10px color-mix(in srgb, var(--hm-pink) 70%, transparent);
+  background: var(--hm-fg);
+  transform: translate(-3px, -3px);
+  box-shadow: 6px 6px 0 0 var(--hm-green);
 }
-.hm-btn:active {
+.hm .hm-btn:active {
   transform: none;
+}
+.hm .hm-btn.go:active {
+  box-shadow: 0 0 0 0 var(--hm-green);
 }
 
 .hm-cmd {
@@ -401,12 +404,12 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   min-width: 0;
   height: 46px;
   padding: 0 6px 0 16px;
-  border-radius: 12px;
+  border-radius: var(--hm-radius);
   font-family: var(--hm-mono);
   font-size: 13.5px;
   color: var(--hm-fg);
-  background: color-mix(in srgb, var(--hm-sheet) 60%, transparent);
-  box-shadow: inset 0 0 0 1px var(--hm-rule);
+  background: var(--hm-sheet);
+  box-shadow: inset 0 0 0 1px var(--hm-fg);
 }
 .hm-cmd code {
   min-width: 0;
@@ -429,7 +432,7 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   width: 34px;
   height: 34px;
   margin-left: auto;
-  border-radius: 8px;
+  border-radius: var(--hm-radius);
   color: var(--hm-fg-3);
   transition:
     color 0.2s,
@@ -479,11 +482,125 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   }
 }
 
-/* ---- the loop, drawn ------------------------------------------------------------------- */
+/* ---- the scale, drawn ------------------------------------------------------------------- */
 
-.hm-loop {
+.hm-scale {
   max-width: 880px;
   padding: clamp(32px, 5vw, 72px) 0;
+}
+
+/* ---- the claim, and the four parts that carry it ---------------------------------------- */
+
+.hm-infra {
+  padding: clamp(24px, 4vw, 56px) 0 clamp(56px, 7vw, 104px);
+}
+/* A kicker is a label on a plate: mono capitals, and a short green bar in front of it. */
+.hm-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  font-family: var(--hm-mono);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hm-kicker::before {
+  content: '';
+  flex: none;
+  width: 28px;
+  height: 6px;
+  background: var(--hm-green);
+}
+.hm-infra h2 {
+  max-width: 18em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: clamp(30px, 4.2vw, 54px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+  color: var(--hm-fg);
+}
+.hm-lead {
+  max-width: 44em;
+  margin: 20px 0 0;
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.5;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+  color: var(--hm-fg-2);
+}
+/* Four columns under one rule of ink, with a hairline between each and the next. */
+.hm .hm-pillars {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: clamp(36px, 4.5vw, 60px);
+  border-top: 2px solid var(--hm-fg);
+}
+.hm-pillars li + li {
+  border-left: 1px solid var(--hm-rule);
+}
+.hm-pillars a {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 22px 22px 20px;
+  transition: background-color 0.2s;
+}
+.hm-pillars li:first-child a {
+  padding-left: 0;
+}
+.hm-pillars a:hover {
+  background: var(--hm-sheet);
+}
+.hm-pillars li:first-child a:hover {
+  margin-left: -22px;
+  padding-left: 22px;
+}
+.hm-pillar-label {
+  font-family: var(--hm-mono);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--hm-fg-2);
+}
+.hm-pillars h3 {
+  margin: 14px 0 0;
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--hm-fg);
+}
+.hm-pillars p {
+  margin: 10px 0 18px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--hm-fg-2);
+}
+.hm-pillar-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-family: var(--hm-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hm-cyan-text);
+}
+.hm-pillar-go svg {
+  transition: transform 0.35s var(--hm-ease);
+}
+.hm-pillars a:hover .hm-pillar-go svg {
+  transform: translateX(3px);
 }
 
 /* ---- where to get it, and the doors ----------------------------------------------------- */
@@ -496,13 +613,12 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
+/* Sheets on the paper, with a hairline round each. */
 .hm-platforms li,
 .hm-doors a {
-  border-radius: 16px;
+  border-radius: var(--hm-radius);
   background: var(--hm-sheet);
-  box-shadow:
-    inset 0 0 0 1px var(--hm-rule),
-    0 1px 2px color-mix(in srgb, var(--hm-shade) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hm-rule);
 }
 .hm-platforms li {
   display: flex;
@@ -513,11 +629,11 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   min-width: 0;
   padding: 24px;
 }
-/* The reader's own platform is lit, without a word. */
+/* The reader's own platform is inked in, under a heavier rule, without a word. */
 .hm-platforms li.mine {
   box-shadow:
-    inset 0 0 0 1.5px color-mix(in srgb, var(--hm-cyan) 70%, transparent),
-    0 18px 40px -22px color-mix(in srgb, var(--hm-cyan) 80%, transparent);
+    inset 0 0 0 1px var(--hm-fg),
+    inset 0 4px 0 0 var(--hm-fg);
 }
 .hm-platforms b {
   display: flex;
@@ -544,7 +660,7 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
 /* Where on Windows the command runs. */
 .hm-platforms small {
   padding: 3px 7px;
-  border-radius: 6px;
+  border-radius: var(--hm-radius);
   font-family: var(--hm-mono);
   font-size: 11.5px;
   line-height: 1.2;
@@ -555,7 +671,7 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
 }
 .hm-platforms .hm-cmd {
   display: flex;
-  background: color-mix(in srgb, var(--hm-fg) 4%, transparent);
+  background: var(--hm-bg);
 }
 
 .hm .hm-doors {
@@ -571,14 +687,13 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   column-gap: 12px;
   height: 100%;
   padding: 18px 20px;
-  border-radius: 12px;
   font-size: 16px;
   line-height: 1.15;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.02em;
   transition:
-    transform 0.25s,
-    box-shadow 0.25s;
+    transform 0.35s var(--hm-ease),
+    box-shadow 0.35s var(--hm-ease);
 }
 .hm-door-icon {
   width: 20px;
@@ -596,14 +711,16 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
     transform 0.25s,
     color 0.25s;
 }
+/* Under the pointer a door lifts off along the diagonal and casts a hard shadow: the print's
+   offset, not a blur. */
 .hm-doors a:hover {
-  transform: translateY(-2px);
+  transform: translate(-3px, -3px);
   box-shadow:
-    inset 0 0 0 1px var(--hm-rule-strong),
-    0 16px 32px -18px color-mix(in srgb, var(--hm-shade) 40%, transparent);
+    inset 0 0 0 1px var(--hm-fg),
+    6px 6px 0 0 var(--hm-fg);
 }
 .hm-doors a:hover .hm-door-icon {
-  stroke: var(--hm-pink-text);
+  stroke: var(--hm-cyan-text);
 }
 .hm-doors a:hover .hm-door-go {
   color: var(--hm-fg);
@@ -614,8 +731,9 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   justify-content: center;
   gap: 28px;
   margin-top: clamp(32px, 4vw, 52px);
-  font-size: 15px;
-  font-weight: 500;
+  font-family: var(--hm-mono);
+  font-size: 13.5px;
+  font-weight: 700;
   color: var(--hm-fg-2);
 }
 .hm-out a {
@@ -652,6 +770,20 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 32px;
   }
+  .hm .hm-pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hm-pillars li:nth-child(odd) {
+    border-left: 0;
+  }
+  .hm-pillars li:nth-child(odd) a,
+  .hm-pillars li:nth-child(odd) a:hover {
+    margin-left: 0;
+    padding-left: 0;
+  }
+  .hm-pillars li:nth-child(n + 3) {
+    border-top: 1px solid var(--hm-rule);
+  }
 }
 @media (max-width: 640px) {
   .hm-wrap {
@@ -662,6 +794,26 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   }
   .hm-sky::before {
     background-size: 40px 40px;
+  }
+  .hm-sky::after {
+    top: -120px;
+    left: 58%;
+    width: 300px;
+    height: 300px;
+  }
+  .hm .hm-pillars {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hm-pillars li + li {
+    border-left: 0;
+    border-top: 1px solid var(--hm-rule);
+  }
+  .hm-pillars a,
+  .hm-pillars li:first-child a,
+  .hm-pillars a:hover,
+  .hm-pillars li:first-child a:hover {
+    margin-left: 0;
+    padding: 20px 0;
   }
   .hm .hm-get {
     gap: 10px;
@@ -708,7 +860,9 @@ const CHECK = 'M3 8.5l3.2 3.2L13 4.8'
   .hm-btn,
   .hm-doors a,
   .hm-door-go,
-  .hm-door-icon {
+  .hm-door-icon,
+  .hm-pillars a,
+  .hm-pillar-go svg {
     transition: none;
   }
 }

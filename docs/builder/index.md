@@ -5,7 +5,7 @@ description: Find the page for the part of a flow you are writing in Python.
 
 # Builder Guide
 
-Write flows in Python with this guide. A flow is an `async def` function decorated with `@flow` that runs agents in environments, can ask the person, and can call other flows. If you are new to flows, start with [Write your first flow](/tutorials/first-flow).
+Write flows in Python with this guide. Humanize is the infrastructure a flow runs on, and ships no flow of its own. A flow is an `async def` function decorated with `@flow` that runs agents in environments, can ask the person, and can call other flows. If you are new to flows, start with [Write your first flow](/tutorials/first-flow).
 
 ![A flow is a Python function that drives agents, environments, the person and other flows](/diagrams/builder-index-1.svg)
 

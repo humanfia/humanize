@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-keywords = ["agents", "ai", "claude-code", "codex", "coding-agents", "llm", "tui", "workflow"]
+keywords = ["agents", "ai", "claude-code", "codex", "coding-agents", "infrastructure", "llm", "scheduling", "tui"]
 # No `License ::` classifier: PEP 639 retires them for `license` above, which is the one PyPI
 # shows, and a backend is allowed to refuse a project that says both.
 classifiers = [

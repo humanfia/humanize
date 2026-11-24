@@ -4,6 +4,20 @@
 
 The agent flow system for token maxxing.
 
+Humanize is infrastructure, not a flow. A flow is a Python program that says what to ask and of
+whom; Humanize is what it runs on. It schedules the many different nous a flow asks for -- a
+nous is a harness, an account, a model and an effort -- gives each agent an environment to work
+in, on this machine, over SSH, in a container or on a cluster, holds the whole run to one
+budget, and keeps the record it can be resumed and traced from.
+
+## Background
+
+Where Humanize is going, which is not a measurement of where it is: one flow driving a million
+agents in a million environments for a month, on one task. A task of that size is not
+done by one model in one session, so what Humanize is built around is the scheduling: many
+different nous, with retries and fallback from one to the next, on as many machines as the work
+needs. It ships no flow of its own.
+
 ## Install
 
 ### Humanize Desktop
