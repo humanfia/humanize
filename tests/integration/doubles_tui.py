@@ -461,6 +461,17 @@ def screen(app: App[Any]) -> str:
     return "\n".join(one for one in drawn if one)
 
 
+def status(drawn: str) -> str:
+    """The status line of a screen read by :func:`screen`: the row under the prompt's lower rule.
+
+    Under it are the keys, on as many rows as they take, so it is found from the rule and not
+    counted from the bottom.
+    """
+    lines = drawn.splitlines()
+    ruled = [at for at, line in enumerate(lines) if line.strip().startswith("────")]
+    return lines[ruled[-1] + 1]
+
+
 async def until(pilot: Pilot[None], ready: Callable[[], bool], what: str) -> None:
     """Pumps the interface until `ready` holds, and fails the test if it never does.
 

@@ -108,7 +108,12 @@ async def test_f2_opens_settings_and_is_said_on_the_hint_line(workspace: Path) -
 
         # The key is bound over the page it opens, and does not open it over itself.
         await pilot.press("f2")
-        await pilot.pause()
+        await until(
+            pilot, lambda: len(app.screen_stack) == 1, "the page closed by its key"
+        )
+
+        await pilot.press("f2")
+        await on(pilot, Adjusts)
         assert len(app.screen_stack) == 2
 
         await pilot.press("escape")

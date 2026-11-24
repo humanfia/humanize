@@ -32,6 +32,16 @@ if TYPE_CHECKING:
 
 WORKDIR = "/w"
 
+#: The views this module is about.
+OWN = ("files", "changes", "terminal")
+
+
+@pytest.fixture(autouse=True)
+def own_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only this module's views: what another view does beside them is its own test's."""
+    found = {name: view for name, view in shell.views().items() if name in OWN}
+    monkeypatch.setattr(shell, "views", lambda: found)
+
 
 def _env(ident: str = "1:coder", **said: Any) -> dict[str, Any]:
     return {
@@ -451,7 +461,7 @@ async def test_ctrl_w_widens_the_context_and_tab_turns_to_the_next_environment(
         context = app.query_one("#context", Zone)
         await _until(pilot, lambda: len(_rows(pane)) == 2, "the coder's files")
         assert "Environment coder  1/2" in _said(pane, "#pane-env")
-        assert context.size.width == 48
+        assert context.outer_size.width == 48
 
         await pilot.press("ctrl+w")
         await pilot.pause()

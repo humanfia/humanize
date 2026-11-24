@@ -90,6 +90,19 @@ class _Hmz:
         return SimpleNamespace(all=lambda: offers)
 
 
+#: The views this module is about.
+OWN = ("flows", "download", "import", "export")
+
+
+@pytest.fixture(autouse=True)
+def own_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only this module's views: what another view does beside them is its own test's."""
+    found = {name: view for name, view in shell.views().items() if name in OWN}
+    monkeypatch.setattr(shell, "views", lambda: found)
+    # The page asks by the name it imported, which is its own to stand in for.
+    monkeypatch.setattr("hmz.tui.views.flowspage.views", lambda: found)
+
+
 @pytest.fixture
 def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Hmz:
     """The one store the page reaches, in place of Humanize's own."""

@@ -165,17 +165,17 @@ async def test_a_zone_is_widened_a_step_at_a_time_and_is_narrow_again_after_the_
         context = pilot.app.query_one("#context", Zone)
         await pilot.press("f3")
         await pilot.pause()
-        assert context.size.width == 48
+        assert context.outer_size.width == 48
 
         assert context.widens() == "wide"
         await pilot.pause()
-        assert context.size.width == 60
+        assert context.outer_size.width == 60
 
         assert context.widens() == "widest"
         await pilot.pause()
-        assert context.size.width == 96
+        assert context.outer_size.width == 96
         assert not context.has_class("wide")
 
         assert context.widens() == ""
         await pilot.pause()
-        assert context.size.width == 48
+        assert context.outer_size.width == 48
