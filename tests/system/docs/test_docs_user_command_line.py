@@ -125,5 +125,5 @@ def test_a_signal_stops_the_run(world: World) -> None:
 
 def test_one_chat_turn_and_the_chats_listed(world: World) -> None:
     world.says({"charge()": {"text": _SAID, "after": 0.5}})
-    shots.cli(["hmz", "chat", "-a", AGENT, _ASK], f"{_PAGE}-chat")
-    shots.cli(["hmz", "chat", "--list"], f"{_PAGE}-chat-list")
+    shots.cli(["hmz", "chat", "start", "-a", AGENT, _ASK], f"{_PAGE}-chat")
+    shots.cli(["hmz", "chat", "list"], f"{_PAGE}-chat-list")

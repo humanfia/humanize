@@ -100,10 +100,10 @@ listen = ["tcp://0.0.0.0:41817"]
 Generate a one-time pairing code:
 
 ```sh
-hmz daemon pair
+hmz devices pair
 ```
 
-![hmz daemon pair prints a pairing code and when it expires](/shots/tutorials-browser-and-phone-pair.svg)
+![hmz devices pair prints a pairing code and when it expires](/shots/tutorials-browser-and-phone-pair.svg)
 
 Copy the line starting with `hmz-pair:`. The code works once and expires after 10 minutes.
 
@@ -129,7 +129,7 @@ The computer running `hmz web` connects to `devbox`, not your phone, so `devbox`
 - Reached the page from your phone through a forwarded port.
 - Navigated with the sidebar drawer on a small screen.
 - Allowed system notifications and saw the dot that marks an unread chat.
-- Paired a second machine with `hmz daemon pair` and switched between daemons.
+- Paired a second machine with `hmz devices pair` and switched between daemons.
 
 ## Next
 

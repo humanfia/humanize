@@ -77,7 +77,7 @@ Add the effort after the last colon of the agent spec in `hmz exec` and `hmz cha
 
 ```sh
 hmz exec -f goal -a worker=claude/claude-haiku-4-5:low -p budget.output_tokens=20000 "Add a discount code to checkout"
-hmz chat -a claude/claude-haiku-4-5:low "Add a discount code to checkout"
+hmz chat start -a claude/claude-haiku-4-5:low "Add a discount code to checkout"
 ```
 
 ![hmz exec run with an agent at :low, and the answer it printed](/shots/user-efforts-exec.svg)

@@ -3,7 +3,7 @@
 The other machine is this one under a home of its own: reached over `stdio:ssh` by the
 stand-in `ssh` of `doubles_ssh`, whose `hmz daemon connect --stdio` starts that home's daemon
 as the real one would start the one installed there; or over `tcp`, `hmz daemon serve` under a
-home of its own, paired from the code `hmz daemon pair` makes.
+home of its own, paired from the code `hmz devices pair` makes.
 """
 
 from __future__ import annotations
@@ -597,7 +597,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # A pairing code that is none is refused, and nothing is written.
         await _adds(pilot, "lab")
-        await shows(pilot, "Pairing code", "as hmz daemon pair printed it there")
+        await shows(pilot, "Pairing code", "as hmz devices pair printed it there")
         await pilot.press(*"hmz-pair:nope", "enter")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
@@ -708,7 +708,7 @@ def served(
         assert serving.stdout is not None
         assert "listening on tcp://" in serving.stdout.readline()
         yield subprocess.run(
-            [sys.executable, "-m", "hmz", "daemon", "pair"],
+            [sys.executable, "-m", "hmz", "devices", "pair"],
             env=there,
             capture_output=True,
             text=True,

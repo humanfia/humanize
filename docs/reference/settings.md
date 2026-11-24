@@ -224,7 +224,7 @@ Maps a folder's resolved absolute path (symlinks resolved) to its saved setup.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `flow` | string | absent | Last flow set up in this folder. |
-| `chat.agent` | string | absent | Default agent for new chats here, as `<harness>[@<account>]/<model>[:<effort>]`. Updated when you start a chat in the app or terminal, or change a chat's agent. `hmz chat` uses it when `-a` is omitted and never updates it. |
+| `chat.agent` | string | absent | Default agent for new chats here, as `<harness>[@<account>]/<model>[:<effort>]`. Updated when you start a chat in the app or terminal, or change a chat's agent. `hmz chat start` uses it when `-a` is omitted, and updates it only with `--remember`. |
 | `flows` | mapping | absent | Per-flow setups, keyed by flow name (such as `rlar` or `@local/twice`). |
 
 An entry may be empty: the browser page writes an empty entry when you open a folder by path, and lists every folder present here. Use **Forget** on the **Setup** page of the folder's **Workspace settings** or `/settings workspace` to remove the entry.

@@ -10847,7 +10847,7 @@ class Daemoning(Form["dict[str, Any] | str"]):
                 Question(
                     _CODE,
                     "code",
-                    "hmz-pair:…, as hmz daemon pair printed it there",
+                    "hmz-pair:…, as hmz devices pair printed it there",
                     needed=not typed[_CODE].strip(),
                 ),
             ]
@@ -10908,7 +10908,7 @@ class Daemoning(Form["dict[str, Any] | str"]):
         if held != _MODE:
             return ""
         return {
-            _PAIRED: "the code hmz daemon pair printed there, claimed now",
+            _PAIRED: "the code hmz devices pair printed there, claimed now",
             _SSH_CONFIG: "a Host of your ssh config, reached as it says",
             _STORED: "what ssh is told: typed in, or imported",
             _ROUTED: "its routes, in the order they are tried",
@@ -10988,7 +10988,7 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, added from the code hmz daemon pair prints "
+            "Another machine's hmz, added from the code hmz devices pair prints "
             "there, or "
             "from its routes: its epics are listed with /epics @<name>."
         )

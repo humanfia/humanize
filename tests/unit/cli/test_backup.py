@@ -1,294 +1,298 @@
-"""`hmz backup`: one epic backed up by hand, with the runtime mocked."""
+"""`hmz backup`: an epic uploaded now, the targets and what one holds listed, and one pulled."""
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
+from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 
-import hmz.cli.output
-import hmz.runtime
-from hmz.cli import main
+from hmz.cli import main, tree
+from hmz.sdk import Refused
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+EPIC = "20261012T000000.000Z-abcdef"
 
-EPIC = Path("/epics/w/20261012T000000.000Z-abcdef")
-CHAT = Path("/chats/w/20261013T000000.000Z-fedcba")
+
+@dataclass(frozen=True)
+class Held:
+    """One epic or chat a target holds, as the backups family answers it."""
+
+    key: str
+    epic: str
+    task: str = "fix the parser"
+    how: str = "done"
+    flow: str = "ralph"
+    chat: bool = False
+    here: bool = False
 
 
 @pytest.fixture
-def runtime(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """`hmz.runtime.Hmz`, mocked: one epic here, backed up to `lab` and `home`."""
+def client(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    """The client the command reaches."""
     held = mock.Mock()
-    ran = SimpleNamespace(at=EPIC)
-    held.epics.all.return_value = [EPIC]
-    held.epics.read.side_effect = {EPIC: ran, CHAT: SimpleNamespace(at=CHAT)}.get
-    held.epics.chat.side_effect = {CHAT.name: CHAT}.get
-    held.backups.push.return_value = ("lab", "home")
-    held.verses.plain.side_effect = {
-        "https://me:pw@host/epics": "https://***@host/epics"
-    }.get
-    held.backups.targets.return_value = [
-        SimpleNamespace(name="lab", url="https://me:pw@host/epics"),
-        SimpleNamespace(name="home", url="/srv/epics"),
-    ]
-    held.backups.state.side_effect = [
-        {},
-        {"lab": {"ok": True, "error": ""}, "home": {"ok": False, "error": "rejected"}},
-    ]
-    monkeypatch.setattr(hmz.runtime, "Hmz", mock.Mock(return_value=held))
+    monkeypatch.setattr(tree, "reach", mock.Mock(return_value=held))
     return held
 
 
-def test_an_epic_is_backed_up_and_each_target_says_how_it_went(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+def _went(ok: bool, error: str = "") -> dict[str, object]:
+    return {"at": "2026-10-12T09:15:00Z", "ok": ok, "error": error, "why": "manual"}
+
+
+def test_an_epic_is_uploaded_and_each_target_says_it_took_it(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(["backup", EPIC.name, "--to", "lab", "--to", "home"]) == 1
+    client.runs.backup.return_value = {"lab": _went(ok=True), "home": _went(ok=True)}
 
-    runtime.backups.push.assert_called_once_with(
-        runtime.epics.read(EPIC), ["lab", "home"]
-    )
-    runtime.backups.wait.assert_called_once_with()
-    said = capsys.readouterr()
-    assert said.out == "lab: backed up to https://***@host/epics\n"
-    assert said.err == "home: failed: rejected\n"
-
-
-def test_no_targets_named_are_the_epics_own(runtime: mock.Mock) -> None:
-    runtime.backups.state.side_effect = [
-        {},
-        {"lab": {"ok": True}, "home": {"ok": True}},
-    ]
-
-    assert main(["backup", str(EPIC)]) == 0
-    runtime.backups.push.assert_called_once_with(runtime.epics.read(EPIC), None)
-
-
-def test_an_outcome_the_epic_does_not_say_anew_is_a_failure(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
-) -> None:
-    was = {"lab": {"ok": True, "at": "then"}, "home": {"ok": True, "at": "then"}}
-    runtime.backups.state.side_effect = [was, was]
-
-    assert main(["backup", EPIC.name]) == 1
-    assert "the epic could not be written to" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
-    ("argv", "why"),
-    [
-        (["nothing"], "no epic nothing here"),
-        ([EPIC.name, "--to", "x"], "no backup target is named x"),
-    ],
-)
-def test_a_line_naming_nothing_to_back_up_is_refused(
-    runtime: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
-    argv: list[str],
-    why: str,
-) -> None:
-    runtime.backups.push.side_effect = ValueError("no backup target is named x")
-
-    with pytest.raises(SystemExit) as stopped:
-        main(["backup", *argv])
-    assert stopped.value.code == 2
-    assert why in capsys.readouterr().err
-
-
-def test_an_epic_with_no_target_anywhere_is_refused(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
-) -> None:
-    runtime.backups.push.return_value = ()
-
-    with pytest.raises(SystemExit):
-        main(["backup", EPIC.name])
-    assert "no backup target" in capsys.readouterr().err
-
-
-def _stored(
-    machine: str, epic: str, how: str = "done", *, chat: bool = False
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        key=f"{machine}/-w/{epic}",
-        machine=machine,
-        workspace="/w",
-        epic=epic,
-        task="fix\nit",
-        how=how,
-        chat=chat,
-    )
-
-
-def test_a_chat_of_this_directory_is_backed_up_by_its_id(runtime: mock.Mock) -> None:
-    runtime.backups.state.side_effect = [
-        {},
-        {"lab": {"ok": True}, "home": {"ok": True}},
-    ]
-
-    assert main(["backup", CHAT.name]) == 0
-
-    runtime.backups.push.assert_called_once_with(runtime.epics.read(CHAT), None)
-
-
-def test_the_chats_a_target_holds_are_listed_after_its_epics_and_pulled_by_id(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
-) -> None:
-    runtime.backups.listed.return_value = [
-        _stored("a", "e1"),
-        _stored("a", "c1", "stopped", chat=True),
-    ]
-    runtime.backups.pulled.return_value = Path("/home/chats/-w/c1")
-
-    assert main(["backup", "--list", "--to", "lab"]) == 0
-    assert capsys.readouterr().out == (
-        "lab: 1 epic\n"
-        "  a  /w  e1  done  fix it\n"
-        "lab: 1 chat\n"
-        "  a  /w  c1  stopped  fix it\n"
-    )
-
-    assert main(["backup", "--pull", "c1", "--to", "lab"]) == 0
-    runtime.backups.pulled.assert_called_once_with("lab", "a/-w/c1")
-    assert capsys.readouterr().out == "/home/chats/-w/c1\n"
-
-
-def test_each_target_lists_the_epics_it_holds(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
-) -> None:
-    runtime.backups.listed.side_effect = {
-        "lab": [_stored("a", "e1"), _stored("b", "e2", "")],
-        "home": [],
-    }.get
-
-    assert main(["backup", "--list"]) == 0
+    assert main(["backup", "run", EPIC, "--to", "lab", "--to", "home"]) == 0
 
     assert capsys.readouterr().out == (
-        "lab: 2 epics\n"
-        "  a  /w  e1  done  fix it\n"
-        "  b  /w  e2  unfinished  fix it\n"
-        "home: 0 epics\n"
+        "lab: uploaded 2026-10-12T09:15:00Z\nhome: uploaded 2026-10-12T09:15:00Z\n"
     )
+    client.runs.backup.assert_called_once_with(EPIC, to=["lab", "home"], wait=600)
 
 
-def test_a_target_that_cannot_be_reached_is_said_and_the_rest_listed(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+def test_a_target_that_did_not_take_it_is_the_commands_error(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def listed(name: str) -> list[SimpleNamespace]:
-        if name == "lab":
-            raise OSError("unreachable")
-        return []
+    client.runs.backup.return_value = {
+        "lab": _went(ok=True),
+        "home": _went(ok=False, error="rejected"),
+    }
 
-    runtime.backups.listed.side_effect = listed
-
-    assert main(["backup", "--list"]) == 1
+    assert main(["backup", "run", EPIC]) == 1
     said = capsys.readouterr()
-    assert said.err == "lab: failed: unreachable\n"
-    assert said.out == "home: 0 epics\n"
+    assert said.out == "lab: uploaded 2026-10-12T09:15:00Z\n"
+    assert said.err == ("hmz backup run: home: failed, rejected 2026-10-12T09:15:00Z\n")
+    client.runs.backup.assert_called_once_with(EPIC, to=None, wait=600)
+
+    assert main(["backup", "run", EPIC, "--json"]) == 1
+    said = capsys.readouterr()
+    assert json.loads(said.out) == {
+        "error": {
+            "code": 0,
+            "message": "home: failed, rejected 2026-10-12T09:15:00Z",
+        }
+    }
+    assert said.err == ""
 
 
-def test_an_epic_is_pulled_by_name_and_its_path_printed(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+def test_the_document_says_what_was_queued_and_how_each_went(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runtime.backups.listed.return_value = [_stored("a", "e1")]
-    runtime.backups.pulled.return_value = Path("/home/epics/-w/e1")
+    client.runs.backup.return_value = {"lab": _went(ok=True)}
 
-    assert main(["backup", "--pull", "e1", "--to", "home"]) == 0
+    assert main(["backup", "run", EPIC, "--timeout", "5", "--json"]) == 0
 
-    runtime.backups.pulled.assert_called_once_with("home", "a/-w/e1")
-    assert capsys.readouterr().out == "/home/epics/-w/e1\n"
+    assert json.loads(capsys.readouterr().out) == {
+        "queued": ["lab"],
+        "backed": {"lab": _went(ok=True)},
+    }
+    client.runs.backup.assert_called_once_with(EPIC, to=None, wait=5)
 
 
-def test_an_epic_already_here_is_not_pulled(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+def test_an_upload_not_waited_for_says_only_where_it_is_going(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runtime.backups.listed.return_value = [_stored("a", "e1")]
-    runtime.backups.pulled.side_effect = ValueError("e1 is already here, at /x")
+    client.runs.backup.return_value = {"lab": {}, "home": {}}
 
-    assert main(["backup", "--pull", "a/-w/e1", "--to", "lab"]) == 1
-    assert "already here" in capsys.readouterr().err
+    assert main(["backup", "run", EPIC, "--no-wait"]) == 0
+    assert capsys.readouterr().out == "Uploading to lab, home\n"
+    client.runs.backup.assert_called_once_with(EPIC, to=None, wait=0)
+
+    assert main(["backup", "run", EPIC, "--no-wait", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "queued": ["lab", "home"],
+        "backed": {},
+    }
+    # No time to wait is not waiting.
+    assert main(["backup", "run", EPIC, "--timeout", "0"]) == 0
+    assert capsys.readouterr().out == "Uploading to lab, home\n"
+    client.runs.backup.assert_called_with(EPIC, to=None, wait=0)
 
 
-@pytest.mark.parametrize(
-    ("argv", "why"),
-    [
-        (["--pull", "e9"], "no target holds an epic e9"),
-        (["--pull", ""], "no target holds an epic"),
-        (["--pull", "e1"], "from more than one machine"),
-        (["--list", "--to", "x"], "no backup target is named x"),
-        (["--list", EPIC.name], "goes without --list"),
-        ([], "required: epic"),
-    ],
-)
-def test_a_line_naming_nothing_to_list_or_pull_is_refused(
-    runtime: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
-    argv: list[str],
-    why: str,
+def test_an_upload_not_done_in_time_is_left_to_the_daemon(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runtime.backups.listed.return_value = [_stored("a", "e1"), _stored("b", "e1")]
+    client.runs.backup.side_effect = TimeoutError("no backup of it in 2s")
 
-    with pytest.raises(SystemExit) as stopped:
-        main(["backup", *argv])
-    assert stopped.value.code == 2
-    assert why in capsys.readouterr().err
+    assert main(["backup", "run", EPIC, "--timeout", "2"]) == 3
 
-
-def test_a_pull_past_a_target_that_did_not_answer_says_both(
-    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
-) -> None:
-    def listed(name: str) -> list[SimpleNamespace]:
-        if name == "lab":
-            raise OSError("unreachable")
-        return [_stored("a", "e1")]
-
-    runtime.backups.listed.side_effect = listed
-    runtime.backups.pulled.return_value = Path("/here/e1")
-
-    assert main(["backup", "--pull", "e1"]) == 0
-    assert capsys.readouterr().out == "/here/e1\n"
-    assert main(["backup", "--pull", "e9"]) == 1
     assert capsys.readouterr().err == (
-        "lab: failed: unreachable\nhmz backup: no target that answered holds e9\n"
+        f"hmz backup run: The backup of {EPIC} did not finish within 2 seconds, "
+        "and carries on in the daemon.\n"
     )
 
 
-class _Spinner:
-    """`Out.spins`, as what it would say now, rather than drawn."""
-
-    def __init__(self) -> None:
-        self.says = ""
-        self.seen: list[str] = []
-
-    def spins(self, says: Callable[[], str] | None) -> None:
-        self.says = says() if says else ""
-
-    def saw(self, *_: object) -> list[SimpleNamespace]:
-        self.seen.append(self.says)
-        return [_stored("a", "e1")]
-
-
-def test_a_spinner_says_what_git_is_doing_until_it_answers(
-    runtime: mock.Mock, monkeypatch: pytest.MonkeyPatch
+def test_a_refusal_is_said_in_the_daemons_words(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    shown = _Spinner()
-    # Set on the class, a bound method is not bound again: `out.spins(f)` is `shown.spins(f)`.
-    monkeypatch.setattr(hmz.cli.output.Out, "spins", shown.spins)
-    runtime.backups.wait.side_effect = shown.saw
-    runtime.backups.listed.side_effect = shown.saw
-    runtime.backups.pulled.side_effect = shown.saw
+    client.runs.backup.side_effect = Refused(
+        "There is no backup target: add one in Settings.", code=409
+    )
 
-    main(["backup", EPIC.name])
-    main(["backup", "--list", "--to", "lab"])
-    main(["backup", "--pull", "e1", "--to", "home"])
+    assert main(["backup", "run", EPIC]) == 1
 
-    assert shown.seen == [
-        "backing up to lab, home",
-        "asking lab what it holds",
-        "asking home what it holds",
-        "downloading a/-w/e1 from home",
+    assert capsys.readouterr().err == (
+        "hmz backup run: There is no backup target: add one in Settings.\n"
+    )
+
+
+def test_the_targets_are_listed_where_none_is_named(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client.backups.targets.return_value = [
+        SimpleNamespace(
+            name="lab",
+            url="https://***@host/e.git",
+            branch="main",
+            policies=("session", "end"),
+            every=30,
+            default=False,
+        ),
+        SimpleNamespace(
+            name="home",
+            url="/srv/e",
+            branch="epics",
+            policies=(),
+            every=5,
+            default=True,
+        ),
     ]
-    assert shown.says == ""
+
+    assert main(["backup", "list"]) == 0
+    assert capsys.readouterr().out == (
+        "lab   https://***@host/e.git  main   session,end\n"
+        "home  /srv/e                  epics               default\n"
+    )
+
+    assert main(["backup", "list", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "targets": [
+            {
+                "name": "lab",
+                "url": "https://***@host/e.git",
+                "branch": "main",
+                "policies": ["session", "end"],
+                "every": 30,
+            },
+            {
+                "name": "home",
+                "url": "/srv/e",
+                "branch": "epics",
+                "policies": [],
+                "every": 5,
+            },
+        ],
+        "defaults": ["home"],
+    }
+    client.backups.epics.assert_not_called()
+
+
+def test_no_target_at_all_is_said_beside_an_empty_listing(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client.backups.targets.return_value = []
+
+    assert main(["backup", "list"]) == 0
+    said = capsys.readouterr()
+    assert (said.out, said.err) == ("", "No backup target.\n")
+
+    assert main(["backup", "list", "--json"]) == 0
+    said = capsys.readouterr()
+    assert (json.loads(said.out), said.err) == ({"targets": [], "defaults": []}, "")
+
+
+def test_what_a_target_holds_is_listed_a_line_each(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    held = [
+        Held(
+            "laptop/project/e2", "e2", task="fix   the\nparser " + "x" * 80, here=True
+        ),
+        Held("ci/project/e1", "e1", how=""),
+        Held("laptop/project/c1", "c1", task="hello", flow="", chat=True),
+    ]
+    client.backups.epics.return_value = held
+
+    assert main(["backup", "list", "--target", "lab"]) == 0
+    assert capsys.readouterr().out == (
+        f"laptop/project/e2  done        ralph  here  fix the parser {'x' * 44}…\n"
+        "ci/project/e1      unfinished  ralph        fix the parser\n"
+        "laptop/project/c1  done        chat         hello\n"
+    )
+    client.backups.epics.assert_called_once_with("lab")
+
+    assert main(["backup", "list", "--target", "lab", "--json"]) == 0
+    said = json.loads(capsys.readouterr().out)
+    assert [one["key"] for one in said["epics"]] == [one.key for one in held]
+    assert said["epics"][2] == {
+        "key": "laptop/project/c1",
+        "epic": "c1",
+        "task": "hello",
+        "how": "done",
+        "flow": "",
+        "chat": True,
+        "here": False,
+    }
+
+
+def test_one_is_pulled_by_its_key(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client.backups.pull.return_value = "e1"
+
+    assert main(["backup", "pull", "ci/project/e1", "--target", "lab"]) == 0
+    assert capsys.readouterr().out == "e1\n"
+    client.backups.pull.assert_called_once_with("lab", "ci/project/e1")
+    client.backups.epics.assert_not_called()
+
+    assert main(["backup", "pull", "ci/project/e1", "--target", "lab", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"name": "e1"}
+
+
+def test_one_is_pulled_by_its_name_where_the_target_holds_one_of_it(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client.backups.epics.return_value = [
+        Held("laptop/project/e2", "e2"),
+        Held("ci/project/e1", "e1"),
+        Held("laptop/project/e1", "e1"),
+    ]
+    client.backups.pull.return_value = "e2"
+
+    assert main(["backup", "pull", "e2", "--target", "lab"]) == 0
+    client.backups.pull.assert_called_once_with("lab", "laptop/project/e2")
+    capsys.readouterr()
+
+    assert main(["backup", "pull", "e1", "--target", "lab"]) == 1
+    assert capsys.readouterr().err == (
+        "hmz backup pull: lab holds e1 from more than one machine, name one of: "
+        "ci/project/e1, laptop/project/e1.\n"
+    )
+    assert main(["backup", "pull", "e9", "--target", "lab"]) == 1
+    assert capsys.readouterr().err == "hmz backup pull: lab holds no epic or chat e9.\n"
+    client.backups.pull.assert_called_once()
+
+
+def test_a_pull_names_the_target_it_is_from(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exit_:
+        main(["backup", "pull", "e1"])
+
+    assert exit_.value.code == 2
+    assert "--target" in capsys.readouterr().err
+    client.backups.pull.assert_not_called()
+
+
+def test_the_old_spellings_are_lines_that_cannot_be_read(
+    client: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for line in (["backup", EPIC], ["backup", "--list"], ["backup", "--pull", EPIC]):
+        with pytest.raises(SystemExit) as exit_:
+            main(line)
+        assert exit_.value.code == 2
+        assert "hmz backup --help" in capsys.readouterr().err
+    assert client.mock_calls == []

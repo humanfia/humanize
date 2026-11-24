@@ -53,7 +53,16 @@ The page closes and the transcript prints `rewound workspace to refs/hmz/snapsho
 
 ## From the command line
 
-No `hmz` command lists or rewinds snapshots. Because each snapshot is a git ref in the repository, use git directly:
+While a chat or an epic is going in the folder, `hmz env git` lists its snapshots and rewinds to one:
+
+```sh
+hmz env git snapshots
+hmz env git rewind refs/hmz/snapshots/round-1
+```
+
+`rewind` asks before it acts, because a rewind cannot be undone; `--yes` skips the question. It is refused while an agent has an open turn in the environment. Use `--env` to pick an environment other than the first.
+
+Because each snapshot is a git ref in the repository, git reads them at any time:
 
 ```sh
 git for-each-ref refs/hmz/snapshots

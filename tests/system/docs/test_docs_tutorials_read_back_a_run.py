@@ -332,4 +332,8 @@ def test_a_git_repository_is_added_and_the_epic_backed_up_to_it(world: World) ->
     ).returncode:
         assert time.monotonic() < deadline, "the epic was never pushed"
         time.sleep(0.2)
-    shots.cli(["hmz", "backup", "--list"], f"{_PAGE}-backup-list", columns=116)
+    shots.cli(
+        ["hmz", "backup", "list", "--target", _TARGET],
+        f"{_PAGE}-backup-list",
+        columns=116,
+    )

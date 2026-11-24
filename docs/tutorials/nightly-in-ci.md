@@ -190,12 +190,12 @@ The workflow configures a backup target named `nightly` in `settings.toml` with 
 To inspect the backups on your machine, add the `nightly` target to your local `~/.config/humanize/settings.toml` with a `url` your git client can access, then list the contents:
 
 ```sh
-hmz backup --list
+hmz backup list --target nightly
 ```
 
-![hmz backup --list prints the target nightly and its one epic: the machine, the directory, the epic's name, that it stopped, and its task](/shots/tutorials-nightly-in-ci-backup.svg)
+![hmz backup list --target nightly prints one line for the epic the target holds: its key of machine, directory and name, that it stopped, its flow, and its task](/shots/tutorials-nightly-in-ci-backup.svg)
 
-Run `hmz backup --pull` with the epic's name to download it. See [Back up to git](/user/backups).
+Run `hmz backup pull <epic> --target nightly` with the epic's name to download it. See [Back up to git](/user/backups).
 
 ## 9. Run the workflow
 

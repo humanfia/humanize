@@ -177,6 +177,34 @@ Each pane lists its keys at its foot.
 
 **Terminal** shows the environment's terminals as tabs and draws the selected one live in the pane. It opens a shell if none is running and gives it the keys. While you type in it, every key goes to the shell, <kbd>esc</kbd> included. Type `~.` at the start of a line to return to the tabs and leave the shell running. On the tabs, <kbd>enter</kbd> types in the terminal again, <kbd>←</kbd> and <kbd>→</kbd> switch terminals, <kbd>n</kbd> opens another, and <kbd>x</kbd> closes one after asking. <kbd>ctrl+c</kbd> stays with `hmz`, so use the Shell page of `/env` for a program you need to interrupt.
 
+## From the command line
+
+`hmz env` does the same from a shell or a script, in the environments of a chat or an epic that is going. Run it in the project folder, or name the host with `-w DIR`, `--slot SLOT` or `--chat ID`.
+
+| To | Run |
+| --- | --- |
+| List the environments | `hmz env list` |
+| Browse and read files | `hmz env ls src`, `hmz env cat src/app.py` |
+| Find a file or search for text | `hmz env find app`, `hmz env search TODO --glob '*.py'` |
+| Write a file | `hmz env write notes.txt --from notes.txt` |
+| Create, rename or delete | `hmz env mkdir docs`, `hmz env mv a.txt b.txt`, `hmz env rm build` |
+| Review changes | `hmz env git status`, `hmz env git diff` |
+| Stage and commit | `hmz env git stage src/app.py`, `hmz env git commit -m 'fix: empty input'` |
+| Discard changes | `hmz env git discard src/app.py` |
+| Run one command | `hmz env exec -- make test` |
+| Open a shell | `hmz env term open` |
+
+To avoid overwriting a change made since you read a file, pass the file's etag back when you write it:
+
+```sh
+ETAG=$(hmz env cat README.md --json | jq -r .etag)
+hmz env write README.md --from README.md --if-match "$ETAG"
+```
+
+`hmz env rm` and `hmz env git discard` ask before they act; `--yes` skips the question. In `hmz env term open`, type `~.` at the start of a line to detach and leave the shell running, then `hmz env term list` and `hmz env term open --term ID` to come back to it.
+
+Add `--json` to any command for one JSON document, and `--help` for everything it takes and prints. See [`hmz env`](/reference/cli#hmz-env).
+
 ## Good to know
 
 - Every action in an environment runs as the daemon's user on the environment's machine.

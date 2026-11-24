@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from unittest import mock
 
@@ -59,6 +60,7 @@ def test_the_commands_are_found_by_walking_the_package() -> None:
 
     assert "devices" in found
     assert [one.name for one in found["devices"].commands] == ["list", "revoke", "pair"]
+    assert found["help"].local
 
 
 @pytest.mark.usefixtures("greeting")
@@ -171,7 +173,8 @@ def test_help_says_everything_a_command_declares(
         "  -t, --to WHO   Search [may be given more than once]\n"
         "  --kind {a,b}   Open [default: a]\n"
         "  --json         print one JSON document instead of text\n"
-        "  --daemon NAME  ask the daemon named in the daemon list, or this machine's daemon\n"
+        "  --daemon NAME  ask the daemon named in the daemon list, or this machine's\n"
+        "                 daemon\n"
         "  --no-color     print without terminal colours\n"
         "  -h, --help     show this help and exit\n"
         "\n"
@@ -197,6 +200,196 @@ def test_help_says_everything_a_command_declares(
         "See also:\n"
         "  hmz greet say --help\n"
     )
+
+
+def test_help_is_wrapped_to_the_width_it_is_written_to() -> None:
+    say = GREET.commands[0]
+
+    wide = tree.helps(["greet", "say"], say, width=100, colour=False)
+    assert (
+        "  --daemon NAME  ask the daemon named in the daemon list, or this machine's "
+        "daemon\n"
+    ) in wide
+
+    narrow = tree.helps(["greet", "say"], say, width=44, colour=False)
+    assert max(len(line) for line in narrow.splitlines()) <= 44
+    assert (
+        "  --daemon NAME\n"
+        "              ask the daemon named in the\n"
+        "              daemon list, or this machine's\n"
+        "              daemon\n"
+    ) in narrow
+    # A line to type is one line however narrow the page.
+    assert "  hmz greet say you\n" in narrow
+
+
+def test_headings_are_marked_only_where_colour_is_asked_for() -> None:
+    say = GREET.commands[0]
+
+    coloured = tree.helps(["greet", "say"], say, width=80, colour=True)
+    assert "\x1b[1mOptions\x1b[0m:\n" in coloured
+    plain = tree.helps(["greet", "say"], say, width=80, colour=False)
+    assert "\x1b[" not in plain
+    assert coloured.replace("\x1b[1m", "").replace("\x1b[0m", "") == plain
+
+
+def test_a_page_is_eighty_columns_where_no_terminal_reads_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COLUMNS", "132")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+
+    page = tree.Page()
+
+    assert (page.width, page.colour) == (80, False)
+    assert tree.Page(width=10).width == 40
+
+
+def test_two_columns_wrap_the_right_under_itself_and_a_long_name_stands_alone() -> None:
+    page = tree.Page(width=40, colour=False)
+
+    assert page.listed(
+        [
+            ("a", "one two three four five six seven eight nine ten"),
+            ("a-name-too-long-to-sit-beside", "what it is"),
+            ("bb", ""),
+        ]
+    ) == [
+        "  a   one two three four five six seven",
+        "      eight nine ten",
+        "  a-name-too-long-to-sit-beside",
+        "      what it is",
+        "  bb",
+    ]
+    assert page.listed([("a-name-too-long-to-sit-beside", ""), ("b", "what")]) == [
+        "  a-name-too-long-to-sit-beside",
+        "  b  what",
+    ]
+    assert page.listed([]) == []
+
+
+def test_a_page_is_its_lines_under_their_headings() -> None:
+    page = tree.Page(width=40, colour=False)
+    page.line("first")
+    page.says("one two three four five six seven eight nine ten", 2)
+    page.section("Empty", [])
+    page.section("Held", ["  a"])
+
+    assert page.text() == (
+        "first\n  one two three four five six seven\n  eight nine ten\n\nHeld:\n  a\n"
+    )
+
+
+LOCAL = Command(
+    "here", "Open", args=(Arg(("--loud",), "Cancel"),), run=_greets, local=True
+)
+
+
+def test_a_command_that_asks_no_daemon_takes_no_daemon(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ran: list[Call] = []
+    monkeypatch.setattr(
+        tree, "commands", lambda: {"here": dataclasses.replace(LOCAL, run=ran.append)}
+    )
+
+    assert [arg.name for arg in tree.taken(LOCAL)] == ["loud", "json", "no_color"]
+    assert [arg.name for arg in tree.taken(GREET.commands[0])][-3:] == [
+        "json",
+        "daemon",
+        "no_color",
+    ]
+    said = tree.helps(["here"], LOCAL)
+    assert "--daemon" not in said
+    assert said.endswith(
+        "Exit codes:\n"
+        "  0  did what was asked\n"
+        "  1  the request was refused and the reason was printed\n"
+        "  2  the command line could not be read\n"
+    )
+    described = tree.described(["here"], LOCAL)
+    assert list(described["exit_status"]) == ["0", "1", "2"]
+    assert "the request was refused and the reason was printed" in LOCAL.texts()
+    assert [one["name"] for one in described["arguments"]] == [
+        "--loud",
+        "--json",
+        "--no-color",
+    ]
+
+    assert tree.runs(["here", "--json"]) == 0
+    assert (ran[0].json, ran[0].daemon) == (True, "")
+    capsys.readouterr()
+
+    # A file of this machine's that would not be read: refused here, nobody unreached.
+    def fails(_: Call) -> None:
+        raise OSError("no such file")
+
+    monkeypatch.setattr(
+        tree, "commands", lambda: {"here": dataclasses.replace(LOCAL, run=fails)}
+    )
+    assert tree.runs(["here"]) == tree.REFUSED
+    assert capsys.readouterr().err == "hmz here: no such file\n"
+    with pytest.raises(SystemExit) as raised:
+        tree.runs(["here", "--daemon", "far"])
+    assert raised.value.code == tree.UNREAD
+    assert "--daemon" in capsys.readouterr().err
+
+
+@pytest.mark.usefixtures("greeting")
+def test_a_line_names_a_command_and_leaves_the_rest() -> None:
+    say = GREET.commands[0]
+
+    assert tree.named(["greet"]) == (("greet",), GREET, [])
+    assert tree.named(["greet", "say", "you", "--loud"]) == (
+        ("greet", "say"),
+        say,
+        ["you", "--loud"],
+    )
+    assert tree.named(["greet", "shout", "you"]) == (
+        ("greet",),
+        GREET,
+        ["shout", "you"],
+    )
+    assert tree.named(["greet", "--help", "say"]) == (
+        ("greet",),
+        GREET,
+        ["--help", "say"],
+    )
+    with pytest.raises(KeyError):
+        tree.named(["nope"])
+
+
+def test_a_commands_parser_reads_its_line() -> None:
+    say = GREET.commands[0]
+
+    given = tree.parser(["greet", "say"], say).parse_args(["you", "-t", "a", "--json"])
+
+    assert (given.name, given.to, given.json, given.kind) == ("you", ["a"], True, "a")
+    with pytest.raises(SystemExit) as raised:
+        tree.parser(["greet", "say"], say).parse_args([])
+    assert raised.value.code == tree.UNREAD
+
+
+@pytest.mark.usefixtures("greeting")
+def test_no_color_is_help_without_escapes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+
+    assert tree.runs(["greet"]) == 0
+    assert "\x1b[1mCommands\x1b[0m:" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        tree.runs(["greet", "say", "--help"])
+    assert "\x1b[1mOptions\x1b[0m:" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        tree.runs(["greet", "say", "--no-color", "--help"])
+    assert "\x1b[" not in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        tree.runs(["greet", "--no-color", "--help"])
+    assert "\x1b[" not in capsys.readouterr().out
 
 
 def test_a_command_is_described_as_one_object() -> None:
@@ -240,11 +433,50 @@ def test_this_machines_daemon_is_asked_as_the_command_line(
     monkeypatch.setattr(hmz.sdk.Client, "local", local)
 
     assert tree.reach("") is local.return_value
-    local.assert_called_once_with(kind="cli")
+    assert tree.reach("local") is local.return_value
+    assert local.mock_calls == [mock.call(kind="cli"), mock.call(kind="cli")]
+
+
+def test_another_machines_daemon_is_asked_by_the_name_it_is_kept_under(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    named = mock.Mock()
+    monkeypatch.setattr(hmz.sdk.Client, "named", named)
+
+    assert tree.reach("gpu") is named.return_value
+    named.assert_called_once_with("gpu")
+
+
+def test_a_name_no_daemon_is_kept_under_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        hmz.sdk.Client, "named", mock.Mock(side_effect=LookupError("none"))
+    )
+
     with pytest.raises(
         hmz.sdk.Refused, match=r"No daemon is kept under the name far\."
-    ):
+    ) as refused:
         tree.reach("far")
+    assert refused.value.code == 404
+
+    assert main(["devices", "list", "--daemon", "far"]) == tree.REFUSED
+    assert capsys.readouterr().err == (
+        "hmz devices list: No daemon is kept under the name far.\n"
+    )
+
+
+def test_a_daemon_kept_that_cannot_be_reached_ends_as_one_that_cannot(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        hmz.sdk.Client, "named", mock.Mock(side_effect=ConnectionError("no route"))
+    )
+
+    assert main(["devices", "list", "--daemon", "gpu", "--json"]) == tree.UNREACHED
+    assert json.loads(capsys.readouterr().out) == {
+        "error": {"code": 503, "message": "the daemon cannot be reached: no route"}
+    }
 
 
 def test_a_session_is_opened_when_first_wanted_and_closed_after(

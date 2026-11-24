@@ -114,9 +114,29 @@ You can resume an imported epic only if the workspace exists at the same path on
 
 Click **Copy link** in an epic's bar or menu to copy its page address. The link contains no run data and works only for users who can reach the same daemon. A link copied in Humanize Desktop is the app's own address and does not open in a browser; copy it from the browser page to send it. Export the epic to share it with someone who cannot reach your daemon.
 
+## From the command line
+
+Run `hmz runs export NAME` to write `<name>.hmzepic` in the current directory, and `hmz runs import FILE` to import one. `NAME` is the epic's name, as `hmz runs list` prints it.
+
+```console
+$ hmz runs export 20261012T091500.123Z-1a2b3c -o ~/epics/
+$ hmz runs import ~/epics/20261012T091500.123Z-1a2b3c.hmzepic
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz runs export NAME` | Has the daemon pack the epic and writes the archive on this machine. Prints its path. |
+| `-o FILE` | The file to write, or a directory to write it into. An existing file is replaced. |
+| `hmz runs import FILE` | Sends the file to the daemon and imports it. Prints `Imported <name>`, and why it cannot be resumed here if it cannot. |
+| `--there` | `FILE` is an absolute path on the daemon's machine; the daemon reads it there. |
+
+Importing an epic that is already there exits 1. See [The hmz command](/reference/cli#hmz-runs).
+
 ## From Python
 
-Call `Hmz().epics.bundled(epic, output=...)` to write an archive and return its path and manifest. Call `Hmz().epics.imported(archive)` to import an archive and return the epic's location. See [The Python SDK](/builder/sdk).
+Call `Client.local().runs.export(name, to)` to have the daemon pack an epic and write the archive, and `Client.local().runs.import_(path)` to import one. See [Client families](/reference/sdk#client-runs).
+
+Without a daemon, call `Hmz().epics.bundled(epic, output=...)` to write an archive and return its path and manifest, and `Hmz().epics.imported(archive)` to import an archive and return the epic's location. See [The Python SDK](/builder/sdk).
 
 ## Good to know
 

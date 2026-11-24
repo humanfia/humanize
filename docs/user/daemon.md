@@ -48,9 +48,9 @@ Type `/settings daemons` to see the daemon list. This machine's daemon is the `L
 
 Use `hmz daemon` to manage the daemon process directly.
 
-![The output of hmz daemon --help: serve, connect, pair, devices, install, uninstall](/shots/user-daemon-help.svg)
+![The output of hmz daemon --help: serve, connect, install, uninstall](/shots/user-daemon-help.svg)
 
-This page covers `serve`, `install`, and `uninstall`. For `pair` and `devices`, see [Connect to other machines](/user/daemons). You do not run `connect` yourself: Humanize Desktop and SSH routes run `hmz daemon connect --stdio` to reach the daemon.
+This page covers `serve`, `install`, and `uninstall`. To pair devices with `hmz devices`, and to reach other machines' daemons with `hmz daemons` and `--daemon`, see [Connect to other machines](/user/daemons). You do not run `connect` yourself: Humanize Desktop and SSH routes run `hmz daemon connect --stdio` to reach the daemon.
 
 ### Run it in the foreground
 

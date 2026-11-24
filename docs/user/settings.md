@@ -124,6 +124,20 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 | `Archived chats` | Opens the chats archived here; pick one to restore it |
 | `Forget` | Set to `on` and save to clear what this directory remembers for every flow |
 
+## From the command line
+
+`hmz settings` reads and writes the same settings through the daemon, for scripts and agents.
+
+```sh
+hmz settings get                      # every setting, one per line
+hmz settings get details              # one value
+hmz settings set details on           # prints Saved.
+hmz settings set chat claude/claude-opus-4-1 -w ~/project
+hmz settings forget -w ~/project      # Forgotten. or Nothing to forget.
+```
+
+Add `--json` for one JSON object. `hmz settings set --help` lists every setting it writes, including listeners, STUN and TURN servers and [backup targets](/user/backups). See the [CLI reference](/reference/cli#hmz-settings).
+
 ## Where settings are kept
 
 - **App pages** are stored in the browser or the desktop app window. Each browser and device keeps its own values, and clearing site data resets them.

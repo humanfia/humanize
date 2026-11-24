@@ -276,7 +276,7 @@ def _another(tmp_path: Path) -> Generator[pairing.Code]:
         ending = time.monotonic() + PATIENCE
         while True:
             paired = subprocess.run(
-                [sys.executable, "-m", "hmz", "daemon", "pair"],
+                [sys.executable, "-m", "hmz", "devices", "pair"],
                 env=there,
                 capture_output=True,
                 text=True,

@@ -1,7 +1,7 @@
 """The pictures of `docs/user/security.md`: what holds an agent, and who reaches the daemon.
 
 A chat's permission picked from its chip in the app; another machine, `laptop`, paired with
-this one's daemon by a code, as the page's Settings lists it and as `hmz daemon devices`
+this one's daemon by a code, as the page's Settings lists it and as `hmz devices list`
 lists and revokes it; and the switch for error reports, in the page and in the terminal.
 
 Run it by naming it: `uv run pytest tests/system/docs/test_docs_user_security.py`.
@@ -114,10 +114,8 @@ def test_a_paired_device_is_listed_in_settings(world: World) -> None:
 def test_devices_are_listed_and_revoked_from_the_command_line(world: World) -> None:
     _paired(world)
     reel = shots.Reel(f"{_PAGE}-revoke")
-    reel.cli(["hmz", "daemon", "devices"], columns=100, rows=6, hold=3.0)
-    reel.cli(
-        ["hmz", "daemon", "devices", "revoke", _LAPTOP], columns=100, rows=6, hold=3.5
-    )
+    reel.cli(["hmz", "devices", "list"], columns=100, rows=6, hold=3.0)
+    reel.cli(["hmz", "devices", "revoke", _LAPTOP], columns=100, rows=6, hold=3.5)
     reel.save()
 
 

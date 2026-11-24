@@ -142,34 +142,39 @@ To restore an archived chat, type `/settings workspace`, open **Archived chats**
 
 ## From the command line
 
-Run `hmz chat` to manage chats in the current directory by ID without starting a turn.
+Run `hmz chat` to manage chats by ID without starting a turn.
 
 ```sh
-hmz chat --list
+hmz chat list
 ```
 
-![hmz chat --list prints three chats, one per line: ID, state, title](/shots/user-manage-chats-cli-list.svg)
+![hmz chat list prints three chats, one per line: ID, state, title](/shots/user-manage-chats-cli-list.svg)
 
-Each line prints the chat's ID, state, and title. The state is `turn` while the agent answers, `asking` while it waits for you, `failed`, or `ready`.
+Each line prints the chat's ID, state, and title. The state is `turn` while the agent answers, `asking` while it waits for you, `going` while the chat is open between turns, `failed`, or `resting`.
 
 ```sh
-hmz chat --rename 20261121T041901.042Z-f214a8 "Discount codes"
+hmz chat rename 20261121T041901.042Z-f214a8 "Discount codes"
 ```
 
-![hmz chat --rename with an ID and a title prints the chat's line with the new title](/shots/user-manage-chats-cli-rename.svg)
+![hmz chat rename with an ID and a title prints the chat's line with the new title](/shots/user-manage-chats-cli-rename.svg)
 
-| Option | What it does | Prints |
+| Command | What it does | Prints |
 | --- | --- | --- |
-| `--list` | Lists the chats, newest first. | One line per chat. |
-| `--list --archived` | Lists only the archived chats. | One line per chat. |
-| `--rename CHAT TITLE` | Sets a new title for the chat. | The chat's line. |
-| `--fork CHAT` | Creates a new chat that continues from this one. | The new chat's ID. |
-| `--archive CHAT` | Removes the chat from the lists. | The chat's line. |
-| `--unarchive CHAT` | Restores an archived chat. | The chat's line. |
-| `--delete CHAT` | Permanently deletes the chat after asking `[y/N]`. | Nothing. |
-| `--delete CHAT --yes` | Deletes the chat without asking. | Nothing. |
+| `list` | Lists the chats of the current directory, newest first. | One line per chat. |
+| `list --archived` | Lists only the archived chats. | One line per chat. |
+| `list --all`, `list -q TEXT` | Lists the chats of every folder, or those matching a text. | One line per chat. |
+| `show CHAT` | Shows one chat. Add `--trace` to read what was said in it. | One line per field. |
+| `rename CHAT TITLE` | Sets a new title for the chat. | The chat's line. |
+| `fork CHAT` | Creates a new chat that continues from this one. | The new chat's ID. |
+| `archive CHAT` | Removes the chat from the lists. | The chat's line. |
+| `unarchive CHAT` | Restores an archived chat. | The chat's line. |
+| `backup CHAT` | Backs the chat up to its backup targets, or to each `--to TARGET`. | The targets. |
+| `delete CHAT` | Permanently deletes the chat after asking `[y/N]`. | Nothing. |
+| `delete CHAT --yes` | Deletes the chat without asking. | Nothing. |
+| `harness list` | Lists the sessions a harness ran on its own in this directory. | One line per session. |
+| `harness adopt HARNESS SESSION` | Continues a harness session in a new chat. | The new chat's ID. |
 
-Pass one action option at a time. Without `--yes`, `--delete` prompts only in an interactive terminal; in a script, it deletes nothing and exits with status 1. To continue a chat by ID, run `hmz chat --resume` (see [Chat with an agent](/user/chat)).
+Add `--json` to any command to print one JSON document instead. Without `--yes`, `delete` prompts only in an interactive terminal; in a script, it deletes nothing and exits with status 1. To continue a chat by ID, run `hmz chat say` (see [Chat with an agent](/user/chat)).
 
 ## Good to know
 

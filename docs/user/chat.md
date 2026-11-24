@@ -116,28 +116,34 @@ The line above the prompt names the agent. The status line shows `running…` du
 
 ## From the command line
 
-Run `hmz chat` to execute one turn and exit. It writes progress to standard error and the answer to standard output for scripts to capture.
+Run `hmz chat start` to start a chat, execute one turn and exit. It writes progress to standard error and the answer to standard output for scripts to capture.
 
 ```sh
-hmz chat -a claude/claude-haiku-4-5 "What does charge() do?"
+hmz chat start -a claude/claude-haiku-4-5 "What does charge() do?"
 ```
 
 ![hmz chat run in a terminal: it prints the chat's id, the agent works, and the answer and token counts follow](/shots/user-chat-cli.svg)
 
-The first line printed (`hmz chat: chat <id>`) gives the chat's id. Pass it to `--resume` to send the next message:
+The first line printed (`Chat <id>`) gives the chat's id. Pass it to `hmz chat say` to send the next message:
 
 ```sh
-hmz chat --resume 20261121T034814.744Z-299560 "And how is it tested?"
+hmz chat say 20261121T034814.744Z-299560 "And how is it tested?"
 ```
 
-| Option | What it does |
+| Command or option | What it does |
 | --- | --- |
-| `-a SPEC` | Set the agent as `CLI[@PROVIDER]/MODEL[:EFFORT]`. A new chat defaults to the folder's last agent. A resumed chat keeps its own agent; pass `-a` with `--resume` to carry it on with another. |
-| `--resume CHAT` | Continue the chat with this id. |
-| `--worktree` | Start the chat in a new git worktree of the folder. Cannot be used with `--resume`. |
-| `-e ENV` | Set the working environment as `BACKEND[@RUNTIME][/DIRECTORY]`. With `--resume`, moves the chat there. |
+| `hmz chat start MESSAGE` | Start a chat in the current folder. |
+| `-a AGENT` | Set the agent as `CLI[@PROVIDER]/MODEL[:EFFORT]`. Defaults to the folder's remembered agent. Add `--remember` to remember this one. |
+| `--worktree` | Start the chat in a new git worktree of the folder. |
+| `-e ENV` | Set the working environment as `BACKEND[@RUNTIME][/DIRECTORY]`. |
+| `--no-folder` | Start the chat in no folder. |
+| `hmz chat say CHAT MESSAGE` | Send the next message to the chat with this id. |
+| `hmz chat stop CHAT` | Stop the turn the chat is taking. |
+| `hmz chat agent CHAT AGENT` | Carry the chat on with another model or effort. |
+| `hmz chat move CHAT ENV` | Move the chat to another environment. |
+| `--json`, `--events`, `--detach` | On `start` and `say`: print JSON, print the turn's records as JSON lines, or return without waiting. |
 
-Put the message after `--` if it starts with a dash. For options that list and manage chats, see [Organise chats](/user/manage-chats) and the [CLI reference](/reference/cli).
+Put the message after `--` if it starts with a dash. Run `hmz chat --help` to list every command. To list and manage chats, see [Organise chats](/user/manage-chats) and the [CLI reference](/reference/cli).
 
 ## Good to know
 
@@ -145,6 +151,6 @@ Put the message after `--` if it starts with a dash. For options that list and m
 - A chat is never an epic. It has no graph, trace or force stop.
 - If the first turn fails, the chat ends as failed. If a later turn fails, the chat reports the error and continues.
 - If a conversation cannot be resumed, the chat reports why and answers in a new conversation within the same chat.
-- In the CLI, `hmz chat` exits with `0` when the turn finishes, `1` when it fails, and `2` when refused before starting.
-- If you omit `-a` in a folder with no remembered agent, it is refused with `no chat agent is remembered here; give one with -a`.
-- Pressing <kbd>ctrl+c</kbd> during `hmz chat` does not stop the turn; the command exits with `130`, the chat continues in the daemon, and you can open it in the app or pass `--resume` to continue.
+- In the CLI, `hmz chat start` and `hmz chat say` exit with `0` when the turn finishes and `1` when it fails or the daemon refuses the request.
+- If you omit `-a` in a folder with no remembered agent, it is refused with ``No agent is remembered for this folder; name one with `-a`.``
+- Pressing <kbd>ctrl+c</kbd> during `hmz chat start` or `hmz chat say` does not stop the turn; the command exits with `130`, the chat continues in the daemon, and you can open it in the app or run `hmz chat say` to continue.

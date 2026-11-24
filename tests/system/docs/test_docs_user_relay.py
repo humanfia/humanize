@@ -162,7 +162,7 @@ class _Devbox:
     def code(self) -> str:
         """A pairing code it makes, carrying the routes of its listeners."""
         return subprocess.run(
-            [sys.executable, "-m", "hmz", "daemon", "pair"],
+            [sys.executable, "-m", "hmz", "devices", "pair"],
             env=self.env,
             capture_output=True,
             text=True,

@@ -142,14 +142,52 @@ Run `hmz exec -f` to execute an installed flow by name. `hmz exec` never install
 
 ![hmz exec refuses rlar because it is not installed](/shots/user-flows-exec-refused.svg)
 
-Install flows using the app, the terminal, or [The Python SDK](/builder/sdk). For all `hmz exec` flags, see [The command line](/user/command-line).
+Install flows using the app, the terminal, `hmz flowverses install`, or [The Python SDK](/builder/sdk). For all `hmz exec` flags, see [The command line](/user/command-line).
+
+### Manage flows and flowverses
+
+`hmz flows` and `hmz flowverses` do what the **Flows** page does.
+
+```bash
+hmz flowverses list                          # flowverses, installed flows, newer releases
+hmz flowverses add acme/flows --name team    # add a flowverse
+hmz flowverses show team                     # its flows and every release
+hmz flowverses install @team/review          # install, or update to the newest release
+hmz flowverses install @team/review --version 1.2.0   # switch release
+hmz flowverses uninstall @team/review        # asks first; -y skips the question
+hmz flowverses fetch team                    # check for new releases
+hmz flowverses remove team                   # asks first; -y skips the question
+```
+
+To start a flow, read what it needs, then check the line before you run it:
+
+```bash
+hmz flows list                # the flows on offer in this folder
+hmz flows show ralph_loop     # roles, params, and an hmz exec line to fill in
+hmz flows backends            # every harness, account and model, written as -a takes it
+hmz flows check ralph_loop -a coder=claude/claude-opus-5:high -p budget.cost=5
+```
+
+`hmz flows setup` takes the same options as `check` and saves them for the folder, so a new epic of that flow opens with them filled in. `hmz flows fork ralph_loop` copies a flow into `.hmz/flows/` of the folder so you can edit it.
+
+Every command takes `--json` and prints its full help with `-h`. See [Command-line reference](/reference/cli#hmz-flows).
+
+### Manage folders
+
+```bash
+hmz workspaces list              # every folder Humanize knows, the current one first
+hmz workspaces add ~/code/app    # add a folder before anything runs in it
+hmz workspaces forget ~/code/old # forget a folder's settings and flow set-ups
+hmz workspaces browse ~/code     # list folders on the daemon's machine
+hmz workspaces complete '~/co'   # complete a partly typed path
+```
 
 ## Good to know
 
 - Flows are Python code, and Humanize loads the code of every installed flow to list it. Only install flows from repositories you trust.
 - Fetching updates the list of available releases without changing your installed flows, and overwrites any local changes in the index cache.
 - You cannot uninstall a flow while another installed flow depends on it. Uninstall the dependent flow first.
-- In the app, installing, switching, uninstalling and removing a flowverse are refused while an epic is running on the machine: `An epic is running: flows change once none is.`
+- In the app and from `hmz flowverses`, installing, switching, uninstalling and removing a flowverse are refused while an epic is running on the machine: `An epic is running: flows change once none is.`
 - A flowverse name starts with a letter or digit, uses letters, digits, `.`, `-` and `_`, and cannot be `official`, `local` or `user`.
 - While a flow is running in the terminal, `/flow` only opens that flow's roles, and `$` returns `hmz: cannot choose a flow while one is running`.
 - Opening the terminal fetches all flowverses in the background without installing updates, skipping any index you have edited by hand. When updates are available, the status line shows `1 flow update`.

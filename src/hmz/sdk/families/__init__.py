@@ -69,6 +69,17 @@ class Family:
         """What one subscription is told from here on, and what it was told before this."""
         return Subscription(self._client, method, sub)
 
+    def _listens(self) -> None:
+        """Keeps what the client is told from here on, for a subscription about to be opened.
+
+        Called before the call that opens one: a client hears nothing until it has a
+        listener, and a daemon may speak before that call has returned.
+
+        Raises:
+          RuntimeError: If the client was given a listener of its own.
+        """
+        _hub(self._client)
+
 
 class _Hub:
     """Every notification one client hears, handed to whichever subscription it is for.

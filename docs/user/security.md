@@ -75,12 +75,12 @@ Revoking a device closes its sessions immediately, and it cannot reconnect witho
 ### From the command line
 
 ```sh
-hmz daemon pair
-hmz daemon devices
-hmz daemon devices revoke laptop
+hmz devices pair
+hmz devices list
+hmz devices revoke laptop
 ```
 
-![hmz daemon devices lists one device with its fingerprint, then hmz daemon devices revoke laptop revokes it](/shots/user-security-revoke.svg)
+![hmz devices list lists one device with its fingerprint, then hmz devices revoke laptop revokes it](/shots/user-security-revoke.svg)
 
 ## Error reports
 

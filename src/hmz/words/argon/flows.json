@@ -1,0 +1,1100 @@
+{
+ "entries": [
+  {
+   "wants": "the -w/--workspace PATH option: the workspace, a folder on the daemon's machine; the current directory when not given",
+   "where": "option description, lower case start, no full stop",
+   "text": "the workspace, a folder on the daemon's machine; the current directory when not given"
+  },
+  {
+   "wants": "the -y/--yes switch of a command that removes something: do it without asking first; needed when nobody is at a terminal to answer, and with --json; keep `--json` in backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "remove without asking first; needed when nobody is at a terminal to answer, and with `--json`"
+  },
+  {
+   "wants": "refusal of a command that asks before removing: nobody is at a terminal to ask, so run it again with `-y`; keep `-y` in backticks",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Nobody is at a terminal to ask; run it again with `-y`."
+  },
+  {
+   "wants": "said when the person answered no to the question asked before removing: nothing was changed",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Nothing was changed."
+  },
+  {
+   "wants": "label of a role or param of a flow that must be given (the opposite of the page's label `optional`): required",
+   "where": "one lower-case word in a table cell",
+   "text": "required"
+  },
+  {
+   "wants": "summary of `hmz flows`: list the flows on offer, show what one declares, check and set up an epic of one",
+   "where": "command summary in a --help listing",
+   "text": "list flows, show what one declares, check and set up an epic"
+  },
+  {
+   "wants": "paragraph for `hmz flows`: a flow is what an epic runs; these commands list the flows on offer in a workspace, show what one declares, list the harnesses that can fill its roles, check an epic before it starts, save a workspace's set-up of a flow, and copy a flow into a workspace to change it; flows are installed with `hmz flowverses` (keep the backticks)",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "A flow is what an epic runs. These commands list the flows on offer in a workspace, show what one declares, list the harnesses that can fill its roles, check an epic before it starts, save a workspace's set-up of a flow, and copy a flow into a workspace to change it. Flows are installed with `hmz flowverses`."
+  },
+  {
+   "wants": "summary of `hmz flows list`: list the flows on offer in a workspace",
+   "where": "command summary in a --help listing",
+   "text": "list the flows on offer in a workspace"
+  },
+  {
+   "wants": "what `hmz flows list` prints as text: one line per flow: its name, where it came from, what it does",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per flow: its name, where it came from, and what it does."
+  },
+  {
+   "wants": "example: list the flows on offer in the current directory",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the flows on offer in the current directory"
+  },
+  {
+   "wants": "example: print the names of the flows on offer in the folder ~/code/app, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names of the flows on offer in the folder ~/code/app, with jq"
+  },
+  {
+   "wants": "JSON field flows: the flows on offer",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flows on offer"
+  },
+  {
+   "wants": "JSON field flows[].whose: where the flow came from: `local` for the workspace's own, `user` for yours, or the name of a flowverse (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where the flow came from: `local` for the workspace's own, `user` for yours, or the name of a flowverse"
+  },
+  {
+   "wants": "JSON field flows[].name: the name the flow is started by",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the flow is started by"
+  },
+  {
+   "wants": "JSON field flows[].about: what the flow does, in one line",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the flow does, in one line"
+  },
+  {
+   "wants": "JSON field flow: the flow last set up in the workspace, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flow last set up in the workspace, or empty"
+  },
+  {
+   "wants": "JSON field running: the flows running in the workspace now",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flows running in the workspace now"
+  },
+  {
+   "wants": "JSON field running[].ref: the ref of the running flow",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the ref of the running flow"
+  },
+  {
+   "wants": "JSON field running[].name: the name of the running flow",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the running flow"
+  },
+  {
+   "wants": "JSON field running[].depth: how many flows called it; 0 for the flow the epic started with",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many flows called it; 0 for the flow the epic started with"
+  },
+  {
+   "wants": "JSON field running[].since: when it began, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when it began, ISO 8601"
+  },
+  {
+   "wants": "JSON field running[].task: the task it was given",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the task it was given"
+  },
+  {
+   "wants": "summary of `hmz flows show NAME`: show what one flow declares: its roles, params and last set-up",
+   "where": "command summary in a --help listing",
+   "text": "show what one flow declares: its roles, params and last set-up"
+  },
+  {
+   "wants": "paragraph for `hmz flows show`: prints what is needed to start an epic of the flow. Each agent role takes `-a ROLE=HARNESS/MODEL`, each environment role `-e ROLE=ENV`, each param `-p KEY=VALUE`, and the budget at least one of `-p budget.cost=USD`, `-p budget.duration=TIME` and `-p budget.output_tokens=N`. `hmz flows backends` lists the harnesses and models. Keep everything in backticks exactly",
+   "where": "paragraph of --help, 4 sentences at most; may exceed 30 words",
+   "text": "Prints what is needed to start an epic of the flow. Each agent role takes `-a ROLE=HARNESS/MODEL`, each environment role `-e ROLE=ENV`, each param `-p KEY=VALUE`, and the budget at least one of `-p budget.cost=USD`, `-p budget.duration=TIME` and `-p budget.output_tokens=N`. `hmz flows backends` lists the harnesses and models."
+  },
+  {
+   "wants": "the NAME argument of `hmz flows show`: the name of the flow, as `hmz flows list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the flow, as `hmz flows list` prints it"
+  },
+  {
+   "wants": "what `hmz flows show` prints as text: the flow's name and description, its ref, whether it is resumable, each agent role with the harnesses installed that can fill it and what it may touch, each environment role, each param with its type, default and description, the options this folder last set it up with, and an `hmz exec` line to fill in (keep the backticks)",
+   "where": "sentence in the Output section of --help",
+   "text": "The flow's name and description, its ref, whether it is resumable, each agent role with the harnesses installed that can fill it and what it may touch, each environment role, each param with its type, default and description, the options this folder last set it up with, and an `hmz exec` line to fill in."
+  },
+  {
+   "wants": "example: show what the flow `ralph_loop` declares",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "show what the flow `ralph_loop` declares"
+  },
+  {
+   "wants": "example: print the names of the agent roles of `ralph_loop` that need an agent, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names of the agent roles of `ralph_loop` that need an agent, with jq"
+  },
+  {
+   "wants": "JSON field name: the name of the flow",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the flow"
+  },
+  {
+   "wants": "JSON field ref: where the flow is loaded from",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where the flow is loaded from"
+  },
+  {
+   "wants": "JSON field description: what the flow says it does",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the flow says it does"
+  },
+  {
+   "wants": "JSON field resumable: whether an epic of the flow can be resumed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether an epic of the flow can be resumed"
+  },
+  {
+   "wants": "JSON field resumes: whether the workspace has an epic of the flow to resume now",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the workspace has an epic of the flow to resume now"
+  },
+  {
+   "wants": "JSON field agents: the agent roles the flow declares",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the agent roles the flow declares"
+  },
+  {
+   "wants": "JSON field agents[].name: the role, as `-a ROLE=` names it (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the role, as `-a ROLE=` names it"
+  },
+  {
+   "wants": "JSON field agents[].required: whether the role must be given an agent",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the role must be given an agent"
+  },
+  {
+   "wants": "JSON field agents[].auto: whether the role is a person answering, which takes no agent",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the role is a person answering, which takes no agent"
+  },
+  {
+   "wants": "JSON field agents[].harness: the only harness that can fill the role, or empty for any",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the only harness that can fill the role, or empty for any"
+  },
+  {
+   "wants": "JSON field agents[].permission: what the role's agent may touch: `preset`, `network`, and `granular` as a list of `path` and `access` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the role's agent may touch: `preset`, `network`, and `granular` as a list of `path` and `access`"
+  },
+  {
+   "wants": "JSON field agents[].skills: the skills the role's agent is given",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the skills the role's agent is given"
+  },
+  {
+   "wants": "JSON field agents[].clis: the harnesses installed on the daemon's machine that can fill the role",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harnesses installed on the daemon's machine that can fill the role"
+  },
+  {
+   "wants": "JSON field envs: the environment roles the flow declares",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the environment roles the flow declares"
+  },
+  {
+   "wants": "JSON field envs[].name: the role, as `-e ROLE=` names it (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the role, as `-e ROLE=` names it"
+  },
+  {
+   "wants": "JSON field envs[].required: whether the role must be given an environment",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the role must be given an environment"
+  },
+  {
+   "wants": "JSON field envs[].auto: whether the role is the folder the epic runs in, which takes no environment",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the role is the folder the epic runs in, which takes no environment"
+  },
+  {
+   "wants": "JSON field envs[].cpu: how many CPUs the role asks for, or null",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many CPUs the role asks for, or null"
+  },
+  {
+   "wants": "JSON field envs[].memory: how much memory the role asks for, or null",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how much memory the role asks for, or null"
+  },
+  {
+   "wants": "JSON field envs[].gpu: how many GPUs the role asks for, or null",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many GPUs the role asks for, or null"
+  },
+  {
+   "wants": "JSON field envs[].image: the image the role asks for, or null",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the image the role asks for, or null"
+  },
+  {
+   "wants": "JSON field params: the flow's params as a JSON schema; each key of `properties` is a `-p KEY=VALUE` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flow's params as a JSON schema; each key of `properties` is a `-p KEY=VALUE`"
+  },
+  {
+   "wants": "JSON field remembered: what the workspace last set the flow up with: `agents`, `envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `backup` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the workspace last set the flow up with: `agents`, `envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `backup`"
+  },
+  {
+   "wants": "summary of `hmz flows backends`: list the installed harnesses with their accounts and models",
+   "where": "command summary in a --help listing",
+   "text": "list the installed harnesses with their accounts and models"
+  },
+  {
+   "wants": "paragraph for `hmz flows backends`: lists what can fill an agent role on the daemon's machine, each written as `-a ROLE=` takes it: `HARNESS/MODEL` for this machine's own sign-in, `HARNESS@ACCOUNT/MODEL` for an account; an effort goes after the model as `:EFFORT`. Also lists the harnesses not installed and the backends an environment can be put on. Keep everything in backticks exactly",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "Lists what can fill an agent role on the daemon's machine, each written as `-a ROLE=` takes it: `HARNESS/MODEL` for this machine's own sign-in, `HARNESS@ACCOUNT/MODEL` for an account; an effort goes after the model as `:EFFORT`. Also lists the harnesses not installed and the backends an environment can be put on."
+  },
+  {
+   "wants": "what `hmz flows backends` prints as text: under Installed, one line per harness, account and model, written as `-a` takes it, then the efforts the model takes; under Not installed, the same for harnesses that can be installed; under environments, the backends `-e` takes (keep the backticks; Installed, Not installed and environments are the headings printed)",
+   "where": "sentence in the Output section of --help",
+   "text": "Under Installed, one line per harness, account and model, written as `-a` takes it, then the efforts the model takes; under Not installed, the same for harnesses that can be installed; under environments, the backends `-e` takes."
+  },
+  {
+   "wants": "example: list every harness, account and model that can fill an agent role",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list every harness, account and model that can fill an agent role"
+  },
+  {
+   "wants": "example: print the names of the installed harnesses, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names of the installed harnesses, with jq"
+  },
+  {
+   "wants": "JSON field clis: the installed harnesses, by name",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the installed harnesses, by name"
+  },
+  {
+   "wants": "JSON field clis.<harness>.accounts: the accounts the harness runs as, this machine's own sign-in first",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the accounts the harness runs as, this machine's own sign-in first"
+  },
+  {
+   "wants": "JSON field clis.<harness>.accounts[].name: the account's name; empty for this machine's own sign-in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the account's name; empty for this machine's own sign-in"
+  },
+  {
+   "wants": "JSON field clis.<harness>.accounts[].models: the models the harness runs as that account, each `name` and `efforts` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the models the harness runs as that account, each `name` and `efforts`"
+  },
+  {
+   "wants": "JSON field clis.<harness>.accounts[].asked: when the harness was last asked for its models, or empty if never",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when the harness was last asked for its models, or empty if never"
+  },
+  {
+   "wants": "JSON field installable: the harnesses that can be installed, by name, each a list of models with `name` and `efforts` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harnesses that can be installed, by name, each a list of models with `name` and `efforts`"
+  },
+  {
+   "wants": "JSON field envs: the backends an environment can be put on, as `-e` writes each (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the backends an environment can be put on, as `-e` writes each"
+  },
+  {
+   "wants": "summary of `hmz flows check FLOW`: check that an epic of a flow would start, without starting it",
+   "where": "command summary in a --help listing",
+   "text": "check that an epic of a flow would start, without starting it"
+  },
+  {
+   "wants": "paragraph for `hmz flows check`: takes the options `hmz exec` takes and checks everything `hmz exec` checks before an epic starts: the flow, each role and what fills it, the params, the budget, the epic to resume and the backup targets. Starts no agent and no environment, and does not check whether an environment can be reached. Keep `hmz exec` in backticks",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "Takes the options `hmz exec` takes and checks everything `hmz exec` checks before an epic starts: the flow, each role and what fills it, the params, the budget, the epic to resume and the backup targets. Starts no agent and no environment, and does not check whether an environment can be reached."
+  },
+  {
+   "wants": "the FLOW argument of `hmz flows check`: the flow: a name `hmz flows list` prints, or a path or ref as `hmz exec -f` takes one; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the flow: a name `hmz flows list` prints, or a path or ref as `hmz exec -f` takes one"
+  },
+  {
+   "wants": "the -a/--agents ROLE=AGENT option: the agent for one agent role, as `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` or the name of a nous; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "the agent for one agent role, as `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` or the name of a nous"
+  },
+  {
+   "wants": "the -e/--envs ROLE=ENV option: the environment for one environment role, as `hmz exec -e` writes one, for example `local` or `ssh@NAME/DIRECTORY`; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "the environment for one environment role, as `hmz exec -e` writes one, for example `local` or `ssh@NAME/DIRECTORY`"
+  },
+  {
+   "wants": "the -p/--params KEY=VALUE option: one param of the flow, or one limit of the budget as `budget.cost=5`, `budget.duration=1h` or `budget.output_tokens=200k`; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "one param of the flow, or one limit of the budget as `budget.cost=5`, `budget.duration=1h` or `budget.output_tokens=200k`"
+  },
+  {
+   "wants": "the --profile-flow switch: profile the flow's own Python code during the epic",
+   "where": "option description, lower case start, no full stop",
+   "text": "profile the flow's own Python code during the epic"
+  },
+  {
+   "wants": "the --profile-environment switch: profile the programs the epic's agents start",
+   "where": "option description, lower case start, no full stop",
+   "text": "profile the programs the epic's agents start"
+  },
+  {
+   "wants": "the --resume switch of `hmz flows check`: check resuming the newest epic of this flow in the workspace instead of starting a new one",
+   "where": "option description, lower case start, no full stop",
+   "text": "check resuming the newest epic of this flow in the workspace instead of starting a new one"
+  },
+  {
+   "wants": "the --backup NAME option: a backup target the epic is backed up to; `none` for no backup; the default targets when not given; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "a backup target the epic is backed up to; `none` for no backup; the default targets when not given"
+  },
+  {
+   "wants": "what `hmz flows check` prints as text: a line saying the epic can start, then the flow's ref, the agent filling each role, the budget and the backup targets, and any limit of the budget that cannot be enforced",
+   "where": "sentence in the Output section of --help",
+   "text": "A line saying the epic can start, then the flow's ref, the agent filling each role, the budget and the backup targets, and any limit of the budget that cannot be enforced."
+  },
+  {
+   "wants": "example: check an epic of `ralph_loop` with one agent and a cost limit of five dollars",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "check an epic of `ralph_loop` with one agent and a cost limit of five dollars"
+  },
+  {
+   "wants": "example: check resuming the newest epic of `ralph_loop` and print the agent filling each role as JSON",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "check resuming the newest epic of `ralph_loop` and print the agent filling each role as JSON"
+  },
+  {
+   "wants": "said by `hmz flows check` when nothing was refused: an epic set up like this can start",
+   "where": "one line printed first, sentence with full stop",
+   "text": "An epic set up like this can start."
+  },
+  {
+   "wants": "JSON field flow: the flow, as it was named",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flow, as it was named"
+  },
+  {
+   "wants": "JSON field ref: where the flow is loaded from",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where the flow is loaded from"
+  },
+  {
+   "wants": "JSON field declared: what the flow declares, with the fields `hmz flows show --json` prints (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the flow declares, with the fields `hmz flows show --json` prints"
+  },
+  {
+   "wants": "JSON field names: the name of the agent filling each agent role, by role",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the agent filling each agent role, by role"
+  },
+  {
+   "wants": "JSON field budget: the budget the epic would run under: `duration`, `cost`, `output_tokens` and `graceful` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the budget the epic would run under: `duration`, `cost`, `output_tokens` and `graceful`"
+  },
+  {
+   "wants": "JSON field backup: the backup targets the epic would go to",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the backup targets the epic would go to"
+  },
+  {
+   "wants": "JSON field unreadable: every limit of the budget that nothing the epic runs can enforce, in words, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every limit of the budget that nothing the epic runs can enforce, in words, or empty"
+  },
+  {
+   "wants": "summary of `hmz flows setup FLOW`: save what a workspace starts a flow with",
+   "where": "command summary in a --help listing",
+   "text": "save what a workspace starts a flow with"
+  },
+  {
+   "wants": "paragraph for `hmz flows setup`: saves the agents, environments, params, budget, profiling and backup targets a workspace runs a flow with. A new epic of that flow in the workspace opens with them filled in, on the web page and in the terminal interface. Every required agent role needs an agent and the budget needs at least one limit",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "Saves the agents, environments, params, budget, profiling and backup targets a workspace runs a flow with. A new epic of that flow in the workspace opens with them filled in, on the web page and in the terminal interface. Every required agent role needs an agent and the budget needs at least one limit."
+  },
+  {
+   "wants": "the FLOW argument of `hmz flows setup`: the name of the flow, as `hmz flows list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the flow, as `hmz flows list` prints it"
+  },
+  {
+   "wants": "what `hmz flows setup` prints as text: one line saying the set-up was saved",
+   "where": "sentence in the Output section of --help",
+   "text": "One line saying the set-up was saved."
+  },
+  {
+   "wants": "example: save that `ralph_loop` runs in this folder with one agent and a cost limit of five dollars",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "save that `ralph_loop` runs in this folder with one agent and a cost limit of five dollars"
+  },
+  {
+   "wants": "example: save the set-up of `ralph_loop` for the folder ~/code/app, with a time limit and no backup",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "save the set-up of `ralph_loop` for the folder ~/code/app, with a time limit and no backup"
+  },
+  {
+   "wants": "said after `hmz flows setup` saved it: the set-up of the flow {flow} was saved for the folder {folder} (keep {flow} and {folder})",
+   "where": "one line printed, sentence with full stop",
+   "text": "The set-up of the flow {flow} was saved for the folder {folder}."
+  },
+  {
+   "wants": "summary of `hmz flows fork FLOW`: copy a flow into a workspace to change it there",
+   "where": "command summary in a --help listing",
+   "text": "copy a flow into a workspace to change it there"
+  },
+  {
+   "wants": "paragraph for `hmz flows fork`: copies a flow into the workspace's own flows, where it can be edited. The copy is offered in that workspace as a `local` flow under the same name (keep the backticks)",
+   "where": "paragraph of --help, 2 sentences at most; may exceed 30 words",
+   "text": "Copies a flow into the workspace's own flows, where it can be edited. The copy is offered in that workspace as a `local` flow under the same name."
+  },
+  {
+   "wants": "the FLOW argument of `hmz flows fork`: the name of the flow to copy, as `hmz flows list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the flow to copy, as `hmz flows list` prints it"
+  },
+  {
+   "wants": "what `hmz flows fork` prints as text: what was copied and where to",
+   "where": "sentence in the Output section of --help",
+   "text": "What was copied and where to."
+  },
+  {
+   "wants": "example: copy the flow `ralph_loop` into the current directory",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "copy the flow `ralph_loop` into the current directory"
+  },
+  {
+   "wants": "example: copy `ralph_loop` into the folder ~/code/app and print where the copy is, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "copy `ralph_loop` into the folder ~/code/app and print where the copy is, with jq"
+  },
+  {
+   "wants": "JSON field said: what was done, in words",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what was done, in words"
+  },
+  {
+   "wants": "JSON field at: the path of the copy",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the path of the copy"
+  },
+  {
+   "wants": "summary of `hmz flowverses`: add flowverses and install, update and uninstall their flows",
+   "where": "command summary in a --help listing",
+   "text": "add flowverses and install, update and uninstall their flows"
+  },
+  {
+   "wants": "paragraph for `hmz flowverses`: a flowverse is an index of flows kept in a git repository. These commands list the flowverses and the flows installed from them, show the flows and releases one lists, add, fetch and remove a flowverse, and install, update, switch and uninstall a flow. Flows cannot be installed, uninstalled or removed while an epic is running",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "A flowverse is an index of flows kept in a git repository. These commands list the flowverses and the flows installed from them, show the flows and releases one lists, add, fetch and remove a flowverse, and install, update, switch and uninstall a flow. Flows cannot be installed, uninstalled or removed while an epic is running."
+  },
+  {
+   "wants": "summary of `hmz flowverses list`: list the flowverses, the installed flows and their newer releases",
+   "where": "command summary in a --help listing",
+   "text": "list the flowverses, the installed flows and their newer releases"
+  },
+  {
+   "wants": "what `hmz flowverses list` prints as text: under Flowverses, one line per flowverse: its name, its URL, how many flows are installed from it; under Installed, one line per installed flow: its name, its release, its flowverse, and the newer release where there is one (Flowverses and Installed are the headings printed)",
+   "where": "sentence in the Output section of --help",
+   "text": "Under Flowverses, one line per flowverse: its name, its URL, how many flows are installed from it; under Installed, one line per installed flow: its name, its release, its flowverse, and the newer release where there is one."
+  },
+  {
+   "wants": "example: list the flowverses and the installed flows",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the flowverses and the installed flows"
+  },
+  {
+   "wants": "example: print each installed flow that has a newer release and that release, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print each installed flow that has a newer release and that release, with jq"
+  },
+  {
+   "wants": "JSON field said: what was done, in words",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what was done, in words"
+  },
+  {
+   "wants": "JSON field verses: the flowverses",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flowverses"
+  },
+  {
+   "wants": "JSON field verses[].name: the name of the flowverse",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the flowverse"
+  },
+  {
+   "wants": "JSON field verses[].url: where it is fetched from, without credentials; empty for a local one",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where it is fetched from, without credentials; empty for a local one"
+  },
+  {
+   "wants": "JSON field verses[].fetched: whether its index has been fetched",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether its index has been fetched"
+  },
+  {
+   "wants": "JSON field verses[].fixed: whether it is built in and cannot be removed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether it is built in and cannot be removed"
+  },
+  {
+   "wants": "JSON field verses[].edited: whether something is written into its index, which fetching resets",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether something is written into its index, which fetching resets"
+  },
+  {
+   "wants": "JSON field verses[].installed: how many flows are installed from it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many flows are installed from it"
+  },
+  {
+   "wants": "JSON field installed: the installed flows",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the installed flows"
+  },
+  {
+   "wants": "JSON field installed[].flow: the name the flow is started by, and the name `hmz flowverses install` and `uninstall` take (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the flow is started by, and the name `hmz flowverses install` and `uninstall` take"
+  },
+  {
+   "wants": "JSON field installed[].verse: the flowverse it was installed from",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flowverse it was installed from"
+  },
+  {
+   "wants": "JSON field installed[].listed: the name its flowverse lists it under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name its flowverse lists it under"
+  },
+  {
+   "wants": "JSON field installed[].version: the release installed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the release installed"
+  },
+  {
+   "wants": "JSON field installed[].repo: the repository the release came from",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the repository the release came from"
+  },
+  {
+   "wants": "JSON field installed[].ref: the git ref of the release",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the git ref of the release"
+  },
+  {
+   "wants": "JSON field updates: the installed flows that have a newer release",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the installed flows that have a newer release"
+  },
+  {
+   "wants": "JSON field updates[].flow: the name of the flow",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the flow"
+  },
+  {
+   "wants": "JSON field updates[].from: the release installed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the release installed"
+  },
+  {
+   "wants": "JSON field updates[].to: the newest release",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the newest release"
+  },
+  {
+   "wants": "summary of `hmz flowverses show NAME`: show the flows one flowverse lists and every release of each",
+   "where": "command summary in a --help listing",
+   "text": "show the flows one flowverse lists and every release of each"
+  },
+  {
+   "wants": "the NAME argument: the name of the flowverse, as `hmz flowverses list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the flowverse, as `hmz flowverses list` prints it"
+  },
+  {
+   "wants": "what `hmz flowverses show` prints as text: the flowverse's name and URL, then one line per release, newest first under each flow: the flow as `hmz flowverses install` takes it, the release, whether it is the one installed, and its description; then what its index skipped and why (keep the backticks)",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints the flowverse's name and URL, then one line per release, newest first under each flow: the flow as `hmz flowverses install` takes it, the release, whether it is installed, and its description; then what its index skipped and why."
+  },
+  {
+   "wants": "example: show the flows and releases the flowverse `official` lists",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "show the flows and releases the flowverse `official` lists"
+  },
+  {
+   "wants": "example: print the flows of `official` that are not installed, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the flows of `official` that are not installed, with jq"
+  },
+  {
+   "wants": "JSON field name: the name of the flowverse",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the flowverse"
+  },
+  {
+   "wants": "JSON field url: where it is fetched from, without credentials; empty for a local one",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "where it is fetched from, without credentials; empty for a local one"
+  },
+  {
+   "wants": "JSON field fetched: whether its index has been fetched",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether its index has been fetched"
+  },
+  {
+   "wants": "JSON field fixed: whether it is built in and cannot be removed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether it is built in and cannot be removed"
+  },
+  {
+   "wants": "JSON field edited: whether something is written into its index, which fetching resets",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether something is written into its index, which fetching resets"
+  },
+  {
+   "wants": "JSON field flows: the flows its index lists",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the flows its index lists"
+  },
+  {
+   "wants": "JSON field flows[].listed: the name the flowverse lists the flow under",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the flowverse lists the flow under"
+  },
+  {
+   "wants": "JSON field flows[].flow: the name `hmz flowverses install` takes for it (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name `hmz flowverses install` takes for it"
+  },
+  {
+   "wants": "JSON field flows[].installed: the release installed, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the release installed, or empty"
+  },
+  {
+   "wants": "JSON field flows[].releases: every release, newest first, each `version`, `description`, `prerelease`, `license`, `repo` and `dependencies` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "every release, newest first, each `version`, `description`, `prerelease`, `license`, `repo` and `dependencies`"
+  },
+  {
+   "wants": "JSON field skipped: what in the index could not be read, each `at` and `why` (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what in the index could not be read, each `at` and `why`"
+  },
+  {
+   "wants": "summary of `hmz flowverses add URL`: add a flowverse by its repository",
+   "where": "command summary in a --help listing",
+   "text": "add a flowverse by its repository"
+  },
+  {
+   "wants": "the URL argument of `hmz flowverses add`: the flowverse's git repository, as `owner/repo` on GitHub or a URL; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the flowverse's git repository, as `owner/repo` on GitHub or a URL"
+  },
+  {
+   "wants": "the --name NAME option of `hmz flowverses add`: the name to keep the flowverse under; the name its URL gives when not given",
+   "where": "option description, lower case start, no full stop",
+   "text": "the name to keep the flowverse under; the name its URL gives when not given"
+  },
+  {
+   "wants": "what a command that changes the flowverses prints as text: what was done, in one line",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints what was done, in one line."
+  },
+  {
+   "wants": "example: add the flowverse kept in the GitHub repository `acme/flows`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the flowverse kept in the GitHub repository `acme/flows`"
+  },
+  {
+   "wants": "example: add a flowverse from a git URL and keep it under the name `team`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add a flowverse from a git URL and keep it under the name `team`"
+  },
+  {
+   "wants": "summary of `hmz flowverses fetch NAME`: fetch a flowverse's index again to see its new releases",
+   "where": "command summary in a --help listing",
+   "text": "fetch a flowverse's index again to see its new releases"
+  },
+  {
+   "wants": "paragraph for `hmz flowverses fetch`: fetches the flowverse's index from its repository, so that `hmz flowverses list` shows the newer releases. Fetching resets anything written into the index. Keep the backticks",
+   "where": "paragraph of --help, 2 sentences at most; may exceed 30 words",
+   "text": "Fetches the flowverse's index from its repository, so that `hmz flowverses list` shows the newer releases. Fetching resets anything written into the index."
+  },
+  {
+   "wants": "example: fetch the index of the flowverse `official`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "fetch the index of the flowverse `official`"
+  },
+  {
+   "wants": "example: fetch `official` and print the flows that now have a newer release, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "fetch `official` and print the flows that now have a newer release, with jq"
+  },
+  {
+   "wants": "summary of `hmz flowverses remove NAME`: remove a flowverse and every flow installed from it",
+   "where": "command summary in a --help listing",
+   "text": "remove a flowverse and every flow installed from it"
+  },
+  {
+   "wants": "paragraph for `hmz flowverses remove`: removes the flowverse and uninstalls every flow installed from it. Asks first unless `-y` is given; any answer but yes changes nothing and exits with status 1. Refused while an epic is running. Keep `-y` in backticks",
+   "where": "paragraph of --help, 4 sentences at most; may exceed 30 words",
+   "text": "Removes the flowverse and uninstalls every flow installed from it. Asks first unless `-y` is given; any answer other than yes changes nothing and exits with status 1. Refused while an epic is running."
+  },
+  {
+   "wants": "example: remove the flowverse `team` after confirming",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "remove the flowverse `team` after confirming"
+  },
+  {
+   "wants": "example: remove the flowverse `team` without asking",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "remove the flowverse `team` without asking"
+  },
+  {
+   "wants": "summary of `hmz flowverses install FLOW`: install a flow, or update or switch its release",
+   "where": "command summary in a --help listing",
+   "text": "install a flow, or update or switch its release"
+  },
+  {
+   "wants": "paragraph for `hmz flowverses install`: installs the newest release of a flow, or the release `--version` names. For a flow already installed this updates it or switches its release. Refused while an epic is running. Keep `--version` in backticks",
+   "where": "paragraph of --help, 3 sentences at most; may exceed 30 words",
+   "text": "Installs the newest release of a flow, or the release `--version` names. For a flow already installed this updates it or switches its release. Refused while an epic is running."
+  },
+  {
+   "wants": "the FLOW argument of `hmz flowverses install`: the flow, as `hmz flowverses show` prints it: bare for the official flowverse, `@FLOWVERSE/FLOW` for another; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the flow, as `hmz flowverses show` prints it: bare for the official flowverse, `@FLOWVERSE/FLOW` for another"
+  },
+  {
+   "wants": "the --version VERSION option of `hmz flowverses install`: the release to install; the newest when not given",
+   "where": "option description, lower case start, no full stop",
+   "text": "the release to install; the newest when not given"
+  },
+  {
+   "wants": "example: install the newest release of `ralph_loop`, or update it to that release",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "install the newest release of `ralph_loop`, or update it to that release"
+  },
+  {
+   "wants": "example: install release 1.2.0 of the flow `review` from the flowverse `team`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "install release 1.2.0 of the flow `review` from the flowverse `team`"
+  },
+  {
+   "wants": "summary of `hmz flowverses uninstall FLOW`: uninstall a flow",
+   "where": "command summary in a --help listing",
+   "text": "uninstall a flow"
+  },
+  {
+   "wants": "paragraph for `hmz flowverses uninstall`: uninstalls a flow installed from a flowverse. Asks first unless `-y` is given; any answer but yes changes nothing and exits with status 1. Refused while an epic is running. Keep `-y` in backticks",
+   "where": "paragraph of --help, 4 sentences at most; may exceed 30 words",
+   "text": "Uninstalls a flow installed from a flowverse. Asks first unless `-y` is given; any answer other than yes changes nothing and exits with status 1. Refused while an epic is running."
+  },
+  {
+   "wants": "the FLOW argument of `hmz flowverses uninstall`: the installed flow, as `hmz flowverses list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the installed flow, as `hmz flowverses list` prints it"
+  },
+  {
+   "wants": "example: uninstall the flow `ralph_loop` after confirming",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "uninstall the flow `ralph_loop` after confirming"
+  },
+  {
+   "wants": "example: uninstall the flow `review` of the flowverse `team` without asking",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "uninstall the flow `review` of the flowverse `team` without asking"
+  },
+  {
+   "wants": "summary of `hmz workspaces`: list, add and forget workspaces, and browse the daemon's folders",
+   "where": "command summary in a --help listing",
+   "text": "list, add and forget workspaces, and browse the daemon's folders"
+  },
+  {
+   "wants": "paragraph for `hmz workspaces`: a workspace is a folder on the daemon's machine that epics run in and chats belong to. These commands list the workspaces, add a folder as one, forget one, and browse or complete folder paths on the daemon's machine to choose one",
+   "where": "paragraph of --help, 2 sentences at most; may exceed 30 words",
+   "text": "A workspace is a folder on the daemon's machine that epics run in and chats belong to. These commands list the workspaces, add a folder as one, forget one, and browse or complete folder paths on the daemon's machine to choose one."
+  },
+  {
+   "wants": "summary of `hmz workspaces list`: list the workspaces",
+   "where": "command summary in a --help listing",
+   "text": "list the workspaces"
+  },
+  {
+   "wants": "what `hmz workspaces list` prints as text: one line per workspace: its path, how many epics and how many chats it has, when the latest began, and whether it is running or its folder is missing. The current directory comes first, then the running ones, then the most recent",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per workspace: its path, how many epics and how many chats it has, when the latest began, and whether it is running or its folder is missing; the current directory comes first, then the running ones, then the most recent."
+  },
+  {
+   "wants": "example: list the workspaces",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the workspaces"
+  },
+  {
+   "wants": "example: print the paths of the workspaces with an epic running, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the paths of the workspaces with an epic running, with jq"
+  },
+  {
+   "wants": "JSON field here: the absolute path of the directory the command was run in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the absolute path of the directory the command was run in"
+  },
+  {
+   "wants": "JSON field workspaces: the workspaces",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the workspaces"
+  },
+  {
+   "wants": "JSON field workspaces[].path: the absolute path of the folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the absolute path of the folder"
+  },
+  {
+   "wants": "JSON field workspaces[].name: the name of the folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the folder"
+  },
+  {
+   "wants": "JSON field workspaces[].epics: how many epics ran there",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many epics ran there"
+  },
+  {
+   "wants": "JSON field workspaces[].chats: how many chats it has",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many chats it has"
+  },
+  {
+   "wants": "JSON field workspaces[].last: when its latest epic or chat began, ISO 8601, or empty",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when its latest epic or chat began, ISO 8601, or empty"
+  },
+  {
+   "wants": "JSON field workspaces[].running: whether an epic or chat is running there",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether an epic or chat is running there"
+  },
+  {
+   "wants": "JSON field workspaces[].here: whether it is the directory the command was run in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether it is the directory the command was run in"
+  },
+  {
+   "wants": "JSON field workspaces[].there: whether the folder still exists",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the folder still exists"
+  },
+  {
+   "wants": "summary of `hmz workspaces add PATH`: add a folder on the daemon's machine as a workspace",
+   "where": "command summary in a --help listing",
+   "text": "add a folder on the daemon's machine as a workspace"
+  },
+  {
+   "wants": "the PATH argument of `hmz workspaces add`: the folder, which must exist on the daemon's machine; a relative path is taken from the current directory",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the folder, which must exist on the daemon's machine; a relative path is taken from the current directory"
+  },
+  {
+   "wants": "what `hmz workspaces add` prints as text: the absolute path of the workspace added",
+   "where": "sentence in the Output section of --help",
+   "text": "The absolute path of the workspace added."
+  },
+  {
+   "wants": "example: add the current directory as a workspace",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the current directory as a workspace"
+  },
+  {
+   "wants": "example: add the folder ~/code/app as a workspace and print its absolute path as JSON",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "add the folder ~/code/app as a workspace and print its absolute path as JSON"
+  },
+  {
+   "wants": "JSON field kept: the absolute path of the workspace added",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the absolute path of the workspace added"
+  },
+  {
+   "wants": "summary of `hmz workspaces forget PATH`: forget what a workspace was set up with",
+   "where": "command summary in a --help listing",
+   "text": "forget what a workspace was set up with"
+  },
+  {
+   "wants": "paragraph for `hmz workspaces forget`: forgets the settings kept for a workspace, the set-up of each flow included. A workspace nothing ran in leaves the list; its folder, epics and chats are not touched",
+   "where": "paragraph of --help, 2 sentences at most; may exceed 30 words",
+   "text": "Forgets the settings kept for a workspace, the set-up of each flow included. A workspace nothing ran in leaves the list; its folder, epics and chats are not touched."
+  },
+  {
+   "wants": "the PATH argument of `hmz workspaces forget`: the workspace, as `hmz workspaces list` prints it; the folder need not exist any more; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the workspace, as `hmz workspaces list` prints it; the folder need not exist any more"
+  },
+  {
+   "wants": "what `hmz workspaces forget` prints as text: one word saying it was forgotten",
+   "where": "sentence in the Output section of --help",
+   "text": "One word saying it was forgotten."
+  },
+  {
+   "wants": "example: forget the workspace ~/code/old",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "forget the workspace ~/code/old"
+  },
+  {
+   "wants": "example: forget the current directory's set-up and print the workspaces left as JSON",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "forget the current directory's set-up and print the workspaces left as JSON"
+  },
+  {
+   "wants": "summary of `hmz workspaces browse [PATH]`: list the folders in a directory of the daemon's machine",
+   "where": "command summary in a --help listing",
+   "text": "list the folders in a directory of the daemon's machine"
+  },
+  {
+   "wants": "paragraph for `hmz workspaces browse`: lists one directory of the machine the daemon runs on, to find the folder to give `hmz workspaces add` or `-w`. With `--env`, lists a directory of the machine a runtime is on. Keep everything in backticks",
+   "where": "paragraph of --help, 2 sentences at most; may exceed 30 words",
+   "text": "Lists one directory of the machine the daemon runs on, to find the folder to give `hmz workspaces add` or `-w`. With `--env`, lists a directory of the machine a runtime is on."
+  },
+  {
+   "wants": "the optional PATH argument of `hmz workspaces browse`: the directory to list, `~` being the home directory there; the home directory when not given; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the directory to list, `~` being the home directory there; the home directory when not given"
+  },
+  {
+   "wants": "the --files switch of `hmz workspaces browse`: list files as well as folders",
+   "where": "option description, lower case start, no full stop",
+   "text": "list files as well as folders"
+  },
+  {
+   "wants": "the --hidden switch of `hmz workspaces browse`: list names that start with a dot as well",
+   "where": "option description, lower case start, no full stop",
+   "text": "list names that start with a dot as well"
+  },
+  {
+   "wants": "the --env ENV option of `hmz workspaces browse`: list the directory on the machine of a runtime, written as `-e` writes one with no directory, for example `ssh@NAME`; keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "list the directory on the machine of a runtime, written as `-e` writes one with no directory, for example `ssh@NAME`"
+  },
+  {
+   "wants": "what `hmz workspaces browse` prints as text: one absolute path per line, folders first and ending in `/`; at most 500, and how many were left out on standard error (keep the backticks)",
+   "where": "sentence in the Output section of --help",
+   "text": "One absolute path per line, folders first and ending in `/`; at most 500, and how many were left out on standard error."
+  },
+  {
+   "wants": "example: list the folders in the home directory of the daemon's machine",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the folders in the home directory of the daemon's machine"
+  },
+  {
+   "wants": "example: list the folders and files in ~/code, hidden ones included",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the folders and files in ~/code, hidden ones included"
+  },
+  {
+   "wants": "example: list the folders in /srv on the machine of the ssh runtime `box`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the folders in /srv on the machine of the ssh runtime `box`"
+  },
+  {
+   "wants": "JSON field at: the directory listed, written from `~` where it is under the home directory (keep the backticks)",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the folder listed, written from `~` where it is under the home directory"
+  },
+  {
+   "wants": "JSON field whole: its absolute path",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "its absolute path"
+  },
+  {
+   "wants": "JSON field up: its parent directory, or empty at the root",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "its parent folder, or empty at the root"
+  },
+  {
+   "wants": "JSON field entries: what is in it, folders first, at most 500",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what is in it, folders first, at most 500"
+  },
+  {
+   "wants": "JSON field entries[].name: the name of the entry",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name of the entry"
+  },
+  {
+   "wants": "JSON field entries[].dir: whether the entry is a folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the entry is a folder"
+  },
+  {
+   "wants": "JSON field more: how many entries were left out",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many entries were left out"
+  },
+  {
+   "wants": "summary of `hmz workspaces complete TYPED`: complete a partly typed folder path on the daemon's machine",
+   "where": "command summary in a --help listing",
+   "text": "complete a partly typed folder path on the daemon's machine"
+  },
+  {
+   "wants": "the TYPED argument of `hmz workspaces complete`: the start of a path, as far as it has been typed, for example `~/co`; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the start of a path, as far as it has been typed, such as `~/co`"
+  },
+  {
+   "wants": "what `hmz workspaces complete` prints as text: one folder per line that the typed text could become, written as it was typed and ending in `/`; at most 50 (keep the backticks)",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one folder per line that the typed text could become, written as it was typed and ending in `/`, at most 50."
+  },
+  {
+   "wants": "example: list the folders whose path starts with `~/co`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the folders whose path starts with `~/co`"
+  },
+  {
+   "wants": "example: print the completions of `/srv/` as a JSON list",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the completions of `/srv/` as a JSON list"
+  },
+  {
+   "wants": "JSON field paths: the folders the typed text could become, sorted, at most 50",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the folders the typed text could become, sorted, at most 50"
+  },
+  {
+   "wants": "usage error: `--backup none` means no backup, so it cannot be given beside another target; keep the backticks",
+   "where": "usage error printed after `hmz flows check: `, lower case start, no full stop",
+   "text": "`--backup none` cannot be given with another backup target"
+  },
+  {
+   "wants": "usage error for an item of -a or -e that is not written ROLE=VALUE; the text must be exactly of the shape: {flag} {item}: expected `ROLE=VALUE` (keep {flag}, {item} and the backticks)",
+   "where": "usage error printed after `hmz flows check: `, lower case start, no full stop",
+   "text": "{flag} {item}: expected `ROLE=VALUE`"
+  },
+  {
+   "wants": "usage error for a role given twice to -a or -e; the text must be of the shape: {flag}: the role {role} is given twice (keep {flag} and {role})",
+   "where": "usage error printed after `hmz flows check: `, lower case start, no full stop",
+   "text": "{flag}: the role {role} is given twice"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

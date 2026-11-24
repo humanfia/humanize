@@ -10,8 +10,7 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import tomlkit
@@ -23,6 +22,9 @@ from hmz.runtime.epic import logs, read
 from hmz.sdk import Hmz
 from tests.conftest import rehome
 from tests.integration.doubles_core import AGENT, hmz_exec, install, write_flow
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon", "loops")
@@ -220,9 +222,9 @@ def test_an_epic_is_backed_up_by_hand_and_once_for_what_it_holds(
     epic = _epic(project)
     assert _log(bare) == []
 
-    assert main(["backup", epic.name]) == 0
-    assert capsys.readouterr().out == f"t: backed up to {bare}\n"
-    assert main(["backup", str(epic), "--to", "t"]) == 0
+    assert main(["backup", "run", epic.name]) == 0
+    assert capsys.readouterr().out.startswith("t: uploaded 20")
+    assert main(["backup", "run", epic.name, "--to", "t"]) == 0
 
     # The second holds nothing the first did not: how the first went is the epic's alone.
     assert _log(bare) == [f"Back up epic {epic.name} (manual)"]
@@ -323,13 +325,13 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
         "done",
     )
     assert held.workspace == before.workspace
-    assert main(["backup", "--list", "--to", "t"]) == 0
-    assert first.name in capsys.readouterr().out
+    assert main(["backup", "list", "--target", "t"]) == 0
+    assert held.key in capsys.readouterr().out
 
-    assert main(["backup", "--pull", first.name, "--to", "t"]) == 0
-    back = Path(capsys.readouterr().out.strip())
+    assert main(["backup", "pull", first.name, "--target", "t"]) == 0
+    (back,) = epics.all()
 
-    assert epics.all() == [back]
+    assert capsys.readouterr().out == f"{back.name}\n"
     # As it ran, its sessions kept in the epic since the stand-in's home is the other
     # machine's, and none of that machine's targets or backups.
     after = epics.read(back)
@@ -350,7 +352,7 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     assert epics.foreign(back) == ""
     with pytest.raises(ValueError, match="already here"):
         Hmz().backups.pulled("t", held.key)
-    assert main(["backup", "--pull", held.key, "--to", "t"]) == 1
+    assert main(["backup", "pull", held.key, "--target", "t"]) == 1
     assert "already here" in capsys.readouterr().err
 
     project.rename(tmp_path / "moved")

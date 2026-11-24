@@ -78,6 +78,39 @@ When you enter btw mode, the terminal prints `btw · <agent>/<n> each line is a 
 
 Press <kbd>ctrl+o</kbd> and then <kbd>4</kbd> to open **Side questions** beside an epic's log. Press <kbd>a</kbd>, pick the conversation to ask under **Ask it of**, write the question and press **Ask**. The answer appears under `btw · <agent>/<n>` in the pane, and nothing is typed at the prompt, so nothing can reach the epic by mistake. Press <kbd>enter</kbd> on a side conversation to ask it again, and <kbd>d</kbd> to close it. These are the side conversations the app shows for the same epic.
 
+## From the command line
+
+`hmz btw` asks side questions without opening the app or the terminal interface. It prints the answer and exits, so scripts and agents can use it.
+
+Beside a chat, name the chat. Its newest conversation answers:
+
+```sh
+hmz btw ask "What are you changing right now?" --chat 20261117T100000-ab12cd
+```
+
+Beside an epic, pick the conversation with `--to`. `hmz btw sessions` lists the ones you can ask:
+
+```sh
+hmz btw sessions --epic 20261117T100000.000Z-ab12cd
+hmz btw ask "Why did the tests fail?" --to Ada/1 --epic 20261117T100000.000Z-ab12cd
+```
+
+Without `--epic` or `--chat`, the question is about the epic in view in the folder you run the command in. Use `-w` to name another workspace.
+
+The first question opens a side conversation and prints its name on standard error. Pass that name as `--aside` to ask a follow-up that can refer to earlier answers:
+
+```sh
+hmz btw ask "And after that?" --aside 3f9c2a1b
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz btw list` | Lists the side conversations that are open. |
+| `hmz btw show ASIDE` | Prints every question and answer of one. |
+| `hmz btw leave ASIDE` | Closes one. `hmz btw leave --all` closes every one in the workspace. |
+
+These are the same asides the app shows, so one opened here appears in the app's **Aside** tab. Add `--json` to any command for one JSON document. See [hmz btw](/reference/cli#hmz-btw).
+
 ## What the copy knows and can do
 
 Where the harness can fork a conversation, the copy is a fork with the full history of the conversation you asked. Otherwise, the copy is a new session of the same agent given a snapshot of the epic: the flow, the task, each agent and its state, the handovers, the spending, and the latest 32 entries from that agent and the flow (each cut to 600 characters, excluding thinking).
