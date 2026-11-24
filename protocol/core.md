@@ -1212,6 +1212,9 @@ cut unless confinement (Section 4.6.4) permits it.
 `cursor-agent` launch of the table is unattended and granted, so hmz MUST fail the agent's turn as
 one no retry changes, naming the harness, the team's admin and the setting.
 
+**4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
+it, and hmz MUST launch each at that mode without reading any policy first.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
