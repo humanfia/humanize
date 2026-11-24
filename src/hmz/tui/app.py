@@ -133,6 +133,7 @@ from .selecting import Choices, Transcript
 from .settings import MOVED, Adjusts, page_of
 from .settings import PAGES as _PAGES
 from .shell import Hints, Shell, Zone, bindings
+from .views.navigator import told as lists_told
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -4701,7 +4702,9 @@ class Humanize(App[None]):
         )
 
     @work
-    async def action_epics(self, daemon: str = "") -> None:
+    async def action_epics(
+        self, daemon: str = "", at: str = "", *, elsewhere: bool = False
+    ) -> None:
         """Opens the runs of this directory or this machine, which is what `/epics` is for.
 
         Every run of a flow here, newest first: what it was and how it went, with enter
@@ -4715,7 +4718,11 @@ class Humanize(App[None]):
 
         Args:
           daemon: The daemon, as `@<name>`, or "" for the one last listed.
+          at: An epic of this machine to go straight into, by name, or "" for the list.
+          elsewhere: Whether that epic ran in another directory.
         """
+        if at:
+            self._daemon = LOCAL_DAEMON
         if daemon:
             named = daemon.removeprefix("@")
             if not daemon.startswith("@") or named not in daemon_names():
@@ -4736,10 +4743,13 @@ class Humanize(App[None]):
                         self._run is not None and not self._slot and self._afar is None
                     ),
                     unseen=self._unseen,
+                    at=at,
+                    elsewhere=elsewhere,
                 )
                 if self._daemon == LOCAL_DAEMON
                 else RemoteEpics(self._daemon)
             )
+            at = ""
             if said is None or said.doing or not said.daemon:
                 break
             for one in said.said:
@@ -4765,6 +4775,44 @@ class Humanize(App[None]):
             self._moves("", None)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
+
+    def opens_chat(self, chat: str, slot: str | None = None) -> None:
+        """Puts one chat of this directory on the log: what picking it on `/resume` does.
+
+        Args:
+          chat: The chat, by its id.
+          slot: The host holding it as `chat.list` said it, "" for none; or None to ask the
+            hosts of this workspace.
+        """
+        self._continues(chat, slot)
+        self._draw()
+
+    def opens_epic(
+        self, epic: str, slot: str | None = None, *, here: bool = True
+    ) -> None:
+        """Opens one epic of this machine, from a list of them elsewhere in the interface.
+
+        On the log, where a host of this directory goes with it; otherwise as `/epics` goes
+        into one, which is where an epic that ended is read, carried on and exported.
+
+        Args:
+          epic: The epic, by name.
+          slot: The host of this directory that goes with it, or None for none.
+          here: Whether it ran in this directory.
+        """
+        if slot is None:
+            self.action_epics(at=epic, elsewhere=not here)
+            return
+        self._unseen.discard(epic)
+        if (slot, None) != (self._slot, self._afar):
+            self._moves(slot, None)
+        self._draw()
+
+    def showing(self) -> str:
+        """The chat or the epic on the log, by its id or its name; "" for neither."""
+        if self.chatting():
+            return self._chat_now or self._chat_id
+        return self._epic_now
 
     def _statuses(self) -> dict[str, dict[str, Any]]:
         """How the runs of every host on this machine stand, attaching to none of them.
@@ -4810,7 +4858,10 @@ class Humanize(App[None]):
           notice: The notice, as `Notices` made it.
           system: Whether the system is told too.
         """
-        if self._shows(notice):
+        shown = self._shows(notice)
+        # The list of every chat and epic reads them again, and marks this one unread.
+        lists_told(self, notice, unread=not shown)
+        if shown:
             return
         kind = str(notice.get("kind") or "")
         epic = str(notice.get("epic") or "")

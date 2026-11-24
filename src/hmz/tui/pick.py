@@ -12187,6 +12187,8 @@ class Epics(Sheet[Doing]):
         *,
         running: Callable[[], bool] | None = None,
         unseen: set[str] | None = None,
+        at: str = "",
+        elsewhere: bool = False,
     ) -> None:
         """Reads every run of this directory, or of this machine where that was last asked for.
 
@@ -12198,6 +12200,9 @@ class Epics(Sheet[Doing]):
             finished. None for nothing to ask, which is nothing running.
           unseen: The epics told of and not opened since, by name: each dotted, and taken
             out of it as it is opened.
+          at: An epic to go straight into as the sheet opens, by name, or "" for none: what
+            opening one from a list elsewhere in the interface does.
+          elsewhere: Whether that epic ran in another directory, which lists this machine's.
         """
         super().__init__()
         from hmz.daemon import Hmz
@@ -12206,7 +12211,9 @@ class Epics(Sheet[Doing]):
         self._runs = hmz.epics
         self._settings = hmz.settings
         #: Whether the list is of every epic on this machine rather than of this directory's.
-        self._every = self._settings.every_epic
+        self._every = self._settings.every_epic or (bool(at) and elsewhere)
+        #: The epic gone straight into as the sheet opens, by name, or "" for none.
+        self._straight = at
         #: Where this directory's epics are kept, which tells one run here from one run
         #: elsewhere: a path written down in a run is spelled however it was typed.
         self._here = self._runs.under()
@@ -12245,8 +12252,33 @@ class Epics(Sheet[Doing]):
         """Says what these are, and puts them up."""
         self.query_one("#asked", Label).update("Epics")
         self._fill()
-        if self._reading:
+        if self._straight:
+            self._goes_straight()
+        elif self._reading:
             self._rereads()
+
+    @work
+    async def _goes_straight(self) -> None:
+        """Goes into the epic the sheet was opened for, and leaves with it.
+
+        What is done there is done as it is from the list. Walked out of with nothing said,
+        the sheet goes too: the list under it was never walked to, so esc is one step back
+        to where the epic was picked. Where something was said -- a copy, an export, a
+        refusal -- the list stays up to say it.
+        """
+        from textual.worker import WorkerCancelled
+
+        named, self._straight = self._straight, ""
+        self._was, self._on, self._from = named, "", None
+        with contextlib.suppress(WorkerCancelled):
+            await self._rereads().wait()
+            ran = next((one for one in self._ran if one.name == named), None)
+            if ran is None:
+                self._settles_focus()
+                return
+            await self._doing(ran).wait()
+            if self._up() and not self._said:
+                self.dismiss(Doing(None, "", tuple(self._told)))
 
     def _read(self, *, every: bool) -> list[Ran]:
         """The epics of this directory or of this whole machine, newest first.

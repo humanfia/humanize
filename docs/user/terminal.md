@@ -152,6 +152,18 @@ TEXTUAL_THEME=nord hmz
 
 Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
+## Find a chat or an epic
+
+The navigator on the left lists every chat and epic on this machine. It is open from the start on a wide terminal; press <kbd>ctrl+b</kbd> to go to it, and again to close it.
+
+1. Press <kbd>ctrl+b</kbd>.
+2. Move with <kbd>↑</kbd> and <kbd>↓</kbd>. What waits on you is at the top, in pink.
+3. Press <kbd>enter</kbd> to open the row. The prompt takes the keys back.
+
+Press <kbd>p</kbd> to pin a row, <kbd>u</kbd> to mark it unread, <kbd>g</kbd> to group by folder, date or as one list, and <kbd>.</kbd> for everything else you can do with it.
+
+To search instead, press <kbd>ctrl+k</kbd> and type. <kbd>tab</kbd> switches between all, chats and epics; <kbd>enter</kbd> opens the row; <kbd>esc</kbd> closes Search. See [the key tables](/reference/tui#navigator).
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.
