@@ -1184,7 +1184,7 @@ nothing. Each harness MUST be launched as the table states:
 | `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
 | `omp` | `yolo` | `yolo` |
 | `pi` | `edit` and `write` withheld | nothing withheld |
-| `qwen` | `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | nothing withheld |
+| `qwen` | `yolo`, `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | `yolo` |
 | `dsh`, ACP | every request granted | every request granted |
 | `litellm` | nothing said | nothing said |
 
@@ -1197,7 +1197,12 @@ holds the session at another, hmz MUST fail the session before the prompt is sen
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
-withheld, and MUST say so once per agent.
+withheld, and MUST say so once per agent. hmz MUST read the managed settings of the machine it runs
+`claude` on before launching it, without running it: where they forbid `bypassPermissions`, the
+agent MUST be launched at `acceptEdits` from its first turn; where they keep hooks off its command
+line, the pre-tool-use hook (Section 4.9.2.1) MUST be registered over its stream instead; and where
+they drop the flow's callbacks, or the allowed tools of an agent hmz does not confine, hmz MUST
+refuse the agent before launching it, naming the setting and where it is set.
 
 **4.6.2.6** hmz MUST read the requirements Codex runs under on the harness machine before it opens a
 thread. Where they forbid the sandbox or the approval policy Section 4.6.2.3, Section 4.6.2.4 or
@@ -1221,7 +1226,9 @@ cut unless confinement (Section 4.6.4) permits it.
 one no retry changes, naming the harness, the team's admin and the setting.
 
 **4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
-it, and hmz MUST launch each at that mode without reading any policy first.
+it, and hmz MUST launch each at that mode without reading any policy first. Where a `dsh` agent is
+confined, hmz MUST hold its sessions at that mode whatever default preset the person's own settings
+name, without writing to those settings.
 
 **4.6.2.11** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
 run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
@@ -1236,6 +1243,14 @@ agent when it is configured, naming the file and the setting. Where they run com
 sandbox or keep agy's file tools inside its workspace, hmz MUST run the agent and say so once per
 agent. Where they turn off plugins or MCP servers, hmz MUST refuse to offer that agent tools. hmz
 MUST say what agy reports it refused a confined agent.
+
+**4.6.2.13** Where Qwen Code's folder trust is on and the agent's folder is not trusted, hmz MUST run
+that agent at `default` where the table says `yolo`, with `run_shell_command`, `monitor`, `edit` and
+`write_file` allowed, MUST grant every request it then makes, and MUST say so once per agent.
+
+**4.6.2.14** Where the system settings of `qwen`, or those of a folder it trusts, turn its hooks off
+while a pre-tool-use hook is hung, hmz MUST refuse the turn before starting `qwen`, naming the file
+and the setting.
 
 #### 4.6.3. Web search
 

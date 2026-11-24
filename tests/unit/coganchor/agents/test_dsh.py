@@ -438,6 +438,40 @@ def test_only_a_compression_other_than_the_sdks_own_is_patched_in(
     assert runtime.harnesses[0].patch == patch
 
 
+def test_a_fenced_agent_is_pinned_at_full_access_whatever_preset_its_home_picks(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dsh_home: Path,
+) -> None:
+    """A person's own default preset would ask approvals nobody here answers."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    settings = "permission:\n  defaultPreset: workspace-write\n"
+    (dsh_home / "settings.yaml").write_text(settings)
+
+    _turn(made(fence=Fence(online=False)).new(tmp_path))
+
+    (pinned,) = [one for one in runtime.harnesses[0].patch if one["id"] == "permission"]
+    presets = pinned["config"]["presets"]
+    assert set(presets) == {"read-only", "workspace-write", "danger-full-access"}
+    assert all(
+        one == {"sandbox": "danger-full-access", "approval": "never"}
+        for one in presets.values()
+    )
+    assert pinned["config"]["defaultPreset"] == "danger-full-access"
+    # Nothing of the person's is written to.
+    assert (dsh_home / "settings.yaml").read_text() == settings
+
+
+def test_an_agent_no_fence_holds_keeps_its_homes_own_preset(
+    made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
+) -> None:
+    _turn(made().new(tmp_path))
+
+    assert all(one["id"] != "permission" for one in runtime.harnesses[0].patch)
+
+
 @pytest.mark.parametrize(
     ("reason", "kind", "why"),
     [
