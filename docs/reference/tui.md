@@ -50,7 +50,7 @@ Type `/` to see the commands that work in the current view and state. If you run
 | `/settings` | a page | Opens settings, or one page of it. |
 | `/prefer` | `native` or `flow` | In a chat, sets what `$<name>` runs when it names both a skill and a flow. Alone, says the current choice. |
 
-`/settings` takes `general`, `notifications`, `daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`. The older names `settings`, `everywhere`, `directory` and `environments` also work. `/settings flowverses` opens `/flow` on the Flowverses page.
+`/settings` takes `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup`, `usage` or `workspace`. <kbd>F2</kbd> opens it from anywhere. The older names `settings`, `everywhere`, `directory` and `environments` also work. `/settings flowverses` opens `/flow` on the Flowverses page.
 
 ## Keys
 

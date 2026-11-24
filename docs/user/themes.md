@@ -87,7 +87,28 @@ Output from a daemon, flow, or agent remains in the language it was written in.
 
 `hmz` uses the same colours as the web page by default: `humanfia-dark`, or `humanfia-light` where your terminal reports a white background in `COLORFGBG`. Failures are red and warnings are gold.
 
-Set `TEXTUAL_THEME=terminal` to use your terminal's background and 16-colour palette instead:
+### Pick a theme and a side
+
+Press <kbd>F2</kbd> or type `/settings themes`, then open **Themes**. The page lists the same thirteen presets as the app, each with a small sample of its colours. Move through the list with the arrow keys: the whole interface is redrawn in the row under the cursor, so you see a theme before you choose it. Press <kbd>enter</kbd> to keep it, or <kbd>esc</kbd> to go back to the one you had.
+
+| Appearance | What is shown |
+| --- | --- |
+| **Auto** | The light side where your terminal reports a white background in `COLORFGBG`, the dark side otherwise. Default. |
+| **Light** | Always the light side. |
+| **Dark** | Always the dark side. |
+| **Terminal** | Your terminal's own background and 16-colour palette, whatever preset is in use. |
+
+Choosing a preset while **Terminal** is in use switches the appearance back to **Auto**. The terminal has no custom themes and no pictures.
+
+### Choose the language
+
+Open **Language** in the same screen, or type `/settings language`. **System** follows `LC_ALL`, `LC_MESSAGES` or `LANG`, whichever is set first, with the same rule for Chinese locales as the app. The menu is redrawn in the language under the cursor; <kbd>enter</kbd> keeps it and <kbd>esc</kbd> goes back. Texts that have no translation yet stay in English.
+
+### Override with the environment
+
+`TEXTUAL_THEME` and `NO_COLOR` win over what you chose on the Themes page, and the page says so while either is set. Your choice is still kept for when they are not.
+
+Set `TEXTUAL_THEME=terminal` to use your terminal's background and 16-colour palette:
 
 ![The terminal interface drawn in the terminal's own colours](/shots/user-themes-terminal.svg)
 
@@ -99,7 +120,7 @@ TEXTUAL_THEME=gruvbox hmz
 
 ![The same screen started with TEXTUAL_THEME=gruvbox](/shots/user-themes-terminal-theme.svg)
 
-Valid theme names are `humanfia-dark`, `humanfia-light`, `terminal`, `ansi-dark`, `ansi-light`, `atom-one-dark`, `atom-one-light`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`, `catppuccin-mocha`, `dracula`, `flexoki`, `gruvbox`, `monokai`, `nord`, `rose-pine`, `rose-pine-dawn`, `rose-pine-moon`, `solarized-dark`, `solarized-light`, `textual-dark`, `textual-light` and `tokyo-night`. Unknown names are ignored.
+Valid theme names are `humanfia-dark`, `humanfia-light`, each preset's two sides (such as `temperate-gold-light` and `temperate-gold-dark`), `terminal`, `ansi-dark`, `ansi-light`, `atom-one-dark`, `atom-one-light`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`, `catppuccin-mocha`, `dracula`, `flexoki`, `gruvbox`, `monokai`, `nord`, `rose-pine`, `rose-pine-dawn`, `rose-pine-moon`, `solarized-dark`, `solarized-light`, `textual-dark`, `textual-light` and `tokyo-night`. Unknown names are ignored.
 
 Set `NO_COLOR` to use the terminal's own colours:
 
@@ -107,11 +128,11 @@ Set `NO_COLOR` to use the terminal's own colours:
 NO_COLOR=1 hmz
 ```
 
-The terminal interface and CLI are in English only.
+The CLI is in English only.
 
 ## Good to know
 
-- Your browser or Humanize Desktop stores themes, pictures and language locally on your device, not on a daemon. Use **Export** and **Import** to move themes between browsers or devices.
+- Your browser or Humanize Desktop stores themes, pictures and language locally on your device, not on a daemon. The terminal keeps its own choice under `tui` in `settings.toml`, separate from the app's. Use **Export** and **Import** to move themes between browsers or devices.
 - Clearing browser site data deletes custom themes and resets the theme, side and language to their defaults.
 - Deleting the active theme switches you back to Humanize Green.
 - Other tabs of the same browser follow a change of theme or side at once, and reload when you change the language.

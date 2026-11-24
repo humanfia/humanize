@@ -75,8 +75,9 @@ from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
+from hmz.words import speak
 
-from . import humanfia
+from . import humanfia, own
 from .asking import Asks, blocks, fields, summary
 from .chats import Resumes
 from .complete import Command, flow_names, hinted, offered, tagged
@@ -1125,7 +1126,12 @@ class Humanize(App[None]):
         self.register_theme(_TERMINAL)
         for theme in humanfia.THEMES.values():
             self.register_theme(theme)
-        self.theme = humanfia.chosen(os.environ, self.available_themes)
+        # What Settings > Themes and Language keep comes after those two, and the language
+        # before anything is drawn (`own.py`).
+        kept = own.read()
+        self.theme = humanfia.chosen(os.environ, self.available_themes, kept.looks())
+        speak(kept.speaks(os.environ))
+        own.hears_focus(self)
         #: The zones beside the log, and what is open in them.
         self.shell = Shell(self)
         #: This interface's end of the runs: everything it draws is a message told through
@@ -4829,15 +4835,9 @@ class Humanize(App[None]):
             title=title,
             severity="error" if kind == "failed" else "information",
         )
-        if system and not self.is_headless:
-            self.bell()
-            # OSC 9, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as one of
-            # the system's own notifications, and every other terminal ignores. Nothing an
-            # agent wrote may end it early or say anything else to the terminal.
-            told = _DOT.join(one for one in (title, said) if one)
-            shown = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", f"hmz: {told}")
-            if self._driver is not None:
-                self._driver.write(f"\x1b]9;{shown}\x07")
+        if system:
+            # Through the terminal, while it is not what is being looked at (`own.py`).
+            own.tells(self, os.environ, f"hmz: {title}", said)
 
     def _shows(self, notice: Mapping[str, Any]) -> bool:
         """Whether a notice's epic or chat is the one on the screen.
@@ -6928,8 +6928,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, notifications, daemons, accounts, nous, runtimes, backup, "
-        "workspace, usage",
+        f"Every setting: {', '.join(_PAGES)}",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

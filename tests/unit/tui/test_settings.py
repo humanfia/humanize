@@ -1,23 +1,30 @@
-"""`hmz.tui.settings`: which page of `/settings` a word opens."""
+"""`hmz.tui.settings`: which page of `/settings` a word opens, and the groups the pages are in."""
 
 from __future__ import annotations
 
 import pytest
 
-from hmz.tui.settings import MOVED, PAGES, page_of
+from hmz.tui.settings import GROUPS, MOVED, PAGES, page_of
 
 
-def test_the_pages_are_listed_in_order() -> None:
+def test_the_pages_are_listed_in_the_groups_the_web_page_has_them_in() -> None:
+    assert GROUPS == (
+        ("App", ("themes", "daemons", "notifications", "language")),
+        ("Daemon", ("general", "accounts", "nous", "runtimes", "backup", "usage")),
+        ("Workspace", ("workspace",)),
+    )
     assert PAGES == (
-        "general",
-        "notifications",
+        "themes",
         "daemons",
+        "notifications",
+        "language",
+        "general",
         "accounts",
         "nous",
         "runtimes",
         "backup",
-        "workspace",
         "usage",
+        "workspace",
     )
 
 
@@ -31,6 +38,8 @@ def test_each_page_is_opened_by_its_own_name(at: int, page: str) -> None:
     [
         ("General", "general"),
         ("ACCOUNTS", "accounts"),
+        ("Themes", "themes"),
+        ("language", "language"),
         ("settings", "general"),
         ("everywhere", "general"),
         ("directory", "workspace"),
