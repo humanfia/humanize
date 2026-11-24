@@ -49,6 +49,7 @@ class Conversations(OptionList):
     Conversations {
         height: 1fr; padding: 0; border: none; background: $surface;
         scrollbar-size: 1 1; }
+    Conversations:focus { border: none; background-tint: $surface 0%; }
     Conversations > .option-list--option-highlighted {
         background: $block-cursor-blurred-background;
         color: $block-cursor-blurred-foreground; text-style: none; }

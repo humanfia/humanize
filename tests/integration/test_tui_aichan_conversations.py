@@ -378,3 +378,31 @@ async def test_a_nous_the_daemon_refused_is_not_the_one_the_next_form_opens_on(
 
     assert _made(daemon) == []
     assert Settings().ai_chan == ""
+
+
+async def test_f3_lists_her_conversations_beside_the_log_and_enter_follows_one(
+    workspace: Path, daemon: Private
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await _new(pilot)
+        await _done(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "heard hello there")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: "Ai-chan#1" not in screen(app), "her to be left")
+
+        await pilot.press("f3")
+        # In the context zone, headed in capitals, the log still drawn beside it.
+        drawn = await shows(pilot, "AI-CHAN", "+ New conversation", "Ai-chan#1 · hello")
+        assert "Humanize" in drawn
+        # Its keys are the hint line's while it has them.
+        await shows(pilot, "enter Open", "N New", "R Rename", "P Pin", "delete Delete")
+
+        await pilot.press("down", "enter")
+        await shows(pilot, "Ai-chan#1 · workspace")
+        await typed(pilot, "and again")
+        await shows(pilot, "heard and again")
+    assert len(_made(daemon)) == 1
+    assert heard(workspace)[-1] == "and again"
