@@ -1221,7 +1221,9 @@ cut unless confinement (Section 4.6.4) permits it.
 one no retry changes, naming the harness, the team's admin and the setting.
 
 **4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
-it, and hmz MUST launch each at that mode without reading any policy first.
+it, and hmz MUST launch each at that mode without reading any policy first. Where a `dsh` agent is
+confined, hmz MUST hold its sessions at that mode whatever default preset the person's own settings
+name, without writing to those settings.
 
 **4.6.2.11** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
 run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
