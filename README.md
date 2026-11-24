@@ -73,7 +73,7 @@ hmz web
 Or say one thing to an agent from your shell:
 
 ```sh
-hmz chat -a claude/claude-opus-5:high "What does this repository do?"
+hmz chat start -a claude/claude-opus-5:high "What does this repository do?"
 ```
 
 Humanize ships no flow: install one from the official

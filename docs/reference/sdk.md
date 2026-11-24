@@ -479,7 +479,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | Attribute | Methods |
 | --- | --- |
 | `devices` | `pair.*`, `devices.*` |
-| `chats` | `chat.*` |
+| `chats` | `chat.*`, `chat.harness.*` |
 | `epics`, `hosts` | `epic.*`, `hosts.*` |
 | `runs`, `backups`, `files` | `runs.*`, `backups.*`, `files.*` |
 | `envs` | `env.*`, `hosts.env.*` |
@@ -488,7 +488,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | `runtimes`, `easytier` | `runtimes.*`, `easytier.*` |
 | `btw`, `aichan`, `notices` | `btw.*`, `aichan.*`, `notices.*` |
 
-Every family has `METHODS`, the daemon methods it calls. Only `devices` has calls so far; the others are being added.
+Every family has `METHODS`, the daemon methods it calls. `devices` and `chats` have calls so far; the others are being added.
 
 #### devices {#client-devices}
 
@@ -506,6 +506,65 @@ with Client.local() as client:
     for device in client.devices.list():
         print(device.name, device.seen)
 ```
+
+#### chats {#client-chats}
+
+A chat is named two ways. What is done to a chat as it is written down takes its id. What is done to it while a host holds it takes its workspace and slot; `hold(chat)` gives those.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `start(workspace, task, *, agent=None, resume=None, prefer=None, permission=None, worktree=None, env=None, remember=None, slot="chat:", idem=None)` | `Started` | Starts a chat, or carries one on with `resume`. `workspace=None` starts it in no folder. A `Started` has `chat`, `workspace` and `slot`. |
+| `follow(workspace, slot, *, replay=True, line=None)` | `Turn` | Attaches to the chat's host to hear its turn. |
+| `ask(chat, text, *, idem=None)` | `Turn` | Says a line to a chat by id and follows the turn that answers it. |
+| `hold(chat)` | `Held` | The `workspace` and `slot` of the host holding the chat. A resting chat is carried on first, with nothing said. |
+| `say(workspace, slot, text, *, idem=None)` | `None` | Says the next line. An empty line ends the chat on that host. |
+| `rest(chat, *, seconds=10.0)` | `bool` | Ends the chat on its host and waits until no host holds it. |
+| `stop(workspace, slot, *, idem=None)` | `None` | Stops the open turn. |
+| `set(workspace, slot, *, prefer=None, permission=None, idem=None)` | `None` | Sets the permission, from the next turn, or what a `$name` runs. |
+| `move(workspace, slot, env, *, idem=None)` | `str` | Moves the chat to another environment between turns. Returns where it then works. |
+| `commands(workspace, slot)` | `Catalogue` | What a line can start with: `entries` (each `sigil`, `name`, `about`, `how`, `source`), `prefer`, `prefer_from`, `permission`, `listed`. |
+| `list(*, workspace=None, archived=None, q=None, offset=None, limit=None)` | `Listed` | A page of chats, newest first: `chats`, `total`, `offset`, `limit`. |
+| `get(chat, *, trace=None)` | `Chat` | One chat. With `trace=True`, `said["trace"]` holds what was said in it. |
+| `rename(chat, title)`, `agent(chat, agent)`, `archive(chat)`, `unarchive(chat)` | `Chat` | Changes the chat and returns it as it then is. Each takes `idem`. |
+| `fork(chat, *, idem=None)` | `str` | The id of a new chat that goes on from a copy of this one. |
+| `backup(chat, *, to=None, idem=None)` | list of `str` | Queues a backup and returns its targets. |
+| `delete(chat, *, idem=None)` | `None` | Deletes the chat for good. |
+| `remembered(workspace)` | `str` | The agent remembered for the folder, or `""`. |
+| `harness.list(workspace, *, offset=None, limit=None)` | `Sessions` | The harness sessions of a folder: `sessions`, `total`, `offset`, `limit`. |
+| `harness.get(workspace, harness, session, *, trace=None)` | `HarnessSession` | One harness session: `id`, `harness`, `title`, `workspace`, `model`, `began`, `updated`, `continuable`, `trace`. |
+| `harness.adopt(workspace, harness, session, *, agent=None, idem=None)` | `str` | The id of a new chat that continues the session. |
+
+A `Chat` has `id`, `title`, `workspace`, `folderless`, `workdir`, `env`, `agent`, `model`, `began`, `updated`, `state`, `slot`, `asking`, `permission`, `archived`, and `said`, the daemon's whole answer.
+
+A `Turn` is the turn as the chat's host tells it. Iterating it yields each message the host sends and ends when the chat is between turns again, has ended, or its host has gone. It raises `ConnectionError` if the session with the daemon ends first.
+
+| `Turn` member | What it holds |
+| --- | --- |
+| `answer` | What the turn answered, or `None`. |
+| `failed` | What the harness said if the turn failed, or `""`. |
+| `notes` | What the chat said beside the answer, such as why it refused the line. |
+| `ended` | `(how, why)` if the chat ended or its host went, or `None`. |
+| `done` | Whether the turn was taken and the chat is between turns. |
+| `wait()` | Hears the turn out and returns `answer`. |
+| `close()` | Detaches from the host. The chat goes on. A `with` block calls it. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    chats = client.chats
+    started = chats.start("/home/me/shop", "What does charge() do?", agent="claude/claude-haiku-4-5")
+    with chats.follow(started.workspace, started.slot) as turn:
+        for message in turn:
+            if message.get("type") == "event" and message.get("kind") == "text":
+                print(message["text"])
+    with chats.ask(started.chat, "And how is it tested?") as turn:
+        print(turn.wait())
+    chats.rest(started.chat)
+```
+
+- Pass `replay=False` to `follow` when the host held the chat before the line you are about to say, and pass that line as `line`; `ask` does both.
+- A host that `start` or `hold` started stands by between turns and folds on its own. Call `rest` to end it at once.
 
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 

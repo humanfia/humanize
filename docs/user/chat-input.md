@@ -124,15 +124,15 @@ See [Terminal commands and keys](/reference/tui) for the full list of Humanize c
 
 ## From the command line
 
-`hmz chat` parses prefixes the same way. A `!` line prints the command and its output without taking a turn:
+`hmz chat start` and `hmz chat say` parse prefixes the same way. A `!` line prints the command and its output without taking a turn:
 
 ```sh
-hmz chat -a claude/claude-haiku-4-5 '!git log --oneline'
+hmz chat start -a claude/claude-haiku-4-5 '!git log --oneline'
 ```
 
 ![hmz chat run with a !git log line: it prints the chat's id, the command, and the one commit](/shots/user-chat-input-cli.svg)
 
-`hmz chat` refuses Humanize commands like `/clear` and `$` lines that name a flow. To start a flow from the shell, run `hmz exec -f <name>` instead. See [The command line](/user/command-line).
+`hmz chat say` refuses Humanize commands like `/clear` and `$` lines that name a flow. To start a flow from the shell, run `hmz exec -f <name>` instead. See [The command line](/user/command-line).
 
 ## What each CLI takes {#what-each-cli-takes}
 

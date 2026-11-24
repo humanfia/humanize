@@ -3762,7 +3762,142 @@ class Code:     # frozen
 
 ### 4.24. `Client.chats`
 
-This section is reserved for the family of `chat.*`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+```python
+class Chats(Family):
+    harness: Harness                                                     # property
+    def start(self, workspace: str | None, task: str, *, agent: str | None = None,
+              resume: str | None = None, prefer: str | None = None,
+              permission: str | None = None, worktree: bool | None = None,
+              env: str | None = None, remember: bool | None = None,
+              slot: str = "chat:", idem: str | None = None) -> Started: ...
+    def hold(self, chat: str) -> Held: ...
+    def say(self, workspace: str, slot: str, text: str, *, idem: str | None = None) -> None: ...
+    def rest(self, chat: str, *, seconds: float = 10.0) -> bool: ...
+    def follow(self, workspace: str, slot: str, *, replay: bool = True,
+               line: str | None = None) -> Turn: ...
+    def ask(self, chat: str, text: str, *, idem: str | None = None) -> Turn: ...
+    def commands(self, workspace: str, slot: str) -> Catalogue: ...
+    def set(self, workspace: str, slot: str, *, prefer: str | None = None,
+            permission: str | None = None, idem: str | None = None) -> None: ...
+    def move(self, workspace: str, slot: str, env: str, *, idem: str | None = None) -> str: ...
+    def stop(self, workspace: str, slot: str, *, idem: str | None = None) -> None: ...
+    def list(self, *, workspace: str | None = None, archived: bool | None = None,
+             q: str | None = None, offset: int | None = None,
+             limit: int | None = None) -> Listed: ...
+    def get(self, chat: str, *, trace: bool | None = None) -> Chat: ...
+    def rename(self, chat: str, title: str, *, idem: str | None = None) -> Chat: ...
+    def agent(self, chat: str, agent: str, *, idem: str | None = None) -> Chat: ...
+    def fork(self, chat: str, *, idem: str | None = None) -> str: ...
+    def archive(self, chat: str, *, idem: str | None = None) -> Chat: ...
+    def unarchive(self, chat: str, *, idem: str | None = None) -> Chat: ...
+    def backup(self, chat: str, *, to: Sequence[str] | None = None,
+               idem: str | None = None) -> list[str]: ...
+    def delete(self, chat: str, *, idem: str | None = None) -> None: ...
+    def remembered(self, workspace: str) -> str: ...
+
+class Harness(Family):
+    def list(self, workspace: str, *, offset: int | None = None,
+             limit: int | None = None) -> Sessions: ...
+    def get(self, workspace: str, harness: str, session: str, *,
+            trace: bool | None = None) -> HarnessSession: ...
+    def adopt(self, workspace: str, harness: str, session: str, *,
+              agent: str | None = None, idem: str | None = None) -> str: ...
+
+class Turn(Family):
+    workspace: str; slot: str
+    answer: str | None; failed: str; notes: list[str]
+    ended: tuple[str, str] | None; done: bool
+    def __iter__(self) -> Iterator[Mapping[str, Any]]: ...
+    def wait(self) -> str | None: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+
+class Chat:            # frozen
+    id: str; title: str; workspace: str; folderless: bool; workdir: str; env: str
+    agent: str; model: str; began: str; updated: str; state: str; slot: str
+    asking: tuple[str, ...]; permission: str; archived: bool; said: dict[str, Any]
+class Listed:          # frozen
+    chats: tuple[Chat, ...]; total: int; offset: int; limit: int
+class Started:         # frozen
+    chat: str; workspace: str; slot: str
+class Held:            # frozen
+    workspace: str; slot: str
+class Entry:           # frozen
+    sigil: str; name: str; about: str; how: str; source: str
+class Catalogue:       # frozen
+    entries: tuple[Entry, ...]; prefer: str; prefer_from: str
+    permission: str | None; listed: bool
+class HarnessSession:  # frozen
+    id: str; harness: str; title: str; workspace: str; model: str; began: str
+    updated: str; continuable: bool; trace: Any
+class Sessions:        # frozen
+    sessions: tuple[HarnessSession, ...]; total: int; offset: int; limit: int
+```
+
+`Client.chats` is the family of `chat.*` (Section 4.25 of [DAEMON]); `hmz.sdk.families.chats` holds
+it and these types. `Chats.METHODS` names every method of `chat.*` and `chat.harness.*`, those of
+`Harness.METHODS` among them.
+
+**4.24.1** `start`, `say`, `commands`, `set`, `move`, `stop`, `list`, `get`, `rename`, `agent`,
+`fork`, `archive`, `unarchive`, `backup` and `delete` MUST each make the one call of `chat.*` of that
+name with what they were given as its parameters of the same names (Section 4.22.3). `start` and
+those that Section 4.25.7 of [DAEMON] answers with a chat row MUST return, of `start`, a `Started`
+of `chat`, the workspace and `slot`, and of the others a `Chat` of the row, `said` being the whole
+result; `fork` MUST return the new chat's name, `move` the `env` answered, `backup` the `queued`
+targets, `commands` a `Catalogue` and `list` a `Listed`.
+
+**4.24.2** `start` with `workspace` `None` MUST first make a folderless workspace for the chat
+(`epic.attach` with `scratch` `true`, `replay` `false` and `slot`), MUST start the chat on the
+workspace and slot that answers, and MUST then let that host go (`epic.detach`), whether or not the
+start was refused.
+
+**4.24.3** `hold(chat)` MUST return the workspace and slot of the host holding the chat (`chat.get`),
+and where none does MUST first carry the chat on with nothing said (`chat.start` with `resume` and an
+empty `task`) and return that host's.
+
+**4.24.4** `rest(chat, seconds=...)` MUST say an empty line to the host holding the chat, where one
+does, a refusal 404 or 409 of it being no error, MUST then read the chat until no host holds it or
+`seconds` have passed, and MUST return whether none holds it.
+
+**4.24.5** `follow(workspace, slot, replay=..., line=...)` MUST attach the session to that host
+(`epic.attach`, with `replay` `false` where it is `False`) and return a `Turn` of its subscription.
+The `Client` MUST have its listener (Section 4.22.5) before that call is made, so that nothing the
+host says is lost.
+
+**4.24.6** Iterating a `Turn` MUST yield the `message` of each `epic.event` of its subscription, in
+order, and MUST end once the turn is done, the chat has ended (`ended`), or the host has let go
+(`gone`); it MUST raise `ConnectionError` where the session ended first. The turn is done once the
+line has been seen taken -- a `run` snapshot whose `turn` is `running`, a `result` event, or an
+`asked` record of mode `listen` -- and the latest `run` snapshot's `turn` is `done`. With `line`,
+nothing heard before the host says that line was taken (an `answered` record, a `said` record of
+that text, the text among `given` of a `waiting` snapshot, or among `texts` of an `unheld` record)
+MUST count.
+
+**4.24.7** A `Turn` MUST keep, as it is heard: `answer`, the text of the last `result` event,
+stripped, `None` for none; `failed`, the text of a `failed` event, `""` for none; `notes`, the text
+of each `asked` record of mode `listen` less the answer it ends with, where anything is left and
+the turn did not fail; `ended`, `(how, why)` of an `ended` record, or `("gone", why)` of a `gone`;
+and `done`. `wait()` MUST iterate it to its end and return `answer`.
+
+**4.24.8** Where the host says `gone` with a `why` that begins `too far behind`, a `Turn` MUST
+attach again with `since` the `epoch` of its `welcome` and the last `seq` it heard, and go on.
+
+**4.24.9** `Turn.close()`, and leaving a `with` block over a `Turn`, MUST let the host go
+(`epic.detach`), a refusal of which MUST be suppressed, and stop hearing the subscription; it MUST
+NOT end or stop the chat.
+
+**4.24.10** `ask(chat, text)` MUST hold the chat (4.24.3), follow its host with `replay` `False` and
+`line` `text`, say `text` to it (`chat.say`), and return the `Turn`; where the attach or the say is
+refused 409 it MUST hold the chat again and try once more, and any other refusal MUST be raised
+with the host let go.
+
+**4.24.11** `remembered(workspace)` MUST return `chat` of `settings.get` for that workspace, `""`
+where it remembers none.
+
+**4.24.12** `Harness.list`, `get` and `adopt` MUST make the calls `chat.harness.list`,
+`chat.harness.get` and `chat.harness.adopt`; `list` MUST return a `Sessions`, `get` a
+`HarnessSession` with `trace` where it was asked for, and `adopt` the new chat's name.
 
 ### 4.25. `Client.epics` and `Client.hosts`
 

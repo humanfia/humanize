@@ -58,7 +58,7 @@ Select **What is sent** below it to view what a report includes without changing
 
 ### From the command line
 
-`hmz exec` and `hmz chat` never prompt you. They send reports only if reporting is already turned on.
+`hmz exec` never prompts you. It sends reports only if reporting is already turned on.
 
 Set `HUMANIZE_SENTRY` to `on` or `off` to override the setting for a single process without saving:
 
@@ -104,5 +104,5 @@ Do not report a vulnerability in a public issue. Report it privately at [github.
 - Each unique crash location is reported once per process. A halted epic is reported at most once.
 - Processes read the reporting setting at startup. If you change it in the app, running processes keep the old setting until they restart.
 - Only the `hmz` terminal interface adds the machine's installed coding agents, accounts, skills, and flowverses to a report. Other processes describe only the running flow and its agents.
-- Only processes that initialize reporting send reports: `hmz`, `hmz exec`, `hmz chat`, runs managed by the daemon, and scripts that call `Hmz().reports()`.
+- Only processes that initialize reporting send reports: `hmz`, `hmz exec`, runs managed by the daemon, and scripts that call `Hmz().reports()`.
 - See [settings.toml](/reference/settings) and [Environment variables](/reference/environment) for configuration details, and [Security](/user/security) for what agents can access.

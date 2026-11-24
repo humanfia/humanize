@@ -56,7 +56,7 @@ The keys of `spent` are `input`, `output`, `cache_read`, `cache_write` and `reas
 - Nothing else reaches standard output. What the flow prints goes to standard error.
 - The stream has no object for the end of the epic. The exit status says how it ended.
 - Nobody is at the prompt: a question is answered at once, and its `asks` event is still written.
-- Only `hmz exec` has `--json`. `hmz chat` does not.
+- This stream is `hmz exec --json`. `hmz chat start` and `hmz chat say` print one document with `--json`, and the host's history records with `--events`: see the [CLI reference](/reference/cli#hmz-chat).
 
 ## Messages of an attached epic
 

@@ -27,13 +27,13 @@ python -m hmz ...
 | Command | What it does |
 | --- | --- |
 | `exec` | Run an agent flow in this directory. |
-| `chat` | Say one message to an agent in this directory. |
 | `web` | Open this machine's epics in a browser on it. |
 | `daemon` | Run, reach, pair and install this machine's daemon. |
 | `relay` | Relay daemons and the devices that reach them. |
 | `update` | Update hmz to its newest release. |
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
+| `chat` | Start chats with an agent, send messages, and manage them. |
 | `devices` | List and revoke the devices paired with this daemon. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
@@ -48,13 +48,13 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | --- | --- |
 | `0` | The command succeeded. For `exec`, the flow returned or spent its budget. For `web`, `relay serve` and `daemon serve`, a signal stopped it. |
 | `1` | Execution failed: the daemon is unreachable or incompatible, the flow or chat turn failed, a backup target failed, the update did not complete, a delete was not confirmed, or a listener could not open. |
-| `2` | Usage error, or a refusal before start. `exec` and `chat` write `hmz exec: error: <reason>` or `hmz chat: error: <reason>`. |
+| `2` | Usage error, or a refusal before start. `exec` writes `hmz exec: error: <reason>`. |
 | `3` | A [declared command](#declared-commands) could not reach the daemon, or got no answer in time. |
 | `126` | `hmz internal fence` could not put the fence up. |
 | `127` | `hmz internal anchor`, `cred` or `fence` found no `coganchor` binary for this machine, `anchor --native` found no such harness on the target, or `fence` could not start its program. |
-| `129` | `exec` or `chat` ended on SIGHUP. |
-| `130` | `exec` or `chat` ended on SIGINT, or `daemon connect --stdio` or `hmz internal anchor` was interrupted. |
-| `143` | `exec` or `chat` ended on SIGTERM. |
+| `129` | `exec`, `chat start` or `chat say` ended on SIGHUP. |
+| `130` | `exec`, `chat start` or `chat say` ended on SIGINT, or `daemon connect --stdio` or `hmz internal anchor` was interrupted. |
+| `143` | `exec`, `chat start` or `chat say` ended on SIGTERM. |
 
 ## Output streams
 
@@ -202,48 +202,109 @@ After the epic ends, the command waits up to 60 seconds for backups, unless stop
 
 ## hmz chat
 
-Send one message to an agent in the current directory, print the answer, and exit. Prints `hmz chat: chat <id>` first on stderr.
+Start chats with an agent, send them messages, and manage them. `hmz chat` is a group of [declared commands](#declared-commands): each takes `--json`, and `hmz chat COMMAND --help` prints its arguments, examples, JSON fields and exit statuses.
 
 ```text
-hmz chat [-a SPEC] [-e ENV] [--resume CHAT | --worktree] [--] MESSAGE
-hmz chat --list [--archived]
-hmz chat --rename CHAT TITLE
-hmz chat --fork CHAT
-hmz chat --archive CHAT
-hmz chat --unarchive CHAT
-hmz chat --delete CHAT [--yes]
+hmz chat start [-a AGENT] [-e ENV] [-w DIR | --no-folder] [--worktree]
+               [--permission PERMISSION] [--prefer native|flow] [--remember]
+               [--detach] [--events] [--] MESSAGE
+hmz chat say CHAT [--detach] [--events] [--] MESSAGE
+hmz chat list [-w DIR | --all] [--archived] [-q TEXT] [--limit N] [--offset N]
+hmz chat show CHAT [--trace]
+hmz chat rename CHAT TITLE
+hmz chat fork CHAT
+hmz chat archive CHAT
+hmz chat unarchive CHAT
+hmz chat delete CHAT [-y]
+hmz chat stop CHAT
+hmz chat set CHAT [--permission PERMISSION] [--prefer native|flow]
+hmz chat move CHAT ENV
+hmz chat agent CHAT AGENT
+hmz chat commands CHAT
+hmz chat backup CHAT [--to TARGET]...
+hmz chat harness list [-w DIR] [--limit N] [--offset N]
+hmz chat harness show HARNESS SESSION [-w DIR] [--trace]
+hmz chat harness adopt HARNESS SESSION [-w DIR] [-a AGENT]
 ```
 
-| Option | Value | What it does |
+`CHAT` is a chat's id, as `hmz chat list` prints it. `AGENT` is `CLI[@ACCOUNT]/MODEL[:EFFORT]` or a nous name, written as in [`hmz exec -a`](#agent-specs) without `ROLE=`. `ENV` is `BACKEND[@RUNTIME][/DIRECTORY]`. `PERMISSION` is `read-only`, `workspace-write` or `danger-full-access`.
+
+### start and say
+
+`start` begins a chat with its first message; `say` sends the next message to a chat. Both wait until the agent has answered, then print the answer.
+
+| Option | Command | What it does |
 | --- | --- | --- |
-| `-a`, `--agent` | `CLI[@ACCOUNT]/MODEL[:EFFORT]` or `NOUS` | The agent, written as in [`hmz exec -a`](#agent-specs) without `ROLE=`. New chats default to the directory's remembered agent, or fail if none exists. Resumed chats keep their own unless `-a` is given with `--resume`, which carries the chat on with that agent. |
-| `-e`, `--env` | `BACKEND[@RUNTIME][/DIRECTORY]` | Where the agent works. With `--resume`, moves the chat there. |
-| `--resume` | `CHAT` | Appends the message as the next turn of this chat. Incompatible with `--worktree`. |
-| `--worktree` | | Starts the chat in a new git worktree of this directory. |
-| `--list` | | Lists this directory's chats, newest first: id, state (`ready`, `turn`, `asking` or `failed`), title. |
-| `--archived` | | With `--list`, lists only archived chats. |
-| `--rename` | `CHAT` | Sets the chat's title and prints its line. |
-| `--fork` | `CHAT` | Branches a new chat from this one and prints the new id. |
-| `--archive` | `CHAT` | Archives the chat and prints its line. |
-| `--unarchive` | `CHAT` | Restores an archived chat and prints its line. |
-| `--delete` | `CHAT` | Permanently deletes the chat after prompting on stderr. |
-| `--yes` | | Skips the confirmation prompt for `--delete`. |
+| `-a`, `--agent` | `start` | The agent. Defaults to the agent remembered for the folder; fails if none is remembered. |
+| `-e`, `--env` | `start` | Where the agent works. Defaults to the folder itself. |
+| `-w`, `--workspace` | `start` | The folder the chat is of. Defaults to the current directory. |
+| `--no-folder` | `start` | Starts the chat in no folder; the daemon makes a directory for it. Needs `-a`. |
+| `--worktree` | `start` | Works in a new git worktree of the folder. |
+| `--permission` | `start` | What the agent may change. Defaults to `workspace-write`. |
+| `--prefer` | `start` | Which one a `$name` line runs when both a skill of the harness (`native`) and a flow (`flow`) have that name. |
+| `--remember` | `start` | Remembers the agent for the folder, for the next `start` without `-a`. |
+| `--detach` | both | Returns as soon as the message is sent. Prints the chat's id. |
+| `--events` | both | Prints each record of the turn as one JSON object per line, then the final document. |
 
-`--list`, `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete` are mutually exclusive, run no turn, and reject `-a`, `-e`, `--resume` and `--worktree`.
+| Output | Where |
+| --- | --- |
+| The answer, and what a `!` command printed | Standard output. |
+| `Chat <id>` (`start` only), then the turn as it goes | Standard error. |
+| With `--json` | `{"chat", "workspace", "slot", "answer", "notes", "detached"}` on standard output; nothing on standard error. |
+| With `--json`, when the turn failed | `{"error": {"code": 0, "message"}, "chat", "workspace", "slot"}` |
 
-Messages work as in any chat interface, except `/`-prefixed interface commands and `$NAME` flow calls are refused. Prefixing a line with `!` runs a shell command and prints its output to stdout.
-
-There is no `--json` and no budget.
+`notes` holds what the chat said beside the answer, such as why it refused the message. The records `--events` prints are the host's history records: see [Events and records](/reference/events).
 
 | Event | Exit |
 | --- | --- |
 | The turn is done | `0` |
-| The turn failed, or the daemon cannot be reached | `1` |
-| `--delete` without `--yes` and nobody at a terminal | `1` |
-| A usage error, or a refusal by the daemon | `2` |
+| The turn failed, or the daemon refused the request | `1` |
+| The command line could not be read | `2` |
+| The daemon could not be reached, or went away during the turn | `3` |
 | SIGINT, SIGTERM or SIGHUP | `130`, `143`, `129` |
 
-Signals detach the command without stopping the turn; the chat continues in the daemon. See [Chat with an agent](/user/chat) and [Organise chats](/user/manage-chats).
+- Signals detach the command without stopping the turn; the chat continues in the daemon. Stop a turn with `hmz chat stop`.
+- When its turn is done, `start` ends the chat's host, and so does `say` if no host held the chat before. The chat rests until the next `say`. With `--detach`, the host stays until it folds on its own.
+- `say` to a chat whose turn is still open waits for the turn that takes the message.
+- `say` refuses hmz's own `/` commands and `$NAME` lines that name a flow, in the daemon's words. Start flows with `hmz exec`.
+- A line that starts with `!` runs a shell command and takes no turn.
+
+### Managing chats
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per chat, newest first: id, state, title cut to 60 characters. | `{"chats": [CHAT...], "total", "offset", "limit"}` |
+| `show CHAT` | One line per field, name then value. With `--trace`, what each harness session said and did. | The chat row, plus `at`, `task`, `prefer`, `forked`, `adopted`, `agents`, `sessions`, `earlier`, `backup`, `backed`, and `trace` with `--trace`. |
+| `rename CHAT TITLE`, `archive CHAT`, `unarchive CHAT`, `agent CHAT AGENT` | The chat's line, as `list` prints it. | The chat row. |
+| `fork CHAT` | The new chat's id. | `{"chat": <id>}` |
+| `delete CHAT` | Nothing. Asks on standard error first unless `-y` is given. | `{"deleted": <id>}` |
+| `stop CHAT` | `Stopped` | `{"stopped": <id>}` |
+| `set CHAT` | `permission`, `prefer` and `prefer_from`, one per line. | `{"chat", "permission", "prefer", "prefer_from"}` |
+| `move CHAT ENV` | The environment the chat works in from then on. | `{"chat", "env"}` |
+| `commands CHAT` | One line per entry: sigil and name, source, what it does. | `{"entries": [{"sigil", "name", "about", "how", "source"}], "prefer", "prefer_from", "permission", "listed"}` |
+| `backup CHAT` | The targets the backup was queued for. | `{"queued": [<target>]}` |
+
+A chat row has `id`, `title`, `state`, `agent`, `model`, `permission`, `env`, `workdir`, `workspace`, `folderless`, `slot`, `asking`, `began`, `updated`, `archived` and `spent`. `state` is `turn` while the agent works, `asking` while it waits for an answer, `going` while a host holds the chat between turns, `failed`, or `resting`.
+
+- `list` shows the chats of the current directory. `-w DIR` names another folder, `--all` lists every folder, `--archived` lists archived chats instead, and `-q TEXT` keeps chats whose title, first message or id contains the text. `--limit` is at most 200.
+- `delete` without `-y` deletes nothing and exits `1` when standard input is not a terminal, with `--json`, or when the answer is not `y` or `yes`.
+- `set` takes either option or both. A permission holds from the chat's next turn.
+- `move` works only between turns. `agent` changes the model or effort within the chat's harness and account.
+- `stop`, `set` and `commands` act on the host that holds the chat. A resting chat is carried on first, with nothing said. `move` carries a resting chat on in the new environment.
+
+### Harness sessions
+
+A harness session is a conversation a harness such as Claude Code or Codex had on its own in a folder, outside hmz.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `harness list` | One line per session, last written first: harness, id, when it was last written, title. | `{"sessions": [SESSION...], "total", "offset", "limit"}` |
+| `harness show HARNESS SESSION` | One line per field. With `--trace`, what was said and done in it. | The session row, and `trace` with `--trace`. |
+| `harness adopt HARNESS SESSION` | The new chat's id. | `{"chat": <id>}` |
+
+A session row has `id`, `harness`, `title`, `workspace`, `model`, `began`, `updated` and `continuable`. `adopt` copies a continuable session into a new chat and leaves the session as it is; `-a` names an agent of the same harness to continue with. Send the new chat a message with `hmz chat say`.
+
+See [Chat with an agent](/user/chat) and [Organise chats](/user/manage-chats).
 
 ## hmz web
 
@@ -363,7 +424,7 @@ See [Back up to git](/user/backups).
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
+`hmz chat` and `hmz devices` are commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
 
 | Option | What it does |
 | --- | --- |
@@ -377,7 +438,7 @@ A group named alone, such as `hmz devices`, lists its commands.
 | Status | Meaning |
 | --- | --- |
 | `0` | The command did what was asked. |
-| `1` | The daemon refused the request. |
+| `1` | The daemon refused the request, or a chat turn failed. |
 | `2` | The command line could not be read. |
 | `3` | The daemon could not be reached. |
 

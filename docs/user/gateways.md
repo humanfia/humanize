@@ -50,7 +50,7 @@ You must create `mcode` gateway accounts in the terminal, because they run an `m
 Pick the account in the agent chip, or pass it after `@` on the command line with a model served by the endpoint:
 
 ```sh
-hmz chat -a claude@router/claude-haiku-4-5 "Where is the cart total computed?"
+hmz chat start -a claude@router/claude-haiku-4-5 "Where is the cart total computed?"
 ```
 
 For most CLIs, Humanize reads the model list from the endpoint itself.
@@ -80,7 +80,7 @@ These methods require the `litellm` extra of the `hmz` package. If it is missing
 Pick **LiteLLM** as the harness in the agent chip, or pass `litellm` on the command line with a LiteLLM model name:
 
 ```sh
-hmz chat -a litellm/anthropic/claude-haiku-4-5:low "Summarise this plan in one line."
+hmz chat start -a litellm/anthropic/claude-haiku-4-5:low "Summarise this plan in one line."
 ```
 
 The `litellm` harness runs a bare model without a coding CLI. Each turn sends the conversation history in a single request. The model has no tools, reads no files, and runs no commands, which fits roles like a reviewer. It needs the `litellm` extra too.
@@ -129,10 +129,10 @@ Pick the added CLI in the **Harness** list of the agent chip, in the terminal's 
 ![The Harness list of the agent chip in the app, with Claude Code, DeepSeek Harness, LiteLLM and the added my-agent](/shots/user-gateways-harness.svg)
 
 ```sh
-hmz chat -a my-agent/default "Where is the cart total computed?"
+hmz chat start -a my-agent/default "Where is the cart total computed?"
 ```
 
-![The command hmz chat -a my-agent/default run in a terminal, and the added CLI's answer](/shots/user-gateways-chat.svg)
+![The command hmz chat start -a my-agent/default run in a terminal, and the added CLI's answer](/shots/user-gateways-chat.svg)
 
 ACP does not set a model or effort, so the CLI uses its own configuration. The app shows the model as **As configured**. On the command line, pass any word after `/` to satisfy the model argument; Humanize does not send it.
 

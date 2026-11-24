@@ -101,7 +101,7 @@ Pass the runtime name after `@` in `-e`. Use `ROLE=BACKEND[@RUNTIME][/WORKDIR]` 
 
 ```sh
 hmz exec -f @local/on_box -a builder=claude/claude-haiku-4-5 -e box=ssh@gpu-box -p budget.output_tokens=20000 "Add a discount code to checkout"
-hmz chat -e ssh@gpu-box/~/shop "Add a discount code to checkout"
+hmz chat start -e ssh@gpu-box/~/shop "Add a discount code to checkout"
 ```
 
 | Spelling | Where the work goes |

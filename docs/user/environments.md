@@ -113,19 +113,19 @@ Press <kbd>enter</kbd> on the machine row to list that backend's saved runtimes.
 
 ## From the command line
 
-`hmz chat` runs in the current directory by default.
+`hmz chat start` runs in the current directory by default.
 
-| Option | What it does |
+| Command | What it does |
 | --- | --- |
-| `--worktree` | Starts the chat in a new git worktree of the current directory. Cannot be combined with `--resume`, and is refused outside a git repository. |
-| `-e ENV` | Starts the chat in the specified environment, formatted as `BACKEND[@RUNTIME][/DIRECTORY]`. |
-| `--resume CHAT -e ENV` | Moves the chat to the specified environment and resumes it there. |
+| `hmz chat start --worktree` | Starts the chat in a new git worktree of the current directory. Refused outside a git repository. |
+| `hmz chat start -e ENV` | Starts the chat in the specified environment, formatted as `BACKEND[@RUNTIME][/DIRECTORY]`. |
+| `hmz chat move CHAT ENV` | Moves the chat to the specified environment, between turns. |
 
 ```sh
-hmz chat --worktree -a claude/claude-haiku-4-5 "Try the discount as a percentage"
+hmz chat start --worktree -a claude/claude-haiku-4-5 "Try the discount as a percentage"
 ```
 
-![hmz chat --worktree run in a terminal: the chat's id, the agent working, then its answer](/shots/user-environments-cli.svg)
+![hmz chat start --worktree run in a terminal: the chat's id, the agent working, then its answer](/shots/user-environments-cli.svg)
 
 Git lists the worktree alongside your main checkout:
 
@@ -134,7 +134,7 @@ Git lists the worktree alongside your main checkout:
 Pass the chat ID and the new environment to move a chat:
 
 ```sh
-hmz chat --resume 20261117T100000.000Z-ab12cd -e ssh@gpu-box/srv/repo "go on there"
+hmz chat move 20261117T100000.000Z-ab12cd ssh@gpu-box/srv/repo
 ```
 
 For flows, pass `-e ROLE=BACKEND[@PROVIDER][/WORKDIR]` to `hmz exec` for each environment role, either as separate flags or comma-separated.
@@ -160,6 +160,6 @@ Valid backends are `local`, `ssh`, `docker`, `swarm`, `apple-container`, and `sl
 - You cannot move a chat during an active turn (`A turn is open. Move the chat once it is done.`).
 - Most agent CLIs cannot transfer conversation state across machines. With those, moving a chat to another machine starts a new conversation and says why.
 - Ai-chan conversations are fixed to their starting environment and cannot move.
-- The terminal interface (`hmz`) cannot create worktree chats or move chats. Use the app or `hmz chat`.
+- The terminal interface (`hmz`) cannot create worktree chats or move chats. Use the app, `hmz chat start --worktree` or `hmz chat move`.
 - The `local` backend takes no runtime name. The `ssh` backend always requires one.
 - You cannot override an epic's starting folder role with `-e`.

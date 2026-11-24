@@ -4,7 +4,7 @@ The folder chip and the form that opens a folder by its path; the environment ch
 chat, and a chat started in a new git worktree; a chat moved to another directory between its
 turns; the rows of a new epic that say where each environment role works; `/env`, a role's
 form and the hosts its machine is picked from in the terminal interface; and
-`hmz chat --worktree` from the command line. Run it by naming it:
+`hmz chat start --worktree` from the command line. Run it by naming it:
 `uv run pytest tests/system/docs/test_docs_user_environments.py`.
 
 No machine but this one is reached: the runtimes are saved, which reaches nothing, and are
@@ -362,6 +362,6 @@ async def test_a_role_is_placed_in_the_terminal(world: World) -> None:
 def test_a_chat_in_a_worktree_from_the_command_line(world: World) -> None:
     world.says({"percentage": {"text": _TRIED, "after": 0.8}})
     reel = shots.Reel(f"{_PAGE}-cli")
-    reel.cli(["hmz", "chat", "--worktree", "-a", AGENT, _TRY], rows=9)
+    reel.cli(["hmz", "chat", "start", "--worktree", "-a", AGENT, _TRY], rows=9)
     reel.save()
     shots.cli(["git", "worktree", "list"], f"{_PAGE}-cli-worktrees", columns=116)
