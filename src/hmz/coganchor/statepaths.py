@@ -67,7 +67,7 @@ PROFILES: tuple[AgentProfile, ...] = (
     # but the conversations Humanize writes for it.
     AgentProfile(
         name="litellm",
-        state_paths=("~/.cache/humanize/litellm",),
+        state_paths=("~/.local/state/humanize/litellm",),
     ),
     AgentProfile(
         name="mcode",
@@ -116,16 +116,29 @@ PROFILES: tuple[AgentProfile, ...] = (
 _BY_NAME = {profile.name: profile for profile in PROFILES}
 
 #: Directories that hold per-user state for *any* agent and should never be
-#: mirrored, even when the workspace happens to contain them.  ``~/.hmz``
-#: is Humanize's own home, which holds the providers a turn may be run as: those
-#: credentials belong to this machine, never to the one the work lands on.
-#: ``~/.humanize`` is what it was called before, which is not moved where it
-#: cannot be and is no less this machine's for that.
+#: mirrored, even when the workspace happens to contain them: Humanize's own
+#: configuration, data, state and cache, where the XDG specification puts them
+#: by default -- the providers a turn may be run as among them, credentials that
+#: belong to this machine, never to the one the work lands on. ``~/.hmz`` and
+#: ``~/.humanize`` are what its home was called before, which is not moved where
+#: it cannot be and is no less this machine's for that. Wherever an ``XDG_*``
+#: variable moves one of the four, ``_XDG_HOMES`` says, and the directory it
+#: names is kept here too.
 COMMON_STATE_PATHS: tuple[str, ...] = (
     "~/.hmz",
     "~/.humanize",
     "~/.cache/humanize",
     "~/.config/humanize",
+    "~/.local/share/humanize",
+    "~/.local/state/humanize",
+)
+
+#: The variables that move those four, each a directory Humanize's own is ``humanize`` in.
+_XDG_HOMES: tuple[str, ...] = (
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
 )
 
 _CODEX_VENDOR_BIN = os.path.join("vendor", "x86_64-unknown-linux-musl", "bin")
@@ -170,6 +183,12 @@ def resolve(command: list[str]) -> ResolvedAgent:
     local_paths = [
         _expand(path) for path in (*profile.state_paths, *COMMON_STATE_PATHS)
     ]
+    # A relative value is ignored, as the XDG specification has it.
+    local_paths.extend(
+        os.path.normpath(os.path.join(moved, "humanize"))
+        for variable in _XDG_HOMES
+        if os.path.isabs(moved := os.environ.get(variable, ""))
+    )
     # Only the agent's own runtime stays here. Work helpers such as ripgrep
     # deliberately go to the target: running them against the partly materialised
     # mirror would return quietly wrong answers, which is worse than a visible failure.

@@ -39,7 +39,7 @@ use crate::cog::router::{Place, Router};
 use crate::proto::json::{from_os, to_os};
 use crate::proto::{Meta, Op, RemoteError};
 
-pub use registry::{REGISTRY_DIR, SHADOWS, UNMIRRORED};
+pub use registry::{FORMERLY, REGISTRY_DIR, SHADOWS, UNMIRRORED};
 
 use ledger::Ledger;
 
@@ -880,7 +880,8 @@ fn normpath(path: &str) -> String {
 /// or was one of another target, unless `force` (protocol/core.md 6.6.5), with the kind
 /// [`io::ErrorKind::AlreadyExists`] (Python's `FileExistsError`). A mirror path that is not a
 /// directory, or cannot be made or recorded, is refused with a message beginning
-/// [`UNMIRRORED`]. Records live in `$HUMANIZE_SHADOWS`, else [`REGISTRY_DIR`].
+/// [`UNMIRRORED`]. Records live in `$HUMANIZE_SHADOWS`, else `$XDG_STATE_HOME/humanize/shadows`,
+/// else [`REGISTRY_DIR`].
 pub fn prepare_shadow_root(root: &Path, force: bool, target: &str) -> io::Result<()> {
     registry::prepare_in(&registry::registry_dir(), root, force, target)
 }

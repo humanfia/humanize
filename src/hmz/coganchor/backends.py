@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 import copy
 import difflib
+import errno
 import ipaddress
 import logging
 import os
@@ -571,6 +572,44 @@ def written(effort: str) -> str:
 #: to catch the second at all.
 _SILENCE = 900.0
 
+#: What this process has already moved, or found it had nothing to move, so that each is
+#: looked at once (:func:`_settle`).
+_SETTLED: set[tuple[Path, Path]] = set()
+
+
+def _settle(was: Path, now: Path) -> None:
+    """Moves what a release before kept at `was` to `now`, once a process. Never raises.
+
+    Never into a `now` that is there: what it holds is what this release has written since,
+    and the two are not merged. A rename, and across devices a copy made beside `now` and
+    renamed to it once it is whole, so that `now` is never seen half there; then the original
+    removed. Anything else that refuses it leaves it where it is.
+    """
+    if (was, now) in _SETTLED:
+        return
+    _SETTLED.add((was, now))
+    if os.path.lexists(now) or not os.path.lexists(was):
+        return
+    try:
+        now.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            # Atomic, and refused where another process has meanwhile made `now` and put
+            # something in it.
+            was.rename(now)
+        except OSError as why:
+            if why.errno != errno.EXDEV:
+                return
+            staged = now.with_name(f".{now.name}.{os.getpid()}")
+            try:
+                shutil.copytree(was, staged, symlinks=True)
+                staged.rename(now)
+            except OSError:
+                shutil.rmtree(staged, ignore_errors=True)
+                return
+            shutil.rmtree(was, ignore_errors=True)
+    except OSError:
+        pass
+
 
 @dataclass(frozen=True, slots=True)
 class Profile:
@@ -760,6 +799,11 @@ class Profile:
         program -- its hooks, the MCP servers it spawns, the helpers it asks -- searched for
         in the directory it works in and every one above it up to the workspace. Empty for a
         CLI that reads none, or one nobody has written down.
+      formerly: What a release before kept somewhere it no longer does, as `(path under the
+        user's own home, path under the directory this process keeps this backend's home
+        in)`: each moved there the first time this process asks for the home -- never into one
+        already there, which would be two of everything, and left where it is if it cannot be
+        moved. Empty for a backend whose home has never moved, which is every CLI's.
     """
 
     name: str
@@ -803,6 +847,7 @@ class Profile:
     hosts: tuple[str, ...] = ()
     routes: str = ""
     launchers: tuple[Launcher, ...] = ()
+    formerly: tuple[tuple[str, str], ...] = ()
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -869,12 +914,25 @@ class Profile:
         Returns:
           The home directory. It may not exist: a backend that has never run has none.
         """
+        if self.formerly and environment is not None:
+            # What is moved is this user's own, to where this process keeps it -- never to
+            # wherever a turn's environment would put a home of its own.
+            self.directory()
         said = environment if environment is not None else os.environ
         moved = said.get(self.home_var) if self.home_var else ""
-        if moved:
-            return Path(moved) / self.home_in
-        under = said.get("HOME") if environment is not None else ""
-        return (Path(under) if under else Path.home()) / self.home_dir
+        # A home of Humanize's own follows the XDG specification, which has a relative value
+        # ignored; a CLI's follows whatever that CLI does, which for those here is to take it.
+        if moved and not (
+            self.home_in.startswith("humanize/") and not Path(moved).is_absolute()
+        ):
+            home = Path(moved) / self.home_in
+        else:
+            under = said.get("HOME") if environment is not None else ""
+            home = (Path(under) if under else Path.home()) / self.home_dir
+        if environment is None:
+            for was, now in self.formerly:
+                _settle(Path.home() / was, home.parent / now)
+        return home
 
     @staticmethod
     def configuration() -> Path:
@@ -4349,10 +4407,18 @@ PROFILES = (
             "api.mistral.ai",
         ),
         # A home of Humanize's own rather than a CLI's, for the conversations of an agent no
-        # run drives: under the cache Humanize keeps beside every agent's own state, since a
-        # run keeps its own under the run.
-        home_var="",
-        home_dir=".cache/humanize/litellm",
+        # run drives: under the state Humanize keeps beside every agent's own, since a run
+        # keeps its own under the run. State rather than cache: a conversation deleted is one
+        # that can no longer be resumed.
+        home_var="XDG_STATE_HOME",
+        home_in="humanize/litellm",
+        home_dir=".local/state/humanize/litellm",
+        # Where releases before kept these conversations, and the copies of an epic one moved
+        # out of its way -- both state, both kept under the cache until then.
+        formerly=(
+            (".cache/humanize/litellm", "litellm"),
+            (".cache/humanize/displaced", "displaced"),
+        ),
         # One file a conversation, a JSON line a message, with what each answer spent on its
         # line -- which is where the tally and the trace read it.
         logs=("sessions/{ident}.jsonl",),
