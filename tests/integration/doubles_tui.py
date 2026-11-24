@@ -377,7 +377,7 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     await shows(pilot, trail("Installed", OWN), "an epic needs one")
     await gives_a_budget(pilot)
     await leaves(pilot)
-    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+    await shows(pilot, f"Flow set up; `/flow {OWN} <task>` starts it.")
 
 
 async def gives_a_budget(pilot: Pilot[None]) -> None:

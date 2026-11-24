@@ -124,6 +124,6 @@ See the [CLI reference](/reference/cli) for full option syntax, and [The command
 - The app and terminal remember each flow's last setup per folder. The app saves when an epic starts; the terminal saves when you save the flow's page.
 - `hmz exec` uses only its command-line arguments. It ignores saved setups and never installs a flow.
 - In the terminal, `/flow <flow> <task>` starts immediately if the flow is already set up, or opens the setup page first if not.
-- You cannot pick another flow in the terminal while one is running (`cannot choose a flow while one is running`).
+- You cannot pick another flow in the terminal while one is running (`A flow cannot be chosen while one is running.`).
 - On the command line, put `--` before any task that starts with a dash.
 - To continue a finished epic, see [Resume a run](/user/resuming).

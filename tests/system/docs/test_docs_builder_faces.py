@@ -263,7 +263,7 @@ async def _budgeted(pilot: Pilot[None]) -> None:
     await pilot.press("escape")
     await on(pilot, Confirms)
     await pilot.press("enter")
-    await shows(pilot, "set up: /flow gate <task> starts it")
+    await shows(pilot, "Flow set up; `/flow gate <task>` starts it.")
 
 
 def test_the_face_asks_in_the_app(world: World) -> None:

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from textual.app import App, ComposeResult
     from textual.widget import Widget
 
-__all__ = ["Hints", "Shell", "View", "Zone", "bindings", "views"]
+__all__ = ["Hints", "Shell", "View", "Zone", "bindings", "hinting", "views"]
 
 type Where = Literal["navigator", "context", "page"]
 
@@ -65,7 +65,12 @@ class View:
     opens: bool = False
     """Whether it is open when the interface opens."""
     keys: tuple[tuple[str, str], ...] = ()
-    """The keys it takes while it has them, each with what it does: the hint line's, in order."""
+    """The keys it takes while it has them, each with what it does: the hint line's, in order.
+
+    Where they change with what is under its cursor, what `make` made says them instead, in
+    a `hint_keys()` of its own answering the same pairs, and calls :func:`hinting` once they
+    have changed.
+    """
 
 
 @cache
@@ -148,15 +153,25 @@ class Zone(Vertical):
 
     def on_descendant_focus(self, _: events.DescendantFocus) -> None:
         """Has the hint line say this view's keys, now that it has them."""
-        self._hints()
+        self.hints()
 
     def on_descendant_blur(self, _: events.DescendantBlur) -> None:
         """Has the hint line stop saying them."""
-        self.call_after_refresh(self._hints)
+        self.call_after_refresh(self.hints)
 
-    def _hints(self) -> None:
+    def hints(self) -> None:
+        """Has the hint line drawn again: the keys came, went, or are other keys now."""
         if self.told is not None:
             self.told()
+
+    def keys(self) -> Sequence[tuple[str, str]]:
+        """The keys of the view open here: what was made says them, or else its view does."""
+        if self.view is None:
+            return ()
+        said = getattr(self.children[-1], "hint_keys", None)
+        if callable(said):
+            return cast("Sequence[tuple[str, str]]", said())
+        return self.view.keys
 
     def on_key(self, event: events.Key) -> None:
         """Gives the keys back to the prompt on `esc`: one step back, the zone left open."""
@@ -226,6 +241,17 @@ class Hints(Static):
             used += plain + (3 if len(rows[-1]) else 0)
             rows[-1].append(f"[b $primary]{_shown(key)}[/] {t(does)}")
         self.update("\n".join("   ".join(row) for row in rows))
+
+
+def hinting(made: Widget) -> None:
+    """Has the hint line say a view's keys again, which changed with what it shows.
+
+    Args:
+      made: What the view made, or anything in it.
+    """
+    for zone in made.ancestors_with_self:
+        if isinstance(zone, Zone):
+            zone.hints()
 
 
 def _shown(key: str) -> str:
@@ -300,8 +326,13 @@ class Shell:
         from inside it closes it -- a page as well as a zone's.
         """
         view = views()[name]
-        if view.zone == "page" and self._app.screen is self._pages.get(name):
-            self._app.pop_screen()
+        page = self._pages.get(name)
+        if view.zone == "page" and self._app.screen is page:
+            leaves = getattr(page, "closes", None)
+            if callable(leaves):
+                leaves()  # its own way out, which may keep what it held
+            else:
+                await self._app.pop_screen()
         elif view.zone != "page" and not self._app.query(f"#{view.zone}"):
             # A sheet or a page is over the log: the zones are under it, and the key is its.
             return
@@ -333,7 +364,9 @@ class Shell:
         if not line:
             return
         held = self.held()
-        pairs = [*held.keys, ("esc", "Back")] if held is not None else []
+        pairs = (
+            [*self.zone(held.zone).keys(), ("esc", "Back")] if held is not None else []
+        )
         pairs += [
             (view.key, view.hint)
             for view in views().values()

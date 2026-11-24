@@ -43,9 +43,9 @@ While a chat agent is answering, the **Send** button becomes **Stop**. Click it 
 | State | <kbd>ctrl+c</kbd> does |
 | --- | --- |
 | Text in the prompt | Clears the text. |
-| A flow is running | The first press says `press ctrl+c again to stop the flow`. A second press within 3 seconds stops it. |
+| A flow is running | The first press says `Press ctrl+c again to stop the flow`. A second press within 3 seconds stops it. |
 | The flow is stopping | Forces it. If turns were still open, it says how many: `closed 2 conversation(s) mid-turn`. |
-| Nothing is running, or a chat | The first press says `press ctrl+c again to exit`. A second press within 3 seconds leaves `hmz`. |
+| Nothing is running, or a chat | The first press says `Press ctrl+c again to exit`. A second press within 3 seconds leaves `hmz`. |
 
 ![A flow stopped with two presses of ctrl+c, then forced with a third](/shots/user-stopping-terminal.svg)
 
@@ -64,7 +64,7 @@ While the epic is stopping, this button becomes **Force stop** and asks `Close e
 
 ### Stop one turn of a chat {#chat-turn-in-the-terminal}
 
-In a chat, `/stop` interrupts the open turn and keeps the chat. With no turn open it is refused: `no turn is open, so there is nothing to stop`. <kbd>ctrl+c</kbd> never stops a chat's turn. It only leaves.
+In a chat, `/stop` interrupts the open turn and keeps the chat. With no turn open it is refused: `No turn is open, so there is nothing to stop.` <kbd>ctrl+c</kbd> never stops a chat's turn. It only leaves.
 
 ![A chat in the terminal after /stop: the turn was stopped and the prompt is ready](/shots/user-stopping-terminal-turn.svg)
 

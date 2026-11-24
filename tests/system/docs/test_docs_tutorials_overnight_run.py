@@ -155,7 +155,7 @@ async def test_an_epic_is_budgeted_left_and_found_again(world: World) -> None:
         await pilot.press("escape")
         await on(pilot, Confirms)
         await pilot.press("enter")
-        await shows(pilot, f"set up: /flow {_FLOW} <task> starts it")
+        await shows(pilot, f"Flow set up; `/flow {_FLOW} <task>` starts it.")
         await _settled(pilot)
         reel.tui(app, hold=3.0, keys="esc enter", caption="saved", poster=True)
         reel.save()
@@ -189,7 +189,7 @@ async def test_an_epic_is_budgeted_left_and_found_again(world: World) -> None:
     # -- and coming back to it ------------------------------------------------------
     async with world.tui() as (app, pilot):
         await shows(pilot, "WELCOME10")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-back")
 
@@ -199,7 +199,7 @@ async def test_an_epic_is_budgeted_left_and_found_again(world: World) -> None:
         await _settled(pilot, 3.0)
         shots.tui(app, f"{_PAGE}-resumed")
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
 
         # -- and read back ----------------------------------------------------------

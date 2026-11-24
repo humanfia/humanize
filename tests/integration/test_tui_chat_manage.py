@@ -65,13 +65,13 @@ async def _two(pilot: Pilot[None], workspace: Path) -> tuple[Path, Path]:
     """Has one chat, leaves it to fold away, and has a second, which is on the screen."""
     await opened(pilot)
     await typed(pilot, "first")
-    await shows(pilot, "heard first", "◉ done")
+    await shows(pilot, "heard first", "◉ Done")
     await typed(pilot, "/clear")
     await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
     (first,) = chats(workspace)
     await until(pilot, lambda: bool(_said(first).ended), "it to fold")
     await typed(pilot, "second")
-    await shows(pilot, "heard second", "◉ done")
+    await shows(pilot, "heard second", "◉ Done")
     _, second = chats(workspace)
     return first, second
 
@@ -218,7 +218,7 @@ async def test_a_chat_forked_is_gone_on_with_as_a_chat_of_its_own(
 
         await _does(pilot, first, "fork")
 
-        await shows(pilot, "say something to continue chat")
+        await shows(pilot, "Say something to continue chat")
         assert len(app.screen_stack) == 1
         fork = next(one for one in chats(workspace) if one not in (first, second))
         assert _said(fork).forked == first.name

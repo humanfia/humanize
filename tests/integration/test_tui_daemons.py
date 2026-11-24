@@ -241,7 +241,9 @@ async def test_epics_of_no_such_daemon_are_refused(host: Host) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/epics @nowhere")
-        await shows(pilot, "/epics takes a daemon as @<name>: choose @local")
+        await shows(
+            pilot, "`/epics` takes a daemon as `@<name>`; the daemons are @local"
+        )
 
 
 async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
@@ -395,10 +397,10 @@ async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
         await shows(pilot, "is 'a plan' good?")
         await typed(pilot, "it is")
         await until(pilot, (project / "result.json").exists, "the epic to end")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await typed(pilot, "not from there")
         # Nor the start of a chat there: what `n` on that daemon's list starts is an epic.
-        await shows(pilot, "start an epic on box with n on /epics @box")
+        await shows(pilot, "An epic is started on box with `n` on `/epics @box`")
         assert "start a chat on" not in screen(pilot.app)
 
         # The chat of this frontend is this machine's: back on its own host, here.
@@ -510,7 +512,7 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
             await _menu(pilot, "e1")
             await onto(pilot, "follow")
             await pilot.press("enter")
-            await shows(pilot, "following /w on box")
+            await shows(pilot, "Following /w on box")
             following.set()
             await shows(pilot, "hmz: box went away")
             await until(

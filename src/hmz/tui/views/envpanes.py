@@ -10,7 +10,10 @@ terminal want.
 What each pane is, and what it asks the host, is in `hmz.tui.envs`; this says where they
 open and on which keys. The keys a pane takes change with what is open in it -- a tree or a
 file, a list or a diff, a row of tabs or a terminal that takes every key -- so each pane says
-them itself, on a line at its foot, rather than in one fixed list here.
+them itself, on a line at its foot, rather than in one fixed list here. Not on the hint
+line, though a view may say its keys there as they change (`hint_keys`, `hmz.tui.shell`):
+the list of changes alone takes twelve keys, which with the keys of the other views is five
+rows of an 80-column terminal, and the hint line is held to three.
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ from textual.widgets import OptionList, Static
 
 from hmz.tui import humanfia
 from hmz.tui.monitoring import BoardSeen, Entry
-from hmz.tui.shell import Hints
+from hmz.tui.shell import Hints, Shell, Zone
 from hmz.tui.views.epicside import TABS, VIEWS, Epic, Kept, People, Side
 
 DETAILS = [
@@ -80,21 +80,24 @@ class World:
 
 
 class _Stands(App[None]):
-    """An interface that is the view and the hint line."""
+    """An interface that is the view in its zone, and the hint line."""
 
     def __init__(self, side: Side) -> None:
         super().__init__()
         self._side = side
+        self.shell = Shell(self)
 
     def get_css_variables(self) -> dict[str, str]:
         return {**humanfia.FALLBACK, **super().get_css_variables()}
 
     def compose(self) -> ComposeResult:
-        yield self._side
+        yield Zone(id="context")
         yield Hints(id="hints")
 
-    def on_mount(self) -> None:
-        self._side.focus()
+    async def on_mount(self) -> None:
+        zone = self.query_one(Zone)
+        zone.told = self.shell.hints
+        await zone.shows(VIEWS[0], self._side)
 
 
 def _said(side: Side) -> str:
@@ -119,7 +122,7 @@ def test_the_view_opens_in_the_context_by_ctrl_o() -> None:
     (view,) = VIEWS
 
     assert (view.name, view.zone, view.key) == ("epic", "context", "ctrl+o")
-    assert (view.title, view.hint) == ("Epic", "epic panel")
+    assert (view.title, view.hint) == ("Epic", "Epic panel")
     assert TABS == ("Details", "Board", "People", "Side questions")
 
 
@@ -136,7 +139,7 @@ async def test_details_say_how_the_epic_stands_under_the_pages_headings() -> Non
         assert "SETUP" in said
         assert "ship it" in said
         assert "1\xa0DETAILS" in str(side.query_one("_Tabs", Static).render())
-        await _settled(pilot, lambda: "←/→ tab" in _hinted(app))
+        await _settled(pilot, lambda: "←→ Tab" in _hinted(app))
         assert "esc Back" in _hinted(app)
 
 

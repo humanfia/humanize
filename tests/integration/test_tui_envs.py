@@ -251,7 +251,7 @@ async def test_env_with_no_environment_is_refused(host: Host) -> None:
     async with Humanize(link=_linked(host, envs=[])).run_test(size=SIZE) as pilot:
         await typed(pilot, "/env")
 
-        await shows(pilot, "hmz: no environment is open here")
+        await shows(pilot, "hmz: No environment is open here.")
 
 
 async def test_an_edit_is_saved_after_a_second_against_what_was_read(

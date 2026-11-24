@@ -15,7 +15,7 @@ def test_settings_is_a_page_opened_by_f2_and_said_on_the_hint_line() -> None:
     (view,) = settingspage.VIEWS
 
     assert (view.name, view.zone, view.key) == ("settings", "page", "f2")
-    assert (view.title, view.hint) == ("Settings", "settings")
+    assert (view.title, view.hint) == ("Settings", "Settings")
     # A page is not open as the interface opens, and says its keys on a sheet of its own.
     assert not view.opens
     assert view.keys == ()

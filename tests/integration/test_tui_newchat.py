@@ -18,6 +18,7 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.shell import Zone
+from hmz.tui.views import newchat
 from hmz.tui.views.chips import Chips
 from hmz.tui.views.harness import Session
 from hmz.tui.views.newchat import NewChat
@@ -98,7 +99,7 @@ async def test_a_chat_is_started_from_the_page_with_the_permission_and_effort_pi
         # Back from the message to the chips: permission, then effort.
         await pilot.press("shift+tab")
         assert getattr(app.focused, "id", "") == "permission"
-        assert "enter choose" in screen(app)
+        assert "enter Choose" in screen(app)
         await pilot.press("enter")
         await _picks(pilot, "danger-full-access")
         await shows(pilot, "PERMISSIONS Full access")
@@ -138,7 +139,7 @@ async def test_an_effort_changed_from_the_chips_is_what_the_next_turn_starts_at(
         assert app.query_one("#context", Zone).has_class("open")
         chips = app.query_one(Chips)
         assert app.focused is chips
-        assert "enter choose" in screen(app)
+        assert "enter Choose" in screen(app)
 
         await pilot.press("down", "enter")  # Model, then Effort
         await _picks(pilot, "low")
@@ -188,7 +189,7 @@ async def test_a_harness_session_is_read_from_the_page_and_continued_in_a_chat(
 
         await pilot.press("enter")
         await until(pilot, lambda: len(app.screen_stack) == 1, "the pages to close")
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         await typed(pilot, "more")
         await shows(pilot, "heard more")
 
@@ -198,3 +199,19 @@ async def test_a_harness_session_is_read_from_the_page_and_continued_in_a_chat(
     ]
     # Only read: the session itself is as it was.
     assert log.read_bytes() == before
+
+
+async def test_the_page_opens_on_the_folder_it_is_asked_for(
+    asked: Chats, tmp_path: Path
+) -> None:
+    del asked
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+
+        await newchat.opens(app, folder=str(other))
+
+        await on(pilot, NewChat)
+        await shows(pilot, "NEW CHAT", "FOLDER elsewhere")

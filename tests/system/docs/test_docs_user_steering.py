@@ -168,7 +168,7 @@ async def _started(pilot: Pilot[None]) -> None:
     await pilot.press("escape")
     await on(pilot, Confirms)
     await pilot.press("enter")
-    await shows(pilot, f"set up: /flow {_FLOW} <task> starts it")
+    await shows(pilot, f"Flow set up; `/flow {_FLOW} <task>` starts it.")
     await pilot.press(*f"/flow {_FLOW} {_TASK}", "enter")
     await shows(pilot, "ctrl+c twice to stop")
 
@@ -245,7 +245,7 @@ async def test_a_line_is_said_in_the_terminal(world: World) -> None:
         await until(pilot, lambda: screen(app).count("is working") >= 2, "turn two")
         await pilot.pause(0.8)
         reel.tui(app, hold=2.2, caption="taken: it moves into the transcript")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         reel.tui(app, hold=3.5, poster=True)
         reel.save()
 
@@ -267,4 +267,4 @@ async def test_lines_wait_pinned_above_the_prompt(world: World) -> None:
             await pilot.pause(0.5)
             shots.tui(app, f"{_PAGE}-pinned")
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")

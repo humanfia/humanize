@@ -77,7 +77,7 @@ async def _budgeted(pilot: Pilot[None], flow: str) -> None:
     await pilot.press("escape")
     await on(pilot, Confirms)
     await pilot.press("enter")
-    await shows(pilot, f"set up: /flow {flow} <task> starts it")
+    await shows(pilot, f"Flow set up; `/flow {flow} <task>` starts it.")
 
 
 def _in_the_app(world: World) -> None:
@@ -153,7 +153,7 @@ async def test_a_flow_is_left_running_and_found_again(world: World) -> None:
         await _settled(pilot)
 
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
 
 

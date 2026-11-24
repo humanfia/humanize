@@ -102,9 +102,9 @@ When you mark a role away, its waiting question is withdrawn and the flow contin
 
 ## In the terminal
 
-In `hmz`, questions appear in the transcript: the prompt, its context blocks, and either numbered preset answers or `form · N fields — press Enter to open`.
+In `hmz`, questions appear in the transcript: the prompt, its context blocks, and either numbered preset answers or `Form of N fields · Enter opens it`.
 
-![The terminal interface: Ship this change?, the agent's note, a diff, a table of checks, and the line form · 2 fields — press Enter to open](/shots/user-questions-terminal.svg)
+![The terminal interface: Ship this change?, the agent's note, a diff, a table of checks, and the line saying it is a form of 2 fields that Enter opens](/shots/user-questions-terminal.svg)
 
 The first context block shows up to 40 lines, later blocks up to 12 lines, and tables up to 10 rows. Images and charts appear as a single line linking to the web page.
 
@@ -149,7 +149,7 @@ Look above the prompt on the right while an epic runs to see one status line per
 
 Both commands accept `on` or `off`, and toggle when run without arguments. While you are away, the status line shows `afk`, followed by the role's name when only some roles are away.
 
-![The terminal after /claim and /afk on the reviewer's view: only you can answer for reviewer, away as reviewer, withdrawn: away, the flow is done](/shots/user-questions-terminal-away.svg)
+![The terminal after /claim and /afk on the reviewer's view: only you can answer for reviewer, you are away as reviewer, the question withdrawn, the flow done](/shots/user-questions-terminal-away.svg)
 
 ## From the command line
 

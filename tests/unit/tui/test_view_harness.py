@@ -102,7 +102,7 @@ async def test_the_page_draws_what_was_said_and_offers_continue_in_chat() -> Non
             "stays as it is.  ■ Continue in chat"
         )
         assert str(pilot.app.screen.query_one(Hints).render()) == (
-            "↑↓ scroll   enter Continue in chat   esc Back"
+            "↑↓ Scroll   enter Continue in chat   esc Back"
         )
     assert daemon.calls("chat.harness.get") == [
         {"workspace": HERE, "harness": "codex", "session": "s1", "trace": True}

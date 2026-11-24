@@ -62,7 +62,7 @@ async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
         assert f"◉ {RUNS}" in status(drawn)
         assert f"◉ {OWN}" not in drawn
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
 
 
 async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run(
@@ -72,7 +72,7 @@ async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await typed(pilot, "hello")
-        await shows(pilot, "no coding agent is installed")
+        await shows(pilot, "No coding agent is installed")
 
         assert app.is_running
 
@@ -82,7 +82,7 @@ async def test_a_command_that_is_not_one_is_said_so(workspace: Path) -> None:
         # Past the chat's first turn: before it, such a line is said as text (8.9.13 of [CORE]).
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/fly")
 
         await shows(pilot, "no such command")
@@ -143,7 +143,7 @@ async def test_clear_empties_the_transcript(workspace: Path) -> None:
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/fly")
         await shows(pilot, "no such command")
 
@@ -196,4 +196,4 @@ async def test_a_newer_release_is_said_as_it_opens(
     monkeypatch.setenv(releases.WHENCE, str(pypi))
     monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await shows(pilot, "hmz 99.0.0 is out: run `hmz update` to update")
+        await shows(pilot, "hmz 99.0.0 is out; run `hmz update` to update.")

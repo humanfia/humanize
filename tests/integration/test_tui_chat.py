@@ -80,14 +80,14 @@ async def test_a_chat_is_running_while_the_assistant_answers_and_done_after(
         await opened(pilot)
         await typed(pilot, "wait for it")
 
-        drawn = await shows(pilot, "still on it", "running…")
+        drawn = await shows(pilot, "still on it", "Running…")
         assert "stop" not in status(drawn)
         assert "monitor" not in status(drawn)
 
         await typed(pilot, "now")
 
-        drawn = await shows(pilot, "heard wait for it then now", "◉ done")
-        assert "waiting for you" not in drawn
+        drawn = await shows(pilot, "heard wait for it then now", "◉ Done")
+        assert "Waiting for you" not in drawn
         assert "outworlder" not in drawn
     assert heard(workspace) == ["wait for it", "now"]
 
@@ -131,13 +131,13 @@ async def test_a_chat_says_it_is_starting_until_it_has_started(
         await opened(pilot)
         await typed(pilot, "hello")
 
-        drawn = await shows(pilot, "starting…")
-        assert "starting…" in status(drawn)
+        drawn = await shows(pilot, "Starting…")
+        assert "Starting…" in status(drawn)
         assert f"◉ {RUNS}" not in drawn
 
         let_go.set()
-        drawn = await shows(pilot, "heard hello", "◉ done")
-        assert "starting…" not in drawn
+        drawn = await shows(pilot, "heard hello", "◉ Done")
+        assert "Starting…" not in drawn
     del workspace
 
 
@@ -149,11 +149,11 @@ async def test_a_refused_start_puts_the_status_line_back_at_rest(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "starting…")
+        await shows(pilot, "Starting…")
 
         let_go.set()
         drawn = await shows(pilot, "no room to start", f"◉ {RUNS}")
-        assert "starting…" not in drawn
+        assert "Starting…" not in drawn
     del workspace
 
 
@@ -168,7 +168,7 @@ async def test_ctrl_c_never_stops_a_chat_and_twice_leaves(workspace: Path) -> No
         await pilot.press("ctrl+c")
         await until(pilot, lambda: "❯ half" not in screen(app), "the line to clear")
         await pilot.press("ctrl+c")
-        await shows(pilot, "press ctrl+c again to exit", "ctrl+c again to exit")
+        await shows(pilot, "Press ctrl+c again to exit", "ctrl+c Again to exit")
         assert "stopping" not in screen(app)
         await typed(pilot, "still here")
         await shows(pilot, "heard wait for it then still here")
@@ -201,12 +201,12 @@ async def test_a_chat_offers_no_monitor_or_views_and_stop_interrupts_its_turn(
         await typed(pilot, "/stop")
 
         # The turn alone: the chat is between turns, on its host, and goes on.
-        await shows(pilot, "That turn was stopped.", "◉ done")
-        assert "stopping the flow" not in screen(app)
+        await shows(pilot, "That turn was stopped.", "◉ Done")
+        assert "topping the flow" not in screen(app)
         await typed(pilot, "/stop")
-        await shows(pilot, "no turn is open, so there is nothing to stop")
+        await shows(pilot, "No turn is open, so there is nothing to stop")
         await typed(pilot, "go on")
-        await shows(pilot, "go on", "◉ done")
+        await shows(pilot, "go on", "◉ Done")
     assert [method for method, _ in asked].count("chat.stop") == 1
     assert len(chats(workspace)) == 1
 
@@ -281,7 +281,7 @@ async def test_an_env_asked_of_a_chat_that_is_refused_opens_over_nothing_later(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/clear")
         await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
         (chat,) = chats(workspace)
@@ -289,7 +289,7 @@ async def test_an_env_asked_of_a_chat_that_is_refused_opens_over_nothing_later(
         await typed(pilot, "/resume")
         await shows(pilot, "Resume chat", "hello")
         await opens(pilot, chat.name)
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
 
         # Bringing it up for its environment is refused, and said so.
         held.starting, held.refusing = threading.Event(), True
@@ -300,7 +300,7 @@ async def test_an_env_asked_of_a_chat_that_is_refused_opens_over_nothing_later(
         # The next line still carries that chat on, and no sheet opens over it uninvited.
         held.starting = None
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
         await pilot.pause(0.5)
         assert not isinstance(app.screen, Envs)
     assert [one["resume"] for one in held.started()] == [None, chat.name, chat.name]
@@ -315,7 +315,7 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/clear")
         await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
         (chat,) = chats(workspace)
@@ -328,13 +328,13 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
         await typed(pilot, "/resume")
         await shows(pilot, "Resume chat", "hello")
         await opens(pilot, chat.name)
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         # Drawn with what was said in it, above what carries it on (Section 8.7.4 of [CORE]).
         drawn = screen(app)
         assert (
             drawn.index("❯ fix the bug")
             < drawn.index("⏺ fixed" if sys.platform == "darwin" else "● fixed")
-            < drawn.index("say something to continue")
+            < drawn.index("Say something to continue")
         )
 
         # Its environment opens with nothing said: no host holding it is no reason not to.
@@ -346,7 +346,7 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
         assert (read(chat) or Ran(chat)).reopened == ""
 
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
         assert "could not be carried on" not in screen(app)
 
     # One conversation, so one chat and no epic, carried on by its id, and the agent's
@@ -381,7 +381,7 @@ async def chatting(pilot: Pilot[None], said: str = "hello") -> None:
     """Starts a chat on one line, and waits for its turn to be done."""
     await opened(pilot)
     await typed(pilot, said)
-    await shows(pilot, f"heard {said}", "◉ done")
+    await shows(pilot, f"heard {said}", "◉ Done")
 
 
 async def test_quit_leaves_a_chat_as_exit_does(workspace: Path) -> None:
@@ -407,14 +407,14 @@ async def test_a_flow_started_from_a_chat_leaves_it_going_and_chat_brings_it_bac
 
         # The flow on the screen, on the workspace's own host, and run to its end.
         await until(pilot, (workspace / "said.txt").exists, "the flow to write")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         assert "heard hello" not in screen(app)
 
         await typed(pilot, "/chat")
 
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/chat")
-        await shows(pilot, "the chat is already on the screen")
+        await shows(pilot, "The chat is already open.")
         await typed(pilot, "more")
         await shows(pilot, "heard more")
     assert (workspace / "said.txt").read_text() == "started: heard do it\n"
@@ -429,7 +429,7 @@ async def test_a_line_said_after_a_flow_ends_goes_back_to_the_chat(
         await set_up_own_flow(pilot)
         await chatting(pilot)
         await typed(pilot, f"/flow {OWN} do it")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
 
         await typed(pilot, "and now")
 
@@ -486,7 +486,7 @@ async def test_a_name_both_a_skill_and_a_flow_goes_by_the_chats_preference(
         await typed(pilot, "$rlar go")
         await on(pilot, Flows)
         await leaves(pilot, saving=False)
-        await shows(pilot, "flow not set up; nothing started")
+        await shows(pilot, "The flow is not set up, and nothing started.")
         await typed(pilot, "/prefer")
         await shows(pilot, "flow, from this chat")
     assert heard(workspace).count("$rlar go") == 1
@@ -501,7 +501,7 @@ async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "first")
-        await shows(pilot, "heard first", "◉ done")
+        await shows(pilot, "heard first", "◉ Done")
         await typed(pilot, "/clear")
         await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
         (first,) = chats(workspace)
@@ -513,17 +513,17 @@ async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
         await typed(pilot, "/prefer flow")
         await shows(pilot, "runs the flow where it names both, in this chat")
         await typed(pilot, "second")
-        await shows(pilot, "heard second", "◉ done")
+        await shows(pilot, "heard second", "◉ Done")
 
         await typed(pilot, "/resume")
         await shows(pilot, "Resume chat", "first")
         await opens(pilot, first.name)
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         # The first chat's, which was never given one of its own.
         await typed(pilot, "/prefer")
         await shows(pilot, "native, from the settings file")
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
 
     starts = [said for method, said in asked if method == "chat.start"]
     assert [one["prefer"] for one in starts] == [None, "flow", None]
@@ -542,7 +542,7 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
         await typed(pilot, "/prefer flow")
         await shows(pilot, "runs the flow where it names both, in this chat")
         await typed(pilot, "first")
-        await shows(pilot, "heard first", "◉ done")
+        await shows(pilot, "heard first", "◉ Done")
         await typed(pilot, "/clear")
         await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
         (first,) = chats(workspace)
@@ -555,12 +555,12 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
         await typed(pilot, "/resume")
         await shows(pilot, "Resume chat", "first")
         await opens(pilot, first.name)
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         # Its own, as the chat records it, before a word carries it on and after.
         await typed(pilot, "/prefer")
         await shows(pilot, "flow, from this chat")
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
         said = screen(app).count("flow, from this chat")
         await typed(pilot, "/prefer")
         await until(
@@ -610,7 +610,7 @@ async def test_a_harness_session_is_offered_on_resume_where_set_and_goes_on_as_a
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "first")
-        await shows(pilot, "heard first", "◉ done")
+        await shows(pilot, "heard first", "◉ Done")
 
         # Not listed until the setting says so: only the chats of Humanize's own are.
         await typed(pilot, "/resume")
@@ -631,9 +631,9 @@ async def test_a_harness_session_is_offered_on_resume_where_set_and_goes_on_as_a
         await onto(pilot, f"harness:claude:{ident}")
         assert listing.menu() is None
         await opens(pilot, f"harness:claude:{ident}")
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         await typed(pilot, "more")
-        await shows(pilot, "heard more", "◉ done")
+        await shows(pilot, "heard more", "◉ Done")
 
     made = [ran for at in chats(workspace) if (ran := read(at)) and ran.adopted]
     assert [(one.adopted, one.title) for one in made] == [
@@ -680,7 +680,7 @@ async def test_a_harness_session_that_cannot_be_continued_says_so_and_is_refused
         await shows(
             pilot,
             "The word is plum",
-            "opencode session, read-only: cannot be continued in a chat",
+            "opencode session, read-only; it cannot be continued in a chat",
         )
         await on(pilot, Resumes)
         assert rows(app) == ["harness:opencode:ses_1"]
@@ -698,7 +698,7 @@ async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -
 
         await typed(pilot, "/prefer neither")
 
-        await shows(pilot, "/prefer takes native or flow")
+        await shows(pilot, "`/prefer` takes `native` or `flow`")
 
 
 async def test_a_shell_line_and_what_it_printed_are_drawn_as_a_shell_draws_them(
@@ -802,7 +802,7 @@ async def test_a_chat_gone_back_to_is_drawn_with_every_line_said_in_it(
     async with app.run_test(size=SIZE) as pilot:
         await chatting(pilot, "one")
         await typed(pilot, "two")
-        await shows(pilot, "heard two", "◉ done")
+        await shows(pilot, "heard two", "◉ Done")
         await typed(pilot, "/clear")
         await chatting(pilot, "other")
 
@@ -835,5 +835,5 @@ async def test_a_line_another_frontend_says_in_a_chat_is_drawn_in_it(
         assert drawn.index("❯ from elsewhere") < drawn.index("heard from elsewhere")
         # And one typed here is drawn once, as it was typed.
         await typed(pilot, "two")
-        drawn = await shows(pilot, "heard two", "◉ done")
+        drawn = await shows(pilot, "heard two", "◉ Done")
     assert drawn.count("❯ two") == 1

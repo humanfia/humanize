@@ -100,7 +100,7 @@ async def test_f2_opens_settings_and_is_said_on_the_hint_line(workspace: Path) -
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await until(pilot, lambda: "F2 settings" in screen(app), "the hint line")
+        await until(pilot, lambda: "F2 Settings" in screen(app), "the hint line")
 
         await pilot.press("f2")
         await on(pilot, Adjusts)

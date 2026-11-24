@@ -5,12 +5,17 @@ one the daemon holds -- the pinned first, then the latest said in -- each dotted
 said in since it was read here. Enter on one follows it in the log, as picking it from `/ai`
 does; the rest of what the drawer's menu does is on a key apiece, each of them on the hint
 line: renaming, pinning, marking read or unread, and deleting, which asks first.
+
+Which are pinned and which unread is this person's way of looking at them, kept where the
+navigator keeps its own (`navigator.json` of the state directory): read as the interface
+opens, and written as it changes here and as the interface closes.
 """
 
 from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+from weakref import WeakKeyDictionary
 
 from rich.markup import escape
 from textual import work
@@ -31,12 +36,19 @@ from hmz.tui.pick import (
 from hmz.tui.shell import View
 from hmz.words import t
 
+from .navigator import Kept
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
     from textual.app import App
 
-__all__ = ["VIEWS", "Conversations"]
+    from hmz.tui.app import Humanize
+
+__all__ = ["VIEWS", "Conversations", "keeps", "remembers"]
+
+#: What the pinned, the unread, and up to when each was read are kept under.
+_PINNED, _UNREAD, _SEEN = "ai-pinned", "ai-unread", "ai-seen"
 
 #: What reaching the daemon may fail with, each of which is said rather than raised.
 _REFUSED = (LookupError, OSError, RuntimeError, ValueError)
@@ -44,6 +56,74 @@ _REFUSED = (LookupError, OSError, RuntimeError, ValueError)
 #: How often the list is asked for again while it is open, in seconds: a conversation made or
 #: said in from the prompt beside it shows without the pane being opened again.
 _EVERY = 3.0
+
+
+type _Marked = tuple[frozenset[int], frozenset[int], dict[int, str]]
+
+#: What each set of marks was when it was last read from the file or written to it.
+_AS_KEPT: WeakKeyDictionary[AiMarks, _Marked] = WeakKeyDictionary()
+
+
+def _ids(names: frozenset[str]) -> set[int]:
+    return {int(name) for name in names if name.isdecimal()}
+
+
+def _seen(names: frozenset[str]) -> dict[int, str]:
+    return {
+        int(number): updated
+        for number, _, updated in (one.partition(" ") for one in names)
+        if number.isdecimal()
+    }
+
+
+def _marked(marks: AiMarks) -> _Marked:
+    return frozenset(marks.pinned), frozenset(marks.unread), dict(marks.seen)
+
+
+def remembers(marks: AiMarks | None = None, kept: Kept | None = None) -> None:
+    """Takes what was kept of her conversations as what is pinned, unread and read.
+
+    Args:
+      marks: What is told; this interface's own for None.
+      kept: Where it was kept; the navigator's own file for None.
+    """
+    marks = AI_MARKS if marks is None else marks
+    kept = Kept() if kept is None else kept
+    marks.pinned, marks.unread = _ids(kept.all(_PINNED)), _ids(kept.all(_UNREAD))
+    marks.seen = _seen(kept.all(_SEEN))
+    _AS_KEPT[marks] = _marked(marks)
+
+
+def keeps(marks: AiMarks | None = None, kept: Kept | None = None) -> None:
+    """Keeps what is pinned, unread and read of her conversations, where it has changed.
+
+    Only what changed here since it was last read or kept, put over what the file holds
+    now: another interface of this person keeps its own there, and what it pinned is not
+    let go of for this one never having heard of it.
+
+    Args:
+      marks: What is kept; this interface's own for None.
+      kept: Where; the navigator's own file for None.
+    """
+    marks = AI_MARKS if marks is None else marks
+    now = _marked(marks)
+    was = _AS_KEPT.get(marks, (frozenset[int](), frozenset[int](), dict[int, str]()))
+    if now == was:
+        return
+    kept = Kept() if kept is None else kept
+    kept.reads()
+    pinned = (_ids(kept.all(_PINNED)) | (now[0] - was[0])) - (was[0] - now[0])
+    unread = (_ids(kept.all(_UNREAD)) | (now[1] - was[1])) - (was[1] - now[1])
+    seen = _seen(kept.all(_SEEN))
+    seen.update({one: at for one, at in now[2].items() if was[2].get(one) != at})
+    kept.keeps(
+        {
+            _PINNED: [str(one) for one in sorted(pinned)],
+            _UNREAD: [str(one) for one in sorted(unread)],
+            _SEEN: [f"{one} {seen[one]}" for one in sorted(seen)],
+        }
+    )
+    _AS_KEPT[marks] = now
 
 
 class Conversations(OptionList):
@@ -77,6 +157,7 @@ class Conversations(OptionList):
         news: Callable[[], None],
         asks: Callable[..., Any] = ai_chan,
         marks: AiMarks | None = None,
+        kept: Kept | None = None,
         followed: Callable[[], int | None] = lambda: None,
         forgot: Callable[[int], None] = lambda _: None,
     ) -> None:
@@ -87,6 +168,8 @@ class Conversations(OptionList):
           news: Starts a new conversation, as **New** of `/ai` does.
           asks: One `aichan.*` call of the daemon, as :func:`hmz.tui.pick.ai_chan` makes it.
           marks: Which are pinned and which unread; this interface's own for None.
+          kept: Where they are kept from one opening of the interface to the next; the
+            navigator's own file for None.
           followed: The id of the conversation the log follows now, or None for none.
           forgot: Told the id of a conversation deleted from here, once it is.
         """
@@ -94,6 +177,7 @@ class Conversations(OptionList):
         self._follows, self._news, self._asks = follows, news, asks
         self._followed, self._forgot = followed, forgot
         self._marks = AI_MARKS if marks is None else marks
+        self._kept = kept
         self._listed: list[dict[str, Any]] = []
         #: What is said in place of the conversations: that they are being read, or why not.
         self._said = t("Reading her conversations…")
@@ -159,6 +243,11 @@ class Conversations(OptionList):
         self.set_options(rows)
         ids = [int(one["id"]) for one in self._listed]
         self.highlighted = ids.index(was) + 1 if was in ids else 0
+        self._keeps()
+
+    def _keeps(self) -> None:
+        """Keeps the marks for the next time the interface opens, once they have changed."""
+        keeps(self._marks, self._kept)
 
     def under(self) -> dict[str, Any] | None:
         """The conversation under the cursor, or None on `New conversation`."""
@@ -245,12 +334,10 @@ class Conversations(OptionList):
 
 def _made(app: App[None]) -> Conversations:
     """The view, opening a conversation the way `/ai` does in this interface."""
+    host = cast("Humanize", app)
 
     def follows(one: dict[str, Any]) -> None:
-        # The log's own way onto a host, which `/ai` takes for a conversation picked there.
-        host = cast("Any", app)
-        host._moves(str(one["slot"]), None, ai=one)  # noqa: SLF001
-        host._draw()  # noqa: SLF001
+        host.follows_ai(one)
         app.set_focus(None)
         for prompt in app.query("#editor"):
             prompt.focus()
@@ -259,15 +346,13 @@ def _made(app: App[None]) -> Conversations:
         app.run_worker(app.run_action("ai"), exclusive=False)
 
     def followed() -> int | None:
-        one = cast("Any", app)._ai  # noqa: SLF001
+        one = host.ai_followed()
         return None if one is None or "id" not in one else int(one["id"])
 
     def forgot(number: int) -> None:
         # Gone with its host: this directory's own is followed again, as `/ai` leaves it.
         if followed() == number:
-            host = cast("Any", app)
-            host._moves("", None)  # noqa: SLF001
-            host._draw()  # noqa: SLF001
+            host.follows_ai(None)
 
     return Conversations(follows=follows, news=news, followed=followed, forgot=forgot)
 

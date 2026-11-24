@@ -22,4 +22,4 @@ def _made(_app: App[None]) -> Widget:
     return menu()
 
 
-VIEWS = (View("settings", "page", "Settings", _made, key="f2", hint="settings"),)
+VIEWS = (View("settings", "page", "Settings", _made, key="f2", hint="Settings"),)

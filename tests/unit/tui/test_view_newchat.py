@@ -168,7 +168,7 @@ async def test_tab_walks_the_chips_and_the_message_and_the_hint_says_what_enter_
         ]
         await pilot.press("shift+tab")
         assert getattr(app.focused, "id", "") == "permission"
-        assert "enter choose" in str(app.screen.query_one(Hints).render())
+        assert "enter Choose" in str(app.screen.query_one(Hints).render())
 
 
 async def test_enter_in_the_message_starts_the_chat_with_what_the_chips_say() -> None:

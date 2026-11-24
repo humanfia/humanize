@@ -261,7 +261,7 @@ async def _budgeted(pilot: Pilot[None]) -> None:
     await pilot.press("escape")
     await on(pilot, Confirms)
     await pilot.press("enter")
-    await shows(pilot, "set up: /flow sign_off <task> starts it")
+    await shows(pilot, "Flow set up; `/flow sign_off <task>` starts it.")
 
 
 def test_the_question_is_asked_and_answered_in_the_app(world: World) -> None:
@@ -341,7 +341,7 @@ async def test_the_question_is_answered_in_the_terminal(world: World) -> None:
         await shows(pilot, MODEL)
         await _budgeted(pilot)
         await pilot.press(*f"/flow sign_off {_TASK}", "enter")
-        await shows(pilot, "Sign off this change?", "press Enter to open")
+        await shows(pilot, "Sign off this change?", "Enter opens it")
         await _settled(pilot, 1.0)
         reel = shots.Reel(f"{_PAGE}-terminal")
         reel.tui(app, hold=2.4)

@@ -1765,6 +1765,13 @@ would be empty.
 
 **25.2.2** A view MUST NOT act on a key the hint line does not show while that view has the keys.
 
+**25.2.3** Where the keys a view takes change with what it shows -- the tab that is open, the row
+under its cursor -- the hint line MUST show the keys it takes now, and MUST be drawn again as they
+change.
+
+**25.2.4** The key of a page MUST close that page while it is the screen on top, as `esc` on it
+does: what a page keeps as it is left (Section 29.3.1) MUST be kept.
+
 ### 25.3. Colour and drawing
 
 **25.3.1** The interface MUST have the themes `humanfia-dark` and `humanfia-light`, whose colours
@@ -1906,8 +1913,9 @@ host goes with it, `Stop`; of a harness session `Copy session ID`. `Rename`, `Fo
 first; `Upload` MUST ask `chat.backup` or `runs.backup`; `Stop` MUST ask the epic's host to stop
 it.
 
-**27.4.4** `.` on a folder MUST open its menu: `New chat here` and `New epic here` (the workspace
-the interface is of only), `Search here`, `Copy path`, `Collapse` or `Expand`, and, for a folder
+**27.4.4** `.` on a folder MUST open its menu: `New chat here` and `New epic here`, which MUST
+open the New chat page and the New epic page on that folder (a folder that is still there only),
+`Search here`, `Copy path`, `Collapse` or `Expand`, and, for a folder
 in which `workspaces.list` counts no chat and no epic and says nothing is going, and of which no
 row is listed, `Forget`, which MUST ask first, naming the folder, and then ask `workspaces.forget`.
 
@@ -2597,8 +2605,10 @@ Each MUST show `Ai-chan#<n>`, its title, its scope, its preset, `typing…` whil
 open, a square where it is pinned and a dot where it is unread.
 
 **33.4.3** A conversation is _unread_ where it was marked so, or where it was said in after it was
-last read in this interface. Following a conversation MUST read it. What is pinned and what is
-unread MUST be kept by this interface alone and MUST NOT be sent to the daemon.
+last read in this interface. Following a conversation MUST read it. What is pinned, what is
+unread and up to when each was read MUST be kept in `navigator.json` of the state directory,
+beside what Section 27.2.8 keeps there, MUST be read as the interface opens, and MUST NOT be sent
+to the daemon.
 
 **33.4.4** In the view: `enter` on a conversation MUST follow it as Section 7.19.2 states and give
 the keys to the editor; `enter` on `New conversation`, and `n`, MUST open `/ai`; `r` MUST ask for a
@@ -2635,6 +2645,36 @@ quotes such a word in lower case is to be read with the word as it is here.
 | 14 | the box `A flow is running.` offering `stop the flow and exit`, and `detach and exit` or `cancel` | the same box offering **Stop the flow and quit**, and **Detach and quit** or **Cancel** |
 | 19.13 | the box `Report errors to Humanize?` offering `yes` and `no` | the box `Send error reports to Humanize?` offering **Yes** and **No** |
 | 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
+| 4.6 | `no agent available` | `No agents`, and `No harness installed` where no harness is installed |
+| 7 | a refusal `hmz: no such command: /<name>`, and `hmz: /<name> is only available on …, not on …` | ``hmz: No such command: `/<name>`.``, and ``hmz: `/<name>` is only available on …, not on ….`` |
+| 7.21.2 | `the chat is already on the screen` | `The chat is already open.` |
+| 10.1 | under a question: `<name>'s to answer`, `yours to answer: type an answer, or /afk to stop being asked`, `type an answer, or /afk to stop being asked` | ``It is <name>'s to answer``, ``Yours to answer · type an answer, or `/afk` to stop being asked``, ``Type an answer, or `/afk` to stop being asked`` |
+| 10.11 | `form · <n> fields — press Enter to open` | `Form of <n> fields · Enter opens it` |
+| 10.16 | `<role> was shown` | `<role> was shown something` |
+| 10.18 | `withdrawn: <why>` | `Withdrawn: <why>` |
+| 11.4, 13.2 | `starting…`, `running`, `done`, `waiting for` and `you` or a name | `Starting…`, `Running`, `Done`, `Waiting for you` or `Waiting for <name>` |
+| 11.5 | `no turn is open, so there is nothing to stop` | `No turn is open, so there is nothing to stop.` |
+| 12.7 | `btw: exited` | `btw: Side questions ended`, and `btw: Side questions ended: <why>` where it was not asked for |
+| 12.9 | `hmz: btw is still answering the last question` | `hmz: A side question is still being answered.` |
+| 13.1 | `details`, ` · copied` | `Details`, ` · Copied` |
+| 13.3 | `shift+tab switch view`, `/ commands`, `shift+enter newline`, `← monitor` | `shift+tab Next view`, `/ Commands`, `shift+enter New line`, `← Monitor` |
+| 13.3 | what `enter` does: `run`, `start`, `ask`, `send`, `answer`; what `ctrl+c` does: `clear`, `again to stop`, `again to exit`, `exit`, `stop`, `force stop` | `Run`, `Start`, `Ask`, `Send`, `Answer`; `Clear`, `Again to stop`, `Again to exit`, `Exit`, `Stop`, `Force stop` |
+| 13.4 | `↑↓ move`, `tab select`, `esc cancel` | `↑↓ Move`, `tab Choose`, `esc Cancel` |
+| 26.1 | the hint `keys` | `Keys` |
+| 29.1.1 | the hint `new epic` | `New epic` |
+| 29.5.1 | the hint `epic panel` | `Epic panel` |
+| 29.5.4 | `←/→` `tab`, `↑/↓` `move` | `←→` `Tab`, `↑↓` `Move` |
+| 29.6.1 | `The custom view is in the web page<where>; Enter answers here with the plain form`, `<where>` being `: <address>` or ` (hmz web)` | `The custom view is in the web page at <address>; Enter answers here with the plain form.`, and ``The custom view is in the web page (`hmz web`); Enter answers here with the plain form.`` where no address is known |
+| 32.1.4 | the hint `settings` | `Settings` |
+
+**33.5.3** Every other text the log screen says for itself -- a refusal after `hmz: `, a notice,
+a word of the status line, what a command is said to be for -- MUST be a text of Section 25.5.1,
+said as a sentence where it is one: a capital first, and a full stop where it is not a label.
+A command's name, a key's name, a path and a model's name are data and MUST be said as they are.
+
+**33.5.4** Every hint, on the hint line and on the right of the status line, MUST be a key's name
+followed by one text in sentence case, and a row of the hint line MUST break only between one key
+and the next.
 
 ## 34. Security Considerations
 

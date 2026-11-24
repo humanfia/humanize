@@ -1,11 +1,6 @@
 {
  "entries": [
   {
-   "wants": "what the F2 key does: opens Settings",
-   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
-   "text": "settings"
-  },
-  {
    "wants": "line under the title of the terminal interface's Settings screen: every setting Humanize keeps is here; a change to a daemon's or a workspace's setting is held until it is saved, while a theme or a language is kept as soon as it is chosen",
    "where": "one or two short sentences with full stops, under the screen's title",
    "text": "Every setting is here. A change to a daemon or workspace setting is held until saved, while a theme or language is kept as soon as it is chosen."

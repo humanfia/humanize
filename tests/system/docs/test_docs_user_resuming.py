@@ -172,14 +172,14 @@ async def test_an_epic_is_resumed_in_the_terminal(world: World) -> None:
 
         # -- and with /resume: the last one here, once a flow is on the screen ------
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
         await pilot.press(*"/resume", "enter")
         await shows(pilot, "ctrl+c twice to stop", "Worked for")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-terminal-resume")
         await pilot.press(*"/stop", "enter")
-        await shows(pilot, "ctrl+c exit")
+        await shows(pilot, "ctrl+c Exit")
         await _settled(pilot, 1.0)
 
 

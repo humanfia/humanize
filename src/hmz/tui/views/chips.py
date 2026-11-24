@@ -17,7 +17,6 @@ not against the interface.
 # The views are part of the interface, laid out over several files: what one borrows of the
 # interface or of its sheets is what would be a private name within one of them.
 # pyright: reportPrivateUsage=false
-# ruff: noqa: SLF001
 
 from __future__ import annotations
 
@@ -42,6 +41,8 @@ if TYPE_CHECKING:
     from textual import events
     from textual.app import App
     from textual.geometry import Offset
+
+    from hmz.tui.app import Humanize
 
 __all__ = [
     "DEFAULT",
@@ -160,54 +161,23 @@ def desk(app: App[None]) -> Desk:
     return _humanize(app)
 
 
-def _humanize(app: Any) -> Desk:
-    """The desk of the terminal interface, which is the one place its insides are named."""
-    from hmz.daemon import where
-    from hmz.runtime.kept import read_back
-
-    def chat() -> str:
-        if app._ai is not None or not app.chatting():
-            return ""
-        return str(app._chat_id or app._chat_now or "")
-
-    def follows(name: str, slot: str) -> None:
-        app._continues(name, slot)
-        app._draw()
+def _humanize(app: Humanize) -> Desk:
+    """The desk of the terminal interface: what it offers a view of a chat."""
 
     def starts(new: Start) -> None:
-        # A new chat is a new host (Section 8.8.4 of [CORE]), reached before it is started
-        # on, and with nothing of the chat that was on the screen.
-        app._flow_shown = False
-        app._chat_slot = app._chat_id = ""
-        app._natives, app._natives_of, app._listed = [], "", False
-        app._forgets_prefer()
-        if (runs := read_back(new.agent)) is not None:
-            app._chat_runs = runs
-        app._moves(where.chat(), None)
-        app._said_by_you(new.task)
-        app._starting = True
-        app._mine = new.task
-        app._asks(
-            "chat.start",
-            app._chat_started,
-            refused=app._not_started,
-            slot=app._slot,
+        app.starts_chat(
+            new.task,
             agent=new.agent,
-            task=new.task,
-            resume=None,
-            prefer=None,
             permission=new.permission,
             worktree=new.worktree,
-            env=new.env or None,
-            remember=True,
+            env=new.env,
         )
-        app._draw()
 
     return Desk(
         calls,
         str(app.hmz.workspace),
-        chat,
-        follows,
+        app.chat_followed,
+        app.follows_chat,
         app.action_clear,
         starts,
         lambda said: app.show(escape(said)),
@@ -834,7 +804,7 @@ class Chips(OptionList):
     """
 
     #: The keys it takes, as the hint line says them.
-    KEYS: ClassVar = (("↑↓", "move"), ("enter", "choose"))
+    KEYS: ClassVar = (("↑↓", "Move"), ("enter", "Choose"))
 
     def __init__(self, at: Desk) -> None:
         """Opens on the chat on the screen, which is asked for as it mounts.

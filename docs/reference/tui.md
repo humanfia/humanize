@@ -21,7 +21,7 @@ Press <kbd>enter</kbd> to send a line. `hmz` reads the line in this order and ta
 | `/` plus one of the commands below | That command |
 | A line starting with `$`, `/`, `!` or `@`, in a chat | Input for the chat's coding agent. See [Commands, skills and files in a chat](/user/chat-input) |
 | `$<flow> <task>` | Starts an epic of that flow, unless a question is waiting for your answer |
-| Any other `/` line | Refused: `hmz: no such command: /<name>` |
+| Any other `/` line | Refused: ``hmz: No such command: `/<name>`.`` |
 | Anything else | An answer to the waiting question, else a line said to the agent or chat on screen |
 
 `hmz` splits command arguments the way a shell splits words and refuses unbalanced quotes.
@@ -70,7 +70,7 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>f3</kbd> | Opens Ai-chan's conversations beside the log, in the same way. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
-The bottom line of the screen lists the keys that work where you are, then the key of each pane.
+The bottom line of the screen lists the keys that work where you are, then the key of each pane. Each is a key and then what it does, in the web page's words (`Open`, `Back`, `New epic`, `Settings`); a pane whose keys change with the row under its cursor says the keys it takes now. A row of the line breaks only between one key and the next.
 
 What <kbd>ctrl+c</kbd> does depends on the state. Press it a second time within 3 seconds to confirm.
 
@@ -133,7 +133,7 @@ The navigator lists every chat, epic and harness session of this machine's daemo
 | Chat | `Open`, `Pin`, `Mark as unread`, `Rename`, `Fork`, `Copy ID`, `Upload`, `Archive`, `Delete` |
 | Epic | `Open`, `Pin`, `Mark as unread`, `Copy task`, `Copy name`, `Upload`, `Stop` while a host runs it |
 | Harness session | `Open`, `Pin`, `Mark as unread`, `Copy session ID` |
-| Folder | `New chat here`, `New epic here`, `Search here`, `Copy path`, `Collapse`, `Forget` for an empty folder |
+| Folder | `New chat here` and `New epic here`, which open the New chat page and the New epic page on that folder (not offered for a folder that is gone), `Search here`, `Copy path`, `Collapse`, `Forget` for an empty folder |
 
 `Delete` and `Forget` ask first. `Resume`, `Export`, `Exomyth` and `Copy path` of an epic are on the sheet that `Open` goes to. A chat of another folder is listed but not opened: run `hmz` in that folder.
 
@@ -147,7 +147,7 @@ The navigator lists every chat, epic and harness session of this machine's daemo
 | `▸` beside the mark | Pinned. |
 | Cyan title | The chat or epic on the log. |
 
-While the keys are in the navigator, rows keep their places: changes are drawn where each row stands, and the order settles when you leave. Pins, unread marks, the grouping and folded groups are kept in `navigator.json` in Humanize's state directory.
+While the keys are in the navigator, rows keep their places: changes are drawn where each row stands, and the order settles when you leave. Pins, unread marks, the grouping and folded groups are kept in `navigator.json` in Humanize's state directory, and so are the pins and unread marks of Ai-chan's conversations.
 
 ### Search
 

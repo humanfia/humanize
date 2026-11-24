@@ -337,7 +337,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await on(pilot, Confirms)
         reel.tui(app, hold=1.6, keys="esc", caption="it asks before leaving")
         await pilot.press("enter")
-        await shows(pilot, "set up: /flow review_loop <task> starts it")
+        await shows(pilot, "Flow set up; `/flow review_loop <task>` starts it.")
         await _settled(pilot)
         reel.tui(app, hold=1.8, keys="enter", caption="saved")
         await pilot.press(*f"/flow review_loop {_TASK}")

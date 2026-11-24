@@ -243,7 +243,7 @@ async def test_the_person_is_asked_in_the_terminal(world: World) -> None:
     _own(world)
     world.epic("@local/approve", _TASK, until="asked")
     async with world.tui(size=(100, 40)) as (app, pilot):
-        await shows(pilot, "press Enter to open")
+        await shows(pilot, "Enter opens it")
         await pilot.pause(1.0)
         await pilot.pause()
         shots.tui(app, f"{_PAGE}-terminal")

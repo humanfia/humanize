@@ -357,7 +357,7 @@ async def test_resume_lists_them_in_the_terminal(
         await pilot.pause()
         reel.tui(app, hold=1.6, keys="down", caption="to the Claude Code session")
         await pilot.press("enter")
-        await shows(pilot, "say something to continue")
+        await shows(pilot, "Say something to continue")
         reel.tui(app, hold=1.8, keys="enter", caption="a copy, now a chat")
         await pilot.press(*_MORE)
         await pilot.pause()

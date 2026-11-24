@@ -70,10 +70,10 @@ When a turn takes the line, it leaves the pin and joins the transcript. A line c
 | --- | --- |
 | a red line with the harness's reason | The harness refused the line mid-turn. The line goes back to the front of the waiting lines. |
 | `sent to` the agent, `which ended its turn without acknowledging it` | The turn ended before the agent confirmed the line. It may or may not have reached the model. Say it again if it matters. |
-| `never sent` | The epic ended while the line still waited. |
+| `Never sent` | The epic ended while the line still waited. |
 | `sent to the agent, not acknowledged` | The epic ended while an agent held the line unconfirmed. |
 
-If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`, or with `to answer, not yours` when another interface holds that role.
+If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`, or with `to answer, not yours.` when another interface holds that role.
 
 ## From the command line
 

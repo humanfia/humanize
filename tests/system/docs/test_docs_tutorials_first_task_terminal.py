@@ -256,7 +256,7 @@ async def test_a_first_task_from_a_chat_to_its_result(
         await on(pilot, Confirms)
         reel.tui(app, hold=1.6, keys="esc", caption="it asks before leaving")
         await pilot.press("enter")
-        await shows(pilot, "set up: /flow ralph_loop <task> starts it")
+        await shows(pilot, "Flow set up; `/flow ralph_loop <task>` starts it.")
         await _settled(pilot)
         reel.tui(app, hold=3.5, keys="enter", caption="saved", poster=True)
         reel.save()
@@ -275,11 +275,11 @@ async def test_a_first_task_from_a_chat_to_its_result(
 
         # -- stopped, by ctrl+c twice ---------------------------------------------
         await pilot.press("right")
-        await shows(pilot, "ctrl+c stop")
+        await shows(pilot, "ctrl+c Stop")
         await pilot.press("ctrl+c")
-        await shows(pilot, "press ctrl+c again to stop the flow")
+        await shows(pilot, "Press ctrl+c again to stop the flow")
         await pilot.press("ctrl+c")
-        await shows(pilot, "stopping the flow", "ctrl+c exit")
+        await shows(pilot, "topping the flow", "ctrl+c Exit")
         await _settled(pilot, 1.0)
         shots.tui(app, f"{_PAGE}-stopped")
 

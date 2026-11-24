@@ -154,14 +154,14 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         # Her network is hers always: the form asks nothing of it.
         assert "network" not in drawn
         await _done(pilot)
-        await shows(pilot, "Ai-chan · new · workspace", "Ai-chan: the next line")
+        await shows(pilot, "Ai-chan · New · workspace", "Ai-chan: Your next line")
         assert _made(daemon) == []
 
         await typed(pilot, "hello there")
 
         await shows(pilot, "heard hello there", "Ai-chan#1 · workspace")
         await typed(pilot, "go on")
-        await shows(pilot, "heard go on", "◉ done")
+        await shows(pilot, "heard go on", "◉ Done")
 
     (made,) = _made(daemon)
     assert {key: made[key] for key in _KEPT} == {
@@ -234,7 +234,7 @@ async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_dae
 
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} make it so")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
 
         form = await _new(pilot)
         # The flow just run is the epic last on the host followed.
@@ -267,10 +267,10 @@ async def test_her_tools_are_shown_and_btw_and_stop_are_hers(workspace: Path) ->
         await _done(pilot)
         # Details are off, and every tool she calls is still shown.
         await typed(pilot, "tools")
-        await shows(pilot, "Bash(foo\\ bar)", "heard tools", "◉ done")
+        await shows(pilot, "Bash(foo\\ bar)", "heard tools", "◉ Done")
 
         await typed(pilot, "/btw what is she doing")
-        await shows(pilot, "not on Ai-chan's", "/ai asks Ai-chan")
+        await shows(pilot, "not on an Ai-chan conversation", "`/ai` asks")
         await typed(pilot, "/stop")
         await shows(pilot, "Ai-chan is not answering, so there is nothing to stop")
 
@@ -400,9 +400,18 @@ async def test_f3_lists_her_conversations_beside_the_log_and_enter_follows_one(
         # Its keys are the hint line's while it has them.
         await shows(pilot, "enter Open", "N New", "R Rename", "P Pin", "delete Delete")
 
-        await pilot.press("down", "enter")
+        await pilot.press("down", "p")
+        await shows(pilot, "■ Ai-chan#1")
+        await pilot.press("enter")
         await shows(pilot, "Ai-chan#1 · workspace")
         await typed(pilot, "and again")
         await shows(pilot, "heard and again")
     assert len(_made(daemon)) == 1
     assert heard(workspace)[-1] == "and again"
+
+    # What was pinned is pinned the next time the interface opens.
+    again = Humanize()
+    async with again.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await pilot.press("f3")
+        await shows(pilot, "■ Ai-chan#1")
