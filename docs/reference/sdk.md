@@ -507,6 +507,54 @@ with Client.local() as client:
         print(device.name, device.seen)
 ```
 
+#### settings {#client-settings}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `get(workspace=None)` | `Kept` | The settings of the daemon's machine and of one workspace; the home folder where none is named. |
+| `set(*, workspace=None, chat=None, prefer=None, details=None, harness_sessions=None, reports=None, backup=None, listen=None, ice_servers=None, idem=None)` | `Kept` | Writes the settings given and no other. All are written, or none where the daemon refuses one. `backup` is a `Backup` or a `{targets, defaults}` mapping, whole. |
+| `forget(workspace, *, idem=None)` | `Kept` | Forgets what a workspace was set up with; `forgot` says whether there was anything. |
+
+A `Kept` has `workspace`, `flow`, `flows`, `chat`, `prefer`, `ai_chan`, `details`, `harness_sessions`, `reports` (`None` if never answered), `backup`, `listen`, `ice_servers`, `forgot` (`None` except from `forget`) and `said`, the whole answer. A `Backup` has `targets` (each a `Target` of `name`, `url`, `branch`, `policies`, `every`) and `defaults`; `sent()` gives it back in the form `set` takes. A target's `url` comes without credentials, and one sent back unchanged keeps the URL written. An ICE server's `credential` comes as `True`, and sent back as `True` keeps the one written.
+
+#### accounts {#client-accounts}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Listing` | Every account, and the sign-in methods of each CLI. |
+| `create(cli, name, way, answers=None, *, idem=None)` | `Listing` | Makes an account from the answers to a sign-in method, `{variable: value}`. |
+| `correct(cli, name, answers=None, *, idem=None)` | `Listing` | Writes an account again; a variable not answered keeps its value. |
+| `remove(cli, name, *, idem=None)` | `Listing` | Removes an account and its credentials. |
+| `models(cli, name="", *, idem=None, wait=None)` | `Listing` | Asks the CLI which models it runs as the account; `""` is the machine's own sign-in. |
+| `copy(cli, name, into, *, idem=None)` | `Listing` | Copies an account to another CLI, one of its `serves`. |
+
+A `Listing` has `gateway`, `accounts`, `backends` and `said`, with `account(cli, name)` and `backend(cli)` returning one or `None`. An `Account` has `cli`, `name` (`""` for the machine's own sign-in), `way`, `sets`, `made`, `models`, `asked` and `serves`. A `Backend` has `cli`, `ways`, `wants` and `way(name)`; a `Way` has `name`, `about`, `group`, `terminal` and `asks`; an `Ask` has `env`, `about`, `secret` and `fixed`. No type carries the value of a variable: `sets` holds names only. This family is `hmz.sdk.families.accounts.Accounts`, not the file-based [`Accounts`](#accounts) of `Hmz().accounts`.
+
+#### nous {#client-nous}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Book` | Every nous written, the policies, strategies and faults, and every concrete nous. Asks no harness. |
+| `scan(*, idem=None, wait=None)` | `Book` | Asks every installed harness which models it runs; `failed` names those that would not answer. |
+| `set(name, *, tries=None, policy=None, timeout=None, graph=None, then=None, idem=None)` | `Book` | Writes a nous whole: what is not given is written as its default, not kept. A graph is a `Graph`, a nous, a list of nous tried in turn, or a `{start, nodes}` mapping. |
+| `rename(name, to, *, idem=None)` | `Book` | Renames a virtual nous, in every graph that names it. |
+| `clear(name, *, idem=None)` | `Book` | Removes what is written of a nous. |
+
+A `Book` has `nous`, `policies`, `default`, `strategies`, `faults`, `concrete`, `scanning`, `failed` and `said`, with `entry(name)` returning one `Entry` or `None`. An `Entry` has `name`, `virtual`, `tries`, `policy`, `timeout`, `graph` and `then`. A `Graph` has `start`, `nodes` and `sent()`; a `Node` has `id`, `use`, `balance`, `among` (each a `Member` of `nous` and `weight`), `spread` and `on`. `policies` and `strategies` hold `Kind`s of `name` and `about`; `failed` holds `Failed`s of `cli`, `account` and `why`.
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    client.settings.set(details=True)
+    book = client.nous.set("careful", tries=1, graph=["claude/claude-opus-4-1", "codex/gpt-6-sol"])
+    careful = book.entry("careful")
+    # Change one thing and keep the rest: send back what was read.
+    client.nous.set("careful", tries=3, graph=careful.graph, then=careful.then)
+    for account in client.accounts.list().accounts:
+        print(account.cli, account.name or "Local", account.sets)
+```
+
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
 ## Daemons {#daemons}

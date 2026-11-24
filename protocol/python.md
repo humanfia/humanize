@@ -3782,7 +3782,141 @@ This section is reserved for the families of `flows.*`, `flowverses.*`, `workspa
 
 ### 4.29. `Client.settings`, `Client.accounts` and `Client.nous`
 
-This section is reserved for the families of `settings.*`, `accounts.*` and `nous.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Settings(Family):
+    def get(self, workspace: str | None = None) -> Kept: ...
+    def set(self, *, workspace: str | None = None, chat: str | None = None,
+            prefer: str | None = None, details: bool | None = None,
+            harness_sessions: bool | None = None, reports: bool | None = None,
+            backup: Backup | Mapping[str, Any] | None = None,
+            listen: Sequence[str] | None = None,
+            ice_servers: Sequence[Mapping[str, Any]] | None = None,
+            idem: str | None = None) -> Kept: ...
+    def forget(self, workspace: str, *, idem: str | None = None) -> Kept: ...
+
+class Kept:     # frozen
+    workspace: str; flow: str; chat: str; prefer: str; ai_chan: str
+    details: bool; harness_sessions: bool; reports: bool | None
+    flows: tuple[str, ...]; backup: Backup; listen: tuple[str, ...]
+    ice_servers: tuple[dict[str, Any], ...]; forgot: bool | None; said: dict[str, Any]
+
+class Backup:   # frozen
+    targets: tuple[Target, ...]; defaults: tuple[str, ...]
+    def sent(self) -> dict[str, Any]: ...
+
+class Target:   # frozen
+    name: str; url: str; branch: str; policies: tuple[str, ...]; every: int
+    def sent(self) -> dict[str, Any]: ...
+
+class Accounts(Family):
+    def list(self) -> Listing: ...
+    def create(self, cli: str, name: str, way: str, answers: Mapping[str, str] | None = None,
+               *, idem: str | None = None) -> Listing: ...
+    def correct(self, cli: str, name: str, answers: Mapping[str, str] | None = None,
+                *, idem: str | None = None) -> Listing: ...
+    def remove(self, cli: str, name: str, *, idem: str | None = None) -> Listing: ...
+    def models(self, cli: str, name: str = "", *, idem: str | None = None,
+               wait: float | None = None) -> Listing: ...
+    def copy(self, cli: str, name: str, into: str, *, idem: str | None = None) -> Listing: ...
+
+class Listing:  # frozen
+    gateway: str; accounts: tuple[Account, ...]; backends: tuple[Backend, ...]
+    said: dict[str, Any]
+    def account(self, cli: str, name: str) -> Account | None: ...
+    def backend(self, cli: str) -> Backend | None: ...
+
+class Account:  # frozen
+    cli: str; name: str; way: str; sets: tuple[str, ...]; made: str
+    models: tuple[str, ...]; asked: str; serves: tuple[str, ...]
+
+class Backend:  # frozen
+    cli: str; ways: tuple[Way, ...]; wants: str
+    def way(self, name: str) -> Way | None: ...
+
+class Way:      # frozen
+    name: str; about: str; group: str; terminal: bool; asks: tuple[Ask, ...]
+
+class Ask:      # frozen
+    env: str; about: str; secret: bool; fixed: str
+
+class Nous(Family):
+    def list(self) -> Book: ...
+    def scan(self, *, idem: str | None = None, wait: float | None = None) -> Book: ...
+    def set(self, name: str, *, tries: int | None = None, policy: str | None = None,
+            timeout: float | None = None,
+            graph: Graph | str | Sequence[str] | Mapping[str, Any] | None = None,
+            then: Graph | str | Sequence[str] | Mapping[str, Any] | None = None,
+            idem: str | None = None) -> Book: ...
+    def rename(self, name: str, to: str, *, idem: str | None = None) -> Book: ...
+    def clear(self, name: str, *, idem: str | None = None) -> Book: ...
+
+class Book:     # frozen
+    nous: tuple[Entry, ...]; policies: tuple[Kind, ...]; default: str
+    strategies: tuple[Kind, ...]; faults: tuple[str, ...]; concrete: tuple[str, ...]
+    scanning: bool; failed: tuple[Failed, ...]; said: dict[str, Any]
+    def entry(self, name: str) -> Entry | None: ...
+
+class Entry:    # frozen
+    name: str; virtual: bool; tries: int; policy: str; timeout: float
+    graph: Graph | None; then: Graph | None
+
+class Graph:    # frozen
+    start: str; nodes: tuple[Node, ...]
+    def sent(self) -> dict[str, Any]: ...
+
+class Node:     # frozen
+    id: str; use: str; balance: str; among: tuple[Member, ...]; spread: int
+    on: dict[str, str]
+
+class Member:   # frozen
+    nous: str; weight: int
+
+class Kind:     # frozen
+    name: str; about: str
+
+class Failed:   # frozen
+    cli: str; account: str; why: str
+```
+
+These are the families of `settings.*`, `accounts.*` and `nous.*` (Section 4.18 of [DAEMON]), in
+`hmz.sdk.families.settings`, `hmz.sdk.families.accounts` and `hmz.sdk.families.nous`. `Accounts`
+here is not the `Accounts` of Section 4.9, which reads this machine's files, and `Nous` is not the
+`NousBook` of Section 4.11; `hmz.sdk` exports neither of these families' classes by name.
+
+**4.29.1** Every method of these three families MUST make exactly one call, of the method of
+[OPENRPC] whose name is its family's prefix and its own name (`Settings.get` calls `settings.get`,
+`Accounts.create` calls `accounts.create`, `Nous.scan` calls `nous.scan`), and MUST return its
+result as the type shown, whose `said` is the whole result.
+
+**4.29.2** `Settings.get(workspace)` MUST send `workspace` where it is not `None`. `Settings.set`
+MUST send each setting it was given and no other, a `Backup` as its `sent()`; and
+`Settings.forget(workspace)` MUST return a `Kept` whose `forgot` is the result's. `forgot` MUST be
+`None` in a `Kept` any other method returns.
+
+**4.29.3** A `Kept` MUST hold `reports` as `None` where the result's is `null`, each target's `url`
+as the daemon answered it, and each entry of `ice_servers` as the daemon answered it. `Backup.sent()`
+MUST be a `backup` that `settings.set` writes as the same targets and defaults.
+
+**4.29.4** `Accounts.create` and `Accounts.correct` MUST send `answers` as given, an empty object
+where it is `None`. `Accounts.models(cli, name)` MUST send `name` where it is `""`, which names the
+sign-in of the daemon's machine.
+
+**4.29.5** A type of these families MUST NOT hold the value of a variable an account sets: the
+only place one passes is the `answers` a caller gives; an `Account` holds the names in `sets`, as the daemon answers them
+(Section 4.18.2.2 of [DAEMON]).
+
+**4.29.6** `Listing.account(cli, name)` MUST return the account of that harness and name, and
+`Listing.backend(cli)`, `Backend.way(name)` and `Book.entry(name)` the one of that name; each MUST
+return `None` where there is none.
+
+**4.29.7** `Nous.set` MUST send `graph` and `then` as given: a `Graph` as its `sent()`, a string as
+it is, a sequence as a list and a mapping as an object; and MUST leave out each that is `None`, so
+that the daemon writes the nous whole with nothing there. `Graph.sent()` of a graph a `Book` holds
+MUST be a graph that `nous.set` reads as the same graph.
+
+**4.29.8** `Nous.scan` MUST return a `Book` whose `failed` holds each entry of the result's
+`failed`; `failed` MUST be empty in a `Book` any other method returns. `Nous.scan` and
+`Accounts.models` MUST take `wait`, the seconds an answer is waited for.
 
 ### 4.30. `Client.runtimes` and `Client.easytier`
 
