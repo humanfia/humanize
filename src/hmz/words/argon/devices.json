@@ -1,0 +1,136 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz devices`: list and revoke the devices paired with this daemon",
+   "where": "command summary in a --help listing",
+   "text": "list and revoke the devices paired with this daemon"
+  },
+  {
+   "wants": "paragraph for `hmz devices`: a paired device is a phone, browser or other machine let in to this daemon by claiming a pairing code; these commands list them and revoke one",
+   "where": "paragraph of --help, one or two sentences",
+   "text": "A paired device is a phone, browser or other machine let in to this daemon by claiming a pairing code. These commands list them and revoke one."
+  },
+  {
+   "wants": "summary of `hmz devices list`: list the paired devices",
+   "where": "command summary in a --help listing",
+   "text": "list the paired devices"
+  },
+  {
+   "wants": "summary of `hmz devices revoke NAME`: revoke one paired device and close the sessions it has open",
+   "where": "command summary in a --help listing",
+   "text": "revoke one paired device and close its open sessions"
+  },
+  {
+   "wants": "summary of `hmz devices pair`: make a pairing code for one device to claim",
+   "where": "command summary in a --help listing",
+   "text": "make a pairing code for one device to claim"
+  },
+  {
+   "wants": "paragraph for `hmz devices pair`: prints a pairing code; the code is entered on the device (web page Settings > Daemons, or the desktop app) to pair it with this daemon before the code expires; each code pairs one device",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Prints a one-time pairing code. Enter it on the device (in Settings > Daemons, or the desktop app) before it expires."
+  },
+  {
+   "wants": "the NAME argument of `hmz devices revoke`: the name the device was paired as, as `hmz devices list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name the device was paired as, as `hmz devices list` prints it"
+  },
+  {
+   "wants": "the --route ROUTE option of `hmz devices pair`: a route the code carries for reaching this daemon; when not given, the routes the daemon listens on",
+   "where": "option description, lower case start, no full stop",
+   "text": "a route the code carries to reach this daemon, or those it listens on"
+  },
+  {
+   "wants": "the --seconds N option of `hmz devices pair`: how long the code can be claimed for, in seconds",
+   "where": "option description, lower case start, no full stop",
+   "text": "how long the code can be claimed for, in seconds"
+  },
+  {
+   "wants": "what `hmz devices list` prints as text: one line per device: name, fingerprint, when it was paired, when it was last seen",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per device: name, fingerprint, when it was paired, when it was last seen."
+  },
+  {
+   "wants": "what `hmz devices revoke` prints as text: how many sessions were closed",
+   "where": "sentence in the Output section of --help",
+   "text": "How many sessions were closed."
+  },
+  {
+   "wants": "what `hmz devices pair` prints as text: the code alone on standard output, and when it expires on standard error",
+   "where": "sentence in the Output section of --help",
+   "text": "The code alone on standard output, and when it expires on standard error."
+  },
+  {
+   "wants": "JSON field devices: the paired devices",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the paired devices"
+  },
+  {
+   "wants": "JSON field devices[].name: the name the device was paired as",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name the device was paired as"
+  },
+  {
+   "wants": "JSON field devices[].fingerprint: fingerprint of the device's certificate",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "fingerprint of the device's certificate"
+  },
+  {
+   "wants": "JSON field devices[].added: when it was paired, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when it was paired, ISO 8601"
+  },
+  {
+   "wants": "JSON field devices[].seen: when it last opened a session, ISO 8601, or null if never",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when it last opened a session, ISO 8601, or null if never"
+  },
+  {
+   "wants": "JSON field dropped: how many of the device's open sessions were closed",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many of the device's open sessions were closed"
+  },
+  {
+   "wants": "JSON field code: the pairing code",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the pairing code"
+  },
+  {
+   "wants": "JSON field expires: when the code stops being claimable, seconds since the Unix epoch",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when the code stops being claimable, seconds since the Unix epoch"
+  },
+  {
+   "wants": "example: list the paired devices",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the paired devices"
+  },
+  {
+   "wants": "example: list the paired devices as JSON and print their names with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the paired devices as JSON and print their names with jq"
+  },
+  {
+   "wants": "example: revoke the device paired as `phone`",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "revoke the device paired as `phone`"
+  },
+  {
+   "wants": "example: make a pairing code that can be claimed for ten minutes",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "make a pairing code that can be claimed for ten minutes"
+  },
+  {
+   "wants": "message after revoking a device: {n} sessions closed (keep {n})",
+   "where": "one line printed after `hmz devices revoke`, sentence with full stop",
+   "text": "Device revoked ({n} sessions closed).",
+   "one": "Device revoked ({n} session closed)."
+  },
+  {
+   "wants": "message printed with a pairing code: claim this code on the device before {time}",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Claim this code on the device before {time}."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

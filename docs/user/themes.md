@@ -85,11 +85,13 @@ Output from a daemon, flow, or agent remains in the language it was written in.
 
 ## In the terminal
 
-`hmz` uses your terminal's background and 16-colour palette by default, with red for failures and yellow for warnings.
+`hmz` uses the same colours as the web page by default: `humanfia-dark`, or `humanfia-light` where your terminal reports a white background in `COLORFGBG`. Failures are red and warnings are gold.
+
+Set `TEXTUAL_THEME=terminal` to use your terminal's background and 16-colour palette instead:
 
 ![The terminal interface drawn in the terminal's own colours](/shots/user-themes-terminal.svg)
 
-Set `TEXTUAL_THEME` at launch to use a Textual theme instead:
+Set `TEXTUAL_THEME` at launch to use any other theme:
 
 ```sh
 TEXTUAL_THEME=gruvbox hmz
@@ -97,9 +99,9 @@ TEXTUAL_THEME=gruvbox hmz
 
 ![The same screen started with TEXTUAL_THEME=gruvbox](/shots/user-themes-terminal-theme.svg)
 
-Valid theme names are `ansi-dark`, `ansi-light`, `atom-one-dark`, `atom-one-light`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`, `catppuccin-mocha`, `dracula`, `flexoki`, `gruvbox`, `monokai`, `nord`, `rose-pine`, `rose-pine-dawn`, `rose-pine-moon`, `solarized-dark`, `solarized-light`, `textual-dark`, `textual-light` and `tokyo-night`. Unknown names are ignored.
+Valid theme names are `humanfia-dark`, `humanfia-light`, `terminal`, `ansi-dark`, `ansi-light`, `atom-one-dark`, `atom-one-light`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`, `catppuccin-mocha`, `dracula`, `flexoki`, `gruvbox`, `monokai`, `nord`, `rose-pine`, `rose-pine-dawn`, `rose-pine-moon`, `solarized-dark`, `solarized-light`, `textual-dark`, `textual-light` and `tokyo-night`. Unknown names are ignored.
 
-Set `NO_COLOR` to disable colour:
+Set `NO_COLOR` to use the terminal's own colours:
 
 ```sh
 NO_COLOR=1 hmz

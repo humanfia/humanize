@@ -289,6 +289,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# A script is a file run by its path, and says what it did on the terminal it was run in.
+"scripts/*.py" = ["INP001", "T201"]
 # The wire's domain type is the string path: a path is what a traced process named and what
 # crosses to the target, so `pathlib` would only convert them twice. Named rather than the
 # whole of `coganchor`, which also holds the drivers and the facts about the CLIs they drive

@@ -740,6 +740,11 @@ def main(argv: list[str] | None = None) -> int:
     if not arguments:
         return _tui()
     if arguments[0] not in COMMANDS:
+        from . import tree
+
+        # A command written as a declaration (`hmz.cli.commands`): the tree reads its line.
+        if arguments[0] in tree.commands():
+            return tree.runs(arguments)
         if arguments == ["--version"]:
             # Read from the installed metadata, which costs more to reach than everything
             # else here put together -- so it is reached only when it is what was asked for.
@@ -761,6 +766,10 @@ def main(argv: list[str] | None = None) -> int:
         commands = parser.add_subparsers(metavar="COMMAND", required=True)
         for name, (_, summary) in COMMANDS.items():
             commands.add_parser(name, help=summary, add_help=False)
+        from hmz.words import t
+
+        for name, command in tree.commands().items():
+            commands.add_parser(name, help=t(command.summary), add_help=False)
         parser.parse_args(arguments)
 
     return COMMANDS[arguments[0]][0](arguments[1:])

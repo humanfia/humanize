@@ -1,0 +1,25 @@
+{
+ "entries": [
+  {
+   "wants": "title of the pane that lists every key the terminal interface takes and what each does",
+   "where": "pane title in the terminal interface, one or two words, sentence case",
+   "text": "Keys"
+  },
+  {
+   "wants": "what the F1 key does: opens the list of keys",
+   "where": "key hint on the bottom line of the terminal interface, one lower-case word or two",
+   "text": "keys"
+  },
+  {
+   "wants": "what the esc key does in the keys pane and any pane: goes back to the prompt",
+   "where": "key hint, reuse the page's own word for going back",
+   "text": "Back"
+  },
+  {
+   "wants": "explanatory line at the top of the keys pane: these keys work from anywhere in the interface",
+   "where": "one short sentence with full stop",
+   "text": "These keys work from anywhere."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

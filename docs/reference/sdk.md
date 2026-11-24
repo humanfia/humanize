@@ -472,6 +472,43 @@ with Client.local(name="ci") as client:
     print(client.call("hosts.list"))
 ```
 
+### Families {#families}
+
+A family is the typed calls of one group of daemon methods, read as an attribute of a `Client`. Each is made on first use and makes its calls through `Client.call`, so it raises `Refused` and `TimeoutError` the same way.
+
+| Attribute | Methods |
+| --- | --- |
+| `devices` | `pair.*`, `devices.*` |
+| `chats` | `chat.*` |
+| `epics`, `hosts` | `epic.*`, `hosts.*` |
+| `runs`, `backups`, `files` | `runs.*`, `backups.*`, `files.*` |
+| `envs` | `env.*`, `hosts.env.*` |
+| `flows`, `flowverses`, `workspaces`, `paths` | `flows.*`, `flowverses.*`, `workspaces.*`, `paths.*` |
+| `settings`, `accounts`, `nous` | `settings.*`, `accounts.*`, `nous.*` |
+| `runtimes`, `easytier` | `runtimes.*`, `easytier.*` |
+| `btw`, `aichan`, `notices` | `btw.*`, `aichan.*`, `notices.*` |
+
+Every family has `METHODS`, the daemon methods it calls. Only `devices` has calls so far; the others are being added.
+
+#### devices {#client-devices}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | list of `Device` | The paired devices, in the daemon's order. A `Device` has `name`, `fingerprint`, `added` and `seen` (`None` if never seen). |
+| `revoke(name, *, idem=None)` | `int` | Revokes a device and returns how many of its sessions were closed. |
+| `pair(*, routes=None, seconds=None, idem=None)` | `Code` | Makes a pairing code. A `Code` has `code`, `expires` (seconds since the epoch) and `said`, the whole answer. |
+| `claim(token, name)` | `dict` | Pairs this session's device with the token of a pairing code. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    for device in client.devices.list():
+        print(device.name, device.seen)
+```
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
 ## Daemons {#daemons}
 
 ```python

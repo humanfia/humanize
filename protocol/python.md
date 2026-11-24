@@ -53,6 +53,16 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.19. `fakes`](#419-fakes)
   - [4.20. Returned types](#420-returned-types)
   - [4.21. `Client`](#421-client)
+  - [4.22. Families](#422-families)
+  - [4.23. `Client.devices`](#423-clientdevices)
+  - [4.24. `Client.chats`](#424-clientchats)
+  - [4.25. `Client.epics` and `Client.hosts`](#425-clientepics-and-clienthosts)
+  - [4.26. `Client.runs`, `Client.backups` and `Client.files`](#426-clientruns-clientbackups-and-clientfiles)
+  - [4.27. `Client.envs`](#427-clientenvs)
+  - [4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`](#428-clientflows-clientflowverses-clientworkspaces-and-clientpaths)
+  - [4.29. `Client.settings`, `Client.accounts` and `Client.nous`](#429-clientsettings-clientaccounts-and-clientnous)
+  - [4.30. `Client.runtimes` and `Client.easytier`](#430-clientruntimes-and-clienteasytier)
+  - [4.31. `Client.btw`, `Client.aichan` and `Client.notices`](#431-clientbtw-clientaichan-and-clientnotices)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -3646,6 +3656,7 @@ class Client:
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, kind, why, traceback) -> None: ...
+    # and each family of Section 4.22, as an attribute
 ```
 
 One `Client` is one session of [WIRE] with one daemon.
@@ -3680,6 +3691,106 @@ the message `the daemon went away`.
 `HUMANIZE_AICHAN_LINK` names (Section 3.11.2.17 of [FILES]) in place of the daemon's socket, MUST
 NOT start a daemon, and MUST raise `OSError` where that variable is unset; Ai-chan's tools speak
 to the daemon over that scoped link alone (Section 14.6.2 of [CORE]).
+
+### 4.22. Families
+
+```python
+class Family:
+    METHODS: ClassVar[tuple[str, ...]]
+
+class Subscription:
+    sub: str
+    def next(self, seconds: float | None = None) -> Mapping[str, Any] | None: ...
+    def __iter__(self) -> Iterator[Mapping[str, Any]]: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+```
+
+A _family_ is the calls of one group of the methods of [OPENRPC], with names and types, made
+through one `Client`. `hmz.sdk.families` holds `Family` and `Subscription`, and one module for each
+family.
+
+**4.22.1** A `Client` MUST have each family as an attribute: `accounts`, `aichan`, `backups`, `btw`,
+`chats`, `devices`, `easytier`, `envs`, `epics`, `files`, `flows`, `flowverses`, `hosts`, `notices`,
+`nous`, `paths`, `runs`, `runtimes`, `settings` and `workspaces`. Each MUST be made when first read
+and MUST be the same object every time after.
+
+**4.22.2** `Family.METHODS` MUST name every method of [OPENRPC] the family calls, and every method
+of [OPENRPC] other than `session.hello`, `session.cancel` and `rpc.discover` MUST be named by
+exactly one family.
+
+**4.22.3** A method of a family MUST make its calls through `Client.call`, so that Section 4.21.4
+and Section 4.21.7 hold of it; it MUST leave out of `params` every parameter it was given as `None`;
+and where its method of [OPENRPC] takes `idem` (Section 6.7 of [WIRE]) it MUST take `idem` by
+keyword and pass it on.
+
+**4.22.4** A method of a family that opens a subscription (Section 6.8 of [WIRE]) MUST return, or
+return with its answer, a `Subscription` whose `sub` is the subscription's. Iterating it MUST yield
+the `params` of each notification of that subscription, in order, the ones that arrived before it
+was made included; `next(seconds)` MUST return the next, or `None` where none came within `seconds`
+or it was closed; `close()` MUST end the iteration and MUST NOT end the subscription at the daemon.
+
+**4.22.5** A `Client` whose families hold a `Subscription` MUST NOT also be given a listener with
+`Client.heard`; the second of the two MUST raise `RuntimeError` (Section 4.21.5).
+
+### 4.23. `Client.devices`
+
+```python
+class Devices(Family):
+    def list(self) -> list[Device]: ...
+    def revoke(self, name: str, *, idem: str | None = None) -> int: ...
+    def pair(self, *, routes: Sequence[str] | None = None, seconds: int | None = None,
+             idem: str | None = None) -> Code: ...
+    def claim(self, token: str, name: str) -> dict[str, Any]: ...
+
+class Device:   # frozen
+    name: str; fingerprint: str; added: str; seen: str | None
+
+class Code:     # frozen
+    code: str; expires: int; said: dict[str, Any]
+```
+
+**4.23.1** `list()` MUST call `devices.list` and return its devices in the daemon's order.
+
+**4.23.2** `revoke(name)` MUST call `devices.revoke` and return its `dropped`.
+
+**4.23.3** `pair(routes, seconds)` MUST call `pair.create` and return a `Code` of its `code` and
+`expires`, `said` being the whole result.
+
+**4.23.4** `claim(token, name)` MUST call `pair.claim` and return its result.
+
+### 4.24. `Client.chats`
+
+This section is reserved for the family of `chat.*`. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+
+### 4.25. `Client.epics` and `Client.hosts`
+
+This section is reserved for the families of `epic.*` and `hosts.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.26. `Client.runs`, `Client.backups` and `Client.files`
+
+This section is reserved for the families of `runs.*`, `backups.*` and `files.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.27. `Client.envs`
+
+This section is reserved for the family of `env.*` and `hosts.env.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`
+
+This section is reserved for the families of `flows.*`, `flowverses.*`, `workspaces.*` and `paths.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.29. `Client.settings`, `Client.accounts` and `Client.nous`
+
+This section is reserved for the families of `settings.*`, `accounts.*` and `nous.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.30. `Client.runtimes` and `Client.easytier`
+
+This section is reserved for the families of `runtimes.*` and `easytier.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+
+### 4.31. `Client.btw`, `Client.aichan` and `Client.notices`
+
+This section is reserved for the families of `btw.*`, `aichan.*` and `notices.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
 
 ## 5. Security Considerations
 

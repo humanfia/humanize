@@ -60,6 +60,10 @@ Type `/` to see the commands that work in the current view and state. If you run
 | --- | --- |
 | <kbd>ctrl+c</kbd> | Takes back the nearest thing. See the next table. |
 | <kbd>ctrl+q</kbd> | Same as `/exit`. |
+| <kbd>f1</kbd> | Opens Keys beside the log. Pressed from elsewhere it goes to Keys; pressed inside Keys it closes it. |
+| <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
+
+The bottom line of the screen lists the keys that work where you are, then the key of each pane.
 
 What <kbd>ctrl+c</kbd> does depends on the state. Press it a second time within 3 seconds to confirm.
 
