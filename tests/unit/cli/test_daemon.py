@@ -1,4 +1,4 @@
-"""`hmz daemon`: run, reach, pair and install this machine's daemon (Section 13 of cli.md)."""
+"""`hmz daemon`: run, reach and install this machine's daemon (Section 13 of cli.md)."""
 
 from __future__ import annotations
 
@@ -13,40 +13,9 @@ import pytest
 
 import hmz.daemon
 import hmz.daemon.detaching
-import hmz.daemon.link
 import hmz.daemon.routing
 import hmz.reach
 from hmz.cli.daemon import daemon
-from hmz.rpc import RpcError
-
-
-class _Peer:
-    def __init__(self, answers: dict[str, Any]) -> None:
-        self.answers = answers
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    def call(self, method: str, params: dict[str, Any], timeout: float) -> Any:
-        del timeout
-        self.calls.append((method, params))
-        said = self.answers[method]
-        if isinstance(said, BaseException):
-            raise said
-        return said
-
-    def close(self) -> None:
-        pass
-
-
-@pytest.fixture
-def peer(monkeypatch: pytest.MonkeyPatch) -> _Peer:
-    held = _Peer({})
-    monkeypatch.setattr(hmz.daemon, "start", mock.Mock())
-
-    def dialed(*_: object, **__: object) -> tuple[_Peer, dict[str, Any]]:
-        return held, {}
-
-    monkeypatch.setattr(hmz.daemon.link, "dialed", dialed)
-    return held
 
 
 @pytest.mark.parametrize(
@@ -56,9 +25,8 @@ def peer(monkeypatch: pytest.MonkeyPatch) -> _Peer:
         ["nothing"],
         ["connect"],
         ["serve", "--listen", "unix:"],
-        ["pair", "--route", "nowhere"],
-        ["pair", "--seconds", "59"],
-        ["devices", "revoke"],
+        ["pair"],
+        ["devices"],
         ["install", "--now"],
     ],
 )
@@ -106,71 +74,14 @@ def test_connect_that_reaches_no_daemon_says_nothing_on_standard_output(
     assert said.err == "hmz: the daemon cannot be reached: refused\n"
 
 
-def test_pair_writes_the_code_and_when_it_stops_admitting(
-    peer: _Peer, capsys: pytest.CaptureFixture[str]
-) -> None:
-    peer.answers["pair.create"] = {"code": "hmz-pair:abc", "expires": 1_900_000_000}
-
-    assert daemon(["pair", "--route", "tcp://h:1", "--seconds", "60"]) == 0
-
-    said = capsys.readouterr()
-    assert said.out == "hmz-pair:abc\n"
-    assert said.err.startswith(
-        "hmz daemon pair: claim this code on the device to pair before "
-    )
-    assert peer.calls == [("pair.create", {"seconds": 60, "routes": ["tcp://h:1"]})]
-
-
-def test_devices_lists_each_paired_device(
-    peer: _Peer, capsys: pytest.CaptureFixture[str]
-) -> None:
-    peer.answers["devices.list"] = {
-        "devices": [
-            {"name": "a", "fingerprint": "f", "added": "t1", "seen": None, "live": 0},
-            {"name": "b", "fingerprint": "g", "added": "t2", "seen": "t3", "live": 1},
-        ]
-    }
-
-    assert daemon(["devices"]) == 0
-    assert capsys.readouterr().out == "a\tf\tt1\t\nb\tg\tt2\tt3\n"
-
-
-def test_revoking_says_how_many_sessions_closed(
-    peer: _Peer, capsys: pytest.CaptureFixture[str]
-) -> None:
-    peer.answers["devices.revoke"] = {"dropped": 2}
-
-    assert daemon(["devices", "revoke", "laptop"]) == 0
-    assert capsys.readouterr().out == (
-        "hmz daemon devices: revoked laptop; 2 sessions closed\n"
-    )
-
-
-def test_a_refusal_is_said_in_its_own_words(
-    peer: _Peer, capsys: pytest.CaptureFixture[str]
-) -> None:
-    peer.answers["devices.revoke"] = RpcError(400, "local cannot be revoked.")
-
-    assert daemon(["devices", "revoke", "local"]) == 1
-    assert capsys.readouterr().err == "hmz: local cannot be revoked.\n"
-
-
-def test_a_daemon_that_cannot_be_reached_is_said_so(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(hmz.daemon, "start", mock.Mock(side_effect=OSError("no fork")))
-
-    assert daemon(["pair"]) == 1
-    assert capsys.readouterr().err == "hmz: the daemon cannot be reached: no fork\n"
-
-
-def test_a_daemon_of_another_protocol_is_said_as_it_refuses(
+def test_connect_to_a_daemon_of_another_protocol_says_how_it_refuses(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     older = OSError(errno.EADDRINUSE, "the runs on this machine are held by an older")
-    monkeypatch.setattr(hmz.daemon, "start", mock.Mock(side_effect=older))
+    monkeypatch.setattr(hmz.daemon, "start", mock.Mock())
+    monkeypatch.setattr(hmz.reach, "dial", mock.Mock(side_effect=older))
 
-    assert daemon(["devices"]) == 1
+    assert daemon(["connect", "--stdio"]) == 1
     assert capsys.readouterr().err == (
         "hmz: the runs on this machine are held by an older\n"
     )

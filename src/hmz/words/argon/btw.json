@@ -1,0 +1,785 @@
+{
+ "entries": [
+  {
+   "wants": "summary of the command group `hmz btw`: ask side questions of a session of an epic or a chat",
+   "where": "command summary in a --help listing",
+   "text": "ask side questions of a session of an epic or chat"
+  },
+  {
+   "wants": "paragraph for `hmz btw`: a side question asks one session of an epic or a chat about itself; a read-only copy of that session answers in a side conversation, so the question never reaches the epic or the chat. These commands ask one, list the side conversations that are open, and close them",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "A side question asks one session of an epic or a chat about itself. A read-only copy of that session answers in a side conversation, so the question never reaches the epic or the chat. These commands ask one, list the side conversations that are open, and close them."
+  },
+  {
+   "wants": "summary of `hmz btw ask QUESTION`: ask a side question and print the answer",
+   "where": "command summary in a --help listing",
+   "text": "ask a side question and print the answer"
+  },
+  {
+   "wants": "paragraph for `hmz btw ask`: the first question opens a side conversation and prints its name on standard error; give that name as `--aside` to ask the next question in the same side conversation. Without `--epic` or `--chat` the question is about the epic in view in the workspace. Keep the backticks",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "The first question opens a side conversation and prints its name on standard error; give that name as `--aside` to ask the next question in the same side conversation. Without `--epic` or `--chat` the question is about the epic in view in the workspace."
+  },
+  {
+   "wants": "the QUESTION argument of `hmz btw ask`: the question to ask",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the question to ask"
+  },
+  {
+   "wants": "the --to SESSION option of `hmz btw ask`: the session to ask, written `<agent>/<n>` as `hmz btw sessions` prints it; with `--chat` and no `--to`, the chat's newest session is asked. Keep the backticks",
+   "where": "option description, lower case start, no full stop, up to 30 words",
+   "text": "the session to ask, written `<agent>/<n>` as `hmz btw sessions` prints it; with `--chat` and no `--to`, the chat's newest session is asked"
+  },
+  {
+   "wants": "the --aside NAME option of `hmz btw ask`: the side conversation to go on in, by its name; when not given, a new side conversation is opened",
+   "where": "option description, lower case start, no full stop",
+   "text": "the side conversation to go on in, by its name; when not given, a new side conversation is opened"
+  },
+  {
+   "wants": "the -w/--workspace PATH option shared by `hmz btw` commands: the workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in",
+   "where": "option description, lower case start, no full stop",
+   "text": "the workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in"
+  },
+  {
+   "wants": "the --epic NAME option of `hmz btw ask` and `hmz btw list`: the epic the side questions are about, by its name; when not given, the epic in view in the workspace",
+   "where": "option description, lower case start, no full stop",
+   "text": "the epic the side questions are about, by its name; when not given, the epic in view in the workspace"
+  },
+  {
+   "wants": "the --chat NAME option of `hmz btw ask` and `hmz btw list`: the chat the side questions are about, by its name, in place of `--epic`. Keep the backticks",
+   "where": "option description, lower case start, no full stop",
+   "text": "the chat the side questions are about, by its name, in place of `--epic`"
+  },
+  {
+   "wants": "example `hmz btw ask \"What are you changing right now?\" --to Ada/1`: asks session Ada/1 of the epic in view in this folder a side question",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "asks session Ada/1 of the epic in view in this folder a side question"
+  },
+  {
+   "wants": "example `hmz btw ask \"Why did the tests fail?\" --chat 20261117T100000-ab12cd`: asks the newest session of that chat a side question",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "asks the newest session of that chat a side question"
+  },
+  {
+   "wants": "example `hmz btw ask \"And after that?\" --to Ada/1 --aside 3f9c2a1b`: asks the next question in the side conversation named 3f9c2a1b",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "asks the next question in the side conversation named 3f9c2a1b"
+  },
+  {
+   "wants": "what `hmz btw ask` prints as text: the answer on standard output; the name of a side conversation it opened on standard error",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints the answer on standard output, and the name of a side conversation it opened on standard error."
+  },
+  {
+   "wants": "field `aside` of a side question's JSON: the name of the side conversation it was asked in",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the side conversation it was asked in"
+  },
+  {
+   "wants": "field `to` of a side question's JSON: the session that was asked, as `<agent>/<n>`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the session that was asked, as `<agent>/<n>`"
+  },
+  {
+   "wants": "field `question`: the question that was asked",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the question that was asked"
+  },
+  {
+   "wants": "field `answer`: the answer the session's copy gave",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the answer the session's copy gave"
+  },
+  {
+   "wants": "message printed on standard error after `hmz btw ask` opened a new side conversation named {name}: says this is side conversation {name} and that `--aside {name}` asks the next question in it. One sentence, keep {name} and the backticks",
+   "where": "one line on standard error after the answer",
+   "text": "Side conversation {name}: pass `--aside {name}` to ask the next question in it."
+  },
+  {
+   "wants": "summary of `hmz btw sessions`: list the sessions of an epic or a chat that a side question can be asked of",
+   "where": "command summary in a --help listing",
+   "text": "list the sessions of an epic or a chat"
+  },
+  {
+   "wants": "the --epic NAME option of `hmz btw sessions`: the epic whose sessions are listed, by its name",
+   "where": "option description, lower case start, no full stop",
+   "text": "the epic whose sessions are listed, by its name"
+  },
+  {
+   "wants": "the --chat NAME option of `hmz btw sessions`: the chat whose sessions are listed, by its name",
+   "where": "option description, lower case start, no full stop",
+   "text": "the chat whose sessions are listed, by its name"
+  },
+  {
+   "wants": "example `hmz btw sessions --epic 20261117T100000.000Z-ab12cd`: lists the sessions of that epic, oldest first",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists the sessions of that epic, oldest first"
+  },
+  {
+   "wants": "example `hmz btw sessions --chat 20261117T100000-ab12cd --json | jq -r '.sessions[-1].session'`: prints the newest session of that chat",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints the newest session of that chat"
+  },
+  {
+   "wants": "what `hmz btw sessions` prints as text: one line per session, oldest first: the session as `--to` takes it, and its harness. Keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one line per session, oldest first: the session as `--to` takes it, and its harness."
+  },
+  {
+   "wants": "field `sessions`: the sessions, oldest first",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the sessions, oldest first"
+  },
+  {
+   "wants": "field `sessions[].session`: the session as `--to` takes it, `<agent>/<n>`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the session as `--to` takes it, `<agent>/<n>`"
+  },
+  {
+   "wants": "field `sessions[].agent`: the name of the agent whose session it is",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the agent whose session it is"
+  },
+  {
+   "wants": "field `sessions[].harness`: the harness that ran the session",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the harness that ran the session"
+  },
+  {
+   "wants": "refusal of `hmz btw sessions` when neither `--epic` nor `--chat` was given: says to name an epic with `--epic` or a chat with `--chat`. One sentence, keep the backticks",
+   "where": "error line after `hmz btw sessions: `",
+   "text": "Name an epic with `--epic` or a chat with `--chat`."
+  },
+  {
+   "wants": "refusal when both `--epic` and `--chat` were given: says to give `--epic` or `--chat`, not both. One sentence, keep the backticks",
+   "where": "error line after the command name",
+   "text": "Give `--epic` or `--chat`, not both."
+  },
+  {
+   "wants": "summary of `hmz btw list`: list the side conversations open about an epic or a chat",
+   "where": "command summary in a --help listing",
+   "text": "list the side conversations open about an epic or chat"
+  },
+  {
+   "wants": "example `hmz btw list`: lists the side conversations open about the epic in view in this folder",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists the side conversations open about the epic in view in this folder"
+  },
+  {
+   "wants": "example `hmz btw list --chat 20261117T100000-ab12cd --json`: lists the side conversations open about that chat, as JSON",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists the side conversations open about that chat, as JSON"
+  },
+  {
+   "wants": "what `hmz btw list` prints as text: one line per side conversation, in the order opened: its name, the session it asks, how many questions it has answered, and the question it is answering now",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one line per side conversation, in the order opened: its name, the session it asks, how many questions it has answered, and the question it is answering now."
+  },
+  {
+   "wants": "field `asides`: the side conversations open, in the order opened",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the side conversations open, in the order opened"
+  },
+  {
+   "wants": "field `asides[].aside`: the name of the side conversation",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the side conversation"
+  },
+  {
+   "wants": "field `asides[].to`: the session it asks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the session it asks"
+  },
+  {
+   "wants": "field `asides[].question`: the question it is answering now, empty when it is answering none",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the question it is answering now, empty when it is answering none"
+  },
+  {
+   "wants": "field `asides[].said`: the questions it has answered, oldest first, each with `question` and `answer`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the questions it has answered, oldest first, each with `question` and `answer`"
+  },
+  {
+   "wants": "summary of `hmz btw show ASIDE`: print the questions and answers of one side conversation. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "command summary in a --help listing",
+   "text": "print the questions and answers of one side conversation"
+  },
+  {
+   "wants": "the ASIDE argument of `hmz btw show`: the name of the side conversation, as `hmz btw list` prints it. Keep the backticks. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the side conversation, as `hmz btw list` prints it"
+  },
+  {
+   "wants": "example `hmz btw show 3f9c2a1b`: prints every question asked in side conversation 3f9c2a1b and its answer. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints every side question asked in side conversation 3f9c2a1b and its answer"
+  },
+  {
+   "wants": "example `hmz btw show 3f9c2a1b --json | jq -r '.said[-1].answer'`: prints the latest answer of side conversation 3f9c2a1b. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints the latest answer of side conversation 3f9c2a1b"
+  },
+  {
+   "wants": "what `hmz btw show` prints as text: each question on a line starting with `>`, followed by its answer, oldest first. Keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints each question on a line starting with `>`, followed by its answer, oldest first."
+  },
+  {
+   "wants": "field `said`: the questions answered in it, oldest first",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the questions answered in it, oldest first"
+  },
+  {
+   "wants": "field `said[].question`: one question that was asked",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "one question that was asked"
+  },
+  {
+   "wants": "field `said[].answer`: the answer to that question",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the answer to that question"
+  },
+  {
+   "wants": "refusal when no side conversation named {name} is open: says there is no side conversation {name}. One sentence, keep {name}. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "error line after the command name",
+   "text": "There is no side conversation {name}."
+  },
+  {
+   "wants": "summary of `hmz btw leave`: close one side conversation, or every one in the workspace. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "command summary in a --help listing",
+   "text": "close one side conversation, or every one in the workspace"
+  },
+  {
+   "wants": "the ASIDE argument of `hmz btw leave`: the name of the side conversation to close; left out with `--all`. Keep the backticks. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the name of the side conversation to close; left out with `--all`"
+  },
+  {
+   "wants": "the --all option of `hmz btw leave`: close every side conversation of the workspace. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "option description, lower case start, no full stop",
+   "text": "close every side conversation of the workspace"
+  },
+  {
+   "wants": "example `hmz btw leave 3f9c2a1b`: closes the side conversation named 3f9c2a1b. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "closes the side conversation named 3f9c2a1b"
+  },
+  {
+   "wants": "example `hmz btw leave --all -w ~/project`: closes every side conversation of the workspace ~/project. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "closes every side conversation of the workspace ~/project"
+  },
+  {
+   "wants": "what `hmz btw leave` prints as text: that it was closed",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints that it was closed."
+  },
+  {
+   "wants": "field `aside` of `hmz btw leave`: the name of the side conversation closed, or null when every one was closed. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the side conversation closed, or null when every one was closed"
+  },
+  {
+   "wants": "refusal of `hmz btw leave` when neither a name nor `--all` was given, or both were: says to name one side conversation or give `--all`. One sentence, keep the backticks. Call it a side conversation, in those two words: a side conversation holds several side questions",
+   "where": "error line after `hmz btw leave: `",
+   "text": "Name one side conversation or give `--all`."
+  },
+  {
+   "wants": "summary of the command group `hmz ai`: talk to Ai-chan, who operates hmz for you",
+   "where": "command summary in a --help listing",
+   "text": "talk to Ai-chan, who operates hmz for you"
+  },
+  {
+   "wants": "paragraph for `hmz ai`: Ai-chan is an agent that operates hmz for you within a scope: this daemon, one workspace or one epic. Each conversation with her has a number. These commands start a conversation, say the next line in one, and list, rename and delete conversations. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Ai-chan is an agent that operates hmz for you within a scope: this daemon, one workspace or one epic. Each conversation with her has a number. These commands start a conversation, say the next line in one, and list, rename and delete conversations."
+  },
+  {
+   "wants": "summary of `hmz ai new TASK`: start a conversation with Ai-chan. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "command summary in a --help listing",
+   "text": "start a conversation with Ai-chan"
+  },
+  {
+   "wants": "paragraph for `hmz ai new`: starts a conversation whose first message is TASK and prints its number. Without `--scope`, the scope is the epic where `--epic` is given, else the workspace where `--workspace` is given, else the daemon. With `--wait` it also waits for Ai-chan's answer and prints it. Keep the backticks. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Starts a conversation whose first message is TASK and prints its number. Without `--scope`, the scope is the epic where `--epic` is given, else the workspace where `--workspace` is given, else the daemon. With `--wait` it also waits for Ai-chan's answer and prints it."
+  },
+  {
+   "wants": "the TASK argument of `hmz ai new`: the first thing to tell Ai-chan; its first line becomes the conversation's title. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the first thing to tell Ai-chan; its first line becomes the conversation's title"
+  },
+  {
+   "wants": "the --scope option of `hmz ai new` (daemon, workspace or epic): what Ai-chan reaches: every workspace and epic of this daemon, one workspace, or one epic",
+   "where": "option description, lower case start, no full stop",
+   "text": "what Ai-chan reaches: every workspace and epic of this daemon, one workspace, or one epic"
+  },
+  {
+   "wants": "the -w/--workspace PATH option of `hmz ai new`: the workspace of a workspace or epic scope, as an absolute path; for those scopes, when not given, the folder the command is run in",
+   "where": "option description, lower case start, no full stop",
+   "text": "the workspace of a workspace or epic scope, as an absolute path; when not given, the folder the command runs in"
+  },
+  {
+   "wants": "the --epic NAME option of `hmz ai new`: the epic of an epic scope, by its name",
+   "where": "option description, lower case start, no full stop",
+   "text": "the epic of an epic scope, by its name"
+  },
+  {
+   "wants": "the --nous NOUS option of `hmz ai new`: the nous Ai-chan thinks with; when not given, the one the last conversation was started with. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "option description, lower case start, no full stop",
+   "text": "the nous Ai-chan thinks with; when not given, the one the last conversation was started with"
+  },
+  {
+   "wants": "the --preset option of `hmz ai new` (read-only or danger-full-access): what Ai-chan may do: read-only reads and changes nothing, danger-full-access changes what her scope reaches; read-only when not given",
+   "where": "option description, lower case start, no full stop, up to 25 words",
+   "text": "what Ai-chan may do: read-only reads and changes nothing, danger-full-access changes what her scope reaches; read-only when not given"
+  },
+  {
+   "wants": "the --wait option of `hmz ai new`: also wait for Ai-chan's answer and print it",
+   "where": "option description, lower case start, no full stop",
+   "text": "also wait for Ai-chan's answer and print it"
+  },
+  {
+   "wants": "the --timeout SECONDS option of `hmz ai new`, `hmz ai say` and `hmz ai wait`: how many seconds to wait for Ai-chan's answer before giving up",
+   "where": "option description, lower case start, no full stop",
+   "text": "how many seconds to wait for Ai-chan's answer before giving up"
+  },
+  {
+   "wants": "example `hmz ai new \"Which epics failed today?\" --wait`: starts a conversation scoped to this daemon and prints Ai-chan's answer. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "starts a conversation scoped to this daemon and prints Ai-chan's answer"
+  },
+  {
+   "wants": "example `hmz ai new \"Summarise this epic\" --epic 20261117T100000.000Z-ab12cd --nous claude/claude-sonnet-4-5`: starts a conversation scoped to one epic of this folder, with the nous named. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "starts a conversation scoped to one epic of this folder, with the nous named"
+  },
+  {
+   "wants": "example `id=$(hmz ai new \"Tidy the worktrees\" -w ~/project --preset danger-full-access --json | jq .id)`: starts a conversation that may change the workspace ~/project and keeps its number in a shell variable. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "starts a conversation that may change the workspace ~/project and keeps its number in a shell variable"
+  },
+  {
+   "wants": "what `hmz ai new` prints as text: the conversation's number on the first line; with `--wait`, Ai-chan's answer after it. Keep the backticks. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints the conversation's number on the first line; with `--wait`, Ai-chan's answer after it."
+  },
+  {
+   "wants": "field `id` of an Ai-chan conversation: the conversation's number. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the conversation's number"
+  },
+  {
+   "wants": "field `workspace` of `hmz ai new`: the workspace of the conversation's host. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the workspace of the conversation's host"
+  },
+  {
+   "wants": "field `slot`: the slot of the conversation's host. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the slot of the conversation's host"
+  },
+  {
+   "wants": "field `answer` of `hmz ai new`: what Ai-chan said, with `--wait`; null without it. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what Ai-chan said, with `--wait`; null without it"
+  },
+  {
+   "wants": "field `mode` of `hmz ai new`: with `--wait`, `listen` when her turn is over, anything else when she asks a question mid-turn; null without `--wait`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "with `--wait`, `listen` when her turn is over, anything else when she asks a question mid-turn; null without `--wait`"
+  },
+  {
+   "wants": "summary of `hmz ai list`: list the conversations with Ai-chan, newest first. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "command summary in a --help listing",
+   "text": "list the conversations with Ai-chan, newest first"
+  },
+  {
+   "wants": "example `hmz ai list`: lists the conversations with Ai-chan. Call it a conversation with Ai-chan, never a chat: a chat is another thing in this product",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists the conversations with Ai-chan"
+  },
+  {
+   "wants": "example `hmz ai list --json | jq '.conversations[] | select(.state == \"running\") | .id'`: prints the numbers of the conversations Ai-chan is answering in",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints the numbers of the conversations Ai-chan is answering in"
+  },
+  {
+   "wants": "what `hmz ai list` prints as text: one line per conversation, newest first: its number, state, scope, preset, nous and title",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one line per conversation, newest first: its number, state, scope, preset, nous and title."
+  },
+  {
+   "wants": "field `conversations`: the conversations, newest first",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the conversations, newest first"
+  },
+  {
+   "wants": "field `conversations[].title`: its title",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "its title"
+  },
+  {
+   "wants": "field `conversations[].scope`: what Ai-chan reaches in it: `daemon`, `workspace` or `epic`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what Ai-chan reaches in it: `daemon`, `workspace` or `epic`"
+  },
+  {
+   "wants": "field `conversations[].workspace`: the workspace of its host",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the workspace of its host"
+  },
+  {
+   "wants": "field `conversations[].epic`: the epic of an epic scope, else empty",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the epic of an epic scope, else empty"
+  },
+  {
+   "wants": "field `conversations[].nous`: the nous Ai-chan thinks with in it",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the nous Ai-chan thinks with in it"
+  },
+  {
+   "wants": "field `conversations[].preset`: what she may do: `read-only` or `danger-full-access`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what she may do: `read-only` or `danger-full-access`"
+  },
+  {
+   "wants": "field `conversations[].state`: `running` while Ai-chan answers, `waiting` between turns, `folded` when no host holds it. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "`running` while Ai-chan answers, `waiting` between turns, `folded` when no host holds it"
+  },
+  {
+   "wants": "field `conversations[].created`: when it was started, ISO 8601 in UTC",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "when it was started, ISO 8601 in UTC"
+  },
+  {
+   "wants": "field `conversations[].latest`: the start of what was last said in it",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the start of what was last said in it"
+  },
+  {
+   "wants": "field `conversations[].updated`: when that was said, ISO 8601 in UTC",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "when that was said, ISO 8601 in UTC"
+  },
+  {
+   "wants": "summary of `hmz ai rename ID TITLE`: change the title of a conversation with Ai-chan",
+   "where": "command summary in a --help listing",
+   "text": "change the title of a conversation with Ai-chan"
+  },
+  {
+   "wants": "the ID argument of `hmz ai` commands: the conversation's number, as `hmz ai list` prints it. Keep the backticks",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the conversation's number, as `hmz ai list` prints it"
+  },
+  {
+   "wants": "the TITLE argument of `hmz ai rename`: the new title, 1 to 240 characters",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the new title, 1 to 240 characters"
+  },
+  {
+   "wants": "example `hmz ai rename 3 \"Failed epics, Tuesday\"`: gives conversation 3 a new title",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "gives conversation 3 a new title"
+  },
+  {
+   "wants": "what `hmz ai rename` prints as text: that it was renamed",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints that the conversation was renamed."
+  },
+  {
+   "wants": "field `title` of `hmz ai rename`: the title given",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the title given"
+  },
+  {
+   "wants": "summary of `hmz ai forget ID`: delete a conversation with Ai-chan for good",
+   "where": "command summary in a --help listing",
+   "text": "delete a conversation with Ai-chan for good"
+  },
+  {
+   "wants": "paragraph for `hmz ai forget`: deletes the conversation and closes its host; it cannot be brought back. Asks first on standard error unless `--yes` is given; where nobody is at a terminal, or with `--json`, `--yes` is needed. Keep the backticks",
+   "where": "paragraph of --help, two sentences",
+   "text": "Deletes the conversation and closes its host; it cannot be brought back. Asks first on standard error unless `--yes` is given; where nobody is at a terminal, or with `--json`, `--yes` is needed."
+  },
+  {
+   "wants": "the -y/--yes option of `hmz ai forget`: delete without asking",
+   "where": "option description, lower case start, no full stop",
+   "text": "delete without asking"
+  },
+  {
+   "wants": "example `hmz ai forget 3`: asks, then deletes conversation 3",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "asks, then deletes conversation 3"
+  },
+  {
+   "wants": "example `hmz ai forget 3 --yes`: deletes conversation 3 without asking",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "deletes conversation 3 without asking"
+  },
+  {
+   "wants": "what `hmz ai forget` prints as text: that it was deleted",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints that the conversation was deleted."
+  },
+  {
+   "wants": "question asked on standard error before the conversation with Ai-chan numbered {id} and titled {title} is deleted: asks whether to delete it and says it cannot be brought back. Keep {id} and {title}; do not add [y/N]",
+   "where": "prompt on standard error, one line",
+   "text": "Delete conversation {id} ({title}) with Ai-chan? It cannot be brought back."
+  },
+  {
+   "wants": "refusal of `hmz ai forget` where nobody is at a terminal to ask, or `--json` is given: says nobody can be asked here and to give `--yes`. One sentence, keep the backticks",
+   "where": "error line after `hmz ai forget: `",
+   "text": "Nobody can be asked here; give `--yes` to delete."
+  },
+  {
+   "wants": "refusal of `hmz ai forget` when the person did not answer yes: says the conversation was not deleted. One sentence",
+   "where": "error line after `hmz ai forget: `",
+   "text": "The conversation was not deleted."
+  },
+  {
+   "wants": "summary of `hmz ai say ID TEXT`: say the next line to Ai-chan and print her answer",
+   "where": "command summary in a --help listing",
+   "text": "say the next line to Ai-chan and print her answer"
+  },
+  {
+   "wants": "paragraph for `hmz ai say`: the line answers what Ai-chan waits on, or is said into her turn while she is answering; a conversation that was folded away is carried on first. Waits for her answer and prints it, unless `--no-wait` is given. Keep the backticks",
+   "where": "paragraph of --help, two sentences, up to 50 words",
+   "text": "The line answers what Ai-chan waits on, or is said into her turn while she is answering; a conversation that was folded away is carried on first. Waits for her answer and prints it, unless `--no-wait` is given."
+  },
+  {
+   "wants": "the TEXT argument of `hmz ai say`: the line to say to Ai-chan",
+   "where": "argument description, lower case start, no full stop",
+   "text": "the line to say to Ai-chan"
+  },
+  {
+   "wants": "the --no-wait option of `hmz ai say`: return once the line is taken, without waiting for Ai-chan's answer",
+   "where": "option description, lower case start, no full stop",
+   "text": "return once the line is taken, without waiting for Ai-chan's answer"
+  },
+  {
+   "wants": "example `hmz ai say 3 \"And yesterday?\"`: says the next line in conversation 3 and prints Ai-chan's answer",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "says the next line in conversation 3 and prints Ai-chan's answer"
+  },
+  {
+   "wants": "example `hmz ai say 3 \"Stop the oldest one\" --no-wait && hmz ai wait 3 --json`: says a line without waiting, then waits for the answer as JSON",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "says a line without waiting, then waits for the answer as JSON"
+  },
+  {
+   "wants": "what `hmz ai say` prints as text: what Ai-chan said; nothing with `--no-wait`. Keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints what Ai-chan said, or nothing with `--no-wait`."
+  },
+  {
+   "wants": "field `answer` of `hmz ai say`: what Ai-chan said; null with `--no-wait`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what Ai-chan said, or null with `--no-wait`"
+  },
+  {
+   "wants": "field `mode` of `hmz ai say`: `listen` when her turn is over, anything else when she asks a question mid-turn; null with `--no-wait`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "`listen` when her turn is over, anything else when she asks a question mid-turn, or null with `--no-wait`"
+  },
+  {
+   "wants": "summary of `hmz ai wait ID`: wait until Ai-chan waits on you, and print what she said",
+   "where": "command summary in a --help listing",
+   "text": "wait until Ai-chan waits on you, and print what she said"
+  },
+  {
+   "wants": "paragraph for `hmz ai wait`: waits while Ai-chan's turn is open, then prints what she waits on you with: her last answer, or a question she asks mid-turn. A conversation that was folded away is carried on first",
+   "where": "paragraph of --help, two sentences",
+   "text": "Waits while Ai-chan's turn is open, then prints what she waits on you with: her last answer, or a question she asks mid-turn. A conversation that was folded away is carried on first."
+  },
+  {
+   "wants": "example `hmz ai wait 3`: waits for Ai-chan's answer in conversation 3 and prints it",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "waits for Ai-chan's answer in conversation 3 and prints it"
+  },
+  {
+   "wants": "example `hmz ai wait 3 --timeout 60 --json`: waits at most a minute, and prints the answer as JSON",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "waits at most a minute, and prints the answer as JSON"
+  },
+  {
+   "wants": "what `hmz ai wait` prints as text: what Ai-chan said",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints what Ai-chan said."
+  },
+  {
+   "wants": "field `answer` of `hmz ai wait`: what Ai-chan said",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what Ai-chan said"
+  },
+  {
+   "wants": "field `mode` of `hmz ai wait`: `listen` when her turn is over, anything else when she asks a question mid-turn. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "`listen` when her turn is over, anything else when she asks a question mid-turn"
+  },
+  {
+   "wants": "summary of `hmz ai stop ID`: stop Ai-chan's open turn, leaving the conversation between turns",
+   "where": "command summary in a --help listing",
+   "text": "stop Ai-chan's open turn, leaving the conversation between turns"
+  },
+  {
+   "wants": "example `hmz ai stop 3`: stops what Ai-chan is doing in conversation 3",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "stops what Ai-chan is doing in conversation 3"
+  },
+  {
+   "wants": "what `hmz ai stop` prints as text: that it was stopped",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints that it was stopped."
+  },
+  {
+   "wants": "summary of the command group `hmz notices`: list and follow what this daemon tells you about your epics and chats",
+   "where": "command summary in a --help listing",
+   "text": "list and follow what this daemon tells you about your epics and chats"
+  },
+  {
+   "wants": "paragraph for `hmz notices`: the daemon makes a notice when an epic or a chat is done, fails, is stopped, asks you a question, or waits for what to say next. Each notice has a number greater than every earlier one. These commands list the notices kept and follow new ones as they arrive",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "The daemon makes a notice when an epic or a chat is done, fails, is stopped, asks you a question, or waits for what to say next. Each notice has a number greater than every earlier one. These commands list the notices kept and follow new ones as they arrive."
+  },
+  {
+   "wants": "summary of `hmz notices list`: list the notices the daemon keeps, oldest first",
+   "where": "command summary in a --help listing",
+   "text": "list the notices the daemon keeps, oldest first"
+  },
+  {
+   "wants": "the --after ID option of `hmz notices list`: list only the notices after the one with this number",
+   "where": "option description, lower case start, no full stop",
+   "text": "list only the notices after the one with this number"
+  },
+  {
+   "wants": "the --kind KIND option of `hmz notices list` and `hmz notices follow` (done, failed, stopped, asked or listening): print only notices of this kind",
+   "where": "option description, lower case start, no full stop",
+   "text": "print only notices of this kind"
+  },
+  {
+   "wants": "example `hmz notices list`: lists the latest notices, oldest first",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists the latest notices, oldest first"
+  },
+  {
+   "wants": "example `hmz notices list --after 41 --kind failed --kind asked --json`: lists, as JSON, what failed or asked a question since notice 41",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "lists, as JSON, what failed or asked a question since notice 41"
+  },
+  {
+   "wants": "what `hmz notices list` prints as text: one line per notice, oldest first: its number, the local time, its kind, the chat or epic it is about, and what it says",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one line per notice, oldest first: its number, the local time, its kind, the chat or epic it is about, and what it says."
+  },
+  {
+   "wants": "field `notices`: the notices, oldest first, at most the latest 200",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the notices, oldest first, at most the latest 200"
+  },
+  {
+   "wants": "field `last`: the number of the newest notice the daemon has made, 0 when there is none; `hmz notices follow --after` takes it. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the number of the newest notice the daemon has made, 0 when there is none; `hmz notices follow --after` takes it"
+  },
+  {
+   "wants": "field `id` of a notice: its number, greater than that of every earlier notice",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "its number, greater than that of every earlier notice"
+  },
+  {
+   "wants": "field `kind` of a notice: `done`, `failed`, `stopped`, `asked` or `listening`. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "`done`, `failed`, `stopped`, `asked` or `listening`"
+  },
+  {
+   "wants": "field `workspace` of a notice: the workspace of the host it is about",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the workspace of the host it is about"
+  },
+  {
+   "wants": "field `slot` of a notice: the slot of that host",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the slot of that host"
+  },
+  {
+   "wants": "field `epic` of a notice: the name of the epic it is about, empty for a chat",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the epic it is about, empty for a chat"
+  },
+  {
+   "wants": "field `chat` of a notice: the name of the chat it is about, empty for an epic",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the name of the chat it is about, empty for an epic"
+  },
+  {
+   "wants": "field `flow` of a notice: the epic's flow, `chat` for a chat. Keep the backticks",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the epic's flow, `chat` for a chat"
+  },
+  {
+   "wants": "field `task` of a notice: the epic's task, or the chat's first message",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the epic's task, or the chat's first message"
+  },
+  {
+   "wants": "field `role` of a notice: the role a question is asked of, else empty",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "the role a question is asked of, else empty"
+  },
+  {
+   "wants": "field `text` of a notice: what it says: the question, the reply, or why it failed",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "what it says: the question, the reply, or why it failed"
+  },
+  {
+   "wants": "field `at` of a notice: when it was made, seconds since the Unix epoch",
+   "where": "description of one field of the --json document, lower case start, no full stop",
+   "text": "when it was made, seconds since the Unix epoch"
+  },
+  {
+   "wants": "summary of `hmz notices follow`: print each notice as it arrives, until interrupted",
+   "where": "command summary in a --help listing",
+   "text": "print each notice as it arrives, until interrupted"
+  },
+  {
+   "wants": "paragraph for `hmz notices follow`: prints one line for each notice as the daemon makes it and runs until you press ctrl+c. With `--after` it first prints the notices kept after that number. With `--json` each notice is one JSON object on a line of its own. Keep the backticks",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Prints one line for each notice as the daemon makes it and runs until you press ctrl+c. With `--after` it first prints the notices kept after that number. With `--json` each notice is one JSON object on a line of its own."
+  },
+  {
+   "wants": "the --after ID option of `hmz notices follow`: first print the notices kept after the one with this number; when not given, only notices made from now on are printed",
+   "where": "option description, lower case start, no full stop",
+   "text": "first print the notices kept after the one with this number; when not given, only notices made from now on are printed"
+  },
+  {
+   "wants": "example `hmz notices follow`: prints each notice as it arrives",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints each notice as it arrives"
+  },
+  {
+   "wants": "example `hmz notices follow --kind asked --json | jq -r .text`: prints each question an epic asks you, as it is asked",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "prints each question an epic asks you, as it is asked"
+  },
+  {
+   "wants": "example `hmz notices follow --after \"$(hmz notices list --json | jq .last)\"`: follows on from the newest notice, missing none made in between",
+   "where": "what an example line does, in the Examples section of --help; lower case start, no full stop",
+   "text": "follows on from the newest notice, missing none made in between"
+  },
+  {
+   "wants": "what `hmz notices follow` prints as text: one line per notice as it arrives: its number, the local time, its kind, the chat or epic it is about, and what it says. With `--json`, one object per line instead. Keep the backticks",
+   "where": "sentence in the Output section of --help, two sentences",
+   "text": "Prints one line per notice as it arrives: its number, the local time, its kind, the chat or epic it is about, and what it says. With `--json`, prints one object per line instead."
+  },
+  {
+   "wants": "exit status 130 of `hmz notices follow`: it was interrupted with ctrl+c",
+   "where": "meaning of an exit code in the Exit codes section of --help, lower case start, no full stop",
+   "text": "interrupted with ctrl+c"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

@@ -79,6 +79,37 @@ Select an existing conversation in the menu to follow it. The status line shows 
 
 To delete a conversation, press <kbd>m</kbd> on its row in the menu, choose `forget`, and choose `forget` again to confirm.
 
+## From the command line
+
+`hmz ai` talks to Ai-chan from a shell. Each conversation has a number.
+
+```sh
+hmz ai new "Which epics failed today?" --nous claude/claude-sonnet-4-5 --wait
+```
+
+This starts a conversation, prints its number, waits for her answer and prints it. Without `--wait` it prints the number and returns at once.
+
+The scope follows what you name: `--epic NAME` scopes her to that epic, `-w PATH` to that workspace, and neither to the daemon. `--scope` says it outright. `--preset danger-full-access` lets her change what her scope reaches; the default is `read-only`. After the first conversation, `--nous` defaults to the nous you used last.
+
+Carry a conversation on with its number:
+
+```sh
+hmz ai say 3 "And yesterday?"
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz ai list` | Lists the conversations, newest first, with their state and scope. |
+| `hmz ai say ID TEXT` | Says the next line and prints her answer. `--no-wait` returns once the line is taken. |
+| `hmz ai wait ID` | Waits until her turn ends and prints what she said. |
+| `hmz ai stop ID` | Stops her open turn. The conversation stays. |
+| `hmz ai rename ID TITLE` | Changes the title. |
+| `hmz ai forget ID` | Deletes the conversation for good. It asks first; `-y` skips the question. |
+
+If Ai-chan asks you something mid-turn, `say` and `wait` print her question, and the next `hmz ai say` answers it. With `--json`, `mode` is `listen` when her turn is over and something else when she is asking. Waiting gives up after `--timeout` seconds (600 by default) and exits with status 3; the conversation carries on, and `hmz ai wait` picks it up again.
+
+See [hmz ai](/reference/cli#hmz-ai).
+
 ## What she can do
 
 Ai-chan has one tool per job. The same calls are on her `PATH` under the `hmz-ai` command, such as `hmz-ai epics-list`.

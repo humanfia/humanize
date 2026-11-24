@@ -75,6 +75,17 @@ When a turn takes the line, it leaves the pin and joins the transcript. A line c
 
 If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`, or with `to answer, not yours` when another interface holds that role.
 
+## From the command line
+
+`hmz epic say` says a line to the epic of the current directory, from a script or another shell:
+
+```bash
+hmz epic say 'use the staging database'
+hmz epic say --to NeiKos 'skip the migration'
+```
+
+Without `--to`, the line goes where a line typed in the app's message box goes. `--to` takes an agent's name, a session such as `NeiKos/2`, or `outworlder:<role>`. `hmz epic attach` follows the epic and shows the line when a session takes it. See [`hmz epic`](/reference/cli#hmz-epic) for `-w` and `--slot`, which name an epic elsewhere.
+
 ## Follow one epic from several interfaces
 
 Connect any number of windows, web pages, and terminals to the same epic to talk to its agents. Open the epic panel and check **Frontends** to see every connected interface.
@@ -91,6 +102,8 @@ Some runs keep a board of key-value pairs that both you and the run can edit. No
 
 - In the app, open the epic panel and select **Board**. Click **Edit** then **Save** to change a value, or **Remove** twice to delete a line. Fill in **Key** and **Value** and click **Add** to create a line.
 - In the terminal, press <kbd>←</kbd> at an empty prompt to open the monitor and find the board under the graph. Press <kbd>enter</kbd> on `+ add entry` to add a line, or on an existing line to edit it. Save an empty line to remove it.
+
+- From the command line, `hmz epic board` prints the board, `hmz epic board KEY VALUE` writes a line, and `hmz epic board KEY --remove` removes it.
 
 Lines tagged **Flow** in the app or `flow's` in the terminal belong to the run and are read-only.
 

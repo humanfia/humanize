@@ -1,0 +1,966 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz runs`: list, read back, export and import the epics written down, and total what they spent",
+   "where": "command summary in a --help listing",
+   "text": "list, read back, export and import epics, and total their spend"
+  },
+  {
+   "wants": "paragraph for `hmz runs`: a daemon writes down every epic it runs; these commands list them, read one back with its trace and timeline, export or import a `.hmzepic` file, and total what epics spent. Keep the backticks. Hard limit: at most 24 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "A daemon writes down every epic it runs. `hmz runs` lists them, reads one back, exports or imports `.hmzepic` files, and totals what epics spent."
+  },
+  {
+   "wants": "summary of `hmz runs list`: list the epics written down, newest first",
+   "where": "command summary in a --help listing",
+   "text": "list the epics written down, newest first"
+  },
+  {
+   "wants": "the --workspace PATH option of `hmz runs list`: list only the epics of the workspace at this folder path; every workspace when not given",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "list only the epics of the workspace at this folder path; every workspace when not given"
+  },
+  {
+   "wants": "the --status STATUS option of `hmz runs list`: list only the epics with this status",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "list only the epics with this status"
+  },
+  {
+   "wants": "the --flow NAME option of `hmz runs list`: list only the epics of this flow",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "list only the epics of this flow"
+  },
+  {
+   "wants": "the -q/--query TEXT option of `hmz runs list`: list only the epics whose task, flow or name contains this text",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "list only the epics whose task, flow or name contains this text"
+  },
+  {
+   "wants": "the --offset N option of `hmz runs list`: how many of the newest matching epics to skip",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "how many of the newest matching epics to skip"
+  },
+  {
+   "wants": "the --limit N option of `hmz runs list`: the most epics to list, from 1 to 200",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the most epics to list, from 1 to 200"
+  },
+  {
+   "wants": "what `hmz runs list` does: lists the newest 50 epics of every workspace",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "lists the newest 50 epics of every workspace"
+  },
+  {
+   "wants": "what `hmz runs list --status failed --flow ralph_loop -q parser` does: lists the failed epics of the flow ralph_loop whose task mentions parser",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "lists the failed epics of the flow ralph_loop whose task mentions parser"
+  },
+  {
+   "wants": "what `hmz runs list --json | jq -r '.runs[].name'` does: lists the epics as JSON and prints their names with jq",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "lists the epics as JSON and prints their names with jq"
+  },
+  {
+   "wants": "`hmz runs list` prints one line per epic, newest first: name, status, flow, when it began, first line of its task; where more match than were listed it says so on standard error. Hard limit: at most 27 words in all.",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "One line per epic, newest first: name, status, flow, when it began, first line of its task. Where more match than were listed, standard error says so."
+  },
+  {
+   "wants": "field `runs` of `hmz runs list --json`: the epics listed, newest first",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epics listed, newest first"
+  },
+  {
+   "wants": "field `name` of an epic: the epic's name",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's name"
+  },
+  {
+   "wants": "field `workspace` of an epic: path of the workspace folder the epic ran in",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "path of the workspace folder the epic ran in"
+  },
+  {
+   "wants": "field `folderless` of an epic: whether that workspace has no folder of its own",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether that workspace has no folder of its own"
+  },
+  {
+   "wants": "field `kind` of an epic: always `flow` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "always `flow`"
+  },
+  {
+   "wants": "field `flow` of an epic: the flow the epic ran",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the flow the epic ran"
+  },
+  {
+   "wants": "field `task` of an epic in a list: the first line of the epic's task, cut at 240 characters",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the first line of the epic's task, cut at 240 characters"
+  },
+  {
+   "wants": "field `began` of an epic: when the epic began, ISO 8601",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the epic began, ISO 8601"
+  },
+  {
+   "wants": "field `ended` of an epic: when the epic ended, ISO 8601, or an empty string while it has not",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the epic ended, ISO 8601, or an empty string while it has not"
+  },
+  {
+   "wants": "field `how` of an epic: its status: `running`, `done`, `failed`, `stopped` or `unfinished` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "its status: `running`, `done`, `failed`, `stopped` or `unfinished`"
+  },
+  {
+   "wants": "field `agents` of an epic in a list: the epic's agents, each with `name`, `role` and `runs` (what it was started as); keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's agents, each with `name`, `role` and `runs` (what it was started as)"
+  },
+  {
+   "wants": "field `sessions` of an epic in a list: how many sessions the epic opened",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many sessions the epic opened"
+  },
+  {
+   "wants": "field `resumable` of an epic: whether the epic's flow can be resumed",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether the epic's flow can be resumed"
+  },
+  {
+   "wants": "field `spent` of an epic: what the epic spent (cost, tokens, seconds, and each as text), or null where nothing was counted",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what the epic spent (cost, tokens, seconds, and each as text), or null where nothing was counted"
+  },
+  {
+   "wants": "field `held` of an epic: whether a host of this daemon is running the epic now",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether a host of this daemon is running the epic now"
+  },
+  {
+   "wants": "field `slot` of an epic: the slot of the host running the epic, or an empty string",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the slot of the host running the epic, or an empty string"
+  },
+  {
+   "wants": "field `asking` of an epic: the questions the running epic waits on, each as `<run>:<question>` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the questions the running epic waits on, each as `<run>:<question>`"
+  },
+  {
+   "wants": "field `backup` of an epic: names of the backup targets the epic was started with",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "names of the backup targets the epic was started with"
+  },
+  {
+   "wants": "field `backed` of an epic: the last backup to each target, by target name, each with `at`, `ok`, `error` and `why`; keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the last backup to each target, by target name, each with `at`, `ok`, `error` and `why`"
+  },
+  {
+   "wants": "field `total` of `hmz runs list --json`: how many epics match the filters",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many epics match the filters"
+  },
+  {
+   "wants": "field `offset` of `hmz runs list --json`: how many matching epics were skipped",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many matching epics were skipped"
+  },
+  {
+   "wants": "field `limit` of `hmz runs list --json`: the most epics this answer lists",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the most epics this answer lists"
+  },
+  {
+   "wants": "field `counts` of `hmz runs list --json`: how many epics there are of each status, over every epic, by status",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many epics there are of each status, over every epic, by status"
+  },
+  {
+   "wants": "field `flows` of `hmz runs list --json`: the name of every flow an epic ran, sorted",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the name of every flow an epic ran, sorted"
+  },
+  {
+   "wants": "printed on standard error by `hmz runs list` where more epics match than were listed: {shown} of {n} epics were listed, and `--offset {next}` lists the next ones. Keep {shown}, {n}, and `--offset {next}` in backticks exactly",
+   "where": "message the command prints, one sentence",
+   "text": "{shown} of {n} epics listed; pass `--offset {next}` for the next ones.",
+   "one": "{shown} of {n} epic was listed; `--offset {next}` lists the next."
+  },
+  {
+   "wants": "summary of `hmz runs show NAME`: read back one epic written down: its task, agents, sessions, spending and backups",
+   "where": "command summary in a --help listing",
+   "text": "read back an epic's task, agents, sessions, spend and backups"
+  },
+  {
+   "wants": "the NAME argument of the `hmz runs` commands: the epic's name, as `hmz runs list` prints it; keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the epic's name, as `hmz runs list` prints it"
+  },
+  {
+   "wants": "what `hmz runs show 20261012T091500.123Z-1a2b3c` does: prints what was written down of that epic",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints what was written down of that epic"
+  },
+  {
+   "wants": "what `hmz runs show NAME --json | jq .backed` does: prints how the last backup of the epic to each target went",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints how the last backup of the epic to each target went"
+  },
+  {
+   "wants": "`hmz runs show` prints one line per field, the field's name and then its value, with the whole task last",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "Prints one line per field, the field's name and then its value, with the whole task last."
+  },
+  {
+   "wants": "field `task` of `hmz runs show --json`: the epic's whole task",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's whole task"
+  },
+  {
+   "wants": "field `agents` of `hmz runs show --json`: the epic's agents, each with `name`, `role`, `runs`, `backend`, `model`, `effort` and `provider`; keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's agents, each with `name`, `role`, `runs`, `backend`, `model`, `effort` and `provider`"
+  },
+  {
+   "wants": "field `sessions` of `hmz runs show --json`: the sessions the epic opened, each with `agent`, `backend`, `provider`, `ident`, `name`, `at`, `flow`, `parent` and `harness`; keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the sessions the epic opened, each with `agent`, `backend`, `provider`, `ident`, `name`, `at`, `flow`, `parent` and `harness`"
+  },
+  {
+   "wants": "field `at` of `hmz runs show --json`: path of the directory the epic is written down in, on the daemon's machine",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "path of the directory the epic is written down in, on the daemon's machine"
+  },
+  {
+   "wants": "field `ref` of `hmz runs show --json`: the ref the epic's flow was started by",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the ref the epic's flow was started by"
+  },
+  {
+   "wants": "field `envs` of `hmz runs show --json`: the environments the epic was started with",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the environments the epic was started with"
+  },
+  {
+   "wants": "field `used` of `hmz runs show --json`: the environments the epic used",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the environments the epic used"
+  },
+  {
+   "wants": "field `params` of `hmz runs show --json`: the params the epic was started with",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the params the epic was started with"
+  },
+  {
+   "wants": "field `budget` of `hmz runs show --json`: the budget the epic was started with, or null for none",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the budget the epic was started with, or null for none"
+  },
+  {
+   "wants": "field `picked_up` of `hmz runs show --json`: name of the epic this one resumed from, or an empty string",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "name of the epic this one resumed from, or an empty string"
+  },
+  {
+   "wants": "field `profile_flow` of `hmz runs show --json`: whether the flow's own Python was profiled",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether the flow's own Python was profiled"
+  },
+  {
+   "wants": "field `profile_environment` of `hmz runs show --json`: whether the programs its agents ran were profiled",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether the programs its agents ran were profiled"
+  },
+  {
+   "wants": "field `picks_up` of `hmz runs show --json`: whether a new epic can resume from this one",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether a new epic can resume from this one"
+  },
+  {
+   "wants": "field `foreign` of `hmz runs show --json`: why an imported epic cannot be resumed on this machine, or an empty string",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "why an imported epic cannot be resumed on this machine, or an empty string"
+  },
+  {
+   "wants": "field `calls` of `hmz runs show --json`: the tree of flows the epic called, each with `flow`, `task`, `began`, `ended`, `how` and `calls`; keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the tree of flows the epic called, each with `flow`, `task`, `began`, `ended`, `how` and `calls`"
+  },
+  {
+   "wants": "summary of `hmz runs trace NAME`: print what each session of an epic said and did, in order",
+   "where": "command summary in a --help listing",
+   "text": "print what each session of an epic said and did"
+  },
+  {
+   "wants": "paragraph for `hmz runs trace`: reads the logs the epic's agents kept and prints every action of every session: turns, model calls, tool calls, what was said. Slow for a long epic. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Reads the logs the epic's agents kept and prints every action of every harness session: turns, model calls, tool calls, what was said. Slow for a long epic."
+  },
+  {
+   "wants": "what `hmz runs trace NAME` does: prints every session of the epic and its actions in order",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints every session of the epic and its actions in order"
+  },
+  {
+   "wants": "what `hmz runs trace NAME --json | jq '.sessions[].actions[] | select(.category == \"tool\") | .name'` does: prints the name of every tool call of the epic",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints the name of every tool call of the epic"
+  },
+  {
+   "wants": "`hmz runs trace` prints a line per session with its key and agent, then an indented line per action: when it started, seconds taken, category, name. Hard limit: at most 27 words in all.",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "One line per harness session with its key and agent, then an indented line per action: when it started, seconds taken, category, name."
+  },
+  {
+   "wants": "field `sessions` of `hmz runs trace --json`: the sessions that did anything, in the order they started",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the sessions that did anything, in the order they started"
+  },
+  {
+   "wants": "field `sessions[].key` of `hmz runs trace --json`: the session, as `<harness>:<session id>` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the session, as `<harness>:<session id>`"
+  },
+  {
+   "wants": "field `sessions[].agent` of `hmz runs trace --json`: the agent the session belongs to",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the agent the session belongs to"
+  },
+  {
+   "wants": "field `sessions[].actions` of `hmz runs trace --json`: what the session did, in order",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what the session did, in order"
+  },
+  {
+   "wants": "field `sessions[].actions[].category` of `hmz runs trace --json`: the kind of action, such as `turn`, `llm` or `tool` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the kind of action, such as `turn`, `llm` or `tool`"
+  },
+  {
+   "wants": "field `sessions[].actions[].name` of `hmz runs trace --json`: what the action was: the tool called, the model asked",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what the action was: the tool called, the model asked"
+  },
+  {
+   "wants": "field `sessions[].actions[].at` of `hmz runs trace --json`: when the action started, ISO 8601",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the action started, ISO 8601"
+  },
+  {
+   "wants": "field `sessions[].actions[].start` of `hmz runs trace --json`: when the action started, in seconds on the trace's clock",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the action started, in seconds on the trace's clock"
+  },
+  {
+   "wants": "field `sessions[].actions[].seconds` of `hmz runs trace --json`: how long the action took, in seconds",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how long the action took, in seconds"
+  },
+  {
+   "wants": "field `sessions[].actions[].args` of `hmz runs trace --json`: everything else the action carried, such as its input, its output and its tokens",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "everything else the action carried, such as its input, its output and its tokens"
+  },
+  {
+   "wants": "summary of `hmz runs timeline NAME`: print an epic's Exomyth timeline: its processes, tracks and spans",
+   "where": "command summary in a --help listing",
+   "text": "print an epic's Exomyth timeline: processes, tracks and spans"
+  },
+  {
+   "wants": "paragraph for `hmz runs timeline`: lays the epic out as the Exomyth view draws it: a process for the flow, each session and each profiled program, each with tracks of spans. Do not mention ids. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Lays the epic out as the Exomyth view draws it: a process for the flow, each harness session and each profiled program, each with tracks of spans."
+  },
+  {
+   "wants": "the --spans switch of `hmz runs timeline`: also print every span under its track, with its id",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "also print every span under its track, with its id"
+  },
+  {
+   "wants": "what `hmz runs timeline NAME` does: prints the processes and tracks of the epic's timeline",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints the processes and tracks of the epic's timeline"
+  },
+  {
+   "wants": "what `hmz runs timeline NAME --spans` does: also prints every span with the id `hmz runs span` takes; keep the backticks",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "also prints every span with the id `hmz runs span` takes"
+  },
+  {
+   "wants": "what `hmz runs timeline NAME --json | jq .summary` does: prints the counts and time of the timeline by category",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints the counts and time of the timeline by category"
+  },
+  {
+   "wants": "`hmz runs timeline` prints a line per process: id, kind, name, label, start and end in seconds; under it a line per track: name and span count; with `--spans`, each span too: id, start, duration, category, name. Keep the backticks. Hard limit: at most 24 words in all.",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "`hmz runs timeline` prints a line per process, and under it a line per track; with `--spans`, it prints each span too."
+  },
+  {
+   "wants": "field `version` of the timeline document: the version of the timeline document, 1",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the version of the timeline document, 1"
+  },
+  {
+   "wants": "field `layout` of the timeline document: what identifies this laying out; span ids are good only with it",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what identifies this laying out; span ids are good only with it"
+  },
+  {
+   "wants": "field `epic` of the timeline document: the epic's name",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's name"
+  },
+  {
+   "wants": "field `origin` of the timeline document: the earliest moment in the timeline, in seconds since the Unix epoch",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the earliest moment in the timeline, in seconds since the Unix epoch"
+  },
+  {
+   "wants": "field `live` of the timeline document: whether the epic has not ended yet",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether the epic has not ended yet"
+  },
+  {
+   "wants": "field `strings` of the timeline document: every text of the document once; other text fields are indexes into this list",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "every text of the document once; other text fields are indexes into this list"
+  },
+  {
+   "wants": "field `processes` of the timeline document: the processes, each with `id`, `kind`, `name`, `label`, `start`, `end`, `parent` and `tracks`; times are microseconds from `origin`. Keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the processes, each with `id`, `kind`, `name`, `label`, `start`, `end`, `parent` and `tracks`; times are microseconds from `origin`"
+  },
+  {
+   "wants": "field `tracks` of the timeline document: the tracks, each with `process`, `name`, `first`, `count`, `depths` and `spans`, the columns of its spans; a span's id is `first` plus its index. Keep the backticks; up to 30 words",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the tracks, each with `process`, `name`, `first`, `count`, `depths` and `spans`, the columns of its spans; a span's id is `first` plus its index"
+  },
+  {
+   "wants": "field `spawns` of the timeline document: which span started which process, as two columns `span` and `process` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "which span started which process, as two columns `span` and `process`"
+  },
+  {
+   "wants": "field `summary` of the timeline document: the timeline's start and end, how many processes, tracks and spans it holds, and count, time and tokens by category",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "start and end, process, track and span counts, and count, time and tokens by category"
+  },
+  {
+   "wants": "summary of `hmz runs span NAME ID`: print one span of an epic's timeline, with everything it carried",
+   "where": "command summary in a --help listing",
+   "text": "print one span of an epic's timeline, with everything it carried"
+  },
+  {
+   "wants": "paragraph for `hmz runs span`: prints one span whole: a model call with its prompt and answer, a tool call with its input and output. Without `--layout`, the timeline is laid out first. Keep the backticks. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Prints one span whole: a model call with its prompt and answer, a tool call with its input and output. Without `--layout`, the timeline is laid out first."
+  },
+  {
+   "wants": "the ID argument of `hmz runs span`: the span's id, as `hmz runs timeline --spans` prints it; keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the span's id, as `hmz runs timeline --spans` prints it"
+  },
+  {
+   "wants": "the --layout LAYOUT option of `hmz runs span`: the `layout` of the timeline the id was read from; refused if the epic has been laid out again since. Keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the `layout` of the timeline the id was read from; refused if the epic has been laid out again since"
+  },
+  {
+   "wants": "what `hmz runs span NAME 42` does: prints span 42 of the epic's timeline as it is laid out now",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints span 42 of the epic's timeline as it is laid out now"
+  },
+  {
+   "wants": "what `hmz runs span NAME 42 --layout a1ed23f784909965 --json` does: prints span 42 as JSON, only if the timeline is still laid out as when the id was read",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints span 42 as JSON, only if the timeline is still laid out as when the id was read"
+  },
+  {
+   "wants": "`hmz runs span` prints one line per field of the span, the field's name and then its value, and what it carried as indented JSON",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "One line per field of the span, the field's name and then its value, and what it carried as indented JSON."
+  },
+  {
+   "wants": "field `id` of a span: the span's id",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the span's id"
+  },
+  {
+   "wants": "field `process` of a span: id of the process the span belongs to",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "id of the process the span belongs to"
+  },
+  {
+   "wants": "field `track` of a span: index of the track the span is on",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "index of the track the span is on"
+  },
+  {
+   "wants": "field `start` of a span: when the span started, in microseconds from the timeline's origin",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the span started, in microseconds from the timeline's origin"
+  },
+  {
+   "wants": "field `dur` of a span: how long the span lasted, in microseconds",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how long the span lasted, in microseconds"
+  },
+  {
+   "wants": "field `depth` of a span: how deeply the span is nested on its track",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how deeply the span is nested on its track"
+  },
+  {
+   "wants": "field `cat` of a span: the span's category, such as `turn`, `llm` or `tool` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the span's category, such as `turn`, `llm` or `tool`"
+  },
+  {
+   "wants": "field `name` of a span: the span's name",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the span's name"
+  },
+  {
+   "wants": "field `at` of a span: when the span started, ISO 8601 UTC",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when the span started, ISO 8601 UTC"
+  },
+  {
+   "wants": "field `args` of a span: everything the span carried, such as its input, its output and its tokens",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "everything the span carried, such as its input, its output and its tokens"
+  },
+  {
+   "wants": "summary of `hmz runs export NAME`: export one epic to a `.hmzepic` file on this machine (keep the backticks)",
+   "where": "command summary in a --help listing",
+   "text": "export one epic to a `.hmzepic` file on this machine"
+  },
+  {
+   "wants": "paragraph for `hmz runs export`: the daemon packs the epic into one `.hmzepic` archive, credentials struck out, written on the machine this command runs on. `hmz runs import` reads it back. Keep the backticks. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "The daemon packs the epic into one `.hmzepic` archive, credentials struck out, written on the machine this command runs on. `hmz runs import` reads it back."
+  },
+  {
+   "wants": "the -o/--output FILE option of `hmz runs export`: the file to write, or a directory to write it into; `<name>.hmzepic` in the current directory when not given. An existing file is replaced. Keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the file to write, or a directory to write it into; `<name>.hmzepic` in the current directory when not given; an existing file is replaced"
+  },
+  {
+   "wants": "what `hmz runs export NAME` does: writes NAME.hmzepic in the current directory",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "writes NAME.hmzepic in the current directory"
+  },
+  {
+   "wants": "what `hmz runs export NAME -o ~/epics/` does: writes the archive into the directory ~/epics",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "writes the archive into the directory ~/epics"
+  },
+  {
+   "wants": "`hmz runs export` prints the path of the file written",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "Prints the path of the file written."
+  },
+  {
+   "wants": "field `path` of `hmz runs export --json`: absolute path of the file written",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "absolute path of the file written"
+  },
+  {
+   "wants": "field `filename` of `hmz runs export --json`: the name the daemon gave the archive, `<name>.hmzepic` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the name the daemon gave the archive, `<name>.hmzepic`"
+  },
+  {
+   "wants": "field `size` of `hmz runs export --json`: the archive's size in bytes",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the archive's size in bytes"
+  },
+  {
+   "wants": "summary of `hmz runs import FILE`: import an epic from a `.hmzepic` file (keep the backticks)",
+   "where": "command summary in a --help listing",
+   "text": "import an epic from a `.hmzepic` file"
+  },
+  {
+   "wants": "paragraph for `hmz runs import`: sends the file to the daemon, which writes the epic down under the workspace it ran in. An epic already there is refused. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Sends the file to the daemon, which writes the epic down under the workspace it ran in. An epic already there is refused."
+  },
+  {
+   "wants": "the FILE argument of `hmz runs import`: the `.hmzepic` file to import; with `--there`, its absolute path on the daemon's machine. Keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the `.hmzepic` file to import; with `--there`, its absolute path on the daemon's machine"
+  },
+  {
+   "wants": "the --there switch of `hmz runs import`: the file is already on the daemon's machine, so have the daemon read it from that path rather than sending it",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "have the daemon read the file from that path on its own machine rather than sending it"
+  },
+  {
+   "wants": "what `hmz runs import NAME.hmzepic` does: sends the file to the daemon and imports the epic",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "sends the file to the daemon and imports the epic"
+  },
+  {
+   "wants": "what `hmz runs import /srv/epics/NAME.hmzepic --there --daemon lab` does: has the daemon lab import a file already on its own machine",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "has the daemon `lab` import a file already on its own machine"
+  },
+  {
+   "wants": "`hmz runs import` prints the imported epic's name, and why it cannot be resumed here where it cannot",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "Prints the imported epic's name, and why it cannot be resumed here when it cannot."
+  },
+  {
+   "wants": "field `name` of `hmz runs import --json`: name of the imported epic",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "name of the imported epic"
+  },
+  {
+   "wants": "field `workspace` of `hmz runs import --json`: path of the workspace folder the epic is written down under",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "path of the workspace folder the epic is kept under"
+  },
+  {
+   "wants": "field `resumable` of `hmz runs import --json`: whether the imported epic can be resumed on this daemon",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether the imported epic can be resumed on this daemon"
+  },
+  {
+   "wants": "field `why` of `hmz runs import --json`: why it cannot be resumed here, or an empty string",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "why it cannot be resumed here, or an empty string"
+  },
+  {
+   "wants": "summary of `hmz runs usage`: total what chats and epics spent, by flow and by day",
+   "where": "command summary in a --help listing",
+   "text": "total what chats and epics spent, by flow and by day"
+  },
+  {
+   "wants": "the --days N option of `hmz runs usage`: how many days back to count, today included, from 1 to 365",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "how many days back to count, today included, from 1 to 365"
+  },
+  {
+   "wants": "the --workspace PATH option of `hmz runs usage`: count only the chats and epics of the workspace at this folder path",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "count only the chats and epics of the workspace at this folder"
+  },
+  {
+   "wants": "what `hmz runs usage` does: totals what the last 30 days of chats and epics spent",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "totals what the last 30 days of chats and epics spent"
+  },
+  {
+   "wants": "what `hmz runs usage --days 7 --workspace . --json | jq .whole.cost` does: prints the dollars this workspace spent in the last seven days",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints the dollars this workspace spent in the last seven days"
+  },
+  {
+   "wants": "`hmz runs usage` prints a table of flows, costliest first, a table of the days something ran, then the total: epics, cost, output tokens, time working. Chats count as the flow `chat`. Keep the backticks. Hard limit: at most 27 words in all.",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "A table of flows, costliest first, a table of the days something ran, then the total: epics, cost, output tokens, time working. Chats count as the flow `chat`."
+  },
+  {
+   "wants": "field `days_back` of `hmz runs usage --json`: how many days were counted",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many days were counted"
+  },
+  {
+   "wants": "field `days` of `hmz runs usage --json`: one entry per UTC day, oldest first, each with `day` and the figures of `whole` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "one entry per UTC day, oldest first, each with `day` and the figures of `whole`"
+  },
+  {
+   "wants": "field `flows` of `hmz runs usage --json`: one entry per flow, costliest first, each with `flow` and the figures of `whole` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "one entry per flow, costliest first, each with `flow` and the figures of `whole`"
+  },
+  {
+   "wants": "field `ended` of `hmz runs usage --json`: how many chats and epics ended each way, by status",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many chats and epics ended each way, by status"
+  },
+  {
+   "wants": "field `whole` of `hmz runs usage --json`: the totals over everything counted",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the totals over everything counted"
+  },
+  {
+   "wants": "field `whole.runs` of `hmz runs usage --json`: how many chats and epics were counted",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many chats and epics were counted"
+  },
+  {
+   "wants": "field `whole.cost` of `hmz runs usage --json`: what they cost, in US dollars",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what they cost, in US dollars"
+  },
+  {
+   "wants": "field `whole.output_tokens` of `hmz runs usage --json`: how many output tokens they wrote",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many output tokens they wrote"
+  },
+  {
+   "wants": "field `whole.seconds` of `hmz runs usage --json`: how many seconds their agents worked",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how many seconds their agents worked"
+  },
+  {
+   "wants": "field `whole.money` of `hmz runs usage --json`: the cost as text, such as `$1.25` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the cost as text, such as `$1.25`"
+  },
+  {
+   "wants": "field `whole.tokens` of `hmz runs usage --json`: the output tokens as text, such as `12.5k` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the output tokens as text, such as `12.5k`"
+  },
+  {
+   "wants": "field `whole.worked` of `hmz runs usage --json`: the time working as text, such as `3m 20s` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the time working as text, such as `3m 20s`"
+  },
+  {
+   "wants": "summary of `hmz backup`: back epics up to git repositories, and download them again",
+   "where": "command summary in a --help listing",
+   "text": "back epics up to git repositories, and download them again"
+  },
+  {
+   "wants": "paragraph for `hmz backup`: a backup target is a git repository set in Settings > Backup. These commands upload an epic to targets, list targets and what one holds, and download from one. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "A backup target is a git repository set in Settings > Backup. These commands upload an epic to targets, list targets and what one holds, and download from one."
+  },
+  {
+   "wants": "summary of `hmz backup run EPIC`: back one epic up to backup targets now",
+   "where": "command summary in a --help listing",
+   "text": "back one epic up to backup targets now"
+  },
+  {
+   "wants": "paragraph for `hmz backup run`: uploads the epic to the targets it was started with, else the default targets, and waits to say how each went. Interrupting this command does not stop the upload. Hard limit: at most 27 words in all.",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Uploads the epic to the targets it was started with, else the default targets, and waits to say how each went. Interrupting this command does not stop the upload."
+  },
+  {
+   "wants": "the EPIC argument of `hmz backup run`: the epic's name, as `hmz runs list` prints it; keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the epic's name, as `hmz runs list` prints it"
+  },
+  {
+   "wants": "the --to NAME option of `hmz backup run`: a backup target to upload to, as `hmz backup list` prints it; when not given, the targets the epic was started with, else the default targets. Keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "a backup target to upload to, as `hmz backup list` prints it; when not given, the targets the epic was started with, else the default targets"
+  },
+  {
+   "wants": "the --no-wait switch of `hmz backup run`: return once the daemon has queued the uploads, without waiting to hear how they went",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "return once the daemon has queued the uploads, without waiting to hear how they went"
+  },
+  {
+   "wants": "the --timeout SECONDS option of `hmz backup run`: how many seconds to wait for the uploads to finish",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "how many seconds to wait for the uploads to finish"
+  },
+  {
+   "wants": "what `hmz backup run 20261012T091500.123Z-1a2b3c` does: uploads the epic to its own targets, or the default ones, and waits for the result",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "uploads the epic to its own targets, or the default ones, and waits for the result"
+  },
+  {
+   "wants": "what `hmz backup run NAME --to lab --to home` does: uploads the epic to the targets lab and home",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "uploads the epic to the targets `lab` and `home`"
+  },
+  {
+   "wants": "what `hmz backup run NAME --no-wait --json` does: queues the uploads and prints the targets queued, as JSON",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "queues the uploads and prints the targets queued, as JSON"
+  },
+  {
+   "wants": "`hmz backup run` prints one line per target that took the epic. A target that did not is reported as the command's error, and the command exits 1. Mention the exit status as `1`",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "Prints one line per target that took the epic. A target that did not is reported as the command's error, and the command exits `1`."
+  },
+  {
+   "wants": "field `queued` of `hmz backup run --json`: names of the targets the upload was queued for",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "names of the targets the upload was queued for"
+  },
+  {
+   "wants": "field `backed` of `hmz backup run --json`: how the upload to each target went, by target name, each with `at`, `ok`, `error` and `why`; empty with `--no-wait`. Keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how each upload went, by target name, with `at`, `ok`, `error` and `why`; empty with `--no-wait`"
+  },
+  {
+   "wants": "error of `hmz backup run` where the uploads did not finish in time: the backup of {name} did not finish within {seconds} seconds, and it carries on in the daemon. Keep {name} and {seconds}",
+   "where": "message the command prints, one sentence",
+   "text": "The backup of {name} did not finish within {seconds} seconds, and carries on in the daemon."
+  },
+  {
+   "wants": "summary of `hmz backup list`: list the backup targets, or the epics and chats one target holds",
+   "where": "command summary in a --help listing",
+   "text": "list the backup targets, or the epics and chats one target holds"
+  },
+  {
+   "wants": "paragraph for `hmz backup list`: without `--target` it lists the backup targets set up on this daemon. With `--target` it fetches that repository and lists every epic and chat it holds, from every machine. Keep the backticks",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Without `--target` it lists the backup targets set up on this daemon. With `--target` it fetches that repository and lists every epic and chat it holds, from every machine."
+  },
+  {
+   "wants": "the --target NAME option of `hmz backup list`: the backup target whose epics and chats to list; the targets themselves are listed when not given",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the backup target whose epics and chats to list; the targets themselves are listed when not given"
+  },
+  {
+   "wants": "what `hmz backup list` does: lists the backup targets",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "lists the backup targets"
+  },
+  {
+   "wants": "what `hmz backup list --target lab` does: lists the epics and chats the target lab holds",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "lists the epics and chats the target lab holds"
+  },
+  {
+   "wants": "what `hmz backup list --target lab --json | jq -r '.epics[] | select(.here | not) | .key'` does: prints the key of every epic lab holds that this machine does not",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "prints the key of every epic lab holds that this machine does not"
+  },
+  {
+   "wants": "`hmz backup list` prints a line per target: name, URL, branch, policies, `default` where it is one. With `--target`, a line per epic or chat: key, status, flow or `chat`, `here` where this machine holds it, task. Keep the backticks. Hard limit: at most 30 words in all; shorten by dropping articles.",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "Line per target: name, URL, branch, policies, `default` where it is one. With `--target`, line per epic or chat: key, status, flow or `chat`, `here` if held here, task."
+  },
+  {
+   "wants": "field `targets` of `hmz backup list --json`, present without `--target`: the backup targets, each with `name`, `url`, `branch`, `policies` and `every`. Keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "without `--target`: the backup targets, each with `name`, `url`, `branch`, `policies` and `every`"
+  },
+  {
+   "wants": "field `defaults` of `hmz backup list --json`, present without `--target`: names of the targets an epic is backed up to when it names none. Keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "without `--target`: names of the targets an epic is backed up to when it names none"
+  },
+  {
+   "wants": "field `epics` of `hmz backup list --json`, present with `--target`: the epics and chats the target holds, newest first. Keep the backticks",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "with `--target`: the epics and chats the target holds, newest first"
+  },
+  {
+   "wants": "field `epics[].key` of `hmz backup list --json`: what `hmz backup pull` takes: `<machine>/<workspace>/<epic>` (keep the backticks)",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "what `hmz backup pull` takes: `<machine>/<workspace>/<epic>`"
+  },
+  {
+   "wants": "field `epics[].machine` of `hmz backup list --json`: the machine the epic ran on",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the machine the epic ran on"
+  },
+  {
+   "wants": "field `epics[].workspace` of `hmz backup list --json`: the workspace the epic ran in",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the workspace the epic ran in"
+  },
+  {
+   "wants": "field `epics[].epic` of `hmz backup list --json`: the epic's name, or the chat's",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's name, or the chat's"
+  },
+  {
+   "wants": "field `epics[].flow` of `hmz backup list --json`: the flow the epic ran, or an empty string for a chat",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the flow the epic ran, or an empty string for a chat"
+  },
+  {
+   "wants": "field `epics[].task` of `hmz backup list --json`: the epic's task, or the chat's first message",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the epic's task, or the chat's first message"
+  },
+  {
+   "wants": "field `epics[].began` of `hmz backup list --json`: when it began, ISO 8601",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when it began, ISO 8601"
+  },
+  {
+   "wants": "field `epics[].ended` of `hmz backup list --json`: when it ended, ISO 8601, or an empty string",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "when it ended, ISO 8601, or an empty string"
+  },
+  {
+   "wants": "field `epics[].how` of `hmz backup list --json`: how it ended, or an empty string where it had not when backed up",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "how it ended, or an empty string where it had not when backed up"
+  },
+  {
+   "wants": "field `epics[].head` of `hmz backup list --json`: the commit of the target that holds it",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "the commit of the target that holds it"
+  },
+  {
+   "wants": "field `epics[].chat` of `hmz backup list --json`: whether it is a chat rather than an epic",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether it is a chat rather than an epic"
+  },
+  {
+   "wants": "field `epics[].here` of `hmz backup list --json`: whether this machine already holds it",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "whether this machine already holds it"
+  },
+  {
+   "wants": "summary of `hmz backup pull KEY`: download one epic or chat from a backup target",
+   "where": "command summary in a --help listing",
+   "text": "download one epic or chat from a backup target"
+  },
+  {
+   "wants": "paragraph for `hmz backup pull`: fetches the target and writes the epic down on this daemon as an import does; a chat goes among the chats. One this machine already holds is refused",
+   "where": "paragraph of --help, two sentences at most",
+   "text": "Fetches the target and writes the epic down on this daemon as an import does; a chat goes among the chats. One this machine already holds is refused."
+  },
+  {
+   "wants": "the KEY argument of `hmz backup pull`: the epic or chat, as `<machine>/<workspace>/<epic>` or, where only one in the target has it, its name alone; `hmz backup list --target` prints both. Keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the epic or chat, as `<machine>/<workspace>/<epic>` or, where only one in the target has it, its name alone; `hmz backup list --target` prints both"
+  },
+  {
+   "wants": "the --target NAME option of `hmz backup pull`: the backup target to download from, as `hmz backup list` prints it; keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the backup target to download from, as `hmz backup list` prints it"
+  },
+  {
+   "wants": "what `hmz backup pull laptop/project/20261012T091500.123Z-1a2b3c --target lab` does: downloads that epic of the machine laptop from the target lab",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "downloads that epic of the machine laptop from the target lab"
+  },
+  {
+   "wants": "what `hmz backup pull 20261012T091500.123Z-1a2b3c --target lab --json` does: downloads the one epic of that name lab holds and prints its name as JSON",
+   "where": "what an example line of --help does, lower case start, no full stop, under 20 words",
+   "text": "downloads the one epic of that name lab holds and prints its name as JSON"
+  },
+  {
+   "wants": "`hmz backup pull` prints the name of the epic or chat downloaded",
+   "where": "the Output section of --help: what the command prints without --json, one or two sentences",
+   "text": "The name of the epic or chat downloaded."
+  },
+  {
+   "wants": "field `name` of `hmz backup pull --json`: name of the epic or chat downloaded",
+   "where": "description of one field of the command's --json document, lower case start, no full stop, under 18 words",
+   "text": "name of the epic or chat downloaded"
+  },
+  {
+   "wants": "error of `hmz backup pull` where the target holds nothing of that name: {target} holds no epic or chat {name}. Keep {target} and {name}",
+   "where": "message the command prints, one sentence",
+   "text": "{target} holds no epic or chat {name}."
+  },
+  {
+   "wants": "error of `hmz backup pull` where the target holds that name from more than one machine: {target} holds {name} from more than one machine, name one of: {keys}. Keep {target}, {name} and {keys}",
+   "where": "message the command prints, one sentence",
+   "text": "{target} holds {name} from more than one machine, name one of: {keys}."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

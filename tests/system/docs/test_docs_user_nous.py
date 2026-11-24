@@ -318,7 +318,7 @@ def test_a_chat_falls_back_from_the_command_line(world: World) -> None:
         }
     )
     shots.cli(
-        ["hmz", "chat", "-a", "careful", _TASK],
+        ["hmz", "chat", "start", "-a", "careful", _TASK],
         f"{_PAGE}-chat",
         patience=_WAITED / 1000,
     )

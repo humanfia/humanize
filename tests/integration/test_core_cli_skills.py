@@ -35,7 +35,7 @@ def test_the_skill_added_for_claude_is_one_claude_would_load(
     assert found.about.startswith("Works with Humanize through the hmz command line")
     # What it tells an agent to type is what there is to type: every line of it is read.
     listed = re.findall(
-        r"^ *- `hmz ([a-z][a-z ]*)", card.read_text("utf-8"), re.MULTILINE
+        r"^ *- `hmz ([a-z][a-z_. ]*)", card.read_text("utf-8"), re.MULTILINE
     )
     assert "skills add" in [one.strip() for one in listed]
     for line in listed:

@@ -49,7 +49,7 @@ The agent reads, edits and runs tests in `~/shop` on `gpu-box`. Your local folde
 To start the same chat from the command line, run:
 
 ```sh
-hmz chat -e 'ssh@gpu-box/~/shop' -a claude/claude-haiku-4-5 'Add a discount code to checkout'
+hmz chat start -e 'ssh@gpu-box/~/shop' -a claude/claude-haiku-4-5 'Add a discount code to checkout'
 ```
 
 ## 3. Look at the files, changes and terminal

@@ -173,7 +173,7 @@ async def test_a_cli_that_speaks_acp_is_added_in_the_terminal(world: World) -> N
 
 def test_a_chat_with_the_added_cli(world: World) -> None:
     _my_agent(world)
-    shots.cli(["hmz", "chat", "-a", "my-agent/default", _ASK], f"{_PAGE}-chat")
+    shots.cli(["hmz", "chat", "start", "-a", "my-agent/default", _ASK], f"{_PAGE}-chat")
 
 
 def test_the_app_lists_them_as_harnesses(world: World) -> None:

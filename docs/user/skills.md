@@ -64,7 +64,7 @@ In `hmz`, type the same prefix in a chat. After `/`, the CLI's commands and skil
 Pass the skill call as the message:
 
 ```sh
-hmz chat -a claude/claude-haiku-4-5 "/release-notes for 0.4.0"
+hmz chat start -a claude/claude-haiku-4-5 "/release-notes for 0.4.0"
 ```
 
 See [Commands, skills and files in a chat](/user/chat-input) for other chat box inputs.

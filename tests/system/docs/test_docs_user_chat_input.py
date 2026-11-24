@@ -301,4 +301,6 @@ async def test_native_input_in_the_terminal(world: World) -> None:
 
 def test_a_shell_line_from_the_command_line(world: World) -> None:
     _lists_its_commands()
-    shots.cli(["hmz", "chat", "-a", AGENT, "!git log --oneline"], f"{_PAGE}-cli")
+    shots.cli(
+        ["hmz", "chat", "start", "-a", AGENT, "!git log --oneline"], f"{_PAGE}-cli"
+    )

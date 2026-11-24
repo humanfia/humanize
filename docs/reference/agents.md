@@ -14,7 +14,7 @@ Look up agent spec syntax, harness capabilities, effort ladders, sign-in ways, f
 ```text
 hmz exec   -a ROLE=CLI[@ACCOUNT]/MODEL[:EFFORT][,...]
 hmz exec   -a ROLE=NOUS[,...]
-hmz chat   -a CLI[@ACCOUNT]/MODEL[:EFFORT]
+hmz chat start -a CLI[@ACCOUNT]/MODEL[:EFFORT]
 ```
 
 Use the same string in `settings.toml` and the SDK. Omit the role to write a concrete nous.

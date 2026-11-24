@@ -137,7 +137,7 @@ def test_an_account_is_edited_in_the_app(world: World) -> None:
 
 def test_an_account_nobody_made_is_refused() -> None:
     shots.cli(
-        ["hmz", "chat", "-a", f"claude@staging/{MODEL}", _ASK],
+        ["hmz", "chat", "start", "-a", f"claude@staging/{MODEL}", _ASK],
         f"{_PAGE}-cli",
         columns=96,
     )

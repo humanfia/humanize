@@ -140,6 +140,23 @@ The list shows each epic's workspace on that machine, plus any active chat there
 
 A chat row has only `follow` and `copy id`. Press <kbd>n</kbd> or choose **New epic…** to start and follow an epic on that machine. Choose **Refresh** to reload the list. To add a daemon, see [Connect to other machines](/user/daemons).
 
+## From the command line
+
+Run `hmz runs list` to list the epics the daemon wrote down, newest first: name, status, flow, when it began, and the first line of its task.
+
+```console
+$ hmz runs list --status failed --flow goal -q checkout
+$ hmz runs show 20261012T091500.123Z-1a2b3c
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz runs list` | Lists epics. Filter with `--workspace PATH`, `--status STATUS`, `--flow NAME` and `-q TEXT`; page with `--offset N` and `--limit N`. |
+| `hmz runs show NAME` | Prints one epic: its fields one per line, then its whole task. |
+| `hmz runs trace NAME` | Prints what each session said and did, in order. |
+
+`--status` is `running`, `done`, `failed`, `stopped` or `unfinished`. Add `--json` for one JSON document. These commands list epics only; chats are not among them. See [The hmz command](/reference/cli#hmz-runs).
+
 ## Good to know
 
 - `/epics` does not list local chats. Run `/resume` inside a chat instead. See [Organise chats](/user/manage-chats).

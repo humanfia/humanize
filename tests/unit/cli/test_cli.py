@@ -14,7 +14,7 @@ import pytest
 
 import hmz.coganchor.binary
 import hmz.daemon
-from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output
+from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output, summaries
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,12 +39,10 @@ def test_many_says_a_count_as_english_does(
 def test_the_commands_are_these_and_the_internal_door() -> None:
     commands = [
         "exec",
-        "chat",
         "web",
         "daemon",
         "relay",
         "update",
-        "backup",
         "internal",
     ]
     assert list(COMMANDS) == commands
@@ -64,10 +62,53 @@ def test_help_names_every_command(capsys: pytest.CaptureFixture[str]) -> None:
         main(["--help"])
     assert raised.value.code == 0
     out = capsys.readouterr().out
-    assert out.startswith("usage: hmz")
-    for name, (_, summary) in COMMANDS.items():
-        assert name in out
-        assert summary in out
+    assert out.startswith("Usage: hmz [COMMAND] [ARGS...]\n       hmz --version\n")
+    # Each once, in a column as wide as the longest name, its summary beside it -- and under
+    # it where the summary is longer than the line.
+    wide = max(len(name) for name in summaries())
+    assert set(COMMANDS) <= set(summaries())
+    for name, summary in summaries().items():
+        assert out.count(f"\n  {name.ljust(wide)}  {summary.split()[0]}") == 1, name
+    # Under what each is about, then what they share and what to run next.
+    headings = [line for line in out.splitlines() if line.endswith(":")]
+    assert headings[0] == "Chats and epics:"
+    assert "This program:" in headings
+    assert headings[-4:] == [
+        "Shared conventions:",
+        "Options:",
+        "Exit codes:",
+        "Next steps:",
+    ]
+
+
+def test_no_color_is_the_help_of_hmz_without_escapes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "\x1b[1mNext steps\x1b[0m:" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        main(["--no-color", "--help"])
+    assert "\x1b[" not in capsys.readouterr().out
+
+
+def test_the_summaries_are_of_every_command_those_that_read_their_own_line_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    found = summaries()
+    assert list(found)[: len(COMMANDS)] == list(COMMANDS)
+    assert found["exec"] == "run an agent flow in this directory"
+    assert found["devices"] == "list and revoke the devices paired with this daemon"
+    assert found["help"] == "show the help of hmz or of one command"
+
+    # A name in both is routed to the first, and is listed as it.
+    monkeypatch.setitem(COMMANDS, "devices", (main, "an older devices"))
+    assert summaries()["devices"] == "an older devices"
 
 
 @pytest.mark.parametrize("argv", [["bogus"], ["--version", "extra"], ["-x"], ["Exec"]])

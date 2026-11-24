@@ -356,5 +356,5 @@ def test_a_backup_not_done_in_time_is_left_saying_so(
     assert capsys.readouterr().err == (
         "hmz exec: backing the epic up\n"
         "hmz exec: a backup took longer than 1s and was left; "
-        "`hmz backup EPIC` sends it again\n"
+        "`hmz backup run EPIC` sends it again\n"
     )

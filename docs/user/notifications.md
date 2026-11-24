@@ -74,6 +74,32 @@ To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd
 
 `hmz` saves these settings under `notifications` in `settings.toml`. See [settings.toml](/reference/settings).
 
+## From the command line
+
+`hmz notices` reads the daemon's notices in a shell or a script. It shows every kind unless you filter, and does not use the settings above.
+
+```sh
+hmz notices list
+```
+
+Each line has the notice's number, the time, its kind, the chat or epic, and what it says. The daemon keeps the latest 200.
+
+To print notices as they arrive, follow them. Press <kbd>ctrl+c</kbd> to stop:
+
+```sh
+hmz notices follow --kind asked --kind failed
+```
+
+`--kind` takes `done`, `failed`, `stopped`, `asked` (a question) or `listening` (waiting), and can be repeated. A finished chat turn is `done` here.
+
+`follow` starts from now. To continue from a notice you have already seen, pass its number as `--after`. With `--json`, `follow` prints one JSON object per line, which suits a script that reacts to each notice:
+
+```sh
+hmz notices follow --after "$(hmz notices list --json | jq .last)" --json
+```
+
+See [hmz notices](/reference/cli#hmz-notices).
+
 ## Good to know
 
 - The app and terminal store settings separately, although the terminal page's heading mentions the web interface. App settings live in the browser or Humanize Desktop rather than the daemon, so each device has its own, and clearing site data resets them.

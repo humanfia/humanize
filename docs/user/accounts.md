@@ -103,6 +103,23 @@ The **Select the account to run as** list opens. It starts with `as local`, foll
 
 To create an account from here, press <kbd>tab</kbd> and choose **Add an account**. The form is for that CLI, so it has no `cli` row, and it selects the new account for the agent as soon as you choose **Done**.
 
+## From the command line
+
+`hmz accounts` manages accounts through the daemon, for scripts and agents.
+
+```sh
+hmz accounts ways claude              # sign-in methods, and the answers each asks for
+hmz accounts add claude work --way key --env ANTHROPIC_API_KEY
+hmz accounts list
+hmz accounts models claude work       # ask the CLI which models the account runs
+hmz accounts copy claude work pi
+hmz accounts remove claude work
+```
+
+Give a credential with `--env NAME`, which reads the environment variable `NAME` (or `--env NAME=VAR` for another variable), or with `--stdin NAME`, which reads standard input. `--set NAME=VALUE` is for answers that are not credentials, such as a URL or a region, and refuses a credential, because a command line is saved in shell history and visible to other processes. No command prints a credential.
+
+`hmz accounts correct CLI NAME` changes the answers you give and keeps the rest. Sign-in methods that `ways` marks `(at a terminal)` run the CLI's own sign-in and can only be used from `/settings accounts`. See the [CLI reference](/reference/cli#hmz-accounts).
+
 ## Sign-in methods
 
 Each CLI offers its own list of sign-in methods. The main kinds:

@@ -3,7 +3,7 @@
 A chat's menu in the app and a chat renamed from it; the list with a chat pinned and one marked
 unread; `Group and sort`; a folder's menu; the dialog that deletes a chat; the archived chats
 of a folder; Search; `/resume` in the terminal interface with a chat's menu, and the archived
-chats there; and `hmz chat --list` and `--rename` from a command line. Run it by naming it:
+chats there; and `hmz chat list` and `rename` from a command line. Run it by naming it:
 `uv run pytest tests/system/docs/test_docs_user_manage_chats.py`.
 """
 
@@ -322,9 +322,7 @@ async def test_archived_chats_are_put_back_from_the_workspace_page(
 
 def test_chats_are_listed_and_renamed_from_a_command_line(world: World) -> None:
     chats = _staged(world, _DISCOUNT, _CENT, _TESTS)
-    shots.cli(["hmz", "chat", "--list"], f"{_PAGE}-cli-list", columns=76)
+    shots.cli(["hmz", "chat", "list"], f"{_PAGE}-cli-list", columns=76)
     reel = shots.Reel(f"{_PAGE}-cli-rename")
-    reel.cli(
-        ["hmz", "chat", "--rename", chats[0], _TITLE], columns=76, rows=5, hold=3.5
-    )
+    reel.cli(["hmz", "chat", "rename", chats[0], _TITLE], columns=76, rows=5, hold=3.5)
     reel.save()

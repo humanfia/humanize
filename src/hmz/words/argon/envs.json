@@ -1,0 +1,1175 @@
+{
+ "entries": [
+  {
+   "wants": "the -w/--workspace DIR option shared by every `hmz env` command: the folder whose host is asked; when not given, the current directory",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the folder whose host is asked; when not given, the current directory"
+  },
+  {
+   "wants": "the --slot SLOT option: which host of the folder to ask; a chat's host is `chat:<id>` and an `hmz exec` epic's host is `exec:<id>`; when not given, the folder's own host, the one its epics run on; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "which host of the folder to ask: `chat:<id>` for a chat or `exec:<id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run"
+  },
+  {
+   "wants": "the --chat ID option: a chat's id as `hmz chat list` prints it; asks the host that chat is going on, and takes the place of --workspace and --slot; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "a chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`"
+  },
+  {
+   "wants": "the --env ENV option: which environment of the host to work in, given as its id, its chain or its role as `hmz env list` prints them; when not given, the first environment that is open; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment"
+  },
+  {
+   "wants": "the -y/--yes switch: do it without asking first",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "do it without asking first"
+  },
+  {
+   "wants": "the -A/--all switch of `hmz env git stage|unstage|discard`: act on every changed path instead of naming paths",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "act on every changed path instead of naming paths"
+  },
+  {
+   "wants": "exit code 4: the question was not answered yes, so nothing was changed",
+   "where": "meaning of an exit code, lower case start, no full stop",
+   "text": "the question was not answered yes, so nothing was changed"
+  },
+  {
+   "wants": "said when a destructive command was not confirmed: nothing was changed; the command asks before it acts, and where nobody can be asked (not a terminal, or `--json`) it needs `--yes`; keep the backticks",
+   "where": "message printed to the terminal, a sentence",
+   "text": "Nothing was changed: this command asks before it acts, and with no terminal or `--json` it needs `--yes`."
+  },
+  {
+   "wants": "note printed after a listing or search that was cut at its limit: there are more results than shown; raise `--limit` to see them; keep the backticks",
+   "where": "message printed to the terminal, a sentence",
+   "text": "There are more results than shown; raise `--limit` to see them."
+  },
+  {
+   "wants": "usage error of `hmz env git stage|unstage|discard`: name the paths to act on or pass `--all`, one or the other, not both; lower case start, no full stop; keep the backticks",
+   "where": "usage error after `hmz env git stage: `",
+   "text": "name the paths to act on or pass `--all`, not both"
+  },
+  {
+   "wants": "printed after an environment was rewound to the snapshot {ref}; keep {ref}",
+   "where": "message printed to the terminal, a sentence",
+   "text": "Rewound the environment to {ref}."
+  },
+  {
+   "wants": "printed when the person leaves a terminal with `~.` and it keeps running: the terminal {term} is still running, and `hmz env term open --term {term}` comes back to it; keep {term} and the backticks",
+   "where": "message printed to the terminal, a sentence",
+   "text": "Terminal {term} is still running; `hmz env term open --term {term}` comes back to it."
+  },
+  {
+   "wants": "a PATH argument: a path in the environment, relative to its working directory, or absolute",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "a path in the environment, relative to its working directory, or absolute"
+  },
+  {
+   "wants": "field `name`: the entry's file name",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the entry's file name"
+  },
+  {
+   "wants": "field `kind`: what the entry is, one of `file`, `dir`, `link` or `other`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "what the entry is: `file`, `dir`, `link` or `other`"
+  },
+  {
+   "wants": "field `size`: its size in bytes",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "its size in bytes"
+  },
+  {
+   "wants": "field `mtime`: when it was last changed, as seconds since the Unix epoch",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "when it was last changed, in seconds since the Unix epoch"
+  },
+  {
+   "wants": "field `target`: where a link points, or null for anything that is not a link",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "where a link points, or null if not a link"
+  },
+  {
+   "wants": "the PATHS... argument of `hmz env git stage|unstage|discard`: the paths to act on, relative to the top of the repository as `hmz env git status` prints them; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the paths to act on, relative to the top of the repository as `hmz env git status` prints them"
+  },
+  {
+   "wants": "field `paths` of `hmz env git stage|unstage|discard`: the paths that were acted on",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the paths that were acted on"
+  },
+  {
+   "wants": "summary of `hmz env ls [PATH]`: list a directory of an environment",
+   "where": "command summary in a --help listing",
+   "text": "list a directory of an environment"
+  },
+  {
+   "wants": "the PATH argument of `hmz env ls`: the directory to list, relative to the environment's working directory, or absolute",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the directory to list, relative to the environment's working directory, or absolute"
+  },
+  {
+   "wants": "example `hmz env ls`: list the working directory of the first open environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the working directory of the first open environment"
+  },
+  {
+   "wants": "example `hmz env ls src --env coder --json`: list the directory `src` of the environment `coder` as JSON; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the directory `src` of the environment `coder` as JSON"
+  },
+  {
+   "wants": "what `hmz env ls` prints as text: one line per entry, directories first: its kind (`d` directory, `-` file, `l` link, `?` other), size in bytes, when it was last changed, and name; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per entry, directories first: its kind (`d` directory, `-` file, `l` link, `?` other), size in bytes, when it was last changed, and name."
+  },
+  {
+   "wants": "field `path`: the path as it was given on the command line",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the path as given on the command line"
+  },
+  {
+   "wants": "field `entries`: the entries of the directory, directories first and then by name",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the entries of the directory, directories first and then by name"
+  },
+  {
+   "wants": "summary of `hmz env stat PATH`: show what one path of an environment is",
+   "where": "command summary in a --help listing",
+   "text": "show what one path of an environment is"
+  },
+  {
+   "wants": "example `hmz env stat src/app.py --json`: print the kind, size and time of one file as JSON",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the kind, size and time of one file as JSON"
+  },
+  {
+   "wants": "what `hmz env stat` prints as text: one line, as `hmz env ls` prints an entry, with the absolute path in place of the name; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line, as `hmz env ls` prints an entry, with the absolute path in place of the name."
+  },
+  {
+   "wants": "field `path` of `hmz env stat`: the path as an absolute path on the environment's machine",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the path as an absolute path on the environment's machine"
+  },
+  {
+   "wants": "summary of `hmz env cat PATH`: print a file of an environment",
+   "where": "command summary in a --help listing",
+   "text": "print a file of an environment"
+  },
+  {
+   "wants": "paragraph for `hmz env cat`: prints the whole file, however long, unless `--offset` or `--length` asks for a piece of it. With `--json` it also gives the file's `etag`, which `hmz env write --if-match` takes so that a write does not overwrite a change made since the file was read. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Prints the whole file, however long, unless `--offset` or `--length` asks for a piece of it. With `--json` it also gives the file's `etag`, which `hmz env write --if-match` takes so a write does not overwrite a change made since the file was read."
+  },
+  {
+   "wants": "the --offset N option of `hmz env cat`: the byte to start reading at",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the byte to start reading at"
+  },
+  {
+   "wants": "the --length N option of `hmz env cat`: how many bytes to read, at most 1048576",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "how many bytes to read, at most 1048576"
+  },
+  {
+   "wants": "example `hmz env cat README.md`: print a file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print a file"
+  },
+  {
+   "wants": "example `hmz env cat README.md --json | jq -r .etag`: print the etag of a file, to write it back with `--if-match`; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the etag of a file, to write it back with `--if-match`"
+  },
+  {
+   "wants": "example `hmz env cat build.log --offset 0 --length 4096`: print the first 4096 bytes of a file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the first 4096 bytes of a file"
+  },
+  {
+   "wants": "what `hmz env cat` prints as text: the bytes of the file, exactly as they are",
+   "where": "sentence in the Output section of --help",
+   "text": "The bytes of the file, exactly as they are."
+  },
+  {
+   "wants": "field `text`: what was read, as UTF-8 text; a byte that is not UTF-8 becomes U+FFFD",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "what was read, as UTF-8 text; any byte that is not UTF-8 becomes U+FFFD"
+  },
+  {
+   "wants": "field `size`: the size of the whole file in bytes",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the size of the whole file in bytes"
+  },
+  {
+   "wants": "field `mtime`: when the file was last changed, as seconds since the Unix epoch",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "when the file was last changed, as seconds since the Unix epoch"
+  },
+  {
+   "wants": "field `etag`: the SHA-256 of the whole file, which `hmz env write --if-match` takes; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the SHA-256 of the whole file, which `hmz env write --if-match` takes"
+  },
+  {
+   "wants": "field `eof`: whether what was read reaches the end of the file",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether what was read reaches the end of the file"
+  },
+  {
+   "wants": "summary of `hmz env find [NAME]`: list the files of an environment, to find one by name",
+   "where": "command summary in a --help listing",
+   "text": "list the files of an environment, to find one by name"
+  },
+  {
+   "wants": "paragraph for `hmz env find`: lists the files under the environment's working directory, relative to it. In a git repository these are the files git tracks or does not ignore; elsewhere every file outside `.git` and `node_modules`. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Lists the files under the environment's working directory, relative to it. In a git repository these are the files git tracks or does not ignore; elsewhere every file outside `.git` and `node_modules`."
+  },
+  {
+   "wants": "the NAME argument of `hmz env find`: print only the paths that contain this text, whatever its case; when not given, every path",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "print only the paths that contain this text, whatever its case; when not given, every path"
+  },
+  {
+   "wants": "the --limit N option of `hmz env find`: the most files the environment lists; 20000 when not given",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the most files the environment lists; 20000 when not given"
+  },
+  {
+   "wants": "example `hmz env find`: list every file of the environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list every file of the environment"
+  },
+  {
+   "wants": "example `hmz env find test_ --json`: list the files whose path contains `test_` as JSON; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the files whose path contains `test_` as JSON"
+  },
+  {
+   "wants": "what `hmz env find` prints as text: one path per line, relative to the working directory",
+   "where": "sentence in the Output section of --help",
+   "text": "One path per line, relative to the working directory."
+  },
+  {
+   "wants": "field `paths`: the paths found, relative to the working directory",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the paths found, relative to the working directory"
+  },
+  {
+   "wants": "field `truncated`: whether the environment has more files than `--limit` let it list; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether the environment has more files than `--limit` let it list"
+  },
+  {
+   "wants": "summary of `hmz env search QUERY`: search the files of an environment for text",
+   "where": "command summary in a --help listing",
+   "text": "search the files of an environment for text"
+  },
+  {
+   "wants": "the QUERY argument of `hmz env search`: the text to look for, or with `--regex` a regular expression; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the text to look for, or with `--regex` a regular expression"
+  },
+  {
+   "wants": "the --regex switch: read QUERY as a regular expression instead of literal text; keep QUERY in capitals",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "read QUERY as a regular expression instead of literal text"
+  },
+  {
+   "wants": "the --case switch: match case; without it `a` also finds `A`; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "match case; without it `a` also finds `A`"
+  },
+  {
+   "wants": "the --glob GLOB option: search only the files whose path matches this glob, such as `*.py`; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "search only the files whose path matches this glob, such as `*.py`"
+  },
+  {
+   "wants": "the --limit N option of `hmz env search`: the most matches to print; 2000 when not given",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the most matches to print; 2000 when not given"
+  },
+  {
+   "wants": "example `hmz env search TODO`: find every line that contains `TODO`; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "find every line that contains `TODO`"
+  },
+  {
+   "wants": "example `hmz env search 'def \\w+_test' --regex --glob '*.py' --json`: search the Python files with a regular expression and print the matches as JSON",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "search the Python files with a regular expression and print the matches as JSON"
+  },
+  {
+   "wants": "what `hmz env search` prints as text: one line per match, as `path:line:column:text`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per match, as `path:line:column:text`."
+  },
+  {
+   "wants": "field `matches`: the matches found",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the matches found"
+  },
+  {
+   "wants": "field `matches[].path`: the file, relative to the working directory",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the file, relative to the working directory"
+  },
+  {
+   "wants": "field `matches[].line`: the line number, counting from 1",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the line number, counting from 1"
+  },
+  {
+   "wants": "field `matches[].column`: the column the match starts at, counting from 1",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the column the match starts at, counting from 1"
+  },
+  {
+   "wants": "field `matches[].text`: the line that matched",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the line that matched"
+  },
+  {
+   "wants": "field `truncated`: whether there were more matches than `--limit`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether there were more matches than `--limit`"
+  },
+  {
+   "wants": "summary of `hmz env write PATH`: write a file of an environment from standard input or a local file",
+   "where": "command summary in a --help listing",
+   "text": "write a file of an environment from standard input or a local file"
+  },
+  {
+   "wants": "paragraph for `hmz env write`: makes the file hold exactly what is read from standard input, or from the local file `--from` names. With `--if-match` it writes only if the file is still as it was read, and is refused, leaving the file alone, if it changed since. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Makes the file hold what is read from standard input, or from the local file `--from` names. With `--if-match` it writes only if the file is still as it was read, and is refused, leaving the file alone, if it changed since."
+  },
+  {
+   "wants": "the --from FILE option of `hmz env write`: a file of this machine to read what is written from; when not given, standard input",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "a file of this machine to read what is written from; when not given, standard input"
+  },
+  {
+   "wants": "the --if-match ETAG option of `hmz env write`: write only if the file's etag is still this one, as `hmz env cat --json` printed it; an empty value, `--if-match ''`, writes only if there is no file yet; keep the backticks",
+   "where": "option description, lower case start, no full stop, up to 40 words",
+   "text": "write only if the file's etag is still this one, as `hmz env cat --json` printed it; an empty value, `--if-match ''`, writes only if there is no file yet"
+  },
+  {
+   "wants": "example `echo hello | hmz env write notes/hello.txt`: write standard input to a file, making it or replacing what it holds",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write standard input to a file, making it or replacing what it holds"
+  },
+  {
+   "wants": "example `hmz env write src/app.py --from app.py`: write a local file into the environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write a local file into the environment"
+  },
+  {
+   "wants": "example `hmz env write README.md --from README.md --if-match \"$ETAG\"`: write only if the file has not changed since its etag was read",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write only if the file has not changed since its etag was read"
+  },
+  {
+   "wants": "example `hmz env write new.txt --from new.txt --if-match ''`: write a new file, and refuse if one is already there",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write a new file, and refuse if one is already there"
+  },
+  {
+   "wants": "what `hmz env write` prints as text: `Saved.`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "`Saved.`"
+  },
+  {
+   "wants": "field `etag` of `hmz env write`: the file's new etag, for the next `--if-match`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the file's new etag, for the next `--if-match`"
+  },
+  {
+   "wants": "field `size` of `hmz env write`: how many bytes the file now holds",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "how many bytes the file now holds"
+  },
+  {
+   "wants": "field `mtime` of `hmz env write`: when it was written, as seconds since the Unix epoch",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "when it was written, as seconds since the Unix epoch"
+  },
+  {
+   "wants": "summary of `hmz env mkdir PATH`: make a directory in an environment, with the directories above it",
+   "where": "command summary in a --help listing",
+   "text": "make a directory in an environment, with the directories above it"
+  },
+  {
+   "wants": "example `hmz env mkdir docs/guides`: make the directory `docs/guides`, and `docs` if it is missing; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make the directory `docs/guides`, and `docs` if it is missing"
+  },
+  {
+   "wants": "what `hmz env mkdir` prints as text: `Created`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints `Created`."
+  },
+  {
+   "wants": "summary of `hmz env mv PATH TO`: move or rename a path of an environment",
+   "where": "command summary in a --help listing",
+   "text": "move or rename a path of an environment"
+  },
+  {
+   "wants": "the TO argument of `hmz env mv`: the path to move it to",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the path to move it to"
+  },
+  {
+   "wants": "example `hmz env mv notes.txt docs/notes.md`: move a file and rename it",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "move a file and rename it"
+  },
+  {
+   "wants": "what `hmz env mv` prints as text: `Renamed`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints `Renamed`."
+  },
+  {
+   "wants": "field `to` of `hmz env mv`: the path it was moved to, as it was given",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the path it was moved to, as it was given"
+  },
+  {
+   "wants": "summary of `hmz env rm PATH`: delete a file or a folder of an environment, and everything in it",
+   "where": "command summary in a --help listing",
+   "text": "delete a file or a folder of an environment, and everything in it"
+  },
+  {
+   "wants": "paragraph for `hmz env rm`: deletes the path and everything under it; this cannot be undone. It asks first; `--yes` skips the question, and is needed where nobody can be asked: with `--json`, or when standard input is not a terminal. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Deletes the path and everything under it; this cannot be undone. It asks first; `--yes` skips the question, and is needed where nobody can be asked: with `--json`, or when standard input is not a terminal."
+  },
+  {
+   "wants": "example `hmz env rm build`: delete the folder `build` after asking; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "delete the folder `build` after asking"
+  },
+  {
+   "wants": "example `hmz env rm build --yes --json`: delete it without asking, and answer as JSON",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "delete it without asking, and answer as JSON"
+  },
+  {
+   "wants": "what `hmz env rm` prints as text: the question, on standard error, and then `Deleted`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints the question on standard error, and then `Deleted`."
+  },
+  {
+   "wants": "summary of `hmz env git`: see and commit the changes in an environment's git repository",
+   "where": "command summary in a --help listing",
+   "text": "see and commit the changes in an environment's git repository"
+  },
+  {
+   "wants": "paragraph for `hmz env git`: these commands work the git repository the environment's working directory is in, as the Changes panel of the web page does: status, diff and log; stage, unstage, discard and commit; and the snapshots hmz took, with rewinding to one. They are refused in an environment that has no git.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "These commands work the git repository the environment's working directory is in, as the Changes panel of the web page does: status, diff and log; stage, unstage, discard and commit; and the snapshots hmz took, with rewinding to one. They are refused in an environment that has no git."
+  },
+  {
+   "wants": "summary of `hmz env git status`: show the branch and the changed files of an environment",
+   "where": "command summary in a --help listing",
+   "text": "show the branch and the changed files of an environment"
+  },
+  {
+   "wants": "example `hmz env git status`: show the branch and what has changed",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "show the branch and what has changed"
+  },
+  {
+   "wants": "example `hmz env git status --json | jq -r '.files[].path'`: print the path of every changed file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the path of every changed file"
+  },
+  {
+   "wants": "what `hmz env git status` prints as text: the branch, then how far it is ahead of and behind its upstream, then one line per changed file: two characters for the index and the working tree, as `git status --short` writes them with `.` for unchanged, and the path; keep the backticks",
+   "where": "sentence in the Output section of --help, up to 45 words",
+   "text": "Prints the branch, then how far it is ahead of and behind its upstream, then one line per changed file: two characters for the index and the working tree, as `git status --short` writes them with `.` for unchanged, and the path."
+  },
+  {
+   "wants": "field `root`: the top directory of the repository",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the top directory of the repository"
+  },
+  {
+   "wants": "field `branch`: the branch checked out, or null when none is",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the branch checked out, or null when none is"
+  },
+  {
+   "wants": "field `head`: the commit checked out, or null before the first commit",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the commit checked out, or null before the first commit"
+  },
+  {
+   "wants": "field `upstream`: the branch's upstream, or null when it has none",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the branch's upstream, or null when it has none"
+  },
+  {
+   "wants": "field `ahead`: how many commits the branch is ahead of its upstream",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "how many commits the branch is ahead of its upstream"
+  },
+  {
+   "wants": "field `behind`: how many commits the branch is behind its upstream",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "how many commits the branch is behind its upstream"
+  },
+  {
+   "wants": "field `files`: the changed files",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the changed files"
+  },
+  {
+   "wants": "field `files[].path`: the file, relative to the top of the repository",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the file, relative to the top of the repository"
+  },
+  {
+   "wants": "field `files[].orig`: the path it was renamed or copied from; present only where it was",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the path it was renamed or copied from; present only where it was"
+  },
+  {
+   "wants": "field `files[].index`: one character for its change in the index: `M` modified, `A` added, `D` deleted, `R` renamed, `.` unchanged, `?` untracked; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "one character for its change in the index: `M` modified, `A` added, `D` deleted, `R` renamed, `.` unchanged, `?` untracked"
+  },
+  {
+   "wants": "field `files[].worktree`: one character for its change in the working tree, read as `index` is; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "one character for its change in the working tree, read as `index` is"
+  },
+  {
+   "wants": "field `files[].state`: `conflict` for an unmerged file, `untracked` for an untracked one, `changed` otherwise; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "`conflict` for an unmerged file, `untracked` for an untracked one, `changed` otherwise"
+  },
+  {
+   "wants": "summary of `hmz env git diff [PATH...]`: show the changes to files of an environment as a diff",
+   "where": "command summary in a --help listing",
+   "text": "show the changes to files of an environment as a diff"
+  },
+  {
+   "wants": "paragraph for `hmz env git diff`: prints a unified diff of what is not yet staged, the working tree against the index. With `--staged` it prints what is staged, the index against the commit checked out. Without paths it covers every changed file. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Prints a unified diff of what is not yet staged, the working tree against the index. With `--staged` it prints what is staged, the index against the commit checked out. Without paths it covers every changed file."
+  },
+  {
+   "wants": "the PATHS... argument of `hmz env git diff`: the files to show, relative to the top of the repository; when none is given, every changed file",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the files to show, relative to the top of the repository; when none is given, every changed file"
+  },
+  {
+   "wants": "the --staged switch of `hmz env git diff`: show what is staged instead of what is not",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "show what is staged instead of what is not"
+  },
+  {
+   "wants": "example `hmz env git diff`: show every change that is not staged",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "show every change that is not staged"
+  },
+  {
+   "wants": "example `hmz env git diff src/app.py --staged`: show what is staged of one file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "show what is staged of one file"
+  },
+  {
+   "wants": "what `hmz env git diff` prints as text: a unified diff, file after file; a binary file is named in one line instead",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints a unified diff, file after file; a binary file is named in one line instead."
+  },
+  {
+   "wants": "field `staged`: whether this is the diff of what is staged",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether this is the diff of what is staged"
+  },
+  {
+   "wants": "field `files`: one entry per file, in the order asked for",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "one entry per file, in the order asked for"
+  },
+  {
+   "wants": "field `files[].path`: the file, relative to the top of the repository",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the file, relative to the top of the repository"
+  },
+  {
+   "wants": "field `files[].binary`: whether git reads the file as binary, in which case there is no diff text",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether git reads the file as binary, in which case there is no diff text"
+  },
+  {
+   "wants": "field `files[].diff`: the unified diff of the file, an empty string where nothing changed or the file is binary",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the unified diff of the file, an empty string where nothing changed or the file is binary"
+  },
+  {
+   "wants": "summary of `hmz env git log`: list the latest commits of an environment",
+   "where": "command summary in a --help listing",
+   "text": "list the latest commits of an environment"
+  },
+  {
+   "wants": "the --limit N option of `hmz env git log`: the most commits to list; 50 when not given",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the most commits to list; 50 when not given"
+  },
+  {
+   "wants": "example `hmz env git log --limit 10`: list the ten latest commits",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the ten latest commits"
+  },
+  {
+   "wants": "example `hmz env git log --json | jq -r '.commits[0].hash'`: print the hash of the commit checked out",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the hash of the commit checked out"
+  },
+  {
+   "wants": "what `hmz env git log` prints as text: one line per commit, newest first: short hash, date, author and subject",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per commit, newest first: short hash, date, author and subject."
+  },
+  {
+   "wants": "field `commits`: the commits, from the one checked out, newest first",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the commits, from the one checked out, newest first"
+  },
+  {
+   "wants": "field `commits[].hash`: the commit's full hash",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the commit's full hash"
+  },
+  {
+   "wants": "field `commits[].parents`: the hashes of its parent commits",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the hashes of its parent commits"
+  },
+  {
+   "wants": "field `commits[].author`: who wrote it",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "who wrote it"
+  },
+  {
+   "wants": "field `commits[].date`: when it was written, ISO 8601",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "when it was written, ISO 8601"
+  },
+  {
+   "wants": "field `commits[].subject`: the first line of its message",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the first line of its message"
+  },
+  {
+   "wants": "summary of `hmz env git stage PATH...`: stage changes for the next commit",
+   "where": "command summary in a --help listing",
+   "text": "stage changes for the next commit"
+  },
+  {
+   "wants": "example `hmz env git stage src/app.py README.md`: stage the changes to two files",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "stage the changes to two files"
+  },
+  {
+   "wants": "example `hmz env git stage --all`: stage every change, untracked files included",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "stage every change, untracked files included"
+  },
+  {
+   "wants": "what `hmz env git stage`, `unstage` and `discard` print as text: the paths acted on, one per line",
+   "where": "sentence in the Output section of --help",
+   "text": "The paths acted on, one per line."
+  },
+  {
+   "wants": "summary of `hmz env git unstage PATH...`: take staged changes out of the next commit, keeping them in the files",
+   "where": "command summary in a --help listing",
+   "text": "take staged changes out of the next commit, keeping them in the files"
+  },
+  {
+   "wants": "example `hmz env git unstage README.md`: unstage the changes to one file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "unstage the changes to one file"
+  },
+  {
+   "wants": "example `hmz env git unstage --all`: unstage everything that is staged",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "unstage everything that is staged"
+  },
+  {
+   "wants": "summary of `hmz env git discard PATH...`: throw away changes that are not staged, and delete untracked files",
+   "where": "command summary in a --help listing",
+   "text": "throw away unstaged changes and delete untracked files"
+  },
+  {
+   "wants": "paragraph for `hmz env git discard`: puts each file back as the index has it and deletes the untracked files named; this cannot be undone. It asks first; `--yes` skips the question, and is needed where nobody can be asked: with `--json`, or when standard input is not a terminal. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Puts each file back as the index has it and deletes the untracked files named; this cannot be undone. It asks first; `--yes` skips the question, and is needed where nobody can be asked: with `--json`, or when standard input is not a terminal."
+  },
+  {
+   "wants": "example `hmz env git discard src/app.py`: discard the changes to one file after asking",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "discard the changes to one file after asking"
+  },
+  {
+   "wants": "example `hmz env git discard --all --yes`: discard every change that is not staged, without asking",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "discard every change that is not staged, without asking"
+  },
+  {
+   "wants": "summary of `hmz env git commit -m TEXT`: commit what is staged",
+   "where": "command summary in a --help listing",
+   "text": "commit what is staged"
+  },
+  {
+   "wants": "the -m/--message TEXT option: the commit message",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the commit message"
+  },
+  {
+   "wants": "the --amend switch: amend the commit checked out instead of adding a new one",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "amend the commit checked out instead of adding a new one"
+  },
+  {
+   "wants": "the -a/--all switch of `hmz env git commit`: stage every change first, untracked files included, then commit",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "stage every change first, untracked files included, then commit"
+  },
+  {
+   "wants": "example `hmz env git commit -m 'fix: handle empty input'`: commit the staged changes",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "commit the staged changes"
+  },
+  {
+   "wants": "example `hmz env git commit --all -m 'docs: update'`: stage every change and commit it",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "stage every change and commit it"
+  },
+  {
+   "wants": "example `hmz env git commit --amend -m 'fix: handle no input'`: replace the last commit with what is staged and a new message",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "replace the last commit with what is staged and a new message"
+  },
+  {
+   "wants": "what `hmz env git commit` prints as text: the hash of the new commit",
+   "where": "sentence in the Output section of --help",
+   "text": "The hash of the new commit."
+  },
+  {
+   "wants": "field `head`: the hash of the new commit",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the hash of the new commit"
+  },
+  {
+   "wants": "summary of `hmz env git snapshots`: list the snapshots of an environment",
+   "where": "command summary in a --help listing",
+   "text": "list the snapshots of an environment"
+  },
+  {
+   "wants": "paragraph for `hmz env git snapshots`: a snapshot is the whole working tree as it was at one moment, kept by hmz as a git ref without touching the branch. The list is oldest first; `hmz env git rewind` takes one of these refs. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "A snapshot is the whole working tree as it was at one moment, kept by hmz as a git ref without touching the branch. The list is oldest first; `hmz env git rewind` takes one of these refs."
+  },
+  {
+   "wants": "example `hmz env git snapshots`: list the snapshot refs, oldest first",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the snapshot refs, oldest first"
+  },
+  {
+   "wants": "example `hmz env git snapshots --json | jq -r '.snapshots[-1]'`: print the latest snapshot ref",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the latest snapshot ref"
+  },
+  {
+   "wants": "what `hmz env git snapshots` prints as text: one snapshot ref per line",
+   "where": "sentence in the Output section of --help",
+   "text": "One snapshot ref per line."
+  },
+  {
+   "wants": "field `snapshots`: the snapshot refs, each a ref `hmz env git rewind` takes; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the snapshot refs, each a ref `hmz env git rewind` takes"
+  },
+  {
+   "wants": "summary of `hmz env git rewind REF`: rewind an environment to a snapshot",
+   "where": "command summary in a --help listing",
+   "text": "rewind an environment to a snapshot"
+  },
+  {
+   "wants": "paragraph for `hmz env git rewind`: resets the working tree to the snapshot; every change made since, committed or not, is lost. It is refused while an agent is working in the environment: stop it first. It asks first; `--yes` skips the question, and is needed with `--json` or when standard input is not a terminal. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Resets the working tree to the snapshot; every change made since, committed or not, is lost. It is refused while an agent is working in the environment: stop it first. It asks first; `--yes` skips the question, and is needed with `--json` or when standard input is not a terminal."
+  },
+  {
+   "wants": "the REF argument of `hmz env git rewind`: the snapshot to rewind to, a ref as `hmz env git snapshots` prints it; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the snapshot to rewind to, a ref as `hmz env git snapshots` prints it"
+  },
+  {
+   "wants": "example `hmz env git rewind refs/hmz/snapshots/...`: rewind to a snapshot after asking",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "rewind to a snapshot after asking"
+  },
+  {
+   "wants": "example `hmz env git rewind refs/hmz/snapshots/... --yes --json`: rewind without asking, and answer as JSON",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "rewind without asking, and answer as JSON"
+  },
+  {
+   "wants": "what `hmz env git rewind` prints as text: the question, on standard error, and then that the environment was rewound",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints the question on standard error, and then that the environment was rewound."
+  },
+  {
+   "wants": "field `ref`: the snapshot the environment was rewound to",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the snapshot the environment was rewound to"
+  },
+  {
+   "wants": "summary of `hmz env term`: open, list and close the terminals of an environment",
+   "where": "command summary in a --help listing",
+   "text": "open, list and close the terminals of an environment"
+  },
+  {
+   "wants": "paragraph for `hmz env term`: a terminal is a shell that runs in an environment. It keeps running when nobody is attached to it, on the web page or here, until it exits or is closed; several people can be attached to one at once.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "A terminal is a shell that runs in an environment. It keeps running when nobody is attached to it, on the web page or here, until it exits or is closed; several people can be attached to one at once."
+  },
+  {
+   "wants": "summary of `hmz env term open`: open a terminal in an environment and attach this terminal to it",
+   "where": "command summary in a --help listing",
+   "text": "open a terminal in an environment and attach this terminal to it"
+  },
+  {
+   "wants": "paragraph for `hmz env term open`: starts a shell in the environment's working directory, or comes back to a running one with `--term`, and attaches this terminal to it until the shell exits. Typing `~.` at the start of a line detaches and leaves it running. When standard input is not a terminal, it is typed into the shell and its output is printed until the shell exits. With `--json` it does not attach: it starts the terminal, prints its id and leaves it running. Keep the backticks.",
+   "where": "paragraph of --help, up to 90 words",
+   "text": "Starts a shell in the environment's working directory, or comes back to a running one with `--term`, and attaches this terminal to it until the shell exits. Typing `~.` at the start of a line detaches and leaves it running. When standard input is not a terminal, it is typed into the shell and its output is printed until the shell exits. With `--json` it does not attach: it starts the terminal, prints its id and leaves it running."
+  },
+  {
+   "wants": "the --term ID option of `hmz env term open`: a running terminal to come back to, by its id as `hmz env term list` prints it; when not given, a new terminal is started; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "a running terminal to come back to, by its id as `hmz env term list` prints it; when not given, a new terminal is started"
+  },
+  {
+   "wants": "the --cols N option: how many columns wide the terminal is; when not given, the width of this terminal",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "how many columns wide the terminal is; when not given, the width of this terminal"
+  },
+  {
+   "wants": "the --rows N option: how many rows high the terminal is; when not given, the height of this terminal",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "how many rows high the terminal is; when not given, the height of this terminal"
+  },
+  {
+   "wants": "example `hmz env term open`: open a shell in the first open environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "open a shell in the first open environment"
+  },
+  {
+   "wants": "example `hmz env term open --term <id>`: come back to a terminal that was left running",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "come back to a terminal that was left running"
+  },
+  {
+   "wants": "example `printf 'make test\\nexit\\n' | hmz env term open`: type two lines into a new shell and print its output until it exits",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "type two lines into a new shell and print its output until it exits"
+  },
+  {
+   "wants": "example `hmz env term open --json`: start a terminal without attaching, and print its id",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "start a terminal without attaching, and print its id"
+  },
+  {
+   "wants": "what `hmz env term open` prints as text: what the terminal prints, as it prints it, and when it ends a line on standard error saying how",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints what the terminal prints, as it prints it, and when it ends a line on standard error saying how."
+  },
+  {
+   "wants": "field `term`: the terminal's id, which `--term` and `hmz env term close` take; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the terminal's id, which `--term` and `hmz env term close` take"
+  },
+  {
+   "wants": "field `shell`: the command the terminal runs, as a list of words, or null for the environment's login shell",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the command the terminal runs, as a list of words, or null for the environment's login shell"
+  },
+  {
+   "wants": "field `replay`: what a terminal come back to with `--term` had already printed, as text; an empty string for a new one; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "what a terminal come back to with `--term` had already printed, as text; an empty string for a new one"
+  },
+  {
+   "wants": "summary of `hmz env term list`: list the terminals of an environment",
+   "where": "command summary in a --help listing",
+   "text": "list the terminals of an environment"
+  },
+  {
+   "wants": "example `hmz env term list`: list the terminals of the first open environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the terminals of the first open environment"
+  },
+  {
+   "wants": "example `hmz env term list --json | jq -r '.terms[] | select(.alive) | .term'`: print the ids of the terminals still running",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the ids of the terminals still running"
+  },
+  {
+   "wants": "what `hmz env term list` prints as text: one line per terminal: id, title, size as columns x rows, and `[exited]` once it has ended; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints one line per terminal: id, title, size as columns x rows, and `[exited]` once it has ended."
+  },
+  {
+   "wants": "field `terms`: the terminals that are running, or that somebody still has open",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the terminals that are running, or that somebody still has open"
+  },
+  {
+   "wants": "field `terms[].term`: the terminal's id",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the terminal's id"
+  },
+  {
+   "wants": "field `terms[].env`: the id of the environment it runs in",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the id of the environment it runs in"
+  },
+  {
+   "wants": "field `terms[].title`: its name, as the page shows it",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "its name, as the page shows it"
+  },
+  {
+   "wants": "field `terms[].cols`: how many columns wide it is",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "how many columns wide it is"
+  },
+  {
+   "wants": "field `terms[].rows`: how many rows high it is",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "how many rows high it is"
+  },
+  {
+   "wants": "field `terms[].alive`: whether it is still running",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether it is still running"
+  },
+  {
+   "wants": "summary of `hmz env term close TERM`: close a terminal, which ends the shell running in it",
+   "where": "command summary in a --help listing",
+   "text": "close a terminal, which ends the shell running in it"
+  },
+  {
+   "wants": "the TERM argument of `hmz env term close`: the terminal's id, as `hmz env term list` prints it; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the terminal's id, as `hmz env term list` prints it"
+  },
+  {
+   "wants": "example `hmz env term close <id>`: close one terminal and end its shell",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "close one terminal and end its shell"
+  },
+  {
+   "wants": "what `hmz env term close` prints as text: `Closed.`; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "Prints `Closed.`."
+  },
+  {
+   "wants": "field `term` of `hmz env term close`: the id of the terminal that was closed",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the id of the terminal that was closed"
+  },
+  {
+   "wants": "summary of `hmz env`: work in the environments of a chat or an epic: their files, git and terminals",
+   "where": "command summary in a --help listing",
+   "text": "work in the environments of a chat or an epic: their files, git and terminals"
+  },
+  {
+   "wants": "paragraph for `hmz env`: an environment is where the agents of a chat or an epic work, a folder on this machine, in a container or on another host. These commands do there what the Environments view of the web page does: browse, read, write and search files, stage and commit changes, rewind to a snapshot, run a command and open a terminal. The host is named with `--workspace` and `--slot`, or with `--chat`; an environment is open only while its chat or epic is going. Keep the backticks.",
+   "where": "paragraph of --help, up to 80 words",
+   "text": "An environment is where the agents of a chat or an epic work, a folder on this machine, in a container or on another host. These commands do there what the Environments view of the web page does: browse, read, write and search files, stage and commit changes, rewind to a snapshot, run a command and open a terminal. The host is named with `--workspace` and `--slot`, or with `--chat`; an environment is open only while its chat or epic is going."
+  },
+  {
+   "wants": "summary of `hmz env list`: list the environments of a host",
+   "where": "command summary in a --help listing",
+   "text": "list the environments of a host"
+  },
+  {
+   "wants": "paragraph for `hmz env list`: lists the environments of the chat or epic going on a host, or of its last one. An environment derived from another, such as a worktree or a clone, is listed after the one it came from. The id, chain or role printed here is what `--env` takes in the other commands. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Lists the environments of the chat or epic going on a host, or of its last one. An environment derived from another, such as a worktree or a clone, is listed after the one it came from. The id, chain or role printed here is what `--env` takes in the other commands."
+  },
+  {
+   "wants": "example `hmz env list`: list the environments of the epic going in the current folder",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the environments of the epic going in the current folder"
+  },
+  {
+   "wants": "example `hmz env list -w ~/project --json | jq -r '.envs[].id'`: print the ids of the environments of another folder's epic",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the ids of the environments of another folder's epic"
+  },
+  {
+   "wants": "example `hmz env list --chat <id>`: list the environments of a chat",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the environments of a chat"
+  },
+  {
+   "wants": "what `hmz env list` prints as text: one line per environment: id, chain, backend, working directory, what it serves, and `closed` or `unavailable` where it is; keep the backticks",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per environment: id, chain, backend, working directory, what it serves, and `closed` or `unavailable` where it is."
+  },
+  {
+   "wants": "field `workspace`: the folder of the host that was asked, as the daemon names it",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the folder of the host that was asked, as the daemon names it"
+  },
+  {
+   "wants": "field `slot`: the slot of the host that was asked, an empty string for the folder's own host",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the slot of the host that was asked, an empty string for the folder's own host"
+  },
+  {
+   "wants": "field `envs`: the environments, each root environment in the order of its roles and each derived one after the one it came from",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the environments, each root environment in the order of its roles and each derived one after the one it came from"
+  },
+  {
+   "wants": "field `envs[].id`: the id the host knows the environment by, which `--env` takes; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the id the host knows the environment by, which `--env` takes"
+  },
+  {
+   "wants": "field `envs[].role`: the environment role it fills in the flow",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the environment role it fills in the flow"
+  },
+  {
+   "wants": "field `envs[].chain`: its label: its role followed by each derivation that made it",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "its label: its role followed by each derivation that made it"
+  },
+  {
+   "wants": "field `envs[].parent`: the id of the environment it was derived from, or null for a root environment",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the id of the environment it was derived from, or null for a root environment"
+  },
+  {
+   "wants": "field `envs[].run`: the number of the epic it belongs to",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the number of the epic it belongs to"
+  },
+  {
+   "wants": "field `envs[].backend`: its kind, such as `local`, `docker` or `ssh`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "its kind, such as `local`, `docker` or `ssh`"
+  },
+  {
+   "wants": "field `envs[].provider`: the runtime it is on",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the runtime it is on"
+  },
+  {
+   "wants": "field `envs[].workdir`: its working directory, on its own machine",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "its working directory, on its own machine"
+  },
+  {
+   "wants": "field `envs[].available`: whether it can be reached at all",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether it can be reached at all"
+  },
+  {
+   "wants": "field `envs[].open`: whether it is open; a closed one is listed and refuses every command",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "whether it is open; a closed one is listed and refuses every command"
+  },
+  {
+   "wants": "field `envs[].caps`: what it serves, of `files`, `shell`, `bash`, `git`, `git_worktree`, `rewind`, `scratch` and `temp_clone`; a command needs `files`, `git` or `shell`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop, up to 35 words",
+   "text": "what it serves, of `files`, `shell`, `bash`, `git`, `git_worktree`, `rewind`, `scratch` and `temp_clone`; a command needs `files`, `git` or `shell`"
+  },
+  {
+   "wants": "field `envs[].declared`: what its role declares in the flow, of the same names as `caps`; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "what its role declares in the flow, of the same names as `caps`"
+  },
+  {
+   "wants": "field `envs[].facts`: `cpu`, `memory`, `gpu_count` and `gpu_memory` as found on its machine, each null where not found; keep the backticks",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "`cpu`, `memory`, `gpu_count` and `gpu_memory` as found on its machine, each null where not found"
+  },
+  {
+   "wants": "summary of `hmz env exec -- ARGV...`: run one command in an environment and print what it wrote",
+   "where": "command summary in a --help listing",
+   "text": "run one command in an environment and print what it wrote"
+  },
+  {
+   "wants": "paragraph for `hmz env exec`: runs the command in the working directory of an environment of the epic or chat that is going, as its flow would, waits for it to end, and prints its output. Put `--` before the command so that its own options are not read as options of hmz. For an interactive shell use `hmz env term open`. Keep the backticks.",
+   "where": "paragraph of --help, three sentences at most, up to 60 words",
+   "text": "Runs the command in the working directory of an environment of the epic or chat that is going, as its flow would, waits for it to end, and prints its output. Put `--` before the command so that its own options are not read as options of hmz. For an interactive shell use `hmz env term open`."
+  },
+  {
+   "wants": "the ARGV... argument of `hmz env exec`: the command and its arguments, after `--`; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the command and its arguments, after `--`"
+  },
+  {
+   "wants": "the --seconds N option of `hmz env exec`: how long the command may run before it is stopped, from 1 to 3600 seconds; 120 when not given",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "how long the command may run before it is stopped, from 1 to 3600 seconds; 120 when not given"
+  },
+  {
+   "wants": "the --env ROLE option of `hmz env exec`: the role of the environment to run in, as `hmz env list` prints it; when not given, the first role of the flow; keep the backticks",
+   "where": "argument or option description, lower case start, no full stop",
+   "text": "the role of the environment to run in, as `hmz env list` prints it; when not given, the first role of the flow"
+  },
+  {
+   "wants": "example `hmz env exec -- git log --oneline -5`: run a command in the environment of the current folder's epic",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "run a command in the environment of the current folder's epic"
+  },
+  {
+   "wants": "example `hmz env exec --env coder --seconds 600 --json -- make test`: run the tests in the environment `coder` for up to ten minutes and answer as JSON; keep the backticks",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "run the tests in the environment `coder` for up to ten minutes and answer as JSON"
+  },
+  {
+   "wants": "what `hmz env exec` prints as text: what the command wrote to standard output, on standard output, and what it wrote to standard error, on standard error; the last 1048576 bytes of each",
+   "where": "sentence in the Output section of --help",
+   "text": "What the command wrote to standard output, on standard output, and what it wrote to standard error, on standard error; the last 1048576 bytes of each."
+  },
+  {
+   "wants": "field `code` of `hmz env exec`: the command's exit status, or null if it was stopped at its time limit",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the command's exit status, or null if it was stopped at its time limit"
+  },
+  {
+   "wants": "field `stdout`: the last 1048576 bytes the command wrote to standard output, as text",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the last 1048576 bytes the command wrote to standard output, as text"
+  },
+  {
+   "wants": "field `stderr`: the last 1048576 bytes the command wrote to standard error, as text",
+   "where": "description of one field of the JSON output, lower case start, no full stop",
+   "text": "the last 1048576 bytes the command wrote to standard error, as text"
+  },
+  {
+   "wants": "exit code 5 of `hmz env exec`: the command ran and exited with a status other than 0, or was stopped at its time limit",
+   "where": "meaning of an exit code, lower case start, no full stop",
+   "text": "the command ran and exited with a status other than 0, or was stopped at its time limit"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

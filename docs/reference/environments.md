@@ -24,13 +24,13 @@ ROLE=BACKEND[@PROVIDER][/WORKDIR]
 | `@PROVIDER` | The name of a saved runtime of that backend. For `ssh` only, a host that is not saved, in brackets: `[USER@]HOST[:PORT]`. Left off, it is this machine. `local` takes none. `ssh` always needs one. |
 | `/WORKDIR` | Starts at the first `/` after the provider. Absolute, or `/~/...` for a directory under the home. May be left off only for a runtime saved with a `workdir`. |
 
-Pass the same spec without `ROLE=` to `hmz chat -e`, to `env` in `chat.start` and `chat.move`, and to each value of the `envs` map when an epic starts.
+Pass the same spec without `ROLE=` to `hmz chat start -e` and `hmz chat move`, to `env` in `chat.start` and `chat.move`, and to each value of the `envs` map when an epic starts.
 
 ```sh
 hmz exec -f FLOW -e repo=ssh@build-box/home/alex/shop "add a discount code to checkout"
 hmz exec -f FLOW -e repo=ssh@build-box -e scratch=local/tmp/scratch "add a discount code to checkout"
 hmz exec -f FLOW -e repo=docker/srv/shop,far=ssh@[alex@far.host:2222]/srv/shop "add a discount code to checkout"
-hmz chat -e ssh@build-box/~/shop "what does checkout do?"
+hmz chat start -e ssh@build-box/~/shop "what does checkout do?"
 ```
 
 | Spec | Where the role works |

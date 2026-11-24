@@ -158,5 +158,5 @@ async def test_a_chat_in_the_terminal(world: World) -> None:
 def test_one_turn_from_the_command_line(world: World) -> None:
     world.says({"charge()": {"text": _SAID, "after": 0.8}})
     reel = shots.Reel("user-chat-cli")
-    reel.cli(["hmz", "chat", "-a", AGENT, _ASK], rows=9)
+    reel.cli(["hmz", "chat", "start", "-a", AGENT, _ASK], rows=9)
     reel.save()

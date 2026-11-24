@@ -336,7 +336,7 @@ A backup target is a `git` repository that stores epics and chats from every mac
 
 Humanize skips committing if only the manifest changed since the last backup. The local clone is at `<mdir>/backup/<target>/`.
 
-`hmz backup --pull` writes epics to `<data>/epics/<ws>/<epic>/` and chats to `<data>/chats/<ws>/<chat>/`, failing if the destination directory already exists.
+`hmz backup pull` writes epics to `<data>/epics/<ws>/<epic>/` and chats to `<data>/chats/<ws>/<chat>/`, failing if the destination directory already exists.
 
 ## On other machines
 

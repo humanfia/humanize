@@ -204,4 +204,8 @@ def test_the_run_is_read_exported_and_backed_up(world: World, tmp_path: Path) ->
         cwd=kept,
     )
     shots.cli(["python", "ci/export.py"], f"{_PAGE}-export")
-    shots.cli(["hmz", "backup", "--list"], f"{_PAGE}-backup", columns=120)
+    shots.cli(
+        ["hmz", "backup", "list", "--target", "nightly"],
+        f"{_PAGE}-backup",
+        columns=120,
+    )

@@ -157,6 +157,22 @@ Both commands accept `on` or `off`, and toggle when run without arguments. While
 
 ![hmz exec runs the ship_it flow: the agent works and answers, and the run ends without asking anything](/shots/user-questions-exec.svg)
 
+An epic started with `hmz epic start` does ask. Answer it from any shell:
+
+```bash
+hmz epic status                      # q1  reviewer  Ship it?
+hmz epic answer yes                  # answers the only question waiting
+hmz epic answer -q q2 --value '{"verdict": "approve"}'
+```
+
+`hmz epic answer` takes words, the number of an offered answer, or with `--value` the JSON of a form. An answer that does not fit the form is refused and the question keeps waiting.
+
+| Command | What it does |
+| --- | --- |
+| `hmz epic afk [ROLE]` | Sets a role, or every role, away. `--back` sets it back. |
+| `hmz epic claim ROLE` | Holds the role while the command runs and answers its questions with the lines typed into it. `--take` takes the role from another window. |
+| `hmz epic release ROLE` | Frees a role another window holds, so anyone can answer for it. |
+
 To answer questions from code, use the [Python SDK](/builder/sdk).
 
 ## What the flow receives when you are away

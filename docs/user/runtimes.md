@@ -101,7 +101,7 @@ Pass the runtime name after `@` in `-e`. Use `ROLE=BACKEND[@RUNTIME][/WORKDIR]` 
 
 ```sh
 hmz exec -f @local/on_box -a builder=claude/claude-haiku-4-5 -e box=ssh@gpu-box -p budget.output_tokens=20000 "Add a discount code to checkout"
-hmz chat -e ssh@gpu-box/~/shop "Add a discount code to checkout"
+hmz chat start -e ssh@gpu-box/~/shop "Add a discount code to checkout"
 ```
 
 | Spelling | Where the work goes |
@@ -114,6 +114,31 @@ hmz chat -e ssh@gpu-box/~/shop "Add a discount code to checkout"
 | `swarm/srv/shop`, `apple-container/Users/alex/shop`, `slurm/lustre/shop` | This machine's swarm, this Mac's Apple containers, or this machine's Slurm cluster |
 
 You can omit the directory only when the runtime has a saved **Workdir**. In the app and terminal, you assign a flow's environment roles when you [start an epic](/user/epics). See [Environments and runtimes](/reference/environments) for the full syntax.
+
+### Manage runtimes
+
+`hmz runtimes` does what the Runtimes page does. Every command takes `--json` and `--daemon NAME`; run any of them with `--help` for its fields and examples.
+
+```sh
+hmz runtimes hosts
+hmz runtimes import gpu-box
+hmz runtimes set docker sandbox --set endpoint=ssh:gpu-box --set image=ubuntu:24.04
+hmz runtimes show docker sandbox
+hmz runtimes check ssh gpu-box
+hmz runtimes set ssh gpu-box --replace --set workdir=~/shop
+hmz runtimes remove docker sandbox
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz runtimes list` | Lists this machine and every saved runtime. |
+| `hmz runtimes show BACKEND [NAME]` | Prints a runtime's fields as `field=value`, or, without `NAME`, every field the backend takes with its default. |
+| `hmz runtimes set BACKEND NAME --set FIELD=VALUE` | Adds a runtime. With `--replace`, changes a saved one and keeps the fields you do not set. |
+| `hmz runtimes check BACKEND NAME` | Reaches the runtime and prints what it has. Exits with status 4 if it did not answer. |
+| `hmz runtimes hosts` and `hmz runtimes import HOST...` | Lists the hosts of your SSH config and imports them. |
+| `hmz runtimes remove BACKEND NAME` | Removes a runtime. |
+
+Repeat `--set` for each item of a list field (`--set gpus=0 --set gpus=1`), and write `FIELD=KEY=VALUE` for a mapping (`--set options=Compression=yes`). See the [CLI reference](/reference/cli#hmz-runtimes).
 
 ## Fall back to another runtime
 
