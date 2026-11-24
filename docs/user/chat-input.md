@@ -130,7 +130,7 @@ See [Terminal commands and keys](/reference/tui) for the full list of Humanize c
 hmz chat start -a claude/claude-haiku-4-5 '!git log --oneline'
 ```
 
-![hmz chat run with a !git log line: it prints the chat's id, the command, and the one commit](/shots/user-chat-input-cli.svg)
+![hmz chat start, run with a !git log line: it prints the chat's id, the command, and the one commit](/shots/user-chat-input-cli.svg)
 
 `hmz chat say` refuses Humanize commands like `/clear` and `$` lines that name a flow. To start a flow from the shell, run `hmz exec -f <name>` instead. See [The command line](/user/command-line).
 

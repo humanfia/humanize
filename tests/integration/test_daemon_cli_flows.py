@@ -300,7 +300,7 @@ def test_a_flowverse_is_added_and_a_flow_installed_updated_forked_and_removed(
     )
 
     assert _text(capsys, "flowverses", "fetch", "team") == "fetched team\n"
-    assert cli.main(["flowverses", "uninstall", "@team/review"]) == 2
+    assert cli.main(["flowverses", "uninstall", "@team/review"]) == 1
     assert "run it again with `-y`" in capsys.readouterr().err
     assert _json(capsys, "flowverses", "list")["verses"][-1]["installed"] == 1
     assert _text(capsys, "flowverses", "uninstall", "@team/review", "-y") == (

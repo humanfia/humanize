@@ -52,7 +52,7 @@ const ADDRESSES = { tcp: 'tcp://host:port', ws: 'wss://host/path', relay: 'relay
 /** What a carrier claimed by a pairing code needs of the other machine, said beside the form. */
 const CODE_NEEDS = () =>
   pieces('The other machine makes a one-time pairing code: run {command} there and paste it here within 10 minutes; it works once. Its daemon has to listen where this one can reach it.', {
-    command: h('code', { class: 'mono' }, 'hmz daemon pair'),
+    command: h('code', { class: 'mono' }, 'hmz devices pair'),
   })
 
 /**

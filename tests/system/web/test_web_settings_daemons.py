@@ -251,7 +251,7 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         expect(about.locator("h3")).to_have_text("Reach over EasyTier")
         kinds.get_by_role("button", name="TCP", exact=True).click()
         expect(about.locator("h3")).to_have_text("Reach over TCP")
-        expect(about).to_contain_text("hmz daemon pair")
+        expect(about).to_contain_text("hmz devices pair")
         # With only Local, the page says so, and what its devices are.
         expect(page.locator("[data-hmz=daemons-none]")).to_contain_text("Only Local")
         expect(page.locator("[data-hmz=daemons-about]")).to_contain_text(

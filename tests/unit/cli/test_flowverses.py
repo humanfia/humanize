@@ -208,7 +208,7 @@ def test_removing_asks_first_and_takes_only_a_yes(
     assert main(["flowverses", *line]) == 1
     said = capsys.readouterr()
     assert said.out == ""
-    assert said.err == f"{asks}Nothing was changed.\n"
+    assert said.err == f"{asks}hmz flowverses {line[0]}: Nothing was changed.\n"
     getattr(verses, change).assert_not_called()
 
     _typed(monkeypatch, "Yes\n")
@@ -226,22 +226,21 @@ def test_nobody_at_a_terminal_is_not_asked_and_nothing_is_removed(
 ) -> None:
     _typed(monkeypatch, "y\n", terminal=False)
 
-    assert main(["flowverses", "remove", "team"]) == 2
+    assert main(["flowverses", "remove", "team"]) == 1
 
     said = capsys.readouterr()
     assert said.out == ""
     assert said.err == (
         "hmz flowverses remove: Nobody is at a terminal to ask; run it again with `-y`.\n"
-        "Run `hmz flowverses remove --help` for help.\n"
     )
 
     _typed(monkeypatch, "y\n")
-    assert main(["flowverses", "uninstall", "ralph", "--json"]) == 2
+    assert main(["flowverses", "uninstall", "ralph", "--json"]) == 1
 
     said = capsys.readouterr()
     assert json.loads(said.out) == {
         "error": {
-            "code": 400,
+            "code": 0,
             "message": "Nobody is at a terminal to ask; run it again with `-y`.",
         }
     }

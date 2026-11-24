@@ -186,13 +186,16 @@ class AiChan(Family):
     @contextlib.contextmanager
     def _attached(self, one: Conversation) -> Generator[str]:
         """Her host attached to as one frontend, for as long as the block runs."""
+        # What the host tells this frontend is read off its status instead: listened for
+        # and taken up only so that a client that keeps what it is told does not keep this
+        # for good. A client with a listener of its own keeps nothing, and hears it there.
+        with contextlib.suppress(RuntimeError):
+            self._listens()
         sub = str(
             self._call(
                 "epic.attach", workspace=one.workspace, slot=one.slot, replay=False
             )["sub"]
         )
-        # What the host tells this frontend is read off its status instead: taken up only
-        # so that a client that keeps what it is told does not keep this for good.
         told = None
         with contextlib.suppress(RuntimeError):
             told = self._heard("epic.event", sub)

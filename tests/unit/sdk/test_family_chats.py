@@ -94,10 +94,14 @@ def test_the_family_names_every_method_of_chat() -> None:
     assert set(Chats.METHODS) == {
         "chat.start", "chat.say", "chat.commands", "chat.set", "chat.move", "chat.stop",
         "chat.list", "chat.get", "chat.rename", "chat.agent", "chat.fork", "chat.archive",
-        "chat.unarchive", "chat.backup", "chat.delete", "chat.harness.list",
-        "chat.harness.get", "chat.harness.adopt",
+        "chat.unarchive", "chat.backup", "chat.delete",
     }  # fmt: skip
-    assert set(Harness.METHODS) < set(Chats.METHODS)
+    # The sessions a harness ran on its own are `client.chats.harness`'s to name.
+    assert Harness.METHODS == (
+        "chat.harness.list",
+        "chat.harness.get",
+        "chat.harness.adopt",
+    )
 
 
 def test_a_chat_is_started_with_what_was_said_of_it_and_nothing_else() -> None:

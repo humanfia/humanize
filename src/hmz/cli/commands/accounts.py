@@ -12,7 +12,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any
 
-from hmz.cli.tree import UNREAD, Arg, Command, Example, Field, table
+from hmz.cli.tree import Arg, Command, Example, Field, Unread, table
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -20,18 +20,6 @@ if TYPE_CHECKING:
     from hmz.sdk.families.accounts import Account, Listing, Way
 
 __all__ = ["COMMANDS"]
-
-
-class _Unread(Exception):  # noqa: N818 -- named for what happened
-    """A line that parsed and still cannot be read: said as a usage error is."""
-
-
-def _unread(call: Call, why: _Unread) -> int:
-    """Says what is wrong with the line as the tree says a usage error, and its status."""
-    line = " ".join(["hmz", *call.path])
-    print(f"{line}: {why}", file=sys.stderr)
-    print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-    return UNREAD
 
 
 def _account(one: Account) -> dict[str, Any]:
@@ -129,7 +117,7 @@ def _answers(call: Call, secret: frozenset[str]) -> dict[str, str]:
       secret: The variables that are credentials, which `--set` does not take.
 
     Raises:
-      _Unread: For a `--set` that is no `NAME=VALUE` or names a credential, an `--env`
+      Unread: For a `--set` that is no `NAME=VALUE` or names a credential, an `--env`
         naming a variable this process has not got, and an answer brought from the
         environment or standard input that is empty -- which a daemon would take for an
         answer not given, and say it had saved.
@@ -140,9 +128,9 @@ def _answers(call: Call, secret: frozenset[str]) -> dict[str, str]:
         name, equals, value = said.partition("=")
         if not equals or not name:
             # Not said back: a word with no name before it may be the credential itself.
-            raise _Unread(t("`--set` takes an answer as NAME=VALUE"))
+            raise Unread(t("`--set` takes an answer as NAME=VALUE"))
         if name in secret:
-            raise _Unread(
+            raise Unread(
                 t(
                     "{name} is a credential: give it with `--env` or "
                     "`--stdin`, not on the command line",
@@ -154,7 +142,7 @@ def _answers(call: Call, secret: frozenset[str]) -> dict[str, str]:
         name, _, held = said.partition("=")
         held = held or name
         if held not in os.environ:
-            raise _Unread(t("the environment variable {name} is not set", name=held))
+            raise Unread(t("the environment variable {name} is not set", name=held))
         answers[name] = os.environ[held]
         brought.append(name)
     if call.stdin:
@@ -162,7 +150,7 @@ def _answers(call: Call, secret: frozenset[str]) -> dict[str, str]:
         brought.append(call.stdin)
     for name in brought:
         if not answers[name]:
-            raise _Unread(t("the answer given for {name} is empty", name=name))
+            raise Unread(t("the answer given for {name} is empty", name=name))
     return answers
 
 
@@ -177,10 +165,7 @@ def _add(call: Call) -> int | None:
     accounts = call.client.accounts
     backend = accounts.list().backend(call.cli)
     way = backend.way(call.way) if backend is not None else None
-    try:
-        answers = _answers(call, _secret(way))
-    except _Unread as why:
-        return _unread(call, why)
+    answers = _answers(call, _secret(way))
     listing = accounts.create(call.cli, call.name, call.way, answers)
     call.answers(
         _document(listing),
@@ -195,10 +180,7 @@ def _correct(call: Call) -> int | None:
     one = listing.account(call.cli, call.name)
     backend = listing.backend(call.cli)
     way = backend.way(one.way) if backend is not None and one is not None else None
-    try:
-        answers = _answers(call, _secret(way, one.sets if one is not None else ()))
-    except _Unread as why:
-        return _unread(call, why)
+    answers = _answers(call, _secret(way, one.sets if one is not None else ()))
     call.answers(
         _document(accounts.correct(call.cli, call.name, answers)), [t("Saved.")]
     )

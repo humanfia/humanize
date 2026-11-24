@@ -130,7 +130,7 @@ hmz exec -f rlar -a actor=careful,reviewer=claude/claude-haiku-4-5 -p budget.cos
 
 The CLI logs each wait and each fallback to another nous.
 
-![hmz chat with a virtual nous: Codex is rate-limited, the turn waits, then carries on as Claude Code](/shots/user-nous-chat.svg)
+![hmz chat start with a virtual nous: Codex is rate-limited, the turn waits, then carries on as Claude Code](/shots/user-nous-chat.svg)
 
 `hmz nous` lists and writes nous through the daemon:
 

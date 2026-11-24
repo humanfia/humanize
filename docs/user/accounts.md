@@ -17,7 +17,7 @@ Add `@` and the account name to the agent spec: `claude@work/MODEL`. Without `@`
 
 Humanize refuses unknown account names before anything runs:
 
-![hmz chat with -a claude@staging is refused: the chat names no claude account called staging](/shots/user-accounts-cli.svg)
+![hmz chat start with -a claude@staging is refused: the chat names no claude account called staging](/shots/user-accounts-cli.svg)
 
 Account changes take effect on the agent's next session. Running sessions keep the account they started with.
 

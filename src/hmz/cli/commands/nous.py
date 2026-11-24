@@ -6,7 +6,7 @@ import json
 import sys
 from typing import TYPE_CHECKING, Any
 
-from hmz.cli.tree import UNREAD, Arg, Command, Example, Field, table
+from hmz.cli.tree import Arg, Command, Example, Field, Unread, table
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -16,18 +16,6 @@ if TYPE_CHECKING:
     from hmz.sdk.families.nous import Book, Graph
 
 __all__ = ["COMMANDS"]
-
-
-class _Unread(Exception):  # noqa: N818 -- named for what happened
-    """A line that parsed and still cannot be read: said as a usage error is."""
-
-
-def _unread(call: Call, why: _Unread) -> int:
-    """Says what is wrong with the line as the tree says a usage error, and its status."""
-    line = " ".join(["hmz", *call.path])
-    print(f"{line}: {why}", file=sys.stderr)
-    print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-    return UNREAD
 
 
 def _document(book: Book) -> dict[str, Any]:
@@ -106,13 +94,13 @@ def _graph(words: Sequence[str]) -> Any:
     """A graph as a line writes one: nous tried in turn, or one word of JSON.
 
     Raises:
-      _Unread: If a word written as JSON is not JSON.
+      Unread: If a word written as JSON is not JSON.
     """
     if len(words) == 1 and words[0][:1] in ("{", "[", '"'):
         try:
             return json.loads(words[0])
         except ValueError:
-            raise _Unread(t("This is not valid JSON.")) from None
+            raise Unread(t("This is not valid JSON.")) from None
     names = [name for word in words for name in word.split(",") if name]
     return names[0] if len(names) == 1 else names
 
@@ -121,11 +109,8 @@ def _set(call: Call) -> int | None:
     """Writes one nous, what the line does not say of it staying as it was written."""
     nous = call.client.nous
     was = nous.list().entry(call.name)
-    try:
-        graph = _graph(call.graph) if call.graph else was and was.graph
-        then = _graph(call.then) if call.then else was and was.then
-    except _Unread as why:
-        return _unread(call, why)
+    graph = _graph(call.graph) if call.graph else was and was.graph
+    then = _graph(call.then) if call.then else was and was.then
     book = nous.set(
         call.name,
         tries=call.tries if call.tries is not None else was and was.tries,

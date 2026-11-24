@@ -10,7 +10,7 @@ import sys
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Final
 
-from hmz.cli.tree import DONE, Arg, Command, Example, Exit, Field, table
+from hmz.cli.tree import Arg, Command, Example, Field, table
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -18,9 +18,6 @@ if TYPE_CHECKING:
     from hmz.sdk.families.notices import Notice
 
 __all__ = ["COMMANDS"]
-
-#: What `hmz notices follow` ends with once it is interrupted: 128 and the signal's number.
-INTERRUPTED: Final = 130
 
 #: Every kind of notice (Section 4.19.1.1 of daemon.md), and what the page calls each.
 _KINDS: Final = {
@@ -115,7 +112,7 @@ def _list(call: Call) -> None:
     )
 
 
-def _follow(call: Call) -> int:
+def _follow(call: Call) -> None:
     try:
         for notice in call.client.notices.follow(call.after):
             if not _wanted(call, notice):
@@ -127,12 +124,9 @@ def _follow(call: Call) -> int:
             )
             # At once: whoever reads a pipe is waiting for this line, not for a full buffer.
             print(said, flush=True)
-    except KeyboardInterrupt:
-        return INTERRUPTED
     except BrokenPipeError:
         # Whoever read the lines has gone, and so has anything left to say to it.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-    return DONE
 
 
 COMMANDS = (
@@ -218,7 +212,6 @@ COMMANDS = (
                 "time, its kind, the chat or epic it is about, and what it says. With "
                 "`--json`, prints one object per line instead.",
                 output=_fields(""),
-                exits=(Exit(INTERRUPTED, "interrupted with ctrl+c"),),
                 methods=("notices.subscribe", "notices.unsubscribe"),
                 see=("notices list",),
                 run=_follow,

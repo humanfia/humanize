@@ -91,7 +91,7 @@ It is normative. It is cited by the tag [CLI].
   - [18.1. Synopsis](#181-synopsis)
   - [18.2. `hmz epic start`](#182-hmz-epic-start)
   - [18.3. `hmz epic attach`](#183-hmz-epic-attach)
-  - [18.4. `hmz epic say`, `answer`, `stop` and `board`](#184-hmz-epic-say-answer-stop-and-board)
+  - [18.4. `hmz epic say`, `answer`, `face`, `stop`, `quit` and `board`](#184-hmz-epic-say-answer-face-stop-quit-and-board)
   - [18.5. `hmz epic claim`, `release`, `afk` and `status`](#185-hmz-epic-claim-release-afk-and-status)
   - [18.6. `hmz hosts`](#186-hmz-hosts)
 - [19. `hmz runs`](#19-hmz-runs)
@@ -295,7 +295,7 @@ the URL carries.
 on every refusal this document assigns status 2.
 
 **5.1.3** A command MUST NOT exit with a status other than 0, 1 and 2, except as Section 5.2
-and Section 16.9 specify.
+specifies.
 
 ### 5.2. Statuses particular to commands
 
@@ -326,6 +326,21 @@ or after it has ended, as Section 7.15.5 specifies.
 
 **5.2.10** `hmz chat start` and `hmz chat say` MUST exit with status 128 plus the signal number
 where a signal ended them, as Section 15.3.5 specifies.
+
+**5.2.11** A declared command that asks a daemon MUST exit with status 3 where the daemon cannot be
+reached, did not answer in time, or went away under a call, as Section 16.9 specifies.
+
+**5.2.12** A declared command MUST exit with status 130 where it is interrupted, as Section 16.14
+specifies.
+
+**5.2.13** `hmz runtimes check` MUST exit with status 4 where the runtime did not answer, as Section
+23.2.6 specifies.
+
+**5.2.14** `hmz env exec` MUST exit with status 5 where the command it ran did not exit with status
+0, as Section 20.4.3 specifies.
+
+**5.2.15** A declared command MUST NOT exit with a status other than 0, 1, 2, 3 and 130 and those
+Section 5.2.10, Section 5.2.13 and Section 5.2.14 name.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -1343,8 +1358,7 @@ through `Client.chats` (Section 4.24 of [PYTHON]).
 `<permission>` one of `read-only`, `workspace-write` and `danger-full-access`.
 
 **15.1.4** `-w` and `--workspace` MUST be the same option and MUST name the workspace a command is
-about; without it the workspace MUST be the current directory, with every link followed. A `<dir>`
-that begins with `~` MUST be given to the daemon as written.
+about, as Section 16.13 states.
 
 **15.1.5** `<message>` MUST be exactly one positional argument; a message that begins with `-` MUST
 be given after `--`.
@@ -1452,12 +1466,9 @@ MUST be `chat.get`'s result.
 document MUST be `{"chat": <id>}`.
 
 **15.4.5** `hmz chat delete <chat>` MUST delete the chat (`chat.delete`), write nothing to standard
-output without `--json`, and the document `{"deleted": <id>}` with it. Without `-y` or `--yes` it
-MUST first ask on standard error, naming the chat by its line of Section 15.4.1 (`chat.get`) and
-saying that it cannot be brought back, and MUST delete only where `y` or `yes` is then read from
-standard input, compared without regard to case; where standard input is not a terminal, and under
-`--json`, it MUST read nothing and refuse, saying to pass `--yes`. A chat not deleted for want of a
-yes MUST be said and MUST exit with status 1.
+output without `--json`, and the document `{"deleted": <id>}` with it. It MUST first ask as
+Section 16.12 states, naming the chat by its line of Section 15.4.1 (`chat.get`) and saying that it
+cannot be brought back; where nobody can be asked it MUST NOT read the chat.
 
 **15.4.6** `hmz chat backup <chat>` MUST call `chat.backup`, with each `--to` as `to` where any is
 given, and MUST write each target the backup was queued for, a line apiece; its document MUST be
@@ -1530,22 +1541,55 @@ MUST name the daemon to ask as Section 23 keeps it, this machine's where it is a
 standard output and nothing else to it, and MUST write nothing to standard error. Where it did what
 it was asked the document MUST hold the fields its help states. Otherwise the document MUST be
 `{"error": {"code": <code>, "message": <message>}}`, `code` being the error's code where a daemon
-answered one (Section 6.6 of [WIRE]), `503` where the daemon cannot be reached and `504` where it
-did not answer in time.
+answered one (Section 6.6 of [WIRE]), `503` where the daemon cannot be reached, `504` where it did
+not answer in time, `400` for a usage error (16.10), and `0` where the command itself refused.
 
 **16.8** Without `--json`, a declared command that did not do what it was asked MUST write `hmz
 <command>: <message>` and a line feed to standard error, `<command>` being its words after `hmz`.
 
-**16.9** A declared command MUST exit with status 0 where it did what it was asked, 1 where the daemon
-refused, 2 on a usage error, and 3 where the daemon cannot be reached or did not answer in time.
+**16.9** A declared command MUST exit with status 0 where it did what it was asked; 1 where the
+daemon refused, where the command itself refused, and where it asked and was not answered yes
+(16.12); 2 on a usage error; 3 where the daemon cannot be reached or did not answer in time, and
+where the session with the daemon ended under a call (the error 503 of Section 4.21.7 of [PYTHON]),
+which MUST be said as a daemon that cannot be reached is; and 130 where it was interrupted (16.14).
+An error 503 the daemon answered over a session that goes on is a refusal, and MUST exit with
+status 1. A declared command MUST NOT exit with another status but one its own section assigns it
+and its help states.
 
 **16.10** A usage error of a declared command MUST be written to standard error as `hmz <command>:
-<what is wrong>`, followed by a line naming the `--help` to run.
+<what is wrong>`, followed by a line naming the `--help` to run, and MUST exit with status 2. A
+command that finds, after its line was parsed, that the line cannot be read -- a value that is not
+what its option takes, options that cannot be given together -- MUST end as a usage error before it
+writes anything to a daemon; under `--json` it MUST instead write the document of 16.7 with `code`
+`400`, and nothing to standard error.
 
 **16.11** Every text a declared command writes that is not data MUST be a text the web interface
 writes ([WEB]) wherever that interface has a text saying the same thing, word for word in its
 English, and MUST otherwise be a text kept with hmz for that purpose; a declared command MUST NOT
 compose such a text where it is written.
+
+**16.12** A declared command that removes or discards something that cannot be brought back MUST
+ask first, and MUST take `-y`/`--yes`: with it, it MUST NOT ask and MUST go on as though answered
+yes. Without it, where `--json` is absent and standard input is a terminal, it MUST write its
+question and ` [y/N] ` to standard error and read one line of standard input; `y` or `yes`, in
+either case, is yes and anything else is not. Where the answer is not yes it MUST change nothing
+and refuse, saying `Nothing was changed.`; where nobody can be asked -- `--json` is given or
+standard input is not a terminal -- it MUST ask nothing, change nothing and refuse, saying to run
+it again with `-y`. Either refusal MUST be said as a refusal is (16.7, 16.8), `code` being `0`, and
+MUST exit with status 1; the help of such a command MUST state that status 1 is a refusal by the
+daemon or an answer that was not yes.
+
+**16.13** Where a declared command takes `-w`/`--workspace <dir>` to name a workspace of the
+daemon's machine, a `<dir>` beginning `~` MUST be sent as written, for the daemon to expand; any
+other MUST be sent as an absolute path, a relative one read against the directory the command is
+run in, with no link followed and no `..` taken out; and where the option is absent that directory
+MUST be sent, but where the command's own section states otherwise. Which workspace a path names,
+its links followed, is the daemon's to say (Section 4.5.2 of [DAEMON]).
+
+**16.14** A declared command that is interrupted (`SIGINT`) MUST exit with status 130, MUST write no
+traceback and nothing more to either stream -- under `--json` too, 16.7 notwithstanding -- and MUST
+let go of its session; whatever the daemon holds goes on. `hmz chat start` and `hmz chat say`,
+which Section 15.3 has take `SIGTERM` and `SIGHUP` the same way, MUST exit as that section states.
 
 ## 17. `hmz devices`
 
@@ -1587,13 +1631,17 @@ hmz epic start <flow> [<task>] [-a <agents>]... [-e <envs>]... [-p <params>]...
 hmz epic attach [--no-replay] [-w <dir>] [--slot <slot>]
 hmz epic say <text> [--to <who>] [-w <dir>] [--slot <slot>]
 hmz epic answer [<text>] [-q <id>] [--value <json>] [-w <dir>] [--slot <slot>]
+hmz epic face <question> [-w <dir>] [--slot <slot>]
 hmz epic stop [--force] [-w <dir>] [--slot <slot>]
+hmz epic quit [-w <dir>] [--slot <slot>]
 hmz epic board [<key> [<value>]] [--remove] [-w <dir>] [--slot <slot>]
 hmz epic claim [<role>]... [--take] [--no-replay] [-w <dir>] [--slot <slot>]
 hmz epic release <role> [-w <dir>] [--slot <slot>]
 hmz epic afk [<role>] [--back] [-w <dir>] [--slot <slot>]
 hmz epic status [-w <dir>] [--slot <slot>]
 hmz hosts list [--running]
+hmz hosts open [-w <dir>] [--slot <slot>]
+hmz hosts detach [-w <dir>] [--slot <slot>]
 hmz hosts stop [-w <dir>] [--slot <slot>]
 ```
 
@@ -1602,8 +1650,8 @@ the summaries `start, follow and steer an epic held by this daemon` and `list an
 this daemon holds epics and chats in`.
 
 **18.1.2** `-w` and `--workspace` MUST be the same option. Every command that takes it MUST name a
-host (Section 4.6 of [DAEMON]) by `workspace`, the directory `-w` gives as a whole path with its
-links followed, or the current directory where it is absent, and by `slot`, what `--slot` gives, or `""` where it is absent.
+host (Section 4.6 of [DAEMON]) by `workspace`, the directory `-w` gives as Section 16.13 states, and
+by `slot`, what `--slot` gives, or `""` where it is absent.
 
 **18.1.3** A command of `hmz epic` other than `status` MUST attach to that host as one frontend
 (`epic.attach` with `replay` false but where its paragraph states otherwise, Section 4.7.1 of
@@ -1612,10 +1660,12 @@ links followed, or the current directory where it is absent, and by `slot`, what
 MUST NOT attach to a host.
 
 **18.1.4** A command of `hmz epic` other than `start` and `status` MUST first call `hosts.status`
-for that host and MUST NOT attach where it is refused: only `hmz epic start` starts a host.
+for that host and MUST NOT attach where it is refused: of `hmz epic`, only `hmz epic start` starts
+a host.
 
 **18.1.5** `hmz epic start`, `hmz epic attach` and `hmz epic claim` MUST exit with status 130 where
-they are interrupted, and MUST NOT stop the epic by it.
+they are interrupted (16.14), and MUST NOT stop the epic by it; their help MUST state that the
+epic goes on.
 
 **18.1.6** A refusal of the daemon or of the host MUST be written and exited with as Section 16
 states, in the words it was refused with.
@@ -1677,9 +1727,9 @@ its `why` where that is not empty.
 **18.3.4** It MUST exit once `live` has come where the `run` snapshot says no epic is going or
 stopping, with status 0; otherwise at the first `ended` after `live`, with status 1 where its `how`
 is `failed`, `crashed` or `refused` and 0 otherwise; with status 1 at `gone`, and where the session
-ends first; and with status 130 where it is interrupted. Its exiting MUST NOT stop the epic.
+ends first; and with status 130 where it is interrupted (16.14). Its exiting MUST NOT stop the epic.
 
-### 18.4. `hmz epic say`, `answer`, `stop` and `board`
+### 18.4. `hmz epic say`, `answer`, `face`, `stop`, `quit` and `board`
 
 **18.4.1** `hmz epic say <text>` MUST call `epic.say` with `text` and, where `--to` is given, `to`.
 Its JSON document MUST be `{"text": <text>, "to": <who or "">}`.
@@ -1703,6 +1753,21 @@ lets go before it, and write the `items` of the `board` snapshot among them, tho
 where one is given: one line each with its key, its value, whose it is and who wrote it, in
 columns. Its JSON document MUST then be `{"items": [...]}`, each item as the snapshot holds it,
 or `{"items": null}` for an epic with no board.
+
+**18.4.5** `hmz epic face <question>` MUST read the messages sent on attach up to `live`, refusing
+with status 1 where the host lets go before it, and find among the `pending` snapshot the question
+whose `question` is `<question>`. Where none is it MUST refuse with code 404, saying `Question
+<question> is not waiting.`, and where that question's `face` is `null`, saying `Question
+<question> has no face.`; in neither case MUST it call `epic.face`. Otherwise it MUST call
+`epic.face` (Section 4.8.10 of [DAEMON]) with the `hash` of that face, and write the `html`
+answered to standard output exactly, with no line feed added. Its JSON document MUST be
+`{"question": <question>, "title": <title>, "html": <html>}`. It MUST NOT run or render the HTML.
+
+**18.4.6** `hmz epic quit` MUST call `epic.quit`, which closes the host as Section 4.13.6 of
+[DAEMON] states: every waiting question withdrawn, every waiting line dropped, every epic stopped,
+every frontend let go and every side conversation closed, the host process exiting within 15
+seconds. It MUST write `Host closed.`, and its JSON document MUST be `{"workspace": <path>, "slot":
+<slot>}`, as `epic.attach` answered them.
 
 ### 18.5. `hmz epic claim`, `release`, `afk` and `status`
 
@@ -1741,7 +1806,18 @@ columns. Its JSON document MUST be `{"hosts": [{"workspace", "slot", "pid", "sta
 written.
 
 **18.6.2** `hmz hosts stop` MUST call `hosts.stop` with the workspace and slot of Section 18.1.2.
-Its JSON document MUST be `{"workspace": <path>, "slot": <slot>}`.
+Its JSON document MUST be `{"workspace": <path>, "slot": <slot>}`, each as it was sent.
+
+**18.6.3** `hmz hosts open` MUST call `hosts.open` (Section 4.6.2.3 of [DAEMON]) with the workspace
+and slot of Section 18.1.2, which starts that host where none is and attaches nothing to it, and
+MUST write one line: the host's process id, its workspace and its slot, in columns. Its JSON
+document MUST be `{"pid", "workspace", "started", "kind", "protocol", "slot"}` as `hosts.open`
+answered them, `slot` being the slot made where `--slot` was `exec:` or `chat:` alone.
+
+**18.6.4** `hmz hosts detach` MUST call `hosts.detach` (Section 4.6.3.2 of [DAEMON]) with the
+workspace and slot of Section 18.1.2, which lets every attached frontend go and leaves every epic
+running, and MUST write how many were let go. Its JSON document MUST be `{"workspace": <path>,
+"slot": <slot>, "let_go": <n>}`, `workspace` and `slot` as they were sent.
 
 ## 19. `hmz runs`
 
@@ -1889,9 +1965,8 @@ MUST be groups under it.
 **20.1.2** Every command of `hmz env` MUST take `-w`/`--workspace <dir>`, `--slot <slot>` and `--chat
 <id>`, which name a host: the host of `--slot` in the workspace `--workspace`, the working directory
 where `--workspace` is absent and the workspace's own host where `--slot` is absent; or, with
-`--chat`, the host `chat.get` says that chat is going on, whatever `--workspace` and `--slot` say. A
-`--workspace` that is relative MUST be read against the working directory, and one that begins with
-`~` MUST be sent as written.
+`--chat`, the host `chat.get` says that chat is going on, whatever `--workspace` and `--slot` say.
+`--workspace` MUST be read as Section 16.13 states.
 
 **20.1.3** Every command of `hmz env` but `list` and `exec` MUST take `--env <env>`, and MUST work in
 the environment of the host's `envs` snapshot (Section 4.24.2 of [DAEMON]) whose `id` is `<env>`,
@@ -2064,16 +2139,9 @@ Its JSON document MUST be `{"terms": [{"term", "env", "title", "cols", "rows", "
 
 ### 20.7. Asking first
 
-**20.7.1** A command that asks MUST take `-y`/`--yes`, and with it MUST NOT ask and MUST go on as
-though answered yes.
-
-**20.7.2** Without `--yes`, and where `--json` is absent and standard input is a terminal, it MUST
-write its question and ` [y/N] ` to standard error and read one line of standard input; `y` or `yes`,
-in either case, is yes and anything else is not.
-
-**20.7.3** Where the answer is not yes, or nobody can be asked -- `--json` is given or standard input
-is not a terminal -- the command MUST change nothing, MUST say so as a refusal is said (16.7, 16.8),
-`code` being `400`, and MUST exit with status 4.
+**20.7.1** `hmz env rm`, `hmz env git discard` and `hmz env git rewind` MUST ask first as Section
+16.12 states of every declared command that asks, and MUST exit with status 1, as that section
+states, where they are not answered yes.
 
 ## 21. `hmz flows`, `hmz flowverses` and `hmz workspaces`
 
@@ -2185,9 +2253,7 @@ agent and an environment MUST be sent unread: whether each names one is the daem
 
 **21.2.10** An `-a` or `-e` item with no `=`, an empty role or nothing after the `=`, a role given
 twice to one option, a `-p` that Section 7.6 makes a usage error, and `--backup none` beside
-another target MUST each be a usage error (Section 16.10), and MUST call nothing. Under `--json` the
-usage error MUST instead be the document `{"error": {"code": 400, "message": <what is wrong>}}` on
-standard output, with nothing on standard error, and the exit status 2.
+another target MUST each be a usage error (Section 16.10), and MUST call nothing.
 
 **21.2.11** `hmz flows fork <flow>` MUST call `flows.fork` with the workspace and `flow`, and write
 its `said`. Its JSON document MUST be `{"said", "at"}` (Section 4.17.4.3 of [DAEMON]).
@@ -2216,14 +2282,12 @@ its JSON document MUST be that result (Section 4.17.6.3 of [DAEMON]).
 > Informative: `hmz flowverses install <flow>` on a flow already installed updates it to the newest
 > release, and with `--version` switches it to that one.
 
-**21.3.4** Without `-y`, `hmz flowverses remove` and `hmz flowverses uninstall` MUST first ask on
-standard error, in the words the web interface asks in, and MUST make their call only where the line
-read from standard input is `y` or `yes`, in any case; any other answer MUST change nothing, say so
-on standard error, and exit with status 1.
+**21.3.4** `hmz flowverses remove` and `hmz flowverses uninstall` MUST first ask as Section 16.12
+states, in the words the web interface asks in, and MUST make their call only where the answer is
+yes.
 
-**21.3.5** Without `-y`, where standard input is not a terminal, or under `--json`, `hmz flowverses
-remove` and `hmz flowverses uninstall` MUST ask nothing and call nothing, and MUST end as the usage
-error of Section 21.2.10 does.
+**21.3.5** Where nobody can be asked, `hmz flowverses remove` and `hmz flowverses uninstall` MUST
+call nothing, and MUST exit with status 1 as Section 16.12 states.
 
 ### 21.4. `hmz workspaces`
 
@@ -2289,14 +2353,12 @@ hmz nous clear <name>
 setting it writes.
 
 **22.1.2** A command of this section that finds its line cannot be read after it was parsed MUST
-write what is wrong as Section 16.10 states, to standard error whether or not `--json` was given,
-MUST exit with status 2, and MUST NOT have written anything to the daemon.
+end as the usage error of Section 16.10, and MUST NOT have written anything to the daemon.
 
 ### 22.2. `hmz settings`
 
-**22.2.1** `-w <path>` MUST name a workspace of the daemon's machine. A path that is absolute or
-begins with `~` MUST be sent as written, and any other MUST be sent resolved against the working
-directory. Where `-w` is absent the command MUST send no `workspace`.
+**22.2.1** `-w <path>` MUST name a workspace of the daemon's machine, sent as Section 16.13 states.
+Where `-w` is absent the command MUST send no `workspace`.
 
 **22.2.2** `hmz settings get` MUST call `settings.get`. Its JSON document MUST be the result of
 `settings.get`, whole. Without `--json` it MUST write one line for each of `workspace`, `flow`,
@@ -2570,8 +2632,8 @@ with the code and message of its refusal; a daemon claimed that cannot then be w
 
 **23.5.2** Any other `--daemon <name>` MUST name the daemon the registry keeps under `<name>`. The
 command MUST be a client of that daemon in place of this machine's: reached over its routes as
-`Client.named` reaches it (Section 4.30.9 of [PYTHON]), `hmz` never installed on a machine that has
-none, and let go of as the command ends.
+`Client.named` reaches it (Section 4.30.9 of [PYTHON]) with `kind` `cli`, `hmz` never installed on a
+machine that has none, and let go of as the command ends.
 
 **23.5.3** Where the registry keeps no daemon under `<name>`, the command MUST be refused with code
 `404` and `No daemon is kept under the name <name>.`, and exit with status 1. Where the daemon is
@@ -2604,10 +2666,8 @@ hmz notices follow [--after <id>] [--kind <kind>]...
 16), with the summaries `ask side questions of a session of an epic or chat`, `talk to Ai-chan, who
 operates hmz for you` and `list and follow what this daemon tells you about your epics and chats`.
 
-**24.1.2** `-w`, `--workspace` MUST name a workspace of the daemon's machine: a path beginning `~`
-MUST be sent as it is written, any other path MUST be made absolute against the working directory,
-and where the option is absent the working directory MUST be sent, but where 24.3.1 states
-otherwise.
+**24.1.2** `-w`, `--workspace` MUST name a workspace of the daemon's machine as Section 16.13
+states, the working directory where the option is absent, but where 24.3.1 states otherwise.
 
 ### 24.2. `hmz btw`
 
@@ -2670,11 +2730,9 @@ document MUST be `{"conversations": [...]}`, each as `aichan.list` answers it.
 "title"}`, `title` as it was given.
 
 **24.3.5** `hmz ai forget <id>` MUST call `aichan.forget`. Without `--yes` it MUST first read the
-conversation (`aichan.list`), ask on standard error, naming it by its `id` and title and saying that
-it cannot be brought back, and MUST forget it only where `y` or `yes` is then read from standard
-input, compared without regard to case; where standard input is not a terminal, or under `--json`,
-it MUST read nothing and say to give `--yes`. A conversation not forgotten for want of a yes MUST
-exit with status 1. Its JSON document MUST be `{"id"}`.
+conversation (`aichan.list`), so that one that is not there is refused as that, and MUST then ask
+as Section 16.12 states, naming it by its `id` and title and saying that it cannot be brought back.
+Its JSON document MUST be `{"id"}`.
 
 **24.3.6** `hmz ai say <id> <text>` MUST attach to the conversation's host (`epic.attach` with its
 `workspace` and `slot` and `replay` `false`, which carries a folded conversation on, Section 4.22.5
@@ -2730,8 +2788,8 @@ MUST subscribe again after the last notice it was told, or, where it was told no
 `after` it gave or the `last` its first subscription was answered with.
 
 **24.4.5** `hmz notices follow` MUST run until it is interrupted, when it MUST end the subscription
-(`notices.unsubscribe`) and exit with status 130; where the session with the daemon ends first it
-MUST exit as a daemon that cannot be reached (Section 16.9).
+(`notices.unsubscribe`) and exit with status 130 (16.14); where the session with the daemon ends
+first it MUST exit as a daemon that cannot be reached (Section 16.9).
 
 ## 25. `hmz skills`
 
@@ -2751,7 +2809,7 @@ list and remove the hmz skill for using the CLI`.
 and write is the files of the user running them, on the machine they run on. Notwithstanding 16.6 and
 16.9, a local command MUST NOT take `--daemon`, MUST NOT exit with status 3, and MUST exit with status
 1 where it refuses what it was asked; its help MUST state `--json` and `--no-color` alone as common
-options and the statuses 0, 1 and 2 alone as common statuses. A file it cannot read or write MUST be
+options and the statuses 0, 1, 2 and 130 alone as common statuses. A file it cannot read or write MUST be
 a refusal. Under `--json` the `code` of its error document (16.7) MUST be `0`.
 
 **25.1.3** The _hmz skill_ is a directory named `hmz` holding a file `SKILL.md`, and a file
@@ -2832,9 +2890,9 @@ being the path of the `SKILL.md` removed; where there is nothing to remove it MU
 with status 0.
 
 **25.3.4** Without `--yes`, `hmz skills remove` MUST ask on standard error before removing each
-skill, read the answer from standard input, and leave in place each one not answered `y` or `yes`;
-where standard input is not a terminal, or `--json` is given, it MUST instead be refused, having
-removed nothing.
+skill, read the answer from standard input, and leave in place each one not answered `y` or `yes`,
+going on to the next; where standard input is not a terminal, or `--json` is given, it MUST instead
+be refused as Section 16.12 states, having removed nothing.
 
 **25.3.5** `hmz skills show` MUST write the `SKILL.md` `hmz skills add` would write now, and MUST
 write no file. Its JSON document MUST be `{"name": "hmz", "version": <version>, "files": [{"name",
