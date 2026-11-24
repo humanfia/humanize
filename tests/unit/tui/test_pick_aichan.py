@@ -12,6 +12,9 @@ from hmz.tui.pick import (
     AiAsked,
     AiChanNew,
     AiChans,
+    AiForgets,
+    AiMarks,
+    AiRenames,
     ai_chan,
     ai_scope,
     nous_named,
@@ -32,10 +35,14 @@ _ONE: dict[str, Any] = {
 
 
 def test_the_list_offers_new_first_and_says_each_conversation() -> None:
-    sheet = AiChans([_ONE])
+    sheet = AiChans([_ONE], AiMarks())
 
     assert sheet.rows() == [
-        (AI_NEW, "New", "a conversation of its own scope, nous and permission"),
+        (
+            AI_NEW,
+            "New conversation",
+            "a conversation with a scope, nous and permissions of its own",
+        ),
         (
             "3",
             "Ai-chan#3 · what is going on",
@@ -48,7 +55,78 @@ def test_the_list_offers_new_first_and_says_each_conversation() -> None:
 
 
 def test_an_empty_list_says_so() -> None:
-    assert AiChans([]).nothing() == "no conversation yet"
+    assert AiChans([], AiMarks()).nothing() == "No conversations yet"
+
+
+def _said(number: int, updated: str) -> dict[str, Any]:
+    return {**_ONE, "id": number, "updated": updated}
+
+
+def test_the_pinned_are_listed_first_then_the_latest_said_in() -> None:
+    marks = AiMarks()
+    marks.pinned.add(1)
+    old, mid, new = _said(1, "2026-01-01"), _said(2, "2026-01-02"), _said(3, "2026-01-03")
+
+    sheet = AiChans([old, mid, new], marks)
+
+    assert [answer for answer, _, _ in sheet.rows()] == [AI_NEW, "1", "3", "2"]
+    # The pinned one wears the square; nothing else does.
+    assert [label[:1] for _, label, _ in sheet.rows()[1:]] == ["■", "A", "A"]
+
+
+def test_a_conversation_is_unread_once_marked_or_said_in_since_it_was_read() -> None:
+    marks = AiMarks()
+    one = _said(3, "2026-01-01")
+    sheet = AiChans([one], marks)
+
+    assert not sheet.unread("3")
+    marks.unread.add(3)
+    assert sheet.unread("3")
+    marks.reads(one)
+    assert not sheet.unread("3")
+    # Said in after it was read: unread again, with nothing marked.
+    assert marks.is_unread(_said(3, "2026-01-02"))
+    assert not sheet.unread(AI_NEW)
+
+
+def test_the_menu_offers_what_the_drawers_does() -> None:
+    marks = AiMarks()
+    sheet = AiChans([_ONE], marks)
+    sheet.under = lambda: "3"  # type: ignore[method-assign]
+
+    named, acts = sheet.menu() or ("", [])
+    assert named == "Ai-chan#3"
+    assert [(one.key, one.label) for one in acts] == [
+        ("rename", "Rename"),
+        ("pin", "Pin"),
+        ("read", "Mark as unread"),
+        ("forget", "Delete"),
+    ]
+
+    marks.pinned.add(3)
+    marks.unread.add(3)
+    _, acts = sheet.menu() or ("", [])
+    assert [one.label for one in acts][1:3] == ["Unpin", "Mark as read"]
+
+
+def test_deleting_asks_in_the_pages_words_and_keeping_is_the_first_answer() -> None:
+    box = AiForgets(3)
+
+    assert box.asked == "Ai-chan#3 · Delete this conversation?"
+    assert "cannot be carried on" in box.about
+    assert [(answer, label) for answer, label, _ in box.rows()] == [
+        ("no", "Cancel"),
+        ("yes", "Delete"),
+    ]
+    assert box.PRIMARY == "yes"
+
+
+def test_a_conversation_is_renamed_on_one_row_opening_on_its_title() -> None:
+    form = AiRenames("what is going on")
+
+    (asked,) = form.asked()
+    assert (asked.held, asked.named, asked.needed) == ("title", "New name", False)
+    assert form.done_about() == "renames the conversation"
 
 
 @pytest.mark.parametrize(

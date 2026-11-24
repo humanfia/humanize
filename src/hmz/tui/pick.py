@@ -85,9 +85,9 @@ from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
-
 from hmz.words import t
 
+from . import humanfia
 from .complete import paths
 from .dropdown import Dropdown, Value, anchor
 from .selecting import Choices
@@ -120,6 +120,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "AI_MARKS",
     "AI_NEW",
     "DETACHES",
     "EXPORTED",
@@ -133,6 +134,8 @@ __all__ = [
     "AiChanNew",
     "AiChans",
     "AiForgets",
+    "AiMarks",
+    "AiRenames",
     "Backing",
     "Backups",
     "Catalogue",
@@ -1825,7 +1828,8 @@ class Sheet[T](ModalScreen[T | None]):
             f"  {_shade('$warning', '● unsaved', here=here)}" if pending else ""
         )
         return (
-            f" {_shade('$primary', icon, here=here)}  [b]{escape(title)}[/]{pad}{right}\n"
+            f" {_shade('$primary', icon, here=here)}  "
+            f"[b]{escape(title)}[/]{pad}{right}\n"
             f"    {_shade('$text-muted', blurb, here=here)}"
         )
 
@@ -3770,10 +3774,22 @@ class Picks(Sheet[str]):
         """
         return ""
 
+    def unread(self, answer: str) -> bool:
+        """Whether a row is dotted as not yet read, which a list of things said in says.
+
+        Args:
+          answer: What picking the row answers with.
+
+        Returns:
+          False, for a list nothing is read in.
+        """
+        del answer
+        return False
+
     def _ask(self) -> None:
         """Says what is being chosen, and puts the choices up."""
-        self.query_one("#asked", Label).update(self.asked)
-        self.query_one("#about", Label).update(self.about)
+        self.query_one("#asked", Label).update(t(self.asked))
+        self.query_one("#about", Label).update(t(self.about))
         self._fill()
 
     def added(self) -> None:
@@ -3833,6 +3849,7 @@ class Picks(Sheet[str]):
                         about,
                         here=answer == landing,
                         inforce=answer == self._current,
+                        unread=self.unread(answer),
                     ),
                     # Every row answers with a string and "" is one of the answers, which an
                     # id of its own keeps tellable from a row that was never chosen.
@@ -5204,7 +5221,8 @@ class Clis(Picks):
                 *sorted(one.__name__ for one in role.capabilities),
             ]
             return (
-                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no coding agent "
+                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no "
+                f"coding agent "
                 "installed here has that"
             )
         return "no coding agent installed here can run this agent"
@@ -10924,7 +10942,8 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, added from the code hmz daemon pair prints there, or "
+            "Another machine's hmz, added from the code hmz daemon pair prints "
+            "there, or "
             "from its routes: its epics are listed with /epics @<name>."
         )
         self._fill()
@@ -11094,7 +11113,8 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
         """Says what this is for."""
         self.query_one("#asked", Label).update("Batch apply")
         self.query_one("#about", Label).update(
-            "This machine's settings, written to other daemons as each of their pages saves "
+            "This machine's settings, written to other daemons as each of their "
+            "pages saves "
             "them. Accounts stay put: only a secret sets them."
         )
         self._fill()
@@ -13108,7 +13128,8 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         """Says what this is."""
         self.query_one("#asked", Label).update("New epic")
         self.query_one("#about", Label).update(
-            f"An epic on {escape(self._daemon)}, set up as that directory last ran the flow, "
+            f"An epic on {escape(self._daemon)}, set up as that directory last "
+            f"ran the flow, "
             "and followed here once it starts."
         )
         self._fill()
@@ -13349,7 +13370,8 @@ class RemoteEpics(Sheet[Doing]):
         if not self._up():
             return
         self.query_one("#about", Label).update(
-            f"Every epic {escape(self._daemon)} holds and every chat going there, newest "
+            f"Every epic {escape(self._daemon)} holds and every chat going there, "
+            f"newest "
             "first: workspace, task, status, and session count."
         )
         listing = self.query_one("#choices", OptionList)
@@ -13649,10 +13671,55 @@ _AI_SCOPE, _AI_NOUS, _AI_PRESET = "scope", "nous", "preset"
 
 #: How each state of a conversation is said on its row (Section 4.22.3.2 of daemon.md).
 _AI_STATES = {
-    "running": "answering",
-    "waiting": "between turns",
-    "folded": "folded away",
+    "running": t("typing…"),
+    "waiting": t("between turns"),
+    "folded": t("folded away"),
 }
+
+
+class AiMarks:
+    """What this interface keeps of her conversations: the pinned, the unread, what was read.
+
+    Kept here and nowhere else, as the web page keeps its own in the browser: pinning a
+    conversation or marking it unread changes how this interface lists it, and nothing about
+    the conversation.
+    """
+
+    def __init__(self) -> None:
+        """Starts with nothing pinned and nothing read."""
+        #: The ids pinned, which are listed first.
+        self.pinned: set[int] = set()
+        #: The ids marked unread by hand, until each is opened.
+        self.unread: set[int] = set()
+        #: Up to when each conversation was read, by id, as its `updated` said it then.
+        self.seen: dict[int, str] = {}
+
+    def reads(self, one: Mapping[str, Any]) -> None:
+        """Takes a conversation as read up to what was last said in it."""
+        number = int(one["id"])
+        self.unread.discard(number)
+        self.seen[number] = str(one.get("updated") or "")
+
+    def is_unread(self, one: Mapping[str, Any]) -> bool:
+        """Whether one is unread here: marked so, or said in since it was last read."""
+        number = int(one["id"])
+        if number in self.unread:
+            return True
+        seen = self.seen.get(number)
+        return seen is not None and str(one.get("updated") or "") > seen
+
+    def ordered(self, listed: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        """The conversations as they are listed: the pinned first, then the latest said in."""
+
+        def when(one: Mapping[str, Any]) -> tuple[str, int]:
+            return str(one.get("updated") or one.get("created") or ""), int(one["id"])
+
+        latest = sorted((dict(one) for one in listed), key=when, reverse=True)
+        return sorted(latest, key=lambda one: int(one["id"]) not in self.pinned)
+
+
+#: What this interface keeps of the conversations of this machine's daemon.
+AI_MARKS = AiMarks()
 
 
 def ai_chan(method: str, **params: Any) -> Any:
@@ -13717,33 +13784,43 @@ def _ai_row(one: Mapping[str, Any]) -> str:
             ai_scope(one),
             str(one.get("nous") or ""),
             str(one.get("preset") or ""),
-            _AI_STATES.get(state, state),
+            t(_AI_STATES.get(state, state)),
         ]
     )
 
 
 class AiChans(Picks):
-    """`/ai`: a new Ai-chan conversation, and every one the daemon holds, newest first.
+    """`/ai`: a new Ai-chan conversation, and every one the daemon holds.
 
-    Enter on one follows it in the log screen; `m` on one offers forgetting it. Read once as
-    the menu opens, and again after a conversation is forgotten.
+    The pinned first, then the latest said in, as the web page's drawer lists them. Enter on
+    one follows it in the log screen; `m` on one offers what the drawer's menu does --
+    renaming it, pinning it, marking it read or unread, and deleting it after asking. Read
+    once as the menu opens, and again after a conversation is renamed or deleted.
     """
 
-    asked = "Ai-chan"
-    about = (
-        "Talk to Ai-chan, who operates hmz for you: carry a conversation on, or start a "
-        "new one."
+    asked = t("Ai-chan")
+    about = t(
+        "Ask Ai-chan what your epics did, have her steer a session, or run something "
+        "for you."
     )
 
-    def __init__(self, conversations: Sequence[Mapping[str, Any]]) -> None:
+    def __init__(
+        self,
+        conversations: Sequence[Mapping[str, Any]],
+        marks: AiMarks | None = None,
+    ) -> None:
         """Lists the conversations `aichan.list` answered.
 
         Args:
-          conversations: Each, newest first, as it answered.
+          conversations: Each, as it answered.
+          marks: Which of them are pinned and which unread; this interface's own for None.
         """
         super().__init__(AI_NEW)
-        self._conversations = [dict(one) for one in conversations]
+        self._marks = AI_MARKS if marks is None else marks
+        self._conversations = self._marks.ordered(conversations)
         self._said = ""
+        #: What became of the last thing done from the menu.
+        self._done = ""
         #: The ids of the conversations forgotten from here.
         self.forgotten: set[int] = set()
 
@@ -13763,73 +13840,172 @@ class AiChans(Picks):
     def rows(self) -> list[tuple[str, str, str]]:
         """New, then each conversation by its id."""
         return [
-            (AI_NEW, "New", "a conversation of its own scope, nous and permission"),
+            (
+                AI_NEW,
+                t("New conversation"),
+                t("a conversation with a scope, nous and permissions of its own"),
+            ),
             *(
                 (
                     str(one["id"]),
-                    f"Ai-chan#{one['id']}{_DOT}{one.get('title') or ''}",
+                    (
+                        f"{humanfia.SQUARE} "
+                        if int(one["id"]) in self._marks.pinned
+                        else ""
+                    )
+                    + f"Ai-chan#{one['id']}{_DOT}{one.get('title') or ''}",
                     _ai_row(one),
                 )
                 for one in self._conversations
             ),
         ]
 
+    def unread(self, answer: str) -> bool:
+        """Whether a conversation was said in since it was read here, or is marked unread."""
+        one = self.conversation(answer)
+        return one is not None and self._marks.is_unread(one)
+
     def nothing(self) -> str:
-        """What went wrong forgetting one, or that there are none yet."""
+        """What went wrong with the last thing done, what it did, or that there are none."""
         if self._said:
             return f"[$error]{escape(self._said)}[/]"
-        return "" if self._conversations else "no conversation yet"
+        if self._done:
+            return escape(self._done)
+        return "" if self._conversations else t("No conversations yet")
 
     def menu(self) -> tuple[str, list[Action]] | None:
-        """Forgetting the conversation under the cursor, after asking."""
+        """What the drawer's menu does to the conversation under the cursor."""
         one = self.conversation(self.under())
         if one is None:
             return None
+        number = int(one["id"])
+        pinned = number in self._marks.pinned
+        unread = self._marks.is_unread(one)
         return (
-            f"Ai-chan#{one['id']}",
+            f"Ai-chan#{number}",
             [
                 Action(
+                    "rename",
+                    t("Rename"),
+                    t("gives the conversation another title"),
+                    partial(self._renames, one),
+                ),
+                Action(
+                    "pin",
+                    t("Unpin") if pinned else t("Pin"),
+                    t("lists the conversation by when it was last said in again")
+                    if pinned
+                    else t(
+                        "keeps the conversation at the top of the list on this machine"
+                    ),
+                    partial(self._pins, number, on=not pinned),
+                ),
+                Action(
+                    "read",
+                    t("Mark as read") if unread else t("Mark as unread"),
+                    t("takes the unread dot off it")
+                    if unread
+                    else t("dots the conversation until it is opened"),
+                    partial(self._reads, one, read=unread),
+                ),
+                Action(
                     "forget",
-                    "forget",
-                    "forget the conversation and its scratch directory",
-                    partial(self._forgets, int(one["id"])),
+                    t("Delete"),
+                    t(
+                        "deletes the conversation and its scratch directory, "
+                        "after asking"
+                    ),
+                    partial(self._forgets, number),
                     variant="error",
-                )
+                ),
             ],
         )
 
+    def _redrawn(self, done: str = "", wrong: str = "") -> None:
+        """Draws the list again, saying what the last thing done came to."""
+        self._done, self._said = done, wrong
+        self._conversations = self._marks.ordered(self._conversations)
+        self._rows = None
+        self._fill()
+
+    def _pins(self, number: int, *, on: bool) -> None:
+        """Pins one conversation to the top of this interface's list, or lets it go."""
+        (self._marks.pinned.add if on else self._marks.pinned.discard)(number)
+        self._redrawn(t("Pinned") if on else "")
+
+    def _reads(self, one: Mapping[str, Any], *, read: bool) -> None:
+        """Marks one conversation read up to now, or unread until it is opened."""
+        if read:
+            self._marks.reads(one)
+        else:
+            self._marks.unread.add(int(one["id"]))
+        self._redrawn()
+
+    def _showing(self) -> App[None]:
+        return cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+
+    @work
+    async def _renames(self, one: dict[str, Any]) -> None:
+        """Asks what one conversation is to be called, and renames it by `aichan.rename`.
+
+        Args:
+          one: The conversation.
+        """
+        import asyncio
+
+        title = await self._showing().push_screen_wait(
+            AiRenames(str(one.get("title") or ""))
+        )
+        if not title:
+            return
+        try:
+            await asyncio.to_thread(ai_chan, "rename", id=int(one["id"]), title=title)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._redrawn(wrong=str(why))
+            return
+        one["title"] = title
+        self._redrawn(t("Renamed"))
+
     @work
     async def _forgets(self, number: int) -> None:
-        """Asks whether to forget one conversation, and forgets it by `aichan.forget`.
+        """Asks whether to delete one conversation, and forgets it by `aichan.forget`.
 
         Args:
           number: Its id.
         """
         import asyncio
 
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        if await showing.push_screen_wait(AiForgets(number)) != "yes":
+        if await self._showing().push_screen_wait(AiForgets(number)) != "yes":
             return
         try:
             await asyncio.to_thread(ai_chan, "forget", id=number)
             self.forgotten.add(number)
             listed = await asyncio.to_thread(ai_chan, "list")
         except (LookupError, OSError, RuntimeError, ValueError) as why:
-            self._said = str(why)
-        else:
-            self._said = ""
-            self._conversations = [dict(one) for one in listed["conversations"]]
-        self._rows = None
-        self._fill()
+            self._redrawn(wrong=str(why))
+            return
+        self._marks.pinned.discard(number)
+        self._marks.unread.discard(number)
+        self._conversations = [dict(one) for one in listed["conversations"]]
+        self._redrawn(t("Deleted"))
+
+    @on(OptionList.OptionSelected)
+    def _opened(self, event: OptionList.OptionSelected) -> None:
+        """Takes the conversation picked as read: it is about to be on the screen."""
+        one = self.conversation(str(event.option.id).removeprefix("="))
+        if one is not None:
+            self._marks.reads(one)
 
 
 class AiForgets(Popup):
-    """Whether to forget one Ai-chan conversation, which cannot be carried on after."""
+    """Whether to delete one Ai-chan conversation, which cannot be carried on after."""
 
     CSS = _popup("AiForgets")
+
+    PRIMARY: ClassVar = "yes"
 
     def __init__(self, number: int) -> None:
         """Initializes the question.
@@ -13838,14 +14014,67 @@ class AiForgets(Popup):
           number: The conversation's id.
         """
         super().__init__()
-        self.asked = f"Forget Ai-chan#{number}?"
-        self.about = (
-            "Its conversation and scratch directory go; it cannot be carried on."
+        self.asked = f"Ai-chan#{number}{_DOT}{t('Delete this conversation?')}"
+        self.about = t(
+            "This removes the conversation and its scratch directory, and it "
+            "cannot be carried on afterwards."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Forgetting it, or keeping it."""
-        return [("yes", "forget", "forget it now"), ("no", "keep", "keep it")]
+        """Keeping it, which the keys open on, or deleting it."""
+        return [
+            ("no", t("Cancel"), t("keeps the conversation")),
+            ("yes", t("Delete"), t("deletes the conversation now")),
+        ]
+
+
+class AiRenames(Form[str]):
+    """What an Ai-chan conversation is to be called: one written row, opening on its title."""
+
+    def __init__(self, title: str) -> None:
+        """Opens on the title the conversation has.
+
+        Args:
+          title: It.
+        """
+        super().__init__()
+        self._typed_in = {"title": title}
+        self._fresh = {"title"}
+
+    def asked(self) -> list[Question]:
+        """The title."""
+        return [
+            Question(
+                "title",
+                t("New name"),
+                t("what the conversation is listed by"),
+                needed=not self._typed_in.get("title", "").strip(),
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return t("renames the conversation")
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update(t("Rename conversation"))
+        self.query_one("#about", Label).update(
+            t(
+                "A conversation is listed by its title, which is the start of "
+                "the first thing said in it until it is given another."
+            )
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the title, once it says something."""
+        title = " ".join(self._typed_in.get("title", "").split())
+        if not title:
+            self._wrong = t("This needs a title.")
+            self._fill()
+            return
+        self.dismiss(title)
 
 
 class AiAsked(NamedTuple):
@@ -13919,19 +14148,24 @@ class AiChanNew(Form[AiAsked]):
         typed = self._typed_in
         return [
             Question(
-                _AI_SCOPE, "scope", self.means(_AI_SCOPE, typed[_AI_SCOPE]), _STEPS
+                _AI_SCOPE, t("Scope"), self.means(_AI_SCOPE, typed[_AI_SCOPE]), _STEPS
             ),
             Question(
                 _AI_NOUS,
-                "nous",
-                "what Ai-chan thinks with"
+                t("Nous"),
+                t("Pick a nous for Ai-chan.")
                 if self._nouses
-                else "what Ai-chan thinks with, as -a spells an agent",
+                else t(
+                    "what Ai-chan thinks with, written the way `-a` spells an agent"
+                ),
                 _STEPS if self._nouses else _WRITES,
                 needed=not typed[_AI_NOUS].strip(),
             ),
             Question(
-                _AI_PRESET, "preset", self.means(_AI_PRESET, typed[_AI_PRESET]), _STEPS
+                _AI_PRESET,
+                t("Permissions"),
+                self.means(_AI_PRESET, typed[_AI_PRESET]),
+                _STEPS,
             ),
         ]
 
@@ -13962,35 +14196,36 @@ class AiChanNew(Form[AiAsked]):
         """
         if held == _AI_SCOPE:
             return {
-                "daemon": "every workspace and epic of this daemon",
-                "workspace": f"{_homed(self._workspace)} and its epics",
-                "epic": f"the epic {self._epic} of {_homed(self._workspace)}",
+                "daemon": t("Every workspace and epic here"),
+                "workspace": t("In the folder {name}", name=_homed(self._workspace)),
+                "epic": t(
+                    "the epic {epic} of the folder {folder}",
+                    epic=self._epic,
+                    folder=_homed(self._workspace),
+                ),
             }.get(value, "")
         if held == _AI_PRESET:
             return {
-                "read-only": "she reads, and changes nothing",
-                "danger-full-access": "she may change what her scope reaches",
+                "read-only": t("Reads, and changes nothing"),
+                "danger-full-access": t("Changes what her scope reaches"),
             }.get(value, "")
         return ""
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "the first line you say starts the conversation"
+        return t("nothing is made yet; the first line you say starts the conversation")
 
     def _ask(self) -> None:
         """Says what this is."""
-        self.query_one("#asked", Label).update("New Ai-chan conversation")
-        self.query_one("#about", Label).update(
-            "What she may reach, what she thinks with, and what she may change: none of "
-            "it changes once the conversation is made."
-        )
+        self.query_one("#asked", Label).update(t("New conversation"))
+        self.query_one("#about", Label).update(t("Set when the conversation was made"))
         self._fill()
 
     def action_done(self) -> None:
         """Answers with the conversation set up, once it has a nous."""
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         if not typed[_AI_NOUS]:
-            self._wrong = "Name Ai-chan's nous: the ai_chan setting names none."
+            self._wrong = t("Pick a nous for Ai-chan.")
             self._fill()
             return
         scope = typed[_AI_SCOPE]

@@ -298,6 +298,131 @@
    "wants": "a tool call failed",
    "where": "end of a row, after a ✕ mark: write `✕ failed` with the page's word for failed, lower case",
    "text": "✕ failed"
+  },
+  {
+   "wants": "title of the list of Ai-chan conversations: her name alone",
+   "where": "sheet and pane title in the terminal interface, write exactly Ai-chan",
+   "text": "Ai-chan"
+  },
+  {
+   "wants": "what the F3 key does: opens the pane of Ai-chan conversations",
+   "where": "key hint on the bottom line of the terminal interface, write exactly Ai-chan",
+   "text": "Ai-chan"
+  },
+  {
+   "wants": "what the New conversation row starts: a conversation with a scope, nous and permissions of its own",
+   "where": "quiet line beside the first row of a list, lower-case start, no full stop",
+   "text": "a conversation with a scope, nous and permissions of its own"
+  },
+  {
+   "wants": "state of an Ai-chan conversation whose host is up and no turn is open: between turns",
+   "where": "two lower-case words at the end of a row",
+   "text": "between turns"
+  },
+  {
+   "wants": "state of an Ai-chan conversation whose host closed after nobody viewed it: folded away, and carried on when opened",
+   "where": "two lower-case words at the end of a row",
+   "text": "folded away"
+  },
+  {
+   "wants": "what the Rename row of a conversation's menu does: gives the conversation another title",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "gives the conversation another title"
+  },
+  {
+   "wants": "what the Pin row of a conversation's menu does: keeps the conversation at the top of the list on this machine",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "keeps the conversation at the top of the list on this machine"
+  },
+  {
+   "wants": "what the Unpin row of a conversation's menu does: lists the conversation by when it was last said in again",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "lists the conversation by when it was last said in again"
+  },
+  {
+   "wants": "what the Mark as read row of a conversation's menu does: takes the unread dot off it",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "takes the unread dot off it"
+  },
+  {
+   "wants": "what the Mark as unread row of a conversation's menu does: dots the conversation until it is opened",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "dots the conversation until it is opened"
+  },
+  {
+   "wants": "what the Delete row of a conversation's menu does: deletes the conversation and its scratch directory, after asking",
+   "where": "quiet line beside a menu row, lower-case start, no full stop",
+   "text": "deletes the conversation and its scratch directory, after asking"
+  },
+  {
+   "wants": "deleting an Ai-chan conversation removes the conversation and its scratch directory, and it cannot be carried on afterwards",
+   "where": "one sentence under the question `Delete this conversation?`",
+   "text": "This removes the conversation and its scratch directory, and it cannot be carried on afterwards."
+  },
+  {
+   "wants": "what the Delete button of the question does: deletes the conversation now",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "deletes the conversation now"
+  },
+  {
+   "wants": "what the Cancel button of the question does: keeps the conversation",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "keeps the conversation"
+  },
+  {
+   "wants": "title of the form that renames an Ai-chan conversation",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Rename conversation"
+  },
+  {
+   "wants": "a conversation is listed by its title, which is the start of the first thing said in it until it is given another",
+   "where": "one sentence under the title of the rename form",
+   "text": "A conversation is listed by its title, which is the start of the first thing said in it until it is given another."
+  },
+  {
+   "wants": "what a conversation's title is for: it is what the conversation is listed by",
+   "where": "quiet hint beside the one field of the rename form, lower-case start, no full stop",
+   "text": "what the conversation is listed by"
+  },
+  {
+   "wants": "what pressing Done on the rename form does: renames the conversation",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "renames the conversation"
+  },
+  {
+   "wants": "refusal: a conversation's title cannot be empty",
+   "where": "error line under a form, one short sentence",
+   "text": "This needs a title."
+  },
+  {
+   "wants": "what the epic scope reaches: the epic {epic} of the folder {folder}",
+   "where": "quiet line beside the Scope row of a form, lower-case start, no full stop",
+   "text": "the epic {epic} of the folder {folder}"
+  },
+  {
+   "wants": "what the Nous field of the form takes when no nous is saved: what Ai-chan thinks with, written the way `-a` spells an agent",
+   "where": "quiet hint beside a field, lower-case start, no full stop, keep `-a` in backticks",
+   "text": "what Ai-chan thinks with, written the way `-a` spells an agent"
+  },
+  {
+   "wants": "what pressing Done on the new conversation form does: nothing is made yet, the first line you say starts the conversation",
+   "where": "quiet hint beside the Done button of a form, lower-case start, no full stop",
+   "text": "nothing is made yet; the first line you say starts the conversation"
+  },
+  {
+   "wants": "what the n key does in the Ai-chan pane: starts a new conversation",
+   "where": "key hint on the bottom line of the terminal interface: the page's own word `New`",
+   "text": "New"
+  },
+  {
+   "wants": "what the m key does on a row of a list: opens the row's menu of actions",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Menu"
+  },
+  {
+   "wants": "the daemon could not be asked for Ai-chan's conversations: {why}",
+   "where": "error line in a pane, one sentence ending with the reason after a colon",
+   "text": "Ai-chan's conversations could not be loaded: {why}"
   }
  ],
  "model": "gcp/google/gemini-4-argon"
