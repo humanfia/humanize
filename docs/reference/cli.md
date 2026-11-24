@@ -36,6 +36,9 @@ python -m hmz ...
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
 | `devices` | List and revoke the devices paired with this daemon. |
 | `skills` | Install, list and remove the hmz skill for using the CLI. |
+| `settings` | Read and write the settings this daemon keeps. |
+| `accounts` | List, add and remove the accounts agents run as. |
+| `nous` | List, scan and write nous: models, tries and fallbacks. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
@@ -433,6 +436,119 @@ Without `--for` or `--dir`, `add` writes for every harness installed on this mac
 - `remove` deletes `SKILL.md` and `reference.md`, then the `hmz` folder if nothing else is in it. It never removes a skill hmz did not write: it refuses one in a folder you named, and skips it otherwise.
 - `current` means the skill's front matter records this hmz's version; `older` means any other version. Run `hmz skills add` again after `hmz update`.
 - A skill that would pass 500 lines keeps one line per top-level command in `SKILL.md` and lists every command in `reference.md` beside it.
+## hmz settings {#hmz-settings}
+
+```text
+hmz settings get [KEY] [-w PATH]
+hmz settings set details|reports|harness_sessions on|off
+hmz settings set chat AGENT [-w PATH]
+hmz settings set prefer native|flow
+hmz settings set listen [SPEC]...
+hmz settings set ice_servers [SERVER]...
+hmz settings set backup JSON
+hmz settings set backup.target NAME [--url URL] [--branch BRANCH] [--policy POLICY]... [--every N] [--default | --no-default] [--remove]
+hmz settings set backup.defaults [NAME]...
+hmz settings forget -w PATH
+```
+
+`get` prints one line per setting: its name and its value, text as it is and anything else as JSON. With `KEY` it prints that value alone. With `--json` it prints the settings as one object, or `{KEY: value}`.
+
+| Key | Type | What it holds |
+| --- | --- | --- |
+| `workspace` | string | The workspace the answer is of: the home folder unless `-w` names one. |
+| `flow`, `flows` | string, list | The flow the workspace was last set up to run, and every flow set up there. |
+| `chat` | string | The chat agent remembered for the workspace, or empty. |
+| `prefer` | string | What `$NAME` in a chat means where it names both a native skill and a flow: `native` or `flow`. |
+| `ai_chan` | string | The nous the last Ai-chan conversation was made with, or empty. |
+| `details` | boolean | Whether tool calls and thinking are shown. |
+| `harness_sessions` | boolean | Whether harness sessions are listed with a folder's chats. |
+| `reports` | boolean or `null` | Whether Humanize reports its own failures; `null` if never answered. |
+| `backup` | object | `targets` (each `name`, `url` without credentials, `branch`, `policies`, `every`) and `defaults`. |
+| `listen` | list | The listener specs the daemon opens. |
+| `ice_servers` | list | The STUN and TURN servers; a `credential` is shown as `true`, never as its value. |
+
+Each `set` command writes one setting, prints `Saved.`, and with `--json` prints every setting as it is afterwards. `-w PATH` names a workspace on the daemon's machine; a relative path is read from the current directory.
+
+| Command | Value |
+| --- | --- |
+| `details`, `reports`, `harness_sessions` | `on` or `off` (`true` and `false` are also accepted). |
+| `chat AGENT` | An agent as `-a` spells one, remembered for the workspace of `-w`, or for the home folder. |
+| `prefer` | `native` or `flow`, for every chat of the machine. |
+| `listen` | Every listener spec, replacing those written; none closes every listener. One JSON list is also accepted. Listeners open and close at once. |
+| `ice_servers` | Every server, replacing those written: a URL such as `stun:host:3478`, a JSON object of `urls`, `username` and `credential`, one JSON list, or `-` to read the list from standard input. `"credential": true` keeps the credential already written. A credential itself is taken from standard input only. |
+| `backup JSON` | The whole `{targets, defaults}` object; `-` reads it from standard input. A target whose `url` is the one `get` printed keeps the URL written, credentials included. |
+| `backup.target NAME` | Adds the target, or changes the one of that name, keeping what is not given. `--policy` takes `session`, `interval`, `end` or `manual` and may be repeated; `--every` is the minutes between backups under `interval`; `--default` and `--no-default` change whether new epics go to it; `--remove` removes it. A new target needs `--url` and starts on the branch `main`, backed up by hand only. |
+| `backup.defaults` | The targets a new epic goes to; none means no target by default. |
+
+`forget -w PATH` forgets what the workspace was set up with and prints `Forgotten.` or `Nothing to forget.`; with `--json`, the settings with `forgot`.
+
+A value that is not valid JSON where JSON is expected, and a `KEY` that is not a setting, are usage errors (exit status `2`). A value the daemon refuses exits `1` and writes nothing. See [Settings](/user/settings).
+
+## hmz accounts {#hmz-accounts}
+
+```text
+hmz accounts list
+hmz accounts ways [CLI]
+hmz accounts add CLI NAME --way WAY [--set NAME=VALUE]... [--env NAME[=VAR]]... [--stdin NAME]
+hmz accounts correct CLI NAME [--set NAME=VALUE]... [--env NAME[=VAR]]... [--stdin NAME]
+hmz accounts remove CLI NAME
+hmz accounts models CLI [NAME]
+hmz accounts copy CLI NAME INTO
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per account: CLI, name (`Local` for the machine's own sign-in), sign-in method, the variables it sets, how many models it runs. | `{"gateway", "accounts": [{"cli", "name", "way", "sets", "made", "models", "asked", "serves"}]}` |
+| `ways [CLI]` | One line per sign-in method: CLI, method, what it is; under it, one indented line per answer it asks for. | `{"gateway", "backends": [{"cli", "wants", "ways": [{"name", "about", "group", "terminal", "asks": [{"env", "about", "secret", "fixed"}]}]}]}` |
+| `add` | `Made CLI@NAME.` | As `list`. |
+| `correct` | `Saved.` | As `list`. |
+| `remove` | `Removed` | As `list`. |
+| `models CLI [NAME]` | One model per line, or `No models listed`. Without `NAME`, asks as the machine's own sign-in. | `{"cli", "name", "models", "asked"}` |
+| `copy CLI NAME INTO` | `Copied to INTO` | As `list`. |
+
+`add` and `correct` take the answers to a sign-in method, each named by the variable `ways` lists for it.
+
+| Option | Where the answer comes from |
+| --- | --- |
+| `--set NAME=VALUE` | The command line. Refused for an answer `ways` marks `secret`. |
+| `--env NAME` | The environment variable `NAME` of the command's own process. `--env NAME=VAR` reads `VAR` instead. |
+| `--stdin NAME` | Standard input, without its trailing line feed. |
+
+No command prints the value of an answer: an account is listed by the names of the variables it sets. A `--set` that names a credential, a `--set` without `=`, an `--env` naming an unset variable, and an empty answer from `--env` or `--stdin` are usage errors (exit status `2`), and nothing is made. A sign-in method whose `terminal` is `true` runs the CLI's own sign-in and can only be used from `/settings accounts` in the terminal interface. `correct` keeps every answer it is not given. See [Accounts](/user/accounts).
+
+## hmz nous {#hmz-nous}
+
+```text
+hmz nous list [--concrete]
+hmz nous scan
+hmz nous set NAME [--tries N] [--policy POLICY] [--timeout SECONDS] [--graph GRAPH]... [--then GRAPH]... [--no-then]
+hmz nous rename NAME TO
+hmz nous clear NAME
+```
+
+| Command | Text output |
+| --- | --- |
+| `list` | One line per nous written: name, `Virtual` or `Concrete`, tries and policy, limit, graph, and where a turn goes once its tries are spent. A graph that is a chain is printed as its nous separated by commas, any other as JSON. |
+| `list --concrete` | Every concrete nous the harnesses run, one per line. |
+| `scan` | How many concrete nous were found, on standard output; one line per harness that would not answer, on standard error. A harness that does not answer does not fail the command. |
+| `set` | `Saved.` |
+| `rename NAME TO` | `Renamed` |
+| `clear NAME` | `Removed` |
+
+With `--json`, every command prints `{"nous", "policies", "default", "strategies", "faults", "concrete", "scanning"}`; `scan` adds `failed`, each `{"cli", "account", "why"}`. Each entry of `nous` has `name`, `virtual`, `tries`, `policy`, `timeout`, `graph` and `then`; a graph is `null` or `{"start", "nodes"}`, each node `id`, `use` or `balance` with `among` and `spread`, and `on`.
+
+`set` writes one nous and keeps what it is not given. A name with no `/` is a virtual nous and needs `--graph`.
+
+| Option | What it sets |
+| --- | --- |
+| `--tries N` | How many more goes a turn that fails there is given. |
+| `--policy POLICY` | The wait between tries: one of the `policies` of `hmz nous list --json`. |
+| `--timeout SECONDS` | The limit of a turn; `0` for none. |
+| `--graph GRAPH` | What a virtual nous stands for: a nous, or one JSON graph. Repeated, the nous are tried in turn. |
+| `--then GRAPH` | Where a turn goes once its tries are spent, in the same forms. |
+| `--no-then` | Sends a turn nowhere once its tries are spent. |
+
+A graph that is not valid JSON is a usage error (exit status `2`). The daemon refuses (exit status `1`) an unknown policy, a graph that comes round to itself, and clearing a nous another nous names. See [Nous](/user/nous).
 
 ## hmz internal
 

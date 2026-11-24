@@ -90,6 +90,10 @@ It is normative. It is cited by the tag [CLI].
 - [20. `hmz env`](#20-hmz-env)
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
 - [22. `hmz settings`, `hmz accounts` and `hmz nous`](#22-hmz-settings-hmz-accounts-and-hmz-nous)
+  - [22.1. Synopsis](#221-synopsis)
+  - [22.2. `hmz settings`](#222-hmz-settings)
+  - [22.3. `hmz accounts`](#223-hmz-accounts)
+  - [22.4. `hmz nous`](#224-hmz-nous)
 - [23. `hmz runtimes`, `hmz easytier` and `hmz daemons`](#23-hmz-runtimes-hmz-easytier-and-hmz-daemons)
 - [24. `hmz btw`, `hmz ai` and `hmz notices`](#24-hmz-btw-hmz-ai-and-hmz-notices)
 - [25. `hmz skills`](#25-hmz-skills)
@@ -1504,7 +1508,180 @@ This section is reserved for `hmz flows`, `hmz flowverses` and `hmz workspaces`,
 
 ## 22. `hmz settings`, `hmz accounts` and `hmz nous`
 
-This section is reserved for `hmz settings`, `hmz accounts` and `hmz nous`, the declared commands of `settings.*`, `accounts.*` and `nous.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 22.1. Synopsis
+
+```text
+hmz settings get [<key>] [-w <path>]
+hmz settings set details|reports|harness_sessions on|off
+hmz settings set chat <agent> [-w <path>]
+hmz settings set prefer native|flow
+hmz settings set listen [<spec>]...
+hmz settings set ice_servers [<server>]...
+hmz settings set backup <json>
+hmz settings set backup.target <name> [--url <url>] [--branch <branch>] [--policy <policy>]...
+                               [--every <n>] [--default | --no-default] [--remove]
+hmz settings set backup.defaults [<name>]...
+hmz settings forget -w <path>
+
+hmz accounts list
+hmz accounts ways [<cli>]
+hmz accounts add <cli> <name> --way <way> [--set <name>=<value>]... [--env <name>[=<var>]]...
+                 [--stdin <name>]
+hmz accounts correct <cli> <name> [--set <name>=<value>]... [--env <name>[=<var>]]...
+                     [--stdin <name>]
+hmz accounts remove <cli> <name>
+hmz accounts models <cli> [<name>]
+hmz accounts copy <cli> <name> <into>
+
+hmz nous list [--concrete]
+hmz nous scan
+hmz nous set <name> [--tries <n>] [--policy <policy>] [--timeout <seconds>] [--graph <graph>]...
+             [--then <graph>]... [--no-then]
+hmz nous rename <name> <to>
+hmz nous clear <name>
+```
+
+**22.1.1** `hmz settings`, `hmz accounts` and `hmz nous` MUST each be a group of declared commands
+(Section 16), and `hmz settings set` MUST be a group under `hmz settings` with one command for each
+setting it writes.
+
+**22.1.2** A command of this section that finds its line cannot be read after it was parsed MUST
+write what is wrong as Section 16.10 states, to standard error whether or not `--json` was given,
+MUST exit with status 2, and MUST NOT have written anything to the daemon.
+
+### 22.2. `hmz settings`
+
+**22.2.1** `-w <path>` MUST name a workspace of the daemon's machine. A path that is absolute or
+begins with `~` MUST be sent as written, and any other MUST be sent resolved against the working
+directory. Where `-w` is absent the command MUST send no `workspace`.
+
+**22.2.2** `hmz settings get` MUST call `settings.get`. Its JSON document MUST be the result of
+`settings.get`, whole. Without `--json` it MUST write one line for each of `workspace`, `flow`,
+`flows`, `chat`, `prefer`, `ai_chan`, `details`, `harness_sessions`, `reports`, `backup`, `listen`
+and `ice_servers`, in that order: its name and its value in columns, a value that is text as it is
+and any other as JSON.
+
+**22.2.3** `hmz settings get <key>` MUST write the value of that one setting alone, in the same form,
+and its JSON document MUST be `{<key>: <value>}`. A `<key>` that is none of the names of 22.2.2 MUST
+be a usage error (22.1.2), and `settings.get` MUST NOT be called.
+
+**22.2.4** Each command of `hmz settings set` MUST call `settings.set` once with the one parameter
+this section names for it, MUST write `Saved.`, and its JSON document MUST be the result of
+`settings.set`, whole.
+
+**22.2.5** `details`, `reports` and `harness_sessions` MUST take `on` or `true` for `true` and `off`
+or `false` for `false`, and MUST send it as the parameter of the same name.
+
+**22.2.6** `chat <agent>` MUST send `<agent>` as `chat`, with the workspace of `-w`. `prefer` MUST
+take `native` or `flow` and send it as `prefer`.
+
+**22.2.7** `listen` MUST send as `listen` a list of its arguments, each a listener spec; given one
+argument that begins with `[`, it MUST send that argument read as a JSON list; given the one
+argument `-`, the JSON list read from standard input; given none, an empty list. JSON read so that
+is not a list MUST be a usage error (22.1.2), here and in 22.2.8.
+
+**22.2.8** `ice_servers` MUST send as `ice_servers` a list of its arguments: one that begins with `{`
+read as a JSON object, any other as `{"urls": <argument>}`. Given one argument that begins with `[`
+it MUST send that argument read as a JSON list, and given the one argument `-` it MUST send the JSON
+list read from standard input. A server whose `credential` is text MUST be taken from standard
+input alone: given one on the command line, the command MUST refuse it as a usage error (22.1.2).
+
+**22.2.9** `backup <json>` MUST send `<json>`, read as JSON, as `backup`; `-` MUST read the JSON from
+standard input.
+
+**22.2.10** `backup.target <name>` and `backup.defaults` MUST call `settings.get` with no workspace
+and then `settings.set` with a `backup` that holds every target `settings.get` answered, each as it
+was answered, changed only as 22.2.11 and 22.2.12 state.
+
+**22.2.11** `backup.target <name>` MUST change the target of that name where there is one, and
+otherwise MUST add a target of that name with the branch `main`, no policy and `every` 30. `--url`,
+`--branch` and `--every` MUST set `url`, `branch` and `every`; `--policy`, given at all, MUST set
+`policies` to those of `session`, `interval` and `end` that were given, `manual` standing for none;
+`--default` MUST add the name to `defaults` where it is not there and `--no-default` MUST remove it,
+`defaults` being otherwise sent as it was answered; `--remove` MUST remove the target, and its name
+from `defaults`, instead, and where there is no target of that name MUST be a usage error (22.1.2).
+
+**22.2.12** `backup.defaults` MUST set `defaults` to its arguments, in order.
+
+**22.2.13** A value that is to be read as JSON and is not JSON MUST be a usage error (22.1.2).
+
+**22.2.14** `hmz settings forget -w <path>` MUST call `settings.forget` with that workspace and
+write `Forgotten.` where `forgot` is true and `Nothing to forget.` otherwise. Its JSON document MUST
+be the result of `settings.forget`, whole.
+
+### 22.3. `hmz accounts`
+
+**22.3.1** A command of `hmz accounts` MUST NOT write the value of any answer it was given, to any
+stream, in any case (Section 4.3).
+
+**22.3.2** `hmz accounts list` MUST call `accounts.list` and write one line per account, in the
+daemon's order: its harness, its name, the way it was made by, the names of the variables it sets
+separated by commas, and how many models it runs, in columns. An account whose name is empty MUST be
+written with the name `Local`. Its JSON document MUST be `{"gateway", "accounts": [{"cli", "name",
+"way", "sets", "made", "models", "asked", "serves"}]}`.
+
+**22.3.3** `hmz accounts ways` MUST call `accounts.list` and write, for each way of each harness,
+one line of the harness, the way and what the way says of itself, a way whose `terminal` is true
+marked as one made at a terminal; and under it, indented, one line for each answer the way asks:
+the variable and what it is, with what it is left as where it has a `fixed`. `<cli>` MUST restrict
+both the lines and the document to that harness. Its JSON document MUST be `{"gateway", "backends":
+[{"cli", "wants", "ways": [{"name", "about", "group", "terminal", "asks": [{"env", "about", "secret",
+"fixed"}]}]}]}`.
+
+**22.3.4** `hmz accounts add` and `hmz accounts correct` MUST take answers in three ways, and in no
+other: `--set <name>=<value>`, the value on the command line; `--env <name>`, the value of the
+environment variable `<name>` of the command's own process, or of `<var>` where written
+`<name>=<var>`; and `--stdin <name>`, everything read from standard input less the line feeds and
+carriage returns it ends with.
+
+**22.3.5** Before it makes or corrects an account, the command MUST call `accounts.list` and MUST
+refuse as a usage error (22.1.2) a `--set` naming a variable whose `secret` is true in the way the
+account is made by (`--way` for `add`, the account's own `way` for `correct`). Where `correct` finds
+the account but not its way, every variable the account sets MUST be taken for secret.
+
+**22.3.6** A `--set` that is not `<name>=<value>`, an `--env` naming an environment variable that
+is not set, and an answer of `--env` or `--stdin` that is empty MUST be usage errors (22.1.2), and
+what is written of the first MUST NOT repeat the argument.
+
+**22.3.7** `hmz accounts add <cli> <name> --way <way>` MUST call `accounts.create` with the answers
+and write `Made <cli>@<name>.`. `hmz accounts correct <cli> <name>` MUST call `accounts.correct`
+with the answers and write `Saved.`. `hmz accounts remove <cli> <name>` MUST call `accounts.remove`
+and write `Removed`. `hmz accounts copy <cli> <name> <into>` MUST call `accounts.copy` and write
+`Copied to <into>`. The JSON document of each MUST be that of 22.3.2, from the method's result.
+
+**22.3.8** `hmz accounts models <cli> [<name>]` MUST call `accounts.models`, `<name>` absent being
+`""`, and write the models of that account in the result, one a line, or `No models listed` where
+there are none. Where no name was given and the result lists no such account, the models MUST be
+those of the `concrete` of `nous.list` that begin `<cli>/`, less that prefix. Its JSON document MUST
+be `{"cli", "name", "models", "asked"}`.
+
+### 22.4. `hmz nous`
+
+**22.4.1** The JSON document of every command of `hmz nous` MUST be the result of its method, whole,
+without `failed` unless the command is `hmz nous scan`.
+
+**22.4.2** `hmz nous list` MUST call `nous.list` and write one line per nous written, in the daemon's
+order: its name, whether it is virtual or concrete, its tries and policy, its limit, its graph and
+its `then`, in columns. A graph in which every node uses one nous and goes on, for any fault, to the
+next MUST be written as those nous separated by commas, and any other graph as JSON. `--concrete`
+MUST write instead each of `concrete`, one a line.
+
+**22.4.3** `hmz nous scan` MUST call `nous.scan`, write to standard output how many concrete nous
+there are and of how many harnesses, and, without `--json`, write to standard error one line for
+each entry of `failed`. A harness that would not answer MUST NOT change the exit status.
+
+**22.4.4** `hmz nous set <name>` MUST call `nous.list` and then `nous.set` with, for each of `tries`,
+`policy`, `timeout`, `graph` and `then`, what its option gave or, where the option is absent, what
+`nous.list` answered for the nous of that name, so that what the line does not say stays as it was
+written. `--no-then` MUST send no `then`. It MUST write `Saved.`.
+
+**22.4.5** `--graph` and `--then` MUST each be read as a graph: given once with a value that begins
+with `{`, `[` or `"`, that value read as JSON; otherwise the nous given, one alone as that nous and
+several, in the order given or separated by commas, as a list of nous. A value that is to be read
+as JSON and is not JSON MUST be a usage error (22.1.2).
+
+**22.4.6** `hmz nous rename <name> <to>` MUST call `nous.rename` and write `Renamed`. `hmz nous clear
+<name>` MUST call `nous.clear` and write `Removed`.
 
 ## 23. `hmz runtimes`, `hmz easytier` and `hmz daemons`
 

@@ -132,7 +132,21 @@ The CLI logs each wait and each fallback to another nous.
 
 ![hmz chat with a virtual nous: Codex is rate-limited, the turn waits, then carries on as Claude Code](/shots/user-nous-chat.svg)
 
-You cannot create a nous from the CLI. Create it in the app, in the terminal, or in Python with [the SDK](/builder/sdk). Humanize saves every nous in `~/.config/humanize/settings.toml` under `nous`. See [settings.toml](/reference/settings).
+`hmz nous` lists and writes nous through the daemon:
+
+```sh
+hmz nous list --concrete              # every model an agent can be given
+hmz nous scan                         # ask every installed harness again
+hmz nous set claude/claude-opus-4-1 --tries 3 --timeout 600
+hmz nous set careful --graph claude/claude-opus-4-1 --graph codex/gpt-6-sol
+hmz nous set claude/claude-haiku-4-5 --then careful
+hmz nous rename careful slow
+hmz nous clear slow
+```
+
+`set` keeps what you do not give it. Repeat `--graph` or `--then` to try several nous in turn, or pass one JSON graph of `start` and `nodes` for a balance node or per-fault edges; `hmz nous list --json` prints graphs in that form. See the [CLI reference](/reference/cli#hmz-nous).
+
+Humanize saves every nous in `~/.config/humanize/settings.toml` under `nous`. See [settings.toml](/reference/settings).
 
 ## How faults work
 
