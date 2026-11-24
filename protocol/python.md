@@ -2852,8 +2852,9 @@ fetched.
 **4.8.21** `Flowverses.plain(url)` MUST return `url` with any credentials removed.
 
 **4.8.22** `Flowverses.whence(one, nowhere)` MUST return the flowverse's credential-free URL; for
-`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in
-~/.local/share/humanize/flows`; and `nowhere` for a directory with no readable origin.
+`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in ` and
+the directory of Section 4.9 of [FILES], a leading home directory written `~`; and `nowhere` for a
+directory with no readable origin.
 
 ### 4.9. `Accounts`
 

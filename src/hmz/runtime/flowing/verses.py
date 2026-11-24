@@ -69,9 +69,11 @@ __all__ = [
     "refresh",
     "remove",
     "renamed",
+    "shown",
     "spelled",
     "split",
     "standing",
+    "tilded",
     "under",
 ]
 
@@ -87,13 +89,8 @@ OFFICIAL_URL = "https://github.com/humanfia/flowverse"
 LOCAL = "local"
 USER = "user"
 
-#: And where those two are, nearest first, as a person is told: the project one is relative to
-#: wherever Humanize is being run, and the other is in the data directory, which is here where
-#: `XDG_DATA_HOME` does not move it (:func:`hmz.data`).
-MINE = {
-    LOCAL: ".hmz/flows",
-    USER: "~/.local/share/humanize/flows",
-}
+#: And the two, nearest first: where each is, as a person is told, is :func:`shown`.
+MINE = (LOCAL, USER)
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is
 #: Humanize's own and two are yours, and a repository cloned into any of their slots would be
@@ -312,6 +309,36 @@ def spelled(flow: str | os.PathLike[str]) -> str:
     return at if pathed(at) else f"./{at}"
 
 
+def shown(name: str) -> str:
+    """Where one of the two places your own flows live is, as a person is told.
+
+    Args:
+      name: Which of them, as :data:`MINE` names it.
+
+    Returns:
+      This project's relative to wherever Humanize is being run, and yours where they are in
+      use -- in the data directory, wherever `XDG_DATA_HOME` moves it -- from `~` where they
+      are under the home directory.
+    """
+    return ".hmz/flows" if name == LOCAL else tilded(data() / "flows")
+
+
+def tilded(at: Path) -> str:
+    """A path as a person writes it: under the home directory, from `~`.
+
+    Args:
+      at: The path, absolute.
+
+    Returns:
+      It, with a leading home directory written `~`; as it is where there is no home behind
+      the `~`.
+    """
+    home = Path(os.path.expanduser("~"))
+    if home.is_absolute() and at.is_relative_to(home) and at != home:
+        return f"~/{at.relative_to(home).as_posix()}"
+    return str(at)
+
+
 def called(verse: str, flow: str) -> str:
     """What a flow is called, given its flowverse and what that flowverse calls it.
 
@@ -415,7 +442,7 @@ def add(url: str, name: str = "") -> Flowverse:
         # Same again: these two are the flows of your own, read out of a directory rather than
         # a clone, so a repository under the name would be listed and never looked at.
         raise ValueError(
-            f"{called} is what your own flows in {MINE[called]} are listed under; "
+            f"{called} is what your own flows in {shown(called)} are listed under; "
             "pick another name"
         )
     if where(called).exists():
@@ -465,7 +492,7 @@ def fetch(name: str) -> Flowverse:
         # Telling somebody the second is their own flows directory is telling them to look in
         # a place their problem is not in.
         said = (
-            f"a directory of flows of your own, {MINE[name]}"
+            f"a directory of flows of your own, {shown(name)}"
             if name in MINE
             else "a flowverse with no clone of an index in it; remove it and add it again"
         )

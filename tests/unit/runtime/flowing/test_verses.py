@@ -434,3 +434,14 @@ def test_a_clone_that_fails_leaves_nothing(runs: Runs, tmp_path: Path) -> None:
     with pytest.raises(OSError, match="could not read"):
         verses.clone("file:///srv/x", at)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_your_flows_are_shown_where_they_are_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "me"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "me" / "kept"))
+    assert verses.shown(USER) == "~/kept/humanize/flows"
+    assert verses.shown(LOCAL) == ".hmz/flows"
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "elsewhere"))
+    assert verses.shown(USER) == str(tmp_path / "elsewhere" / "humanize" / "flows")
