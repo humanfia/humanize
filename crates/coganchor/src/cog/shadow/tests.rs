@@ -849,6 +849,39 @@ fn a_file_is_no_root() {
 }
 
 #[test]
+fn a_registry_kept_before_is_moved_to_where_it_is_now() {
+    let dir = tempfile::tempdir().unwrap();
+    let tmp = dir.path();
+    let was = tmp.join("cache/humanize/shadows");
+    fs::create_dir_all(&was).unwrap();
+    fs::write(was.join("0123456789abcdef.json"), b"{}").unwrap();
+    let now = tmp.join("state/humanize/shadows");
+
+    registry::settle(&was, &now);
+
+    assert_eq!(names(&now), ["0123456789abcdef.json"]);
+    assert!(!was.exists());
+}
+
+#[test]
+fn a_registry_kept_before_is_never_merged_into_one_kept_since() {
+    let dir = tempfile::tempdir().unwrap();
+    let tmp = dir.path();
+    let (was, now) = (tmp.join("was"), tmp.join("now"));
+    fs::create_dir_all(&was).unwrap();
+    fs::write(was.join("old.json"), b"{}").unwrap();
+    fs::create_dir_all(&now).unwrap();
+    fs::write(now.join("new.json"), b"{}").unwrap();
+
+    registry::settle(&was, &now);
+    registry::settle(&tmp.join("nothing"), &tmp.join("nowhere"));
+
+    assert_eq!(names(&now), ["new.json"]);
+    assert_eq!(names(&was), ["old.json"]);
+    assert!(!tmp.join("nowhere").exists());
+}
+
+#[test]
 fn a_root_that_cannot_be_made_is_said_so() {
     let dir = tempfile::tempdir().unwrap();
     let tmp = dir.path();

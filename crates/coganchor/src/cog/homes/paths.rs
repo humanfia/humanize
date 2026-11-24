@@ -346,7 +346,7 @@ pub fn move_to(source: &Path, into: &Path) -> io::Result<()> {
 }
 
 /// `shutil.copytree(source, into, symlinks=True)`.
-fn copytree(source: &Path, into: &Path) -> io::Result<()> {
+pub(crate) fn copytree(source: &Path, into: &Path) -> io::Result<()> {
     fs::create_dir(into)?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;

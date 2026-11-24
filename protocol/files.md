@@ -74,7 +74,7 @@ It is normative. It is cited by the tag [FILES].
   - [7.6. The daemon](#76-the-daemon)
   - [7.7. Scratch directories in the machine directory](#77-scratch-directories-in-the-machine-directory)
   - [7.8. Other process-private temporary directories](#78-other-process-private-temporary-directories)
-  - [7.9. The cache directory](#79-the-cache-directory)
+  - [7.9. The state directory](#79-the-state-directory)
   - [7.10. Files hmz reads and never writes](#710-files-hmz-reads-and-never-writes)
 - [8. Harness Homes](#8-harness-homes)
   - [8.1. Scope](#81-scope)
@@ -816,7 +816,7 @@ hmz learns the newest release; `off`, `0`, `no`, `none` or the empty string MUST
 scan a daemon makes of its installed harnesses as it starts (Section 3.9.8.1 of [DAEMON]).
 
 **3.11.2.9** `HUMANIZE_SHADOWS` MUST name the directory in which hmz keeps the records of mirrors,
-defaulting to `~/.cache/humanize/shadows` (Section 7).
+defaulting to `shadows/` in the state directory (Section 7.9.1).
 
 **3.11.2.10** `HUMANIZE_SSH_REUSE` set to `off`, `0`, `no`, `false` or the empty string MUST stop
 hmz from sharing one ssh connection between the ssh commands it runs to one destination.
@@ -1842,8 +1842,8 @@ destination exists.
 ### 7.1. Scope
 
 Section 7 specifies every file and directory **hmz** creates on **this machine** outside the
-**home** and outside any **workspace**: the machine directory in the temporary directory, the cache
-directory `~/.cache/humanize/`, the files of the **daemon**, the directories of ssh connection
+**home** and outside any **workspace**: the machine directory in the temporary directory, the state
+directory, the cache directory, the files of the **daemon**, the directories of ssh connection
 sharing, and the temporary directories **hmz** creates for one process. For each it states the path,
 the creator, the format, the mode, the lifetime and when the **user** MAY delete it.
 
@@ -1867,10 +1867,14 @@ otherwise the first of `/tmp`, `/var/tmp` and `/usr/tmp` that is.
 **7.2.2** **Machine directory** (`<mdir>`): the directory `<tmp>/humanize-<uid>`, where `<uid>` is
 the numeric user identifier of the process.
 
-**7.2.3** **Cache directory**: the directory `~/.cache/humanize/`.
+**7.2.3** **Cache directory**: the directory `humanize/` in the directory `XDG_CACHE_HOME` names
+where it is set to an absolute path, and `~/.cache/humanize/` otherwise.
 
 **7.2.4** **Process-private temporary directory**: a directory that **hmz** creates in `<tmp>` with
 a name of the stated prefix followed by `<random>`, with mode `0700`.
+
+**7.2.5** **State directory**: the directory `humanize/` in the directory `XDG_STATE_HOME` names
+where it is set to an absolute path, and `~/.local/state/humanize/` otherwise.
 
 ### 7.3. The machine directory
 
@@ -2075,11 +2079,10 @@ writable.
 sharing off, MUST NOT remove it, and MUST NOT share connections where it is not a directory owned
 by the **user** that no other user is permitted to read, write or enter.
 
-### 7.9. The cache directory
+### 7.9. The state directory
 
 **7.9.1** The location of the mirror records MUST be the directory `HUMANIZE_SHADOWS` names, `~`
-expanded, where it is set and not empty, and `~/.cache/humanize/shadows/` otherwise; it MUST NOT
-follow `HUMANIZE_HOME`.
+expanded, where it is set and not empty, and `shadows/` in the state directory otherwise.
 
 **7.9.2** For each **mirror** on **this machine**, the directory of Section 7.9.1 MUST hold
 `<sha16>.json`, where `<sha16>` is the first 16 lowercase hexadecimal digits of the SHA-256 of the
@@ -2103,13 +2106,22 @@ describe.
 
 **7.9.8** The **user** MAY delete the files of Section 7.9 while **hmz** is not running.
 
-**7.9.9** `~/.cache/humanize/litellm/sessions/<id>.jsonl` MUST hold a **session** of the **harness**
-`litellm` that is not kept in an **epic**, as JSON Lines whose first line is `{"type": "session",
+**7.9.9** `litellm/sessions/<id>.jsonl` in the state directory MUST hold a **session** of the
+**harness** `litellm` that is not kept in an **epic**, as JSON Lines whose first line is `{"type": "session",
 "id", "parent", "cwd", "model", "timestamp"}` and whose following lines are `{"type": "message",
 "timestamp", "message": {"role", "content", ...}}`.
 
 **7.9.10** `hmz` MUST NOT remove a file of Section 7.9.9, and the **user** MAY delete it at any
 time.
+
+**7.9.11** Where a directory of the state directory listed below does not exist, `hmz` MUST move to
+it the directory of the cache directory of an earlier release that it replaces, the first time a
+process locates it: `shadows/` from `~/.cache/humanize/shadows/`, only where `HUMANIZE_SHADOWS` is
+unset or empty; `litellm/` from `~/.cache/humanize/litellm/`; and `displaced/` from
+`~/.cache/humanize/displaced/`.
+
+**7.9.12** `hmz` MUST NOT move a directory of Section 7.9.11 into one that exists, nor merge the
+two, and MUST leave it where it is where it cannot be moved.
 
 ### 7.10. Files hmz reads and never writes
 
@@ -2177,7 +2189,8 @@ stated, and the default applies under `$HOME` otherwise:
 - `cursor-agent`: `CURSOR_CONFIG_DIR`, default `~/.cursor`;
 - `mcode`: `MINIMAX_DATA_DIR`, default `~/.minimax`;
 - `agy`: no variable, default `~/.gemini/antigravity-cli`;
-- `litellm`: no variable, default `~/.cache/humanize/litellm`.
+- `litellm`: `XDG_STATE_HOME` with sub-directory `humanize/litellm`, default
+  `~/.local/state/humanize/litellm` (Section 7.9.9).
 
 **8.3.2** `hmz` MUST NOT create, modify, replace or remove any user configuration file, on any
 **machine**.
