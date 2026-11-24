@@ -93,6 +93,10 @@ It is normative. It is cited by the tag [TUI].
 - [28. New chat and the chat's chips](#28-new-chat-and-the-chats-chips)
 - [29. New epic and the epic's context](#29-new-epic-and-the-epics-context)
 - [30. Environment panes](#30-environment-panes)
+  - [30.1. The panes](#301-the-panes)
+  - [30.2. Files](#302-files)
+  - [30.3. Changes](#303-changes)
+  - [30.4. Terminal](#304-terminal)
 - [31. Flows page and transfers](#31-flows-page-and-transfers)
 - [32. Settings: App and Daemon](#32-settings-app-and-daemon)
 - [33. Monitor, Exomyth and sheets in humanfia](#33-monitor-exomyth-and-sheets-in-humanfia)
@@ -1642,6 +1646,26 @@ states where its row's context holds.
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 | 24.1.72 | app | the key of a view | Section 25.1.4 |
+| 24.1.73 | environment pane | `ctrl+w` | widen the context (Section 30.1.7) |
+| 24.1.74 | environment pane, several envs | `tab` | turn to the next env (Section 30.1.3) |
+| 24.1.75 | Files pane, tree | `enter` | open or shut the directory, or show the file |
+| 24.1.76 | Files pane | `e` | open the file in the editor (Section 30.2.3) |
+| 24.1.77 | Files pane, tree | `n`, `shift+n` | new file, new directory |
+| 24.1.78 | Files pane, tree | `r`, `d` | rename, delete after a box |
+| 24.1.79 | Files pane | `ctrl+p`, `/` | show a file by name, search in files |
+| 24.1.80 | Files pane, file shown | `backspace` | back to the tree |
+| 24.1.81 | Changes pane, changes | `enter` | the keys to the diff |
+| 24.1.82 | Changes pane, changes | `s`, `u`, `x` | stage, unstage, discard after a box |
+| 24.1.83 | Changes pane, changes | `shift+s`, `shift+u` | stage all, unstage all |
+| 24.1.84 | Changes pane, changes | `c`, `l`, `p` | commit, the commits, the snapshots |
+| 24.1.85 | Changes pane | `r` | read again |
+| 24.1.86 | Changes pane, snapshots | `enter` | rewind after a box |
+| 24.1.87 | Changes pane, diff, commits or snapshots | `backspace` | back to the changes |
+| 24.1.88 | Terminal pane, tabs | `enter` | the keys to the terminal |
+| 24.1.89 | Terminal pane, tabs | `left`, `right` | previous or next terminal |
+| 24.1.90 | Terminal pane, tabs | `n`, `x` | new terminal, close after a box |
+| 24.1.91 | Terminal pane, terminal | `~.` at the start of a line | the keys to the tabs |
+| 24.1.92 | Terminal pane, terminal | any other key | typed into the terminal |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
@@ -1736,7 +1760,124 @@ This section is reserved for the New epic page and the context views of an epic:
 
 ## 30. Environment panes
 
-This section is reserved for the Files, Terminal and Changes views of an environment, opened in the context. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 30.1. The panes
+
+**30.1.1** `f5`, `f6` and `f7` MUST be the keys of the views _Files_, _Changes_ and _Terminal_, each
+an _environment pane_ that opens in the context (Section 25.1.4), whose hints are `Files`,
+`Changes` and `Terminal`. Opening one MUST NOT take the editor's text, close what the log shows or
+stop a turn; `/env` (Section 7.20) MUST go on opening its sheets as it did.
+
+**30.1.2** A pane MUST show one env of those `/env` would list (Section 7.20.1): one that is open
+and has the pane's capability -- files for Files, git for Changes, a shell for Terminal (Section
+7.20.3). It MUST show the env the panes of that chat or epic were last turned to (Section 30.1.3)
+where that env still is one of them, and otherwise the first of them in the order `/env` lists
+them.
+
+**30.1.3** Where more than one env has the pane's capability, the pane's first row MUST name the
+env shown and its place among them, and `tab` MUST turn the pane to the next of them. The env
+turned to MUST be remembered for that chat or epic, for all three panes, for as long as the
+interface runs.
+
+**30.1.4** A pane MUST say `No environment is open here yet.` where the host lists no env, and
+that this environment has no files, changes or terminal where envs are open and none has the
+pane's capability, and MUST then ask the host nothing.
+
+**30.1.5** A pane MUST read what it shows again when the host says an env was used or a turn
+ended, and when the envs the host lists change.
+
+**30.1.6** A pane MUST draw, on a line of its own at its foot, every key it takes where the keys
+are now with what each does, in the texts of Section 25.5; that line is part of the hint line for
+Section 25.2.2. `esc` MUST give the keys to the editor and leave the pane as it is (Section
+25.1.5), except in a terminal that has the keys (Section 30.4.3).
+
+**30.1.7** `ctrl+w` in a pane MUST make the context one step wider: from the 48 columns it opens
+at, to half the screen, to four fifths of it, and back to 48. The width MUST stay until it is
+changed again.
+
+**30.1.8** A pane MUST ask, in a box that names what goes, before it deletes a file or a folder,
+discards a change, rewinds an env or closes a terminal that is running.
+
+### 30.2. Files
+
+**30.2.1** Files MUST draw the env's workdir as a tree (`env.list`), directories first: `enter` on
+a directory MUST open it under its row, a step in, or shut it; `enter` on a symbolic link MUST do
+what it would to what the link leads to.
+
+**30.2.2** `enter` on a file MUST show it in the pane in place of the tree, read-only, with line
+numbers and its syntax highlighted by its name, and `backspace` MUST put the tree back. A file
+over 1 MiB MUST NOT be shown, and the pane MUST say so; a file that is not UTF-8 text MUST be shown
+with what cannot be read replaced, and the pane MUST say it is not UTF-8 text. Reading a file MUST
+NOT write it.
+
+**30.2.3** `e` on a file, in the tree or shown, MUST open it in the editor of Section 7.20.5, over
+the screen, which writes as that section states; leaving the editor MUST return to the pane, which
+MUST then show the file as written.
+
+**30.2.4** In the tree, `n` MUST ask for a name and make an empty file of it (`env.write` with
+`if_match` `""`) and open it in the editor; `shift+n` MUST ask for a name and make a directory
+(`env.mkdir`); each in the open directory under the cursor, else beside the row under it. `r` MUST
+ask for a new name of the row under the cursor (`env.rename`), and `d` MUST delete it
+(`env.remove`) after the box of Section 30.1.8.
+
+**30.2.5** `ctrl+p` MUST list the env's files (`env.find`) to be narrowed by typing and MUST show
+the one picked; `/` MUST ask for a text, list the lines that hold it (`env.search`), and show the
+file of the one picked at that line.
+
+### 30.3. Changes
+
+**30.3.1** Changes MUST say where the repository stands -- its branch, or its commit where none is
+checked out, and its upstream with how far ahead and behind -- and MUST list the env's git status
+(`env.git.status`) in the groups of Section 7.20.7, each headed by its name and count.
+
+**30.3.2** Under the list the pane MUST draw the change of the file under the cursor
+(`env.git.diff`, `staged` for one under Staged Changes) highlighted as a diff, following the
+cursor, and MUST say so in place of a diff for a binary file and for a change that is empty.
+`enter` MUST give the keys to the diff, to scroll it, and `backspace` MUST give them back to the
+list.
+
+**30.3.3** `s` MUST stage the file under the cursor and `u` unstage it, a renamed file with the
+path it was renamed from; `shift+s` MUST stage every change and `shift+u` unstage every one
+staged; `x` MUST discard the file under the cursor (`env.git.discard`) after the box of Section
+30.1.8. After each the list MUST be read again, the cursor staying with the file.
+
+**30.3.4** `c` MUST open the form of Section 7.20.7, with a message and whether to amend the last
+commit, and MUST commit as it is answered (`env.git.commit`); a refusal MUST be said in the pane
+in the host's words.
+
+**30.3.5** `l` MUST list the commits (`env.git.log`), newest first, each by its short hash,
+subject, author and date; `p` MUST list the env's snapshots (`env.git.snapshots`), where `enter`
+MUST rewind the env to the one under the cursor (`env.git.rewind`) after the box of Section 30.1.8.
+`backspace` MUST return from either to the changes, and `r` MUST read again whichever is listed.
+
+### 30.4. Terminal
+
+**30.4.1** Terminal MUST show the terminals alive in the env (`env.term.list`) as a row of tabs,
+each by its place and title, the one shown marked. Opening the pane where none is alive MUST
+start one (`env.term.open`).
+
+**30.4.2** The terminal shown MUST be drawn in the pane as its screen is: what it prints
+(`term`), read as a terminal reads it -- cursor movement, colours, erasing -- at the size of the
+pane, which MUST be passed on when it changes (`env.term.resize`); what is drawn MUST be
+acknowledged (`env.term.ack`). A terminal come back to MUST first be drawn with what it kept
+(`replay`). A terminal MUST go on being drawn while the keys are elsewhere.
+
+**30.4.3** While a terminal has the keys, every key the interface is given, `esc` among them, MUST
+be typed into it (`env.term.input`), in order, and MUST do nothing else -- except the keys bound
+over everything (Section 24.1.1, 24.1.2 and 24.1.72), and `~.` typed at the start of a line,
+which MUST give the keys to the row of tabs and leave the terminal running; `~~` there MUST type
+one `~` (Section 7.20.9).
+
+**30.4.4** On the row of tabs, `enter` MUST give the keys to the terminal shown; `left` and
+`right` MUST show the terminal before and after it; `n` MUST start another and give it the keys;
+`x` MUST close the one shown (`env.term.close`) after the box of Section 30.1.8, and without one
+where it has ended.
+
+**30.4.5** A terminal that ends MUST say `[exited]`, with its status where the host gave one, where
+it would have printed and on its tab, and MUST give the keys to the row of tabs where it had them.
+A terminal that cannot be opened, and input that is refused, MUST be said there in the host's
+words.
+
+**30.4.6** Closing the pane MUST leave its terminals running (Section 4.24.4.9 of [DAEMON]).
 
 ## 31. Flows page and transfers
 

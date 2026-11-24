@@ -152,6 +152,8 @@ TEXTUAL_THEME=nord hmz
 
 Press <kbd>f1</kbd> to open Keys to the right of the log. A pane takes no room until you open it. The bottom line lists the keys that work where you are. Press <kbd>esc</kbd> to go back to the prompt, and the pane's own key again to close it.
 
+Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open the Files, Changes or Terminal of the environment you are working in beside the log, and <kbd>ctrl+w</kbd> inside one to widen it. The pane stays open while you type at the prompt. See [Files, changes and terminal](/user/environment-panels#keep-a-pane-open-beside-the-chat).
+
 ## Good to know
 
 - The interface draws without waiting for the network. In the background, it refreshes model lists, flowverse indexes and prices, and checks for new releases.

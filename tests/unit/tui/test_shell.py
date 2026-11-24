@@ -155,3 +155,27 @@ async def test_there_is_no_hint_line_where_there_is_nothing_to_hint(
         await pilot.pause()
 
         assert not pilot.app.query_one(Hints).has_class("hinting")
+
+
+async def test_a_zone_is_widened_a_step_at_a_time_and_is_narrow_again_after_the_widest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _with(monkeypatch, LEFT, RIGHT)
+    async with _Stands().run_test(size=(120, 30)) as pilot:
+        context = pilot.app.query_one("#context", Zone)
+        await pilot.press("f3")
+        await pilot.pause()
+        assert context.size.width == 48
+
+        assert context.widens() == "wide"
+        await pilot.pause()
+        assert context.size.width == 60
+
+        assert context.widens() == "widest"
+        await pilot.pause()
+        assert context.size.width == 96
+        assert not context.has_class("wide")
+
+        assert context.widens() == ""
+        await pilot.pause()
+        assert context.size.width == 48

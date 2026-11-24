@@ -906,6 +906,13 @@ class Humanize(App[None]):
         Returns:
           Whether to run it.
         """
+        if (
+            action in ("monitor", "attach_next", "attach_previous")
+            and self.shell.held() is not None
+        ):
+            # The log's own keys, and the keys are in a zone: the view open there has its
+            # own use for the arrows and for tab, as a sheet has.
+            return False
         if action == "monitor":
             # From the log alone, and only with nothing typed or offered: the monitor is up
             # already over anything else, and a sheet has its own use for the arrows. Never
@@ -1191,6 +1198,7 @@ class Humanize(App[None]):
             lambda said: self._link.asked(said, seconds=_ENV_PATIENCE),
             lambda: self._opened_envs,
             self.show,
+            lambda: self._chat_now or self._epic_now,
         )
         #: Who this interface is to the runs, as they named it: its client id and its name.
         self._me = ""
@@ -3069,6 +3077,11 @@ class Humanize(App[None]):
     def flow_running(self) -> bool:
         """Whether a flow is running, as the rows of the command table read it: not a chat."""
         return self._run is not None and not self.chatting()
+
+    @property
+    def reach(self) -> Reach:
+        """The host, as an environment's panes reach it: what `/env` asks, asked from a zone."""
+        return self._reach
 
     def chatting(self) -> bool:
         """Whether the chat is on the screen: a run of kind `chat`, or none of a flow.
