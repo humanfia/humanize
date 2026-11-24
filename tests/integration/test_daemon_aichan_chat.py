@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import config, data
 from hmz.coganchor.fence import BWRAP, able
 from hmz.daemon import where
 from hmz.reach.pipes import SocketPipe
@@ -48,10 +48,8 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = install(tmp_path, monkeypatch)
     if sys.platform == "linux":
         # Landlock cannot keep her off the daemon's socket (Section 14.5.5 of core.md).
-        (tmp_path / "humanize-home").mkdir(exist_ok=True)
-        (tmp_path / "humanize-home" / "settings.yaml").write_text(
-            "sandbox:\n  backend: bwrap\n"
-        )
+        config().mkdir(parents=True, exist_ok=True)
+        (config() / "settings.yaml").write_text("sandbox:\n  backend: bwrap\n")
     with hosting():
         yield at
 
@@ -155,9 +153,9 @@ def test_ai_chan_calls_the_daemon_through_her_tools_over_her_link(
     )
     hers = status["chat"]
     assert (bool(hers), status["epic"], status["epic_kind"]) == (True, "", "chat")
-    (kept,) = (home() / "chats").rglob("chat.jsonl")
+    (kept,) = (data() / "chats").rglob("chat.jsonl")
     assert kept.parent.name == hers
-    assert not list(home().rglob("epic.jsonl"))
+    assert not list(data().rglob("epic.jsonl"))
 
     def refusals() -> set[tuple[int, str]]:
         """What each `chat.*` that names a chat to change it answers for hers."""
@@ -457,7 +455,7 @@ def test_ai_chan_keeps_her_nous_and_the_workspaces_chat_agent(
     assert "make another conversation" in _said(user, made)
     events = [
         json.loads(one)["event"]
-        for chat in (tmp_path / "humanize-home").rglob("chat.jsonl")
+        for chat in data().rglob("chat.jsonl")
         for one in chat.read_text().splitlines()
     ]
     assert events

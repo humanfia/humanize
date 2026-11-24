@@ -814,14 +814,14 @@ def test_speaking_reads_another_homes_file_afresh(
 ) -> None:
     said = {"one": "clis:\n  aaa-agent: [aaa]\n", "two": "clis:\n  bbb-agent: [bbb]\n"}
     for name, text in said.items():
-        at = tmp_path / name / "settings.yaml"
-        at.parent.mkdir()
+        at = tmp_path / name / "humanize" / "settings.yaml"
+        at.parent.mkdir(parents=True)
         at.write_text(text, encoding="utf-8")
         # The same size and the same moment: only the path tells the two apart.
         os.utime(at, ns=(1_000_000_000, 1_000_000_000))
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "one"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "one"))
     assert backends.speaking() == {"aaa-agent": ("aaa",)}
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "two"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "two"))
     assert backends.speaking() == {"bbb-agent": ("bbb",)}
 
 

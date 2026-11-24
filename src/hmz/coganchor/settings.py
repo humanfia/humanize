@@ -1,6 +1,6 @@
 """Humanize's one settings file: everything `/settings` can set, in `settings.yaml`.
 
-One file under Humanize's own home, keyed by what each part of it is: what each workspace was
+One file in Humanize's config directory, keyed by what each part of it is: what each workspace was
 set up to run, the handful of settings that are this machine's, the chains a failed turn falls
 back along (`fallbacks`), the CLIs somebody added by hand (`clis`) and the machines an
 environment may be put on (`runtimes`). One file rather than one per setting, because a person
@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from hmz import home
+from hmz import config
 from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ _PATIENCE = 30.0
 
 def where() -> Path:
     """The file, whether or not anything has been written to it."""
-    return home() / "settings.yaml"
+    return config() / "settings.yaml"
 
 
 def reading() -> dict[str, Any] | None:

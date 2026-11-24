@@ -13,13 +13,12 @@ Two things are staged here, since the world comes with neither:
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import yaml
 from playwright.sync_api import expect
 
+from hmz import config
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Agent, Configures, Confirms
 from tests.integration.doubles_tui import on, onto, screen, shows
@@ -144,7 +143,7 @@ def _staged(world: World) -> None:
     flows = world.workspace / ".hmz" / "flows"
     flows.mkdir(parents=True, exist_ok=True)
     (flows / "review_loop.py").write_text(_FLOW)
-    settings = Path(os.environ["HUMANIZE_HOME"]) / "settings.yaml"
+    settings = config() / "settings.yaml"
     assert not settings.exists(), "the made-up home has settings of its own to keep"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text(

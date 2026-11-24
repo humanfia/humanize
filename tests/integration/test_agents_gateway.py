@@ -22,6 +22,7 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.gateway import Gateway, gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import Endpoint, children, serving, standins
 
 if TYPE_CHECKING:
@@ -169,7 +170,7 @@ def test_claude_under_an_account_a_gateway_holds_is_pointed_at_it(
         "LITELLM_GATEWAY_KEY",
     )
     held.install("claude", CLAUDE)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     # A credential path answered by another is the supervisor's, which is tested where it is
     # written; an account that is variables alone is what is under test here.

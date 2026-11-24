@@ -2,7 +2,7 @@
 
 The `ssh` put first on `PATH` takes what the real one is told -- its options, the destination,
 the command -- drops the options and the destination, and runs the command here, with `sh`, in
-the other machine's home: its own `HOME`, `HUMANIZE_HOME` and `TMPDIR`. A port it is told to
+the other machine's home: its own `HOME`, Humanize's directories and `TMPDIR`. A port it is told to
 forward with `-L` it forwards over TCP, for as long as it runs. A destination with `unreachable`
 in it is one it cannot reach, as `ssh` says so. Every time it is run it writes its pid and what
 it was told to `ssh.log` beside that home.
@@ -25,13 +25,15 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from tests.conftest import places
+
 if TYPE_CHECKING:
     import pytest
 
 _SSH = """#!{python}
 import json, os, socket, subprocess, sys, threading
 
-HOME, HUMANIZE, TMP, LOG = {home!r}, {humanize!r}, {tmp!r}, {log!r}
+HOME, HUMANIZE, PLACES, TMP, LOG = {home!r}, {humanize!r}, {places!r}, {tmp!r}, {log!r}
 TAKES = set("BbcDEeFIiJLlmOopQRSWw")
 
 args, forwards, at = sys.argv[1:], [], 0
@@ -92,7 +94,7 @@ for spec in forwards:
         target=serves, args=(listening, (to, int(to_port))), daemon=True
     ).start()
 
-env = dict(os.environ, HOME=HOME, HUMANIZE_HOME=HUMANIZE, TMPDIR=TMP)
+env = dict(os.environ, HOME=HOME, HUMANIZE_HOME=HUMANIZE, TMPDIR=TMP, **PLACES)
 os.chdir(HOME)
 if not command:
     threading.Event().wait()
@@ -137,7 +139,8 @@ class Host:
 
     Attributes:
       home: Its `HOME`.
-      humanize: Its `HUMANIZE_HOME`.
+      humanize: What its Humanize's directories are under (`tests.conftest.places`), and
+        its `HUMANIZE_HOME`, which its shell reads.
       tmp: Its `TMPDIR`.
       log: Where each `ssh` run writes its pid and what it was told.
     """
@@ -224,6 +227,7 @@ def faked(
                 python=sys.executable,
                 home=str(host.home),
                 humanize=str(host.humanize),
+                places=places(host.humanize),
                 tmp=str(host.tmp),
                 log=str(host.log),
             ),

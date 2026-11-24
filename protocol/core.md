@@ -239,8 +239,12 @@ has its own file systems and its own temporary directory.
 
 **2.3.4** **This machine** is the machine on which the hmz process being described runs.
 
-**2.3.5** The **home** is the directory named by the environment variable `HUMANIZE_HOME` where that
-variable is set and non-empty, and the directory `.hmz` in the user's home directory otherwise.
+**2.3.5** The **home** is the four directories in which hmz keeps what it keeps for the user of a
+machine: the **config directory**, the **data directory**, the **state directory** and the **cache
+directory**, each the directory `humanize` in the base directory that the environment variable
+`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` or `XDG_CACHE_HOME` respectively names where it
+is set to an absolute path, and in `~/.config`, `~/.local/share`, `~/.local/state` or `~/.cache`
+respectively otherwise (Section 4 of [FILES]).
 
 **2.3.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
@@ -1861,7 +1865,7 @@ Out of scope:
 
 - The harness kinds, agent specs, retries and nous: Section 4.
 - The LiteLLM gateway's lifecycle: Section 4.13.2.
-- The layout of `<home>/providers/` and of the machine cache as files: Section 4 of [FILES] and
+- The layout of `<data>/providers/` and of the machine cache as files: Section 4 of [FILES] and
   Section 7 of [FILES].
 - Where a harness runs relative to its env: Section 6.
 - The account pages of the terminal and web frontends: [TUI] and Section 3 of [WEB].
@@ -1941,7 +1945,7 @@ found it, with no account variable added or removed and no credential file subst
 
 #### 5.4.1. Layout
 
-**5.4.1.1** Each account MUST be one directory `<home>/providers/<cli>/<name>/`, as Section 4 of
+**5.4.1.1** Each account MUST be one directory `<data>/providers/<cli>/<name>/`, as Section 4 of
 [FILES] states.
 
 **5.4.1.2** The account's directory MUST hold a file `provider.json` stating the harness kind, the

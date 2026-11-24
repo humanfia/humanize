@@ -19,6 +19,7 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import Failed, FakeTool, QwenCodeAgent, QwenCodeAgentConfig
 from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.gateway import gatewayable
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     CHATTING,
     Endpoint,
@@ -206,7 +207,7 @@ def test_qwen_under_an_account_a_gateway_holds_is_pointed_at_it(
         "LITELLM_GATEWAY_KEY",
     )
     held.install("qwen", CHATTING + QWEN)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
     providers.add(

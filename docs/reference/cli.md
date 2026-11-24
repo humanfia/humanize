@@ -106,7 +106,7 @@ Pass `-f`, a budget, and a single `TASK` argument. Put options in any order, bef
 | `OWNER/FLOW` | A flow listed under an owner in the `official` flowverse. |
 | `@VERSE/[OWNER/]FLOW` | A flow of one flowverse. |
 | `@local/FLOW` | A flow in `.hmz/flows` of the workspace. |
-| `@user/FLOW` | A flow in `~/.hmz/flows`. |
+| `@user/FLOW` | A flow in `~/.local/share/humanize/flows`. |
 | `./PATH`, `/PATH`, `~/PATH` | A flow loaded from disk. Relative paths must start with `./`. |
 | `git+URL[@REV][#SUBDIR]` | A flow loaded from a git repository. |
 | `NAME:OTHER` | Another flow defined in the same module. |

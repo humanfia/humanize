@@ -122,8 +122,9 @@ there is no marker to write.
   `.github/workflows/ci.yml`. A new topic needs a filter there and its name in the `tests`
   job's list of topics. `tests/integration/test_core_ci_filters.py` fails when a topic's
   filter leaves out a package its tests import.
-- Every test runs with a `HUMANIZE_HOME` and a `TMPDIR` of its own. A test that writes into
-  your real `~/.hmz` fails the run. A scratch script outside `tests/` sets both itself.
+- Every test runs with its own `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`,
+  `XDG_CACHE_HOME`, `HOME` and `TMPDIR`. A test that writes into your real Humanize directories
+  or `~/.hmz` fails the run. A scratch script outside `tests/` sets them itself.
 - **Never copy a sign-in into a test's home.** Codex's and Claude Code's logins renew
   themselves, and a renewal cancels every other copy of the token: a copy of
   `~/.codex/auth.json` or `~/.claude/.credentials.json` in a container or temporary home signs

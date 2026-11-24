@@ -263,7 +263,7 @@ class Epics:
         it goes on keeping them there. Not a CLI's own home, which is read whatever is said
         here.
         """
-        from hmz import home
+        from hmz import data
         from hmz.runtime.epic import SESSIONS
         from hmz.runtime.epic import where as kept_in
 
@@ -273,7 +273,7 @@ class Epics:
                 at.parent
                 for one in self.sessions(epic)
                 if (at := kept_in(epic, one)).name == one.backend
-                and at.is_relative_to(home())
+                and at.is_relative_to(data())
             }
         )
 
@@ -358,14 +358,14 @@ class Epics:
         Returns:
           The trace, as the object that was written.
         """
-        from hmz import home
+        from hmz import data
         from hmz.runtime.epic import SESSIONS
         from hmz.runtime.tracing.collector import collect
 
         if kept is None:
             # Where :attr:`hmz.coganchor.agents.AgentBase.keeps` puts them: each run's own --
             # of this workspace, where there is one.
-            runs = self.under() if self._workspace is not None else home() / "epics"
+            runs = self.under() if self._workspace is not None else data() / "epics"
             within = "*" if self._workspace is not None else "*/*"
             kept = sorted(runs.glob(f"{within}/{SESSIONS}"))
         return collect(

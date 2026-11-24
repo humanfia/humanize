@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
-from hmz import daemon, home
+from hmz import config, daemon, data, state
 from hmz.daemon import where
 from hmz.daemon.link import dialed, reached
 from hmz.rpc import RpcError
@@ -399,13 +399,13 @@ def test_a_chat_is_written_down_as_a_chat_and_is_no_epic(
     link, _, slot, name = _chat(project, "hello there\nand the rest", f"{AGENT}:high")
 
     # Under `chats/`, by its name, in a record of its own; nothing under `epics/`.
-    at = home() / "chats" / under(project).name / name
+    at = data() / "chats" / under(project).name / name
     assert (at / CHATTED).is_file()
     assert not (at / JOURNAL).exists()
     assert written_chats() == [at]
     assert every() == []
-    assert not (home() / "epics").exists() or not list(
-        (home() / "epics").rglob("*.jsonl")
+    assert not (data() / "epics").exists() or not list(
+        (data() / "epics").rglob("*.jsonl")
     )
     began = _events(at)[0]
     assert (began["event"], began["task"]) == ("began", "hello there\nand the rest")
@@ -892,7 +892,8 @@ def test_a_chat_is_backed_up_as_a_run_is(
         409,
         "There is no backup target: add one in Settings.",
     )
-    (home() / "settings.yaml").write_text(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.yaml").write_text(
         yaml.safe_dump({"backup": {"targets": [{"name": "t", "url": str(bare)}]}})
     )
     code, why = _refused(user, "chat.backup", chat=name, to=["nowhere"])
@@ -1124,7 +1125,7 @@ def test_a_chat_started_in_a_worktree_works_there_and_returns_there(
     # The chat is the workspace's still; its assistant works in a detached worktree of it.
     assert row["workspace"] == str(project.resolve())
     assert worktree.resolve() != project.resolve()
-    assert worktree.is_relative_to(home() / "envs")
+    assert worktree.is_relative_to(state() / "envs")
     assert _events(_directory(name))[0]["workdir"] == row["workdir"]
     assert _git(worktree, "rev-parse", "HEAD") == _git(project, "rev-parse", "HEAD")
     assert _git(worktree, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
@@ -1311,7 +1312,7 @@ def _dialed() -> Peer:
 
 def _moved(old: Path) -> Path:
     """Where the daemon moves a chat an earlier hmz kept as an epic."""
-    return home() / "chats" / old.parent.name / old.name
+    return data() / "chats" / old.parent.name / old.name
 
 
 def test_the_chats_an_earlier_hmz_kept_as_epics_are_chats_once_the_daemon_starts(

@@ -1,7 +1,7 @@
 """The settings family of daemon methods, served by a `Dispatcher` over a real socket pair.
 
 Every method of `settings.*`, `accounts.*`, `nous.*`, `runtimes.*` and `easytier.*` called
-once from a client `Peer`, in a temporary `HUMANIZE_HOME`, with what each writes read back out
+once from a client `Peer`, in a temporary home, with what each writes read back out
 of the settings file and what each refuses refused with the protocol's code.
 """
 
@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 import hmz.coganchor.models
-from hmz import home
+from hmz import config
 from hmz.coganchor import easytier as tier
 from hmz.daemon.api import accounts, easytier, nous, runtimes, settings
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, document, hello
@@ -79,7 +79,7 @@ def _refused(client: Peer, code: int, method: str, **params: Any) -> str:
 
 
 def _file() -> dict[str, Any]:
-    return yaml.safe_load((home() / "settings.yaml").read_text())
+    return yaml.safe_load((config() / "settings.yaml").read_text())
 
 
 def test_each_family_names_every_method_of_its_namespace() -> None:

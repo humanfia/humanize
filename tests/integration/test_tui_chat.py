@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import config
 from hmz import daemon as daemons
 from hmz.daemon.reach import Conversations
 from hmz.runtime.epic import Ran, chats, epics, read
@@ -93,8 +94,8 @@ async def test_a_chat_is_running_while_the_assistant_answers_and_done_after(
 async def test_tool_rows_shown_in_detail_are_drawn_as_written_and_again_on_a_resize(
     workspace: Path, tmp_path: Path
 ) -> None:
-    home = tmp_path / "humanize-home"
-    home.mkdir(exist_ok=True)
+    home = config()
+    home.mkdir(parents=True, exist_ok=True)
     (home / "settings.yaml").write_text("details: true\n")
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:

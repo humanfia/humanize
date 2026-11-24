@@ -22,17 +22,21 @@ if TYPE_CHECKING:
 def test_a_tests_home_and_temporary_directory_are_undone_to_the_suites(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert hmz.home() == tmp_path / "humanize-home"
+    homes = (hmz.config, hmz.data, hmz.state, hmz.cache)
+    assert [one() for one in homes] == [
+        tmp_path / "xdg" / kind / "humanize"
+        for kind in ("config", "data", "state", "cache")
+    ]
     mine = hmz.machine()
 
     # As the end of the test does it, for whatever of it is still going.
     monkeypatch.undo()
 
-    suite = hmz.home()
-    assert suite.name == "home"
-    assert suite != tmp_path / "humanize-home"
+    suite = hmz.data()
+    assert suite.parent.parent.name == "home"
+    assert not suite.is_relative_to(tmp_path)
     between = Path(os.environ["TMPDIR"])
-    assert (between.name, between.parent) == ("between", suite.parent)
+    assert (between.name, between.parent) == ("between", suite.parent.parent.parent)
     assert tempfile.gettempdir() == str(between)
     assert hmz.machine() == between / mine.name
     assert {
@@ -52,7 +56,7 @@ def test_a_tests_home_directory_and_path_are_undone_to_the_suites(
     # `~` is never the home of whoever runs the suite, nor is what they installed found.
     nobody = Path.home()
     assert nobody not in (mine, Path(THEIRS["HOME"]))
-    assert (nobody.name, nobody.parent) == ("nobody", hmz.home().parent)
+    assert (nobody.name, nobody.parent) == ("nobody", hmz.data().parents[2])
     assert Path(THEIRS["HOME"]) not in Path("~/.hmz").expanduser().parents
     searched = os.environ["PATH"].split(os.pathsep)
     assert set(searched) <= {
@@ -74,7 +78,7 @@ def test_what_names_a_test_directory_in_their_home_is_found(
     history = theirs / "history.jsonl"
     history.write_text('{"workspace": "/their/own/project"}\n')
     (theirs / "settings.yaml").write_text("listen: []\n")
-    monkeypatch.setattr(conftest, "_THEIR_HOME", theirs)
+    monkeypatch.setattr(conftest, "_THEIR_HOMES", (theirs,))
     marks = frozenset({str(tmp_path / "mine")})
     before = conftest.kept_there()
 

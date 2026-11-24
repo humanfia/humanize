@@ -458,14 +458,15 @@ class _Attached:
 def _mirrors(name: str) -> Path:
     """Where the agents working in a container keep their mirrors of it, on this machine.
 
-    Under Humanize's home rather than the system's temporary directory, so that nobody else
-    here can have made it first; nothing is made here, and it goes with the container.
+    Under Humanize's state directory rather than the system's temporary directory, so that
+    nobody else here can have made it first; nothing is made here, and it goes with the
+    container.
     """
-    from hmz import home
+    from hmz import state
 
     from .environing import ENVS
 
-    return home() / ENVS / "mirrors" / name
+    return state() / ENVS / "mirrors" / name
 
 
 def _called(provider: str, role: str, prefix: str = "") -> str:

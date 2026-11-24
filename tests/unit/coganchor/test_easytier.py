@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import cache
 from hmz.coganchor import easytier
 
 if TYPE_CHECKING:
@@ -109,14 +109,16 @@ def test_a_named_binary_that_is_not_there_is_ignored(
     release: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(easytier.WHICH, str(tmp_path / "missing"))
-    assert easytier.binary() == home() / "easytier" / easytier.VERSION / "easytier-core"
+    assert (
+        easytier.binary() == cache() / "easytier" / easytier.VERSION / "easytier-core"
+    )
     assert release
 
 
 def test_the_release_is_downloaded_once(release: list[str]) -> None:
     said: list[str] = []
     core = easytier.binary(said.append)
-    assert core == home() / "easytier" / easytier.VERSION / "easytier-core"
+    assert core == cache() / "easytier" / easytier.VERSION / "easytier-core"
     assert core.read_bytes() == CORE
     assert core.stat().st_mode & stat.S_IXUSR
     assert sorted(path.name for path in core.parent.iterdir()) == ["easytier-core"]
@@ -143,7 +145,7 @@ def test_a_release_that_is_not_the_one_pinned_is_refused(
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     with pytest.raises(OSError, match="SHA-256"):
         easytier.binary()
-    assert not (home() / "easytier" / easytier.VERSION / "easytier-core").exists()
+    assert not (cache() / "easytier" / easytier.VERSION / "easytier-core").exists()
 
 
 @pytest.mark.usefixtures("linux")

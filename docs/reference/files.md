@@ -13,17 +13,20 @@ Every file and directory Humanize writes: the home, the machine directory, a wor
 
 | Root | Path | Holds |
 | --- | --- | --- |
-| Home | `$HUMANIZE_HOME`, else `~/.hmz/` | Settings, accounts, installed flows, epics, chats. Created by the first file written into it. Never removed. |
-| Your flows | `~/.hmz/flows/` | Flows of the flowverse `user`. Always under `~`, whatever `HUMANIZE_HOME` is. |
+| Config directory | `${XDG_CONFIG_HOME:-~/.config}/humanize/` | Settings. |
+| Data directory | `${XDG_DATA_HOME:-~/.local/share}/humanize/` | Accounts, flowverses and installed flows, your own flows, epics, chats, this machine's identity, Ai-chan. |
+| State directory | `${XDG_STATE_HOME:-~/.local/state}/humanize/` | Prompt history, the last web port, directories derived from a working directory. |
+| Cache directory | `${XDG_CACHE_HOME:-~/.cache}/humanize/` | EasyTier binaries Humanize downloaded. Mirror records and LiteLLM sessions are kept in `~/.cache/humanize/`. |
 | Workspace directory | `<workspace>/.hmz/` | Flows of the flowverse `local`. |
 | Machine directory | `<tmp>/humanize-<uid>/` | The daemon's socket and log, caches, scratch. `<tmp>` is the first of `$TMPDIR`, `$TEMP`, `$TMP` that exists and is writable, else the first of `/tmp`, `/var/tmp` and `/usr/tmp` that is. `<uid>` is your numeric user id. |
-| Cache directory | `~/.cache/humanize/` | Mirror records and LiteLLM sessions. Does not follow `HUMANIZE_HOME`. |
+
+The config, data, state and cache directories are the home. A variable that is empty or not an absolute path counts as unset. None of them is created before a file is written into it, and none is ever removed.
 
 Placeholders on this page:
 
 | Name | Meaning |
 | --- | --- |
-| `<home>` | The home. |
+| `<config>`, `<data>`, `<state>`, `<cache>` | The config, data, state and cache directories. |
 | `<mdir>` | The machine directory. |
 | `<ws>` | The workspace key: the workspace's absolute path, symbolic links resolved, with every character outside `[A-Za-z0-9]` replaced by `-`. `/home/alex/shop` becomes `-home-alex-shop`. |
 | `<stamp>-<hex6>` | The name of an epic or a chat: its start in UTC as `YYYYMMDDTHHMMSS.mmmZ`, then six random hexadecimal digits. |
@@ -31,55 +34,72 @@ Placeholders on this page:
 
 Timestamps inside files are UTC (`YYYY-MM-DDTHH:MM:SS.mmmZ`) unless a row says otherwise. A killed writer leaves a file named `.<name>.<16 hex digits>.new` beside its target. You can delete it.
 
-If `.hmz` does not exist yet, Humanize renames `~/.humanize/` or `<workspace>/.humanize/` to `.hmz` on first access. It does not rename `~/.humanize/` while `HUMANIZE_HOME` is set.
+If `<workspace>/.hmz` does not exist yet, Humanize renames `<workspace>/.humanize/` to `.hmz` on first access.
+
+### Moving from `~/.hmz` {#moving-from-hmz}
+
+Releases up to and including v0.3.0 and v2026.11.11 kept everything in `~/.hmz/` (and before that in `~/.humanize/`). The first time a newer `hmz` runs, it moves each entry it knows into the directory it belongs in: `settings.yaml` to `<config>`; `providers/`, `epics/`, `chats/`, `flowverses/`, `flows/`, `identity/`, `ai/`, `publish/` and `trash/` to `<data>`; `history.jsonl`, `web-port` and `envs/` to `<state>`; `easytier/` to `<cache>`.
+
+- An entry whose name already exists at its new place stays where it is. Nothing is merged.
+- `local/` and `server.json` stay in `~/.hmz/`. Delete them if you like.
+- If `~/.hmz` is a symbolic link, as `hmz home move` of the v2026.11 line leaves it, the directory it leads to is emptied, then removed with the link. `~/.hmz.moved-<stamp>/` and `~/.hmz.moving` are left alone.
+- An entry is copied beside its new place first and renamed into it, so a copy to another disk that stops partway never takes its place. If an entry cannot be moved, it stays, and the next run tries again.
+- Git worktrees moved with `envs/` are repaired with `git worktree repair`.
+- An emptied `~/.hmz` or `~/.humanize` is removed.
+- The move happens once: `~/.hmz/.moved` records it, whatever the `XDG_*` variables of a later run say. Afterwards `~/.hmz` is only the workspace directory of your home directory. Delete `~/.hmz/.moved` to have the next run move again.
 
 See [Desktop app](/reference/desktop) for files specific to Humanize Desktop.
 
 ## The home
 
 ```text
-<home>/
+<config>/
 ├── settings.yaml
-├── .settings.yaml.lock
-├── history.jsonl
-├── web-port
+└── .settings.yaml.lock
+<data>/
 ├── providers/<cli>/<name>/
 ├── flowverses/<verse>/
 │   ├── index/
 │   └── installed/[<owner>/]<flow>/
-├── envs/
-├── easytier/<version>/
+├── flows/
 ├── identity/<machine>/
 ├── ai/<machine>/
 ├── chats/<ws>/<stamp>-<hex6>/
 └── epics/<ws>/<stamp>-<hex6>/
+<state>/
+├── history.jsonl
+├── web-port
+└── envs/
+<cache>/
+└── easytier/<version>/
 ```
 
 | Path | Holds | Mode | If you delete it |
 | --- | --- | --- | --- |
-| `settings.yaml` | Every setting. See [settings.yaml](/reference/settings). | `0600` | Every setting takes its default. |
-| `.settings.yaml.lock` | An empty file each writer of `settings.yaml` locks. | `0600` | Made again. |
-| `history.jsonl` | Lines you submitted at the prompt of `hmz`. One JSON object a line: `at` (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), `workdir`, `text`. Appended, never trimmed. | umask | Prompt history is empty. |
-| `web-port` | The port the last `hmz web` listened on, as digits. | umask | `hmz web` has no remembered port. |
-| `providers/<cli>/<name>/` | One account. See [The account directory](#account-directory). | `0700` | The account no longer exists. |
-| `flowverses/<verse>/index/` | A depth-1 `git` clone of the flowverse's index. | umask | The flowverse is no longer known. |
-| `flowverses/<verse>/installed/[<owner>/]<flow>/` | One installed flow: the release's files, the skills it names by URL under `skills/<skill>/`, and `.installed.json`. | umask | The flow is no longer installed. |
-| `envs/` | Directories derived from a working directory. See [Environment state](#environment-state). | umask | Copies, scratch and worktrees are gone. |
-| `easytier/<version>/` | EasyTier binaries Humanize downloaded. | umask | Downloaded again when needed. |
-| `identity/<machine>/` | This machine's device identity and paired devices. See [Identity](#identity). | `0700` | The machine gets a new daemon id. Every client that pinned the old one refuses it. |
-| `ai/<machine>/` | Ai-chan conversations. See [Ai-chan](#ai-chan). | `0700` | Every conversation is forgotten. Each one's chat stays, as an ordinary chat. |
-| `chats/<ws>/<stamp>-<hex6>/` | One chat. See [A chat's directory](#chat-directory). | umask | The chat no longer exists. |
-| `epics/<ws>/<stamp>-<hex6>/` | One epic. See [An epic's directory](#epic-directory). | umask | The epic no longer exists. |
+| `<config>/settings.yaml` | Every setting. See [settings.yaml](/reference/settings). | `0600` | Every setting takes its default. |
+| `<config>/.settings.yaml.lock` | An empty file each writer of `settings.yaml` locks. | `0600` | Made again. |
+| `<state>/history.jsonl` | Lines you submitted at the prompt of `hmz`. One JSON object a line: `at` (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), `workdir`, `text`. Appended, never trimmed. | umask | Prompt history is empty. |
+| `<state>/web-port` | The port the last `hmz web` listened on, as digits. | umask | `hmz web` has no remembered port. |
+| `<data>/providers/<cli>/<name>/` | One account. See [The account directory](#account-directory). | `0700` | The account no longer exists. |
+| `<data>/flowverses/<verse>/index/` | A depth-1 `git` clone of the flowverse's index. | umask | The flowverse is no longer known. |
+| `<data>/flowverses/<verse>/installed/[<owner>/]<flow>/` | One installed flow: the release's files, the skills it names by URL under `skills/<skill>/`, and `.installed.json`. | umask | The flow is no longer installed. |
+| `<data>/flows/` | Your own flows, of the flowverse `user`. Humanize writes here only when you copy a flow in by name. | umask | Your flows are gone. |
+| `<state>/envs/` | Directories derived from a working directory. See [Environment state](#environment-state). | umask | Copies, scratch and worktrees are gone. |
+| `<cache>/easytier/<version>/` | EasyTier binaries Humanize downloaded. | umask | Downloaded again when needed. |
+| `<data>/identity/<machine>/` | This machine's device identity and paired devices. See [Identity](#identity). | `0700` | The machine gets a new daemon id. Every client that pinned the old one refuses it. |
+| `<data>/ai/<machine>/` | Ai-chan conversations. See [Ai-chan](#ai-chan). | `0700` | Every conversation is forgotten. Each one's chat stays, as an ordinary chat. |
+| `<data>/chats/<ws>/<stamp>-<hex6>/` | One chat. See [A chat's directory](#chat-directory). | umask | The chat no longer exists. |
+| `<data>/epics/<ws>/<stamp>-<hex6>/` | One epic. See [An epic's directory](#epic-directory). | umask | The epic no longer exists. |
 
-Stop every `hmz` process and the daemon before deleting entries in `<home>`. You can delete `history.jsonl` and `web-port` at any time.
+Stop every `hmz` process and the daemon before deleting entries in the home. You can delete `history.jsonl` and `web-port` at any time.
 
 `.installed.json` is a JSON object with keys `verse`, `owner`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`, `dependencies`, and `skills`. A directory is not an installed flow if `.installed.json` is missing or its `verse`, `owner`, or `name` does not match the path.
 
-You can delete `local/` and `server.json` if present; Humanize ignores them.
+You can delete `~/.hmz/local/` and `~/.hmz/server.json` if present; Humanize ignores them.
 
 ### The account directory {#account-directory}
 
-`<home>/providers/<cli>/<name>/` holds one [account](/user/accounts). `<name>` matches `[A-Za-z0-9][A-Za-z0-9._-]*`.
+`<data>/providers/<cli>/<name>/` holds one [account](/user/accounts). `<name>` matches `[A-Za-z0-9][A-Za-z0-9._-]*`.
 
 | Entry | Holds |
 | --- | --- |
@@ -107,7 +127,7 @@ Removing the account deletes its directory.
 
 ### Identity {#identity}
 
-`<home>/identity/<machine>/` has mode `0700`. Every file inside it has mode `0600`.
+`<data>/identity/<machine>/` has mode `0700`. Every file inside it has mode `0600`.
 
 | File | Holds |
 | --- | --- |
@@ -117,7 +137,7 @@ Removing the account deletes its directory.
 
 ### Ai-chan {#ai-chan}
 
-`<home>/ai/<machine>/` has mode `0700`. Only the daemon writes to it.
+`<data>/ai/<machine>/` has mode `0700`. Only the daemon writes to it.
 
 | Entry | Holds |
 | --- | --- |
@@ -127,7 +147,7 @@ Removing the account deletes its directory.
 
 ### Environment state {#environment-state}
 
-`<home>/envs/` holds data derived from an environment's working directory on this machine. `<name>` is the last component of the working directory, truncated to 32 characters.
+`<state>/envs/` holds data derived from an environment's working directory on this machine. `<name>` is the last component of the working directory, truncated to 32 characters.
 
 | Path | Holds | Removed |
 | --- | --- | --- |
@@ -142,10 +162,10 @@ A directory ending in `….part.<pid>` is a copy in progress; `….part.gone.<ra
 
 ## An epic's directory {#epic-directory}
 
-`<home>/epics/<ws>/<stamp>-<hex6>/` holds one epic. The directory name is the epic's name. A directory is an epic only if it contains `epic.jsonl`.
+`<data>/epics/<ws>/<stamp>-<hex6>/` holds one epic. The directory name is the epic's name. A directory is an epic only if it contains `epic.jsonl`.
 
 ```text
-<home>/epics/<ws>/<stamp>-<hex6>/
+<data>/epics/<ws>/<stamp>-<hex6>/
 ├── epic.jsonl
 ├── epic.<flow>_<hex6>.jsonl
 ├── resume.jsonl
@@ -176,11 +196,11 @@ Humanize never deletes an epic's directory or its files. You can delete the dire
 
 An exported epic is one file, `<epic name>.hmzepic` by default: a gzip-compressed tar archive of mode `0600`, written where you choose.
 
-Importing an epic writes to `<home>/epics/<ws>/<epic name>/`, using `<ws>` from the recorded workspace. The import fails if that directory already exists. An archive of a chat goes to `<home>/chats/<ws>/` instead, with `chat.jsonl`. See [Export and import a run](/user/export).
+Importing an epic writes to `<data>/epics/<ws>/<epic name>/`, using `<ws>` from the recorded workspace. The import fails if that directory already exists. An archive of a chat goes to `<data>/chats/<ws>/` instead, with `chat.jsonl`. See [Export and import a run](/user/export).
 
 ## A chat's directory {#chat-directory}
 
-`<home>/chats/<ws>/<stamp>-<hex6>/` holds one chat. The directory name is the chat's id. A directory is a chat only if it contains `chat.jsonl`. Chats and epics never share a name.
+`<data>/chats/<ws>/<stamp>-<hex6>/` holds one chat. The directory name is the chat's id. A directory is a chat only if it contains `chat.jsonl`. Chats and epics never share a name.
 
 | File | Holds |
 | --- | --- |
@@ -209,7 +229,7 @@ Forking a chat creates a new directory with a copy of `sessions/`. Adopting a CL
 
 Deleting a chat removes its directory, or you can delete the directory directly when the chat is not running. Deleting a chat never removes the worktree in `workdir`.
 
-When the daemon starts, it moves every chat that an earlier release recorded under `<home>/epics/` to `<home>/chats/<ws>/`, renaming its `epic.jsonl` to `chat.jsonl`.
+When the daemon starts, it moves every chat that an earlier release recorded under `<data>/epics/` to `<data>/chats/<ws>/`, renaming its `epic.jsonl` to `chat.jsonl`.
 
 A chat started without a folder uses `<mdir>/nofolder/<random>/`, which is removed once no chat or epic that used it remains.
 
@@ -312,7 +332,7 @@ A backup target is a `git` repository that stores epics and chats from every mac
 
 Humanize skips committing if only the manifest changed since the last backup. The local clone is at `<mdir>/backup/<target>/`.
 
-`hmz backup --pull` writes epics to `<home>/epics/<ws>/<epic>/` and chats to `<home>/chats/<ws>/<chat>/`, failing if the destination directory already exists.
+`hmz backup --pull` writes epics to `<data>/epics/<ws>/<epic>/` and chats to `<data>/chats/<ws>/<chat>/`, failing if the destination directory already exists.
 
 ## On other machines
 
@@ -335,9 +355,9 @@ Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-
 
 Humanize never prunes these paths; delete them manually when you no longer need them:
 
-- `<home>/epics/` and `<home>/chats/`
-- `<home>/history.jsonl`
-- worktrees under `<home>/envs/`
+- `<data>/epics/` and `<data>/chats/`
+- `<state>/history.jsonl`
+- worktrees under `<state>/envs/`
 - `refs/hmz/snapshots/` in your repositories
 - `<mdir>/daemon.log`, `<mdir>/pinned/`, `<mdir>/skills/` and `<mdir>/backup/`
 - `~/.cache/humanize/`

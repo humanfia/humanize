@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from hmz import home
+from hmz import config
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Ran, chats, read
 from hmz.tui import Humanize
@@ -231,8 +231,8 @@ def _target(tmp_path: Path) -> Path:
     """A bare repository of the test's own, saved as the default backup target `lab`."""
     lab = tmp_path / "lab.git"
     subprocess.run(["git", "init", "-q", "--bare", str(lab)], check=True)
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.yaml").write_text(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.yaml").write_text(
         yaml.safe_dump(
             {
                 "backup": {

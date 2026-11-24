@@ -176,10 +176,10 @@ def test_one_daemon_holds_every_workspace_and_each_run_writes_its_own_epic(
 
     for task, seen in heard.items():
         assert [one["text"] for one in seen.of("printed")] == [f"{task} printed"]
-    from hmz import home
+    from hmz import data
 
     def logs() -> list[str]:
-        return sorted(one.read_text() for one in (home() / "epics").rglob("host.log"))
+        return sorted(one.read_text() for one in (data() / "epics").rglob("host.log"))
 
     assert until(lambda: len(logs()) == 2)
     assert logs() == [

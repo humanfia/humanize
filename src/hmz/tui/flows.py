@@ -235,7 +235,8 @@ class Fetches(Form[tuple[str, str]]):
         self.query_one("#asked", Label).update("Add a flowverse")
         self.query_one("#about", Label).update(
             "A git repository indexing flows: flows/[<user>/]<flow>/<version>/flow.yaml, "
-            "one manifest per release. Its index is cloned under ~/.hmz/flowverses, and "
+            "one manifest per release. Its index is cloned under "
+            "~/.local/share/humanize/flowverses, and "
             "the flows you install from it are offered as @<name>/[<user>/]<flow>."
         )
         self._fill()
@@ -695,7 +696,7 @@ class Flows(Drafts[Chosen]):
             "install more from a flowverse.",
             ROLES: "Configure each role: an agent (CLI, account, model and effort) or an "
             "environment; then what the flow takes and what an epic may spend.",
-            VERSES: "Indexes of flows to install, cloned under ~/.hmz/flowverses. "
+            VERSES: "Indexes of flows to install, cloned under ~/.local/share/humanize/flowverses. "
             "Fetching, adding and removing one happen at once.",
             VERSE: f"Flows {escape(self._verse)} lists, at their newest release. Open one "
             "for its others; installing happens at once.",

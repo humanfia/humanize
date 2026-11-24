@@ -456,11 +456,11 @@ class Conversations:
 
     @functools.cached_property
     def at(self) -> Path:
-        """`<home>/ai/<machine>/`, which holds them, and is the workspace of a `daemon` scope."""
-        from hmz import home
+        """`<data>/ai/<machine>/`, which holds them, and is the workspace of a `daemon` scope."""
+        from hmz import data
         from hmz.trust.identity import machine_id
 
-        return home() / "ai" / machine_id()
+        return data() / "ai" / machine_id()
 
     def scratch(self, ident: int) -> Path:
         """The scratch directory of a conversation."""

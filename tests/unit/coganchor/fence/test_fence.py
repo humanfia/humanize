@@ -706,7 +706,7 @@ def test_wrapper_passes_the_backend_the_settings_choose(
 
 def _settings(said: str) -> None:
     """This machine's settings file, holding what is said."""
-    where = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    where = Path(os.environ["XDG_CONFIG_HOME"], "humanize", "settings.yaml")
     where.parent.mkdir(parents=True, exist_ok=True)
     where.write_text(said, encoding="utf-8")
 

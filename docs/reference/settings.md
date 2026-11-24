@@ -377,5 +377,5 @@ Invalid targets and duplicate target names are skipped. Default entries that do 
 
 ## Related
 
-- [Environment variables](/reference/environment): environment variables read by `hmz`, including `HUMANIZE_HOME`.
+- [Environment variables](/reference/environment): environment variables read by `hmz`.
 - [Files on disk](/reference/files): all other files in the Humanize home directory.

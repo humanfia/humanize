@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from hmz import data
 from hmz.runtime.flowing import verses
 from hmz.runtime.flowing.index import kept
 from hmz.runtime.flowing.verses import (
@@ -153,7 +154,7 @@ def test_three_places_are_always_there(project: Path) -> None:
     )
     assert official.at == under() / OFFICIAL / INDEX
     assert local == Flowverse(LOCAL, "", Path(".hmz/flows"), fetched=True, fixed=True)
-    assert user.at == Path(project.parent / "me" / ".hmz" / "flows")
+    assert user.at == data() / "flows"
     assert [one.name for one in nearest()] == [LOCAL, USER, OFFICIAL]
     assert set(MINE) == {LOCAL, USER}
 

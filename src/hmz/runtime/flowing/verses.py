@@ -3,8 +3,8 @@
 A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml` for the flows
 it lists bare and `flows/<user>/<flow>/<version>/flow.yaml` for the ones it lists under their
 owner, one manifest per release of a flow, saying which repository and commit that release is
-(:mod:`index`). It is cloned into `~/.hmz/flowverses/<name>/index/`, and holds no code: what
-runs is what somebody chose to install out of it, which is kept beside the clone, in
+(:mod:`index`). It is cloned into `~/.local/share/humanize/flowverses/<name>/index/`, and holds
+no code: what runs is what somebody chose to install out of it, which is kept beside the clone, in
 `installed/`, and offered under the flowverse's name. Fetching an index again changes what may
 be installed, and never what runs.
 
@@ -43,7 +43,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from hmz import here, home
+from hmz import data, here
 
 __all__ = [
     "AT",
@@ -82,17 +82,17 @@ __all__ = [
 OFFICIAL = "official"
 OFFICIAL_URL = "https://github.com/humanfia/flowverse"
 
-#: What the flows of your own are listed under: this project's, and the ones in your home
-#: directory. Flowverses like any other, except that nothing fetches them.
+#: What the flows of your own are listed under: this project's, and the ones in Humanize's
+#: data directory. Flowverses like any other, except that nothing fetches them.
 LOCAL = "local"
 USER = "user"
 
-#: And where those two are, nearest first. Kept unresolved: the project one is relative to
-#: wherever Humanize is being run, and `~` is whoever is running it, neither of which is
-#: settled when this is imported.
+#: And where those two are, nearest first, as a person is told: the project one is relative to
+#: wherever Humanize is being run, and the other is in the data directory, which is here where
+#: `XDG_DATA_HOME` does not move it (:func:`hmz.data`).
 MINE = {
     LOCAL: ".hmz/flows",
-    USER: "~/.hmz/flows",
+    USER: "~/.local/share/humanize/flows",
 }
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is
@@ -163,8 +163,8 @@ class Flowverse:
 
 
 def under() -> Path:
-    """Where every flowverse is kept, which is one directory under Humanize's home."""
-    return home() / "flowverses"
+    """Where every flowverse is kept, which is one directory of Humanize's data directory."""
+    return data() / "flowverses"
 
 
 def holds(one: Flowverse) -> Path:
@@ -278,16 +278,10 @@ def _own(name: str) -> Flowverse:
       it from, and a directory that is not there is a place holding no flows rather than one
       with a download outstanding. Fixed, since a place that is wherever you are cannot be
       taken away.
-
-    Note:
-      Expanded with `os.path` rather than `Path.expanduser`, which raises where there is no
-      home behind the `~`: a machine with no home directory is a machine with no flows of
-      yours on it, which is a thing to say rather than the reason a flow Humanize itself came
-      with could not be found.
     """
     # This project's are in its own directory, which moves one kept under its old name to
     # where they are read from.
-    at = here() / "flows" if name == LOCAL else Path(os.path.expanduser(MINE[name]))
+    at = here() / "flows" if name == LOCAL else data() / "flows"
     return Flowverse(
         name=name,
         url="",

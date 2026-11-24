@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
+from hmz import config
 from hmz.daemon.link import Link
 from hmz.runtime.flowing import index
 from hmz.tui import Humanize
@@ -55,7 +56,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 def remembered(tmp_path: Path, workspace: Path) -> dict[str, Any]:
     """What the settings file keeps about the workspace, or nothing where it keeps nothing."""
-    kept = tmp_path / "humanize-home" / "settings.yaml"
+    kept = config() / "settings.yaml"
     said: dict[str, Any] = yaml.safe_load(kept.read_text()) if kept.exists() else {}
     return dict(said.get("workspaces", {}).get(str(workspace), {}))
 

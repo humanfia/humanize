@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.runtime.epic import JOURNAL
+from tests.conftest import places, rehome
 from tests.integration.doubles_web import PATIENCE
 
 if TYPE_CHECKING:
@@ -398,7 +399,7 @@ def another(under: Path) -> Generator[Another]:
     there = dict(
         os.environ,
         HOME=str(under / "another-home"),
-        HUMANIZE_HOME=str(under / "another"),
+        **places(under / "another"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="a", dir=os.environ.get("TMPDIR")),
     )
@@ -504,7 +505,7 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
 
     import yaml
 
-    from hmz import home
+    from hmz import config
     from hmz.runtime.epic import every
     from tests.integration.doubles_core import AGENT, hmz_exec
 
@@ -513,9 +514,9 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     target = {"name": "t", "url": str(bare), "policies": ["end"]}
 
     def targets() -> None:
-        home().mkdir(parents=True, exist_ok=True)
+        config().mkdir(parents=True, exist_ok=True)
         said = {"backup": {"targets": [target], "defaults": []}}
-        (home() / "settings.yaml").write_text(yaml.safe_dump(said))
+        (config() / "settings.yaml").write_text(yaml.safe_dump(said))
 
     targets()
     ran = hmz_exec(
@@ -531,7 +532,7 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     )
     assert ran.returncode == 0, ran.stderr
     (name,) = [one.name for one in every()]
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    rehome(monkeypatch, tmp_path / "elsewhere")
     targets()
     return name
 
