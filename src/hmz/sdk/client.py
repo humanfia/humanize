@@ -124,7 +124,7 @@ class Client(Session):
         except BaseException:
             remotes.close()
             raise
-        made._remotes = remotes
+        made._remotes = remotes  # noqa: SLF001 -- this class's own, of one it had made
         return made
 
     def close(self) -> None:

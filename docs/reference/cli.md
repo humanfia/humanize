@@ -710,7 +710,7 @@ hmz ai forget ID [options]
 | Argument or option | What it is |
 | --- | --- |
 | `ID` | The conversation's number, as `hmz ai list` prints it. |
-| `-y, --yes` | Delete without asking. |
+| `-y, --yes` | Do it without asking first. |
 
 | Example | What it does |
 | --- | --- |
@@ -938,7 +938,7 @@ hmz btw ask QUESTION [options]
 | `QUESTION` | The question to ask. |
 | `--to SESSION` | The session to ask, written `&lt;agent>/&lt;n>` as `hmz btw sessions` prints it; with `--chat` and no `--to`, the chat's newest session is asked. |
 | `--aside NAME` | The side conversation to go on in, by its name; when not given, a new side conversation is opened. |
-| `-w, --workspace PATH` | The workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--epic NAME` | The epic the side questions are about, by its name; when not given, the epic in view in the workspace. |
 | `--chat NAME` | The chat the side questions are about, by its name, in place of `--epic`. |
 
@@ -998,7 +998,7 @@ hmz btw list [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace PATH` | The workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--epic NAME` | The epic the side questions are about, by its name; when not given, the epic in view in the workspace. |
 | `--chat NAME` | The chat the side questions are about, by its name, in place of `--epic`. |
 
@@ -1030,7 +1030,7 @@ hmz btw show ASIDE [options]
 | Argument or option | What it is |
 | --- | --- |
 | `ASIDE` | The name of the side conversation, as `hmz btw list` prints it. |
-| `-w, --workspace PATH` | The workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--epic NAME` | The epic the side questions are about, by its name; when not given, the epic in view in the workspace. |
 | `--chat NAME` | The chat the side questions are about, by its name, in place of `--epic`. |
 
@@ -1064,7 +1064,7 @@ hmz btw leave [ASIDE] [options]
 | --- | --- |
 | `ASIDE` | The name of the side conversation to close; left out with `--all`. |
 | `--all` | Close every side conversation of the workspace. |
-| `-w, --workspace PATH` | The workspace the epic or chat is in, as an absolute path; when not given, the folder the command is run in. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -1117,7 +1117,7 @@ hmz chat start MESSAGE [options]
 | `MESSAGE` | The chat's first message; put `--` before a message that starts with a dash. |
 | `-a, --agent AGENT` | The agent to talk to, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]; when not given, the agent remembered for the folder. |
 | `-e, --env ENV` | The environment the agent works in, written BACKEND[@RUNTIME][/DIRECTORY]; when not given, the folder itself. |
-| `-w, --workspace DIR` | The folder the chat is of; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--no-folder` | Start the chat in no folder; the daemon makes a directory for this chat alone. |
 | `--worktree` | A new git worktree of the folder, which the folder itself is left out of. |
 | `--permission {read-only,workspace-write,danger-full-access}` | What the agent may change; `workspace-write` when not given. One of `read-only`, `workspace-write`, `danger-full-access`. |
@@ -1147,7 +1147,6 @@ Prints the agent's answer on standard output, and the chat's id and the turn as 
 | Status | Meaning |
 | --- | --- |
 | `129` | A hangup (SIGHUP) ended the command; the chat goes on in the daemon. |
-| `130` | An interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon. |
 | `143` | A termination signal (SIGTERM) ended the command; the chat goes on in the daemon. |
 
 Daemon methods: `chat.start`, `chat.say`, `epic.attach`, `epic.detach`, `settings.get`.
@@ -1187,7 +1186,6 @@ Prints the agent's answer on standard output, and the chat's id and the turn as 
 | Status | Meaning |
 | --- | --- |
 | `129` | A hangup (SIGHUP) ended the command; the chat goes on in the daemon. |
-| `130` | An interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon. |
 | `143` | A termination signal (SIGTERM) ended the command; the chat goes on in the daemon. |
 
 Daemon methods: `chat.get`, `chat.say`, `chat.start`, `epic.attach`, `epic.detach`.
@@ -1448,7 +1446,7 @@ hmz chat delete CHAT [options]
 | Argument or option | What it is |
 | --- | --- |
 | `CHAT` | The chat's id, as `hmz chat list` prints it. |
-| `-y, --yes` | Delete without asking. |
+| `-y, --yes` | Do it without asking first. |
 
 | Example | What it does |
 | --- | --- |
@@ -2135,7 +2133,7 @@ hmz env list [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 
@@ -2179,7 +2177,7 @@ hmz env ls [PATH] [options]
 | Argument or option | What it is |
 | --- | --- |
 | `PATH` | The directory to list, relative to the environment's working directory, or absolute. Default `.`. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2214,7 +2212,7 @@ hmz env stat PATH [options]
 | Argument or option | What it is |
 | --- | --- |
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2249,7 +2247,7 @@ hmz env cat PATH [options]
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
 | `--offset N` | The byte to start reading at. |
 | `--length N` | How many bytes to read, at most 1048576. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2285,7 +2283,7 @@ hmz env find [NAME] [options]
 | --- | --- |
 | `NAME` | Print only the paths that contain this text, whatever its case; when not given, every path. |
 | `--limit N` | The most files the environment lists; 20000 when not given. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2319,7 +2317,7 @@ hmz env search QUERY [options]
 | `--case` | Match case; without it `a` also finds `A`. |
 | `--glob GLOB` | Search only the files whose path matches this glob, such as `*.py`. |
 | `--limit N` | The most matches to print; 2000 when not given. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2355,7 +2353,7 @@ hmz env write PATH [options]
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
 | `--from FILE` | A file of this machine to read what is written from; when not given, standard input. |
 | `--if-match ETAG` | Write only if the file's etag is still this one, as `hmz env cat --json` printed it; an empty value, `--if-match ''`, writes only if there is no file yet. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2389,7 +2387,7 @@ hmz env mkdir PATH [options]
 | Argument or option | What it is |
 | --- | --- |
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2418,7 +2416,7 @@ hmz env mv PATH TO [options]
 | --- | --- |
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
 | `TO` | The path to move it to. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2448,7 +2446,7 @@ hmz env rm PATH [options]
 | --- | --- |
 | `PATH` | A path in the environment, relative to its working directory, or absolute. |
 | `-y, --yes` | Do it without asking first. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2464,10 +2462,6 @@ Prints the question on standard error, and then `Deleted`.
 | --- | --- | --- |
 | `path` | `string` | The path as given on the command line. |
 
-| Status | Meaning |
-| --- | --- |
-| `4` | The question was not answered yes, so nothing was changed. |
-
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.remove`, `epic.detach`.
 
 ### hmz env exec
@@ -2482,7 +2476,7 @@ hmz env exec [ARGV...] [options]
 | --- | --- |
 | `ARGV` | The command and its arguments, after `--`. |
 | `--seconds N` | How long the command may run before it is stopped, from 1 to 3600 seconds; 120 when not given. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ROLE` | The role of the environment to run in, as `hmz env list` prints it; when not given, the first role of the flow. |
@@ -2516,7 +2510,7 @@ hmz env git status [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2557,7 +2551,7 @@ hmz env git diff [PATHS...] [options]
 | --- | --- |
 | `PATHS` | The files to show, relative to the top of the repository; when none is given, every changed file. |
 | `--staged` | Show what is staged instead of what is not. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2590,7 +2584,7 @@ hmz env git log [options]
 | Argument or option | What it is |
 | --- | --- |
 | `--limit N` | The most commits to list; 50 when not given. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2625,7 +2619,7 @@ hmz env git stage [PATHS...] [options]
 | --- | --- |
 | `PATHS` | The paths to act on, relative to the top of the repository as `hmz env git status` prints them. |
 | `-A, --all` | Act on every changed path instead of naming paths. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2655,7 +2649,7 @@ hmz env git unstage [PATHS...] [options]
 | --- | --- |
 | `PATHS` | The paths to act on, relative to the top of the repository as `hmz env git status` prints them. |
 | `-A, --all` | Act on every changed path instead of naming paths. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2686,7 +2680,7 @@ hmz env git discard [PATHS...] [options]
 | `PATHS` | The paths to act on, relative to the top of the repository as `hmz env git status` prints them. |
 | `-A, --all` | Act on every changed path instead of naming paths. |
 | `-y, --yes` | Do it without asking first. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2701,10 +2695,6 @@ The paths acted on, one per line.
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `paths` | `list` | The paths that were acted on. |
-
-| Status | Meaning |
-| --- | --- |
-| `4` | The question was not answered yes, so nothing was changed. |
 
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.git.status`, `env.git.discard`, `epic.detach`.
 
@@ -2721,7 +2711,7 @@ hmz env git commit --message TEXT [options]
 | `-m, --message TEXT` | The commit message. |
 | `--amend` | Amend the commit checked out instead of adding a new one. |
 | `-a, --all` | Stage every change first, untracked files included, then commit. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2750,7 +2740,7 @@ hmz env git snapshots [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2780,7 +2770,7 @@ hmz env git rewind REF [options]
 | --- | --- |
 | `REF` | The snapshot to rewind to, a ref as `hmz env git snapshots` prints it. |
 | `-y, --yes` | Do it without asking first. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2795,10 +2785,6 @@ Prints the question on standard error, and then that the environment was rewound
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `ref` | `string` | The snapshot the environment was rewound to. |
-
-| Status | Meaning |
-| --- | --- |
-| `4` | The question was not answered yes, so nothing was changed. |
 
 Daemon methods: `chat.get`, `hosts.status`, `epic.attach`, `env.git.rewind`, `epic.detach`.
 
@@ -2815,7 +2801,7 @@ hmz env term open [options]
 | `--term ID` | A running terminal to come back to, by its id as `hmz env term list` prints it; when not given, a new terminal is started. |
 | `--cols N` | How many columns wide the terminal is; when not given, the width of this terminal. |
 | `--rows N` | How many rows high the terminal is; when not given, the height of this terminal. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2847,7 +2833,7 @@ hmz env term list [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2882,7 +2868,7 @@ hmz env term close TERM [options]
 | Argument or option | What it is |
 | --- | --- |
 | `TERM` | The terminal's id, as `hmz env term list` prints it. |
-| `-w, --workspace DIR` | The folder whose host is asked; when not given, the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | Which host of the folder to ask: `chat:&lt;id>` for a chat or `exec:&lt;id>` for an `hmz exec` epic; when not given, the folder's own host, where its epics run. |
 | `--chat ID` | A chat's id as `hmz chat list` prints it; asks that chat's host instead of `--workspace` and `--slot`. |
 | `--env ENV` | Which environment of the host to work in, by id, chain or role as `hmz env list` prints them; when not given, the first open environment. |
@@ -2908,7 +2894,9 @@ hmz epic start FLOW [TASK] [options]
 hmz epic attach [options]
 hmz epic say TEXT [options]
 hmz epic answer [TEXT] [options]
+hmz epic face QUESTION [options]
 hmz epic stop [options]
+hmz epic quit [options]
 hmz epic board [KEY] [VALUE] [options]
 hmz epic claim [ROLE...] [options]
 hmz epic release ROLE [options]
@@ -2941,7 +2929,7 @@ hmz epic start FLOW [TASK] [options]
 | `--scratch` | Run in a new folderless workspace instead of `--workspace`. |
 | `--away` | Set every role away first, so that no question waits on a person. |
 | `--follow` | Stay attached and write the epic until it ends. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -2958,10 +2946,6 @@ One line naming the epic's number, workspace and slot. With `--follow`, that lin
 | `slot` | `string` | The slot of the host that holds it, to pass as `--slot`. |
 | `workspace` | `string` | The workspace it runs in, to pass as `--workspace`. |
 
-| Status | Meaning |
-| --- | --- |
-| `130` | Interrupted while following; the epic goes on. |
-
 Daemon methods: `epic.attach`, `epic.afk`, `epic.start`, `epic.detach`.
 
 ### hmz epic attach
@@ -2975,7 +2959,7 @@ hmz epic attach [options]
 | Argument or option | What it is |
 | --- | --- |
 | `--no-replay` | Write only what happens from now on, not what the epic has done. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -2993,10 +2977,6 @@ What each agent does on standard error and each answer on standard output, as `h
 | `question` | `string` | Of `asked`, the id to answer it by with `hmz epic answer`. |
 | `how` | `string` | Of `ended`: `done`, `stopped`, `budget`, `refused`, `failed` or `crashed`. |
 
-| Status | Meaning |
-| --- | --- |
-| `130` | Interrupted while following; the epic goes on. |
-
 Daemon methods: `hosts.status`, `epic.attach`, `epic.detach`.
 
 ### hmz epic say
@@ -3011,7 +2991,7 @@ hmz epic say TEXT [options]
 | --- | --- |
 | `TEXT` | The line to say. |
 | `--to WHO` | Who the line is for: an agent's name, a session as `&lt;agent>/&lt;n>`, or `outworlder:&lt;role>`. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3041,7 +3021,7 @@ hmz epic answer [TEXT] [options]
 | `TEXT` | The answer in words. |
 | `-q, --question ID` | The id of the question, as `hmz epic status` prints it. |
 | `--value JSON` | The answer as a JSON value of the question's schema, in place of the text. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3057,6 +3037,35 @@ One line once the answer is taken.
 
 Daemon methods: `hosts.status`, `epic.attach`, `epic.status`, `epic.answer`, `epic.detach`.
 
+### hmz epic face
+
+A flow can give a question a face, a page of HTML of its own that the web page shows in place of the plain question. This command prints that HTML for one waiting question, to save to a file and open in a browser. A question with no face is refused. Nothing in the HTML is run.
+
+```text
+hmz epic face QUESTION [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `QUESTION` | The id of a waiting question, as `hmz epic status` prints it. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz epic face q3 > face.html` | Save the face of question q3 to a file to open in a browser. |
+| `hmz epic face q3 --json \| jq -r .title` | Print the title of the face of question q3. |
+
+Prints the HTML of the face, as the flow wrote it.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `question` | `string` | The id of the question the face belongs to. |
+| `title` | `string` | The title of the face. |
+| `html` | `string` | The HTML of the face, as the flow wrote it. |
+
+Daemon methods: `hosts.status`, `epic.attach`, `epic.face`, `epic.detach`.
+
 ### hmz epic stop
 
 Stops the epic: the turn under way is interrupted and the flow unwinds. `--force` also closes every session still in a turn, for an epic that does not stop.
@@ -3068,7 +3077,7 @@ hmz epic stop [options]
 | Argument or option | What it is |
 | --- | --- |
 | `--force` | Stop it and close every session that has a turn open. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3085,6 +3094,33 @@ One line; with `--force`, how many sessions were closed.
 
 Daemon methods: `hosts.status`, `epic.attach`, `epic.stop`, `epic.force`, `epic.detach`.
 
+### hmz epic quit
+
+Attaches to the host as a frontend and tells it to close. The host withdraws every waiting question, drops every line waiting to be said, stops every epic it runs, lets every frontend go and closes every side question; its process exits within 15 seconds. The epic's record is kept. `hmz hosts stop` does the same without attaching; `hmz epic stop` stops the epic and keeps the host.
+
+```text
+hmz epic quit [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz epic quit` | Close the host of the epic of this folder. |
+| `hmz epic quit -w ~/work/app --slot exec:1f2e` | Close the host of one epic of another workspace. |
+
+Prints one line once the host has taken the request.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `workspace` | `string` | The workspace of the host closed. |
+| `slot` | `string` | The slot of the host closed. |
+
+Daemon methods: `hosts.status`, `epic.attach`, `epic.quit`, `epic.detach`.
+
 ### hmz epic board
 
 The board is the lines an epic keeps for its agents and its person. With no argument this prints it; with a key, that line; with a key and a value it writes the line as the person; `--remove` removes it.
@@ -3098,7 +3134,7 @@ hmz epic board [KEY] [VALUE] [options]
 | `KEY` | The key of one line. |
 | `VALUE` | What to write on that line. |
 | `--remove` | Remove the line instead of writing it. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3136,7 +3172,7 @@ hmz epic claim [ROLE...] [options]
 | `ROLE` | A role to claim. |
 | `--take` | Take a role from the frontend that claims it now. |
 | `--no-replay` | Write only what happens from now on, not what the epic has done. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3149,10 +3185,6 @@ What `hmz epic attach` prints.
 | `--json` field | Type | What it holds |
 | --- | --- | --- |
 | `type` | `string` | What the message is, as `hmz epic attach --json` writes it. |
-
-| Status | Meaning |
-| --- | --- |
-| `130` | Interrupted while following; the epic goes on. |
 
 Daemon methods: `hosts.status`, `epic.attach`, `epic.claim`, `epic.answer`, `epic.detach`.
 
@@ -3167,7 +3199,7 @@ hmz epic release ROLE [options]
 | Argument or option | What it is |
 | --- | --- |
 | `ROLE` | The role to release. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3194,7 +3226,7 @@ hmz epic afk [ROLE] [options]
 | --- | --- |
 | `ROLE` | The role, or every role. |
 | `--back` | Set it back instead of away. |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3221,7 +3253,7 @@ hmz epic status [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The workspace of the epic, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The slot of the host that holds the epic, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -3282,7 +3314,7 @@ hmz flows list [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace PATH` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -3318,7 +3350,7 @@ hmz flows show NAME [options]
 | Argument or option | What it is |
 | --- | --- |
 | `NAME` | The name of the flow, as `hmz flows list` prints it. |
-| `-w, --workspace PATH` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -3400,7 +3432,7 @@ hmz flows check FLOW [options]
 | `--profile-environment` | Profile the programs the epic's agents start. |
 | `--backup NAME` | A backup target the epic is backed up to; `none` for no backup; the default targets when not given. May be given more than once. |
 | `--resume` | Check resuming the newest epic of this flow in the workspace instead of starting a new one. |
-| `-w, --workspace PATH` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -3438,7 +3470,7 @@ hmz flows setup FLOW [options]
 | `--profile-flow` | Profile the flow's own Python code during the epic. |
 | `--profile-environment` | Profile the programs the epic's agents start. |
 | `--backup NAME` | A backup target the epic is backed up to; `none` for no backup; the default targets when not given. May be given more than once. |
-| `-w, --workspace PATH` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -3486,7 +3518,7 @@ hmz flows fork FLOW [options]
 | Argument or option | What it is |
 | --- | --- |
 | `FLOW` | The name of the flow to copy, as `hmz flows list` prints it. |
-| `-w, --workspace PATH` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 
 | Example | What it does |
 | --- | --- |
@@ -3687,7 +3719,7 @@ hmz flowverses remove NAME [options]
 | Argument or option | What it is |
 | --- | --- |
 | `NAME` | The name of the flowverse, as `hmz flowverses list` prints it. |
-| `-y, --yes` | Remove without asking first; needed when nobody is at a terminal to answer, and with `--json`. |
+| `-y, --yes` | Do it without asking first. |
 
 | Example | What it does |
 | --- | --- |
@@ -3775,7 +3807,7 @@ hmz flowverses uninstall FLOW [options]
 | Argument or option | What it is |
 | --- | --- |
 | `FLOW` | The installed flow, as `hmz flowverses list` prints it. |
-| `-y, --yes` | Remove without asking first; needed when nobody is at a terminal to answer, and with `--json`. |
+| `-y, --yes` | Do it without asking first. |
 
 | Example | What it does |
 | --- | --- |
@@ -3880,6 +3912,8 @@ A host is the process the daemon holds one workspace's epic, or one chat, in. It
 
 ```text
 hmz hosts list [options]
+hmz hosts open [options]
+hmz hosts detach [options]
 hmz hosts stop [options]
 ```
 
@@ -3919,6 +3953,65 @@ One line per host: workspace, slot, state, flow and task.
 
 Daemon methods: `hosts.list`, `hosts.running`.
 
+### hmz hosts open
+
+Starts the host of a workspace and slot where the daemon holds none, and attaches nothing to it; a host already held is answered as it is. `--slot exec:` or `--slot chat:` alone makes a new slot of that kind and prints the slot made. An epic is then started on it with `hmz epic start`.
+
+```text
+hmz hosts open [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `--slot SLOT` | The slot to open, as `hmz hosts list` prints it; `exec:` or `chat:` alone for a new slot of that kind; when not given, the workspace's own host. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz hosts open` | Start the host of this folder. |
+| `hmz hosts open --slot exec: --json \| jq -r .slot` | Make a new exec slot in this folder and print its name. |
+
+Prints one line with the host's process id, workspace and slot.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `pid` | `integer` | The host's process id. |
+| `workspace` | `string` | The host's workspace. |
+| `started` | `string` | When the host started, ISO 8601. |
+| `kind` | `string` | What the process is, always `host`. |
+| `protocol` | `string` | The version of the protocol the host speaks. |
+| `slot` | `string` | The host's slot. |
+
+Daemon methods: `hosts.open`.
+
+### hmz hosts detach
+
+Lets go every frontend attached to the host of a workspace and slot -- every web page, terminal interface and command following it -- and leaves its epic or chat running. Roles the frontends had claimed are released. A frontend may attach again.
+
+```text
+hmz hosts detach [options]
+```
+
+| Argument or option | What it is |
+| --- | --- |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
+| `--slot SLOT` | The host's slot, as `hmz hosts list` prints it, or the workspace's own host. |
+
+| Example | What it does |
+| --- | --- |
+| `hmz hosts detach` | Let go every frontend of the host of this folder. |
+| `hmz hosts detach --json \| jq .let_go` | Print how many frontends were let go. |
+
+Prints one line saying how many frontends were let go.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `workspace` | `string` | The workspace of the host. |
+| `slot` | `string` | The slot of the host. |
+| `let_go` | `integer` | How many frontends were let go. |
+
+Daemon methods: `hosts.detach`.
+
 ### hmz hosts stop
 
 Closes the host of a workspace and slot. An epic or chat it is running is stopped first. To stop an epic and keep its host, use `hmz epic stop`.
@@ -3929,7 +4022,7 @@ hmz hosts stop [options]
 
 | Argument or option | What it is |
 | --- | --- |
-| `-w, --workspace DIR` | The host's workspace, a directory of the daemon's machine, or the current directory. |
+| `-w, --workspace DIR` | The workspace, a folder on the daemon's machine; the current directory when not given. |
 | `--slot SLOT` | The host's slot, as `hmz hosts list` prints it, or the workspace's own host. |
 
 | Example | What it does |
@@ -4027,10 +4120,6 @@ Prints one line per notice as it arrives: its number, the local time, its kind, 
 | `role` | `string` | The role a question is asked of, else empty. |
 | `text` | `string` | What it says: the question, the reply, or why it failed. |
 | `at` | `number` | When it was made, seconds since the Unix epoch. |
-
-| Status | Meaning |
-| --- | --- |
-| `130` | Interrupted with ctrl+c. |
 
 Daemon methods: `notices.subscribe`, `notices.unsubscribe`.
 
@@ -5475,7 +5564,7 @@ hmz skills remove [options]
 | --- | --- |
 | `--for HARNESS` | Only this harness, by the name `hmz skills list` prints. May be given more than once. |
 | `--dir PATH` | A skills folder to use instead of any harness's own; the skill is the folder `hmz` inside it. |
-| `-y, --yes` | Remove without asking first. |
+| `-y, --yes` | Do it without asking first. |
 
 Asks no daemon, and takes no `--daemon`.
 

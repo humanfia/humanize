@@ -454,12 +454,14 @@ def _face(call: Call) -> None:
     from hmz.sdk import Refused
 
     with _attaches(call) as attached:
+        # What the host tells a frontend as it attaches says each question whole, its face
+        # with it; its status says only that the question waits.
+        waiting: list[dict[str, Any]] = []
+        for told in _live(attached):
+            if told.get("type") == "pending":
+                waiting = told.get("pending") or []
         asked = next(
-            (
-                one
-                for one in attached.status()["pending"]
-                if str(one["question"]) == call.question
-            ),
+            (one for one in waiting if str(one.get("question")) == call.question),
             None,
         )
         if asked is None:
@@ -837,13 +839,7 @@ COMMANDS = (
                         "html", "string", "the HTML of the face, as the flow wrote it"
                     ),
                 ),
-                methods=(
-                    "hosts.status",
-                    "epic.attach",
-                    "epic.status",
-                    "epic.face",
-                    "epic.detach",
-                ),
+                methods=("hosts.status", "epic.attach", "epic.face", "epic.detach"),
                 see=("epic status", "epic answer"),
                 run=_face,
             ),

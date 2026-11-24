@@ -648,7 +648,7 @@ def test_an_interrupt_ends_any_command_with_130_and_no_more_said(
     ],
 )
 def test_a_session_that_ended_under_a_call_is_a_daemon_not_reached(
-    ended: bool,  # noqa: FBT001 -- one case's value
+    ended: bool,
     status: int,
     message: str,
     monkeypatch: pytest.MonkeyPatch,

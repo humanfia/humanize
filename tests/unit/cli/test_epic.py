@@ -469,12 +469,18 @@ def test_a_refusal_is_said_in_the_hosts_words(
 def test_the_face_of_a_waiting_question_is_printed_as_the_flow_wrote_it(
     attached: mock.MagicMock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    attached.status.return_value = {
-        "pending": [
-            {"question": "q1", "face": None},
-            {"question": "q3", "face": {"hash": "abc", "title": "Review"}},
-        ]
-    }
+    _told(
+        attached,
+        {"type": "welcome"},
+        {
+            "type": "pending",
+            "pending": [
+                {"question": "q1", "face": None},
+                {"question": "q3", "face": {"hash": "abc", "title": "Review"}},
+            ],
+        },
+        {"type": "live", "seq": 4},
+    )
     attached.face.return_value = mock.Mock(html="<p>pick</p>", title="Review")
 
     assert main(["epic", "face", "q3"]) == 0
@@ -500,7 +506,11 @@ def test_a_question_with_no_face_to_print_is_refused(
     attached: mock.MagicMock,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    attached.status.return_value = {"pending": [{"question": "q1", "face": None}]}
+    _told(
+        attached,
+        {"type": "pending", "pending": [{"question": "q1", "face": None}]},
+        {"type": "live", "seq": 4},
+    )
 
     assert main(["epic", "face", question, "--json"]) == 1
 

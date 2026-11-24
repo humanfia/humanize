@@ -194,6 +194,7 @@ def remotes(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     held = mock.Mock()
     registry = mock.Mock()
     registry.return_value.remotes.return_value = held
+    held.asked_of = registry.return_value.remotes
     monkeypatch.setattr(hmz.runtime.doing.daemons, "Daemons", registry)
     return held
 
@@ -211,8 +212,7 @@ def test_a_daemon_of_the_registry_is_reached_by_name_and_let_go_of_whole(
 
     # Reached as what it is, and handed out as the SDK's own client: nothing of the
     # runtime's is reached into.
-    registry = hmz.runtime.doing.daemons.Daemons
-    registry.return_value.remotes.assert_called_once_with(kind="cli")  # pyright: ignore[reportFunctionMemberAccess]
+    remotes.asked_of.assert_called_once_with(kind="cli")
     remotes.client.assert_called_once_with("gpu", Client)
     assert client is remotes.client.return_value
     assert (client.daemon_id, client.version) == ("abc", "1.2.3")
