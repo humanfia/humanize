@@ -24,6 +24,8 @@ from textual import on, work
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
+from hmz.words import t
+
 from .monitoring import _across, _boxed, _joins, _Said
 from .pick import (
     _DOT,
@@ -34,7 +36,6 @@ from .pick import (
     Sheet,
     _figures,
     _hmz,
-    _many,
     _shade,
     _when,
     bad,
@@ -89,7 +90,7 @@ class Graph(Sheet[None]):
         #: The flows it called, as a tree, once read.
         self._calls: tuple[Called, ...] = ()
         #: What is worth saying under the list.
-        self._told = "reading its logs…"
+        self._told = t("Reading its logs…")
 
     def _ask(self) -> None:
         """Says which epic this is, and reads it."""
@@ -99,7 +100,7 @@ class Graph(Sheet[None]):
             escape(f"{_when(ran.began)}{_DOT}{ran.flow}")
         )
         self.query_one("#about", Label).update(
-            escape(_DOT.join([*_figures(ran), _many(len(ran.sessions), "session")]))
+            escape(_DOT.join([*_figures(ran), t("{n} sessions", n=len(ran.sessions))]))
         )
         self._fill()
         self._reads()
@@ -119,7 +120,7 @@ class Graph(Sheet[None]):
         else:
             self._said = {one["key"]: one for one in said}
             self._calls = calls
-            self._told = "" if said else "its logs held nothing said"
+            self._told = "" if said else t("Its logs held nothing said.")
         self._fill()
 
     def actions(self) -> list[Action]:
@@ -129,8 +130,8 @@ class Graph(Sheet[None]):
         return [
             Action(
                 _ACT_EXOMYTH,
-                "Exomyth",
-                "the epic as a timeline of its sessions",
+                t("Exomyth"),
+                t("timeline of its sessions"),
                 self._exomyth,
             )
         ]
@@ -179,8 +180,10 @@ class Graph(Sheet[None]):
                             part
                             for part in (
                                 runs.get(name, ""),
-                                _many(taken, "turn") if self._said is not None else "",
-                                _many(len(mine), "session"),
+                                t("{n} turns", n=taken)
+                                if self._said is not None
+                                else "",
+                                t("{n} sessions", n=len(mine)),
                             )
                             if part
                         ),
@@ -207,7 +210,7 @@ class Graph(Sheet[None]):
                 for key, said in mine
             )
         if self._calls:
-            rows.append(Option(" [$primary]called flows[/]", disabled=True))
+            rows.append(Option(f" [$primary]{t('Called flows')}[/]", disabled=True))
             rows.extend(
                 Option(line, disabled=True) for line in _tree(self._calls, depth=0)
             )
@@ -223,7 +226,7 @@ class Graph(Sheet[None]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{self._told}[/]" if self._told else ""
         )
-        self._footed(Key("enter", "read"), Key("esc", "back"))
+        self._footed(Key("enter", t("Read")), Key("esc", t("Back")))
 
     def _session(self, key: str) -> str:
         """What a session's row says about it: which CLI and account, and how much it did."""
@@ -232,7 +235,7 @@ class Graph(Sheet[None]):
         if self._said is None:
             return where
         actions = (self._said.get(key) or {}).get("actions") or ()
-        return f"{where}{_DOT}{_many(len(actions), 'action')}"
+        return f"{where}{_DOT}{t('{n} actions', n=len(actions))}"
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -329,7 +332,7 @@ class SessionRead(Sheet[None]):
         """Says which session this is, and puts what it did up."""
         self.query_one("#asked", Label).update(escape(self._named))
         self.query_one("#about", Label).update(
-            f"{_many(len(self._actions), 'action')}, oldest first, read back from its log."
+            t("{n} actions, oldest first, read from its log.", n=len(self._actions))
         )
         self._fill()
 
@@ -365,11 +368,11 @@ class SessionRead(Sheet[None]):
         )
         listing.highlighted = ids.index(landing) if landing else None
         self._drawn = listing.highlighted
-        said = "" if self._actions else "its log held nothing it did"
+        said = "" if self._actions else t("Its log held nothing done.")
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "whole"), Key("esc", "back"))
+        self._footed(Key("enter", t("Expand")), Key("esc", t("Back")))
 
     def _said(self, label: str, about: str, *, here: bool) -> str:
         """One action as a row, as a row of `/settings` lays one out but with its lines kept.
@@ -423,25 +426,25 @@ def _action(one: dict[str, Any]) -> tuple[str, str]:
     name = str(one.get("name") or "")
     match one.get("category"):
         case "turn":
-            return "turn", _text(args.get("prompt")) or name
+            return t("turn"), _text(args.get("prompt")) or name
         case "message":
-            return "said", _text(args.get("text")) or name
+            return t("said"), _text(args.get("text")) or name
         case "tool":
             said = [_text(args.get("input")) or name]
             out = args.get("output", args.get("result"))
             if out is not None:
                 said.append(f"⎿ {_text(out)}")
             if args.get("error"):
-                said.append("✕ failed")
-            return name.partition(":")[0] or "tool", "\n".join(said)
+                said.append(t("✕ failed"))
+            return name.partition(":")[0] or t("tool"), "\n".join(said)
         case "llm":
-            return "model", _DOT.join(
+            return t("model"), _DOT.join(
                 part
                 for part in (str(args.get("model") or ""), _text(args.get("thinking")))
                 if part
             ) or name
         case _:
-            return str(one.get("category") or "event"), name
+            return str(one.get("category") or t("event")), name
 
 
 def _text(said: object) -> str:

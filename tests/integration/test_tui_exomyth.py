@@ -56,7 +56,7 @@ async def _exomyth(pilot: Pilot[None]) -> Exomyth:
     await shows(pilot, "· ralph_loop")
     await pilot.press("enter")
     await on(pilot, Does)
-    await shows(pilot, "Exomyth", "the epic as a timeline of its sessions")
+    await shows(pilot, "Exomyth", "timeline of its sessions")
     await opens(pilot, "exomyth")
     return await on(pilot, Exomyth)
 

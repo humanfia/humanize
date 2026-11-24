@@ -144,6 +144,160 @@
    "wants": "a `$` name is a flow",
    "where": "one lower-case word beside a completion",
    "text": "flow"
+  },
+  {
+   "wants": "what esc does on a sheet: goes back one step",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Back"
+  },
+  {
+   "wants": "what esc does on a sheet opened from the prompt: closes it",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Close"
+  },
+  {
+   "wants": "what enter does on a row that leads somewhere: opens it",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one (Back, Close, Open, Search), otherwise one or two words in sentence case",
+   "text": "Open"
+  },
+  {
+   "wants": "what the digits 1 to 9 do on a row of numbered choices: pick the choice with that number",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one, otherwise one or two words in sentence case",
+   "text": "Choose"
+  },
+  {
+   "wants": "what the left and right arrows do: move along the choices or buttons",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word where it has one, otherwise one or two words in sentence case",
+   "text": "Move"
+  },
+  {
+   "wants": "what page up and page down do while a question form is open: scroll the transcript above it, so what is asked about can be read",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "Scroll transcript"
+  },
+  {
+   "wants": "what esc does on a question form: closes it and keeps what was filled in as a draft",
+   "where": "key hint at the foot of a sheet in the terminal interface, a few words in sentence case, no full stop",
+   "text": "Close and keep draft"
+  },
+  {
+   "wants": "what enter does on a session row of an epic's graph: opens what that session did, to read it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Read"
+  },
+  {
+   "wants": "what enter does on one action of a session that is cut short: shows the whole of it, and cuts it short again when pressed again",
+   "where": "key hint at the foot of a sheet in the terminal interface, one or two words in sentence case",
+   "text": "Expand"
+  },
+  {
+   "wants": "stands for an answer made of the values the flow suggested, where there is nothing shorter to call it",
+   "where": "a few lower-case words used as the name of an answer, no full stop",
+   "text": "what the flow suggested"
+  },
+  {
+   "wants": "{n} more lines of a block were left out",
+   "where": "quiet line under a block of context cut short, starting with an ellipsis character and a space, lower case, no full stop",
+   "text": "… {n} more lines",
+   "one": "… {n} more line"
+  },
+  {
+   "wants": "{n} more rows of a table were left out",
+   "where": "quiet line under a table cut short, starting with an ellipsis character and a space, lower case, no full stop",
+   "text": "… {n} more rows",
+   "one": "… {n} more row"
+  },
+  {
+   "wants": "all of what was cut short can be read in the web page at {url}",
+   "where": "clause appended to a line such as `… 30 more rows`, starting with ` -- ` (space, two hyphens, space), lower case, no full stop",
+   "text": " -- read all at {url}"
+  },
+  {
+   "wants": "summary of a block of context that is a diff: the word diff, a middle dot, then what it changes {changed}",
+   "where": "quiet summary beside a block's title, lower case, as the page's `table · {n} rows`",
+   "text": "diff · {changed}"
+  },
+  {
+   "wants": "a picture or chart the terminal cannot draw can be seen in the web page at {url}",
+   "where": "end of a quiet summary line, lower case, no full stop, the address last after a colon",
+   "text": "see in web page: {url}"
+  },
+  {
+   "wants": "a picture or chart the terminal cannot draw can be seen by opening the web page, which `hmz web` opens",
+   "where": "end of a quiet summary line, lower case, no full stop; write the command as (hmz web)",
+   "text": "open in web page (hmz web)"
+  },
+  {
+   "wants": "what was typed, \"{typed}\", answers none of the fields of the form; pick a choice or write in a field below",
+   "where": "one line under a form, keep the double quotes around {typed}, lower-case start, no full stop",
+   "text": "\"{typed}\" answers no field; choose an option or fill in a field below"
+  },
+  {
+   "wants": "title of a question form whose question has no text of its own",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Question"
+  },
+  {
+   "wants": "{role} asks this question; its context is in the transcript above the form",
+   "where": "one line under the title of a question form, starts with {role}, no full stop",
+   "text": "{role} asks; context is in the transcript above"
+  },
+  {
+   "wants": "the optional fields folded under `More options` already hold the values the flow suggested",
+   "where": "quiet hint beside the `More options` row, lower-case start, no full stop",
+   "text": "set to what the flow suggested"
+  },
+  {
+   "wants": "what the Answer button does: sends this answer",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send this answer"
+  },
+  {
+   "wants": "what the Exomyth button on an epic's graph opens: the epic as a timeline of its sessions",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "timeline of its sessions"
+  },
+  {
+   "wants": "{n} actions of one session, oldest first, read back from its log",
+   "where": "one sentence under the title of the sheet that reads one session, starts with the count",
+   "text": "{n} actions, oldest first, read from its log.",
+   "one": "{n} action, oldest first, read from its log."
+  },
+  {
+   "wants": "{n} actions (things a session did: turns, messages, tool calls)",
+   "where": "count on a row, lower case, as the page's `{n} sessions`",
+   "text": "{n} actions",
+   "one": "{n} action"
+  },
+  {
+   "wants": "the session's log held nothing it did",
+   "where": "empty-state line under a list, one short sentence in the manner of the page's `Its logs held nothing said.`",
+   "text": "Its log held nothing done."
+  },
+  {
+   "wants": "label of a row that is one turn of a session",
+   "where": "one lower-case word at the start of a row",
+   "text": "turn"
+  },
+  {
+   "wants": "label of a row that is something the agent said",
+   "where": "one lower-case word at the start of a row",
+   "text": "said"
+  },
+  {
+   "wants": "label of a row that is a tool call whose tool has no name",
+   "where": "one lower-case word at the start of a row",
+   "text": "tool"
+  },
+  {
+   "wants": "label of a row that is an event of no other kind",
+   "where": "one lower-case word at the start of a row",
+   "text": "event"
+  },
+  {
+   "wants": "a tool call failed",
+   "where": "end of a row, after a ✕ mark: write `✕ failed` with the page's word for failed, lower case",
+   "text": "✕ failed"
   }
  ],
  "model": "gcp/google/gemini-4-argon"
