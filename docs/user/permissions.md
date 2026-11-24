@@ -96,6 +96,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 ## Good to know
 
 - If Humanize cannot enforce a permission, the session fails to open with `HarnessSandboxed`. An agent never runs with wider access than its permission allows.
+- A Cursor team admin can turn off **Run Everything** or headless use in the Cursor dashboard. `cursor-agent` then cannot run without prompts, so its first turn fails, before any model call, with an error that names the setting. Ask the admin to turn it back on, or pick another CLI for that agent. A managed opencode or mimocode config cannot forbid the settings Humanize sends.
 - When an agent reports a refused write, the permission is working. Start the chat in the folder you want changed, or select a wider preset.
 - Under **Edit this folder**, the agent can also write to `/tmp`, `/var/tmp` and `$TMPDIR`.
 - Under any preset, every agent can write to its own settings, sign-in and session files.
