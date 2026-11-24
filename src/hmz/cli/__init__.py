@@ -678,7 +678,7 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Six are for
+#: Each command, as what carries it out and the line a listing shows it as. Five are for
 #: anybody: running a flow in a directory, serving the
 #: web interface, running, reaching and installing this machine's daemon, serving a relay daemons
 #: and devices meet through, and moving Humanize itself to its newest release -- everything
