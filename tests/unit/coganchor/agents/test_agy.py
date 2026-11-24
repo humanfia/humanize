@@ -6,6 +6,9 @@ import dataclasses
 import itertools
 import json
 import math
+import os
+import pathlib
+import sys
 import tempfile
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +43,14 @@ if TYPE_CHECKING:
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A home of the test's own: the agents agy is held to are files written into it."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
+@pytest.fixture(autouse=True)
+def admin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Where agy's admin settings are read: a file of the test's own, which none writes."""
+    where = tmp_path / "admin_settings.json"
+    monkeypatch.setattr(AntigravityCLIAgent, "admin", where)
+    return where
 
 
 def _agent(**said: Any) -> AntigravityCLIAgent:
@@ -567,3 +578,154 @@ def test_a_turn_not_through_a_gateway_is_told_no_model_it_serves(
 
     env = spawned[0].env or {}
     assert "AGY_LLM_GATEWAY_MODELS" not in env
+
+
+# --------------------------------------------------------------- an organization's admin settings
+
+
+def _administered(where: Path, **said: Any) -> None:
+    where.write_text(json.dumps(said), encoding="utf-8")
+
+
+def _withheld() -> bool:
+    """Whether this machine withholds the user namespaces agy's terminal sandbox starts in."""
+    if sys.platform != "linux":
+        return False
+    for knob, forbids in (
+        ("kernel/apparmor_restrict_unprivileged_userns", "1"),
+        ("kernel/unprivileged_userns_clone", "0"),
+        ("user/max_user_namespaces", "0"),
+    ):
+        try:
+            if pathlib.Path("/proc/sys", knob).read_text().strip() == forbids:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+@pytest.mark.parametrize(
+    "policy",
+    ["require_review", "TERMINAL_COMMAND_AUTO_EXECUTION_POLICY_REQUIRE_REVIEW"],
+)
+def test_settings_holding_every_command_for_review_refuse_a_fenced_agent_at_once(
+    admin: Path, policy: str
+) -> None:
+    _administered(admin, adminControls={"terminalCommandAutoExecutionPolicy": policy})
+
+    with pytest.raises(Unserved, match="REQUIRE_REVIEW") as refused:
+        _agent(fence=_held(writes=True))
+
+    assert str(admin) in str(refused.value)
+    assert _agent().config.fence is None  # one nobody fenced runs at agy's own defaults
+
+
+@pytest.mark.parametrize(
+    ("said", "instead"),
+    [
+        (
+            {"terminalCommandAutoExecutionPolicy": "proceed_in_sandbox"},
+            "terminal sandbox",
+        ),
+        ({"outsideWorkspaceFileAccessPolicy": "deny"}, "outside its workspace"),
+        ({"outsideWorkspaceFileAccessPolicy": "ALWAYS_ASK"}, "outside its workspace"),
+    ],
+)
+def test_settings_holding_less_are_run_under_and_said_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    admin: Path,
+    said: dict[str, str],
+    instead: str,
+) -> None:
+    _administered(admin, adminControls=said)
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    if instead == "terminal sandbox" and _withheld():
+        # Where agy's own sandbox cannot start, every command would be held: refused instead.
+        with pytest.raises(Unserved, match="user namespaces"):
+            _agent(fence=_held(writes=True))
+        return
+    agent = _agent(fence=_held(writes=True))
+    told = heard(agent)
+    session = agent.new(tmp_path)
+
+    _turn(session)
+    _turn(session)
+
+    notices = [one.text for one in told if one.kind == "notice"]
+    assert len(notices) == 1
+    assert instead in notices[0]
+    assert str(admin) in notices[0]
+    assert "--dangerously-skip-permissions" in spawned[0].args
+    session.close()
+
+
+@pytest.mark.parametrize(
+    ("said", "named"),
+    [
+        ({"pluginControls": {"pluginsDisabled": True}}, "pluginsDisabled"),
+        ({"mcpControls": {"mcpEnabled": False}}, "mcpEnabled"),
+    ],
+)
+def test_settings_turning_plugins_off_refuse_the_flow_s_tools_where_offered(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    admin: Path,
+    said: dict[str, Any],
+    named: str,
+) -> None:
+    _administered(admin, **said)
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    with pytest.raises(Unserved, match=named):
+        session.offers([FakeTool("secret", "Says the secret word.", lambda: "")])
+
+    session.offers(None)  # taking back nothing is no tool to refuse
+    _turn(session)
+    assert len(spawned) == 1
+    session.close()
+
+
+def test_what_agy_still_refuses_a_fenced_turn_is_said(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    denied = [{"tool_name": "run_command", "reason": "held for review"}]
+    spawning(monkeypatch, answers=_answering(_result(_USAGE, denied_actions=denied)))
+    agent = _agent(fence=_held(writes=True))
+    told = heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    notices = [one.text for one in told if one.kind == "notice"]
+    assert len(notices) == 1
+    assert "run_command (held for review)" in notices[0]
+    assert "admin controls" in notices[0]
+
+
+def test_settings_that_are_no_json_hold_it_to_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, admin: Path
+) -> None:
+    admin.write_text("{not json", encoding="utf-8")
+    spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent(fence=_held(writes=True))
+    told = heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert not [one for one in told if one.kind == "notice"]
+
+
+def test_settings_changed_while_running_are_read_again(admin: Path) -> None:
+    _administered(admin, adminControls={})
+    _agent(fence=_held(writes=True))
+
+    _administered(
+        admin, adminControls={"terminalCommandAutoExecutionPolicy": "REQUIRE_REVIEW"}
+    )
+    os.utime(admin, ns=(1, 1))
+
+    with pytest.raises(Unserved, match="REQUIRE_REVIEW"):
+        _agent(fence=_held(writes=True))

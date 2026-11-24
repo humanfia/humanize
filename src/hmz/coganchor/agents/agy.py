@@ -18,10 +18,12 @@ transport is documented to read them, so a line opening with either is the words
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
 import re
+import sys
 import tempfile
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -40,11 +42,12 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
+    from hmz.coganchor.anchor import AnchorConfig
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.homes import Virtual
 
     from .skills import Loaded
-    from .tools import Toolbox
+    from .tools import FakeTool, Toolbox
 
 #: What the CLI is installed as. The tarball calls the file `antigravity` and the installer
 #: puts it down under this name, which is what a command line reaches for.
@@ -70,6 +73,127 @@ _SERVED = "AGY_LLM_GATEWAY_MODELS"
 #: whatever `agy --print` runs at when it is started by hand: the CLI's own default approval and
 #: the soft-denials its print mode makes in place of the questions it would have asked.
 _UNASKED = ("--dangerously-skip-permissions",)
+
+#: The file an organization puts its managed admin settings for agy in, on each platform: what
+#: agy's own `defaultAdminSettingsPathForOS` names, read off agy 1.5.13 on 2026-11-24. Those
+#: settings outrank `--dangerously-skip-permissions`, and a headless turn denies what they hold
+#: for review rather than asking -- soft-denied under `denied_actions`, the turn still a success.
+#: The same controls can also come from a Gemini Enterprise console, fetched once agy has
+#: signed in, which no file says before a turn; what they refuse is read off the turn
+#: (:meth:`AntigravityCLISession._record`).
+_ADMIN = {
+    "darwin": Path("/Library/Application Support/Antigravity/admin_settings.json"),
+    "win32": Path(os.environ.get("PROGRAMDATA") or "C:\\ProgramData")
+    / "Antigravity"
+    / "admin_settings.json",
+}.get(sys.platform, Path("/etc/antigravity/admin_settings.json"))
+
+
+@dataclass(frozen=True)
+class _Admin:
+    """What an organization's admin settings hold agy to, of what a turn of Humanize's needs.
+
+    Each policy is the name of its value with agy's enum prefix taken off, upper-cased:
+    `require_review` and `TERMINAL_COMMAND_AUTO_EXECUTION_POLICY_REQUIRE_REVIEW` are both
+    `REQUIRE_REVIEW`. Empty where nothing is said, which is `NOT_ENFORCED`.
+
+    Attributes:
+      where: The file it was read from.
+      terminal: `adminControls.terminalCommandAutoExecutionPolicy`: `REQUIRE_REVIEW` holds
+        every command for review, `PROCEED_IN_SANDBOX` runs each in agy's own terminal sandbox
+        and holds the ones that would leave it.
+      files: `adminControls.outsideWorkspaceFileAccessPolicy`: `DENY` or `ALWAYS_ASK` keeps
+        agy's own file tools inside its workspace directories.
+      plugins: Whether `pluginControls.pluginsDisabled` turns plugins off, the flow's
+        callbacks' (:func:`_plug`) among them.
+      mcp: Whether `mcpControls.mcpEnabled` turns MCP servers off, which is what those
+        callbacks are served as.
+    """
+
+    where: Path
+    terminal: str = ""
+    files: str = ""
+    plugins: bool = False
+    mcp: bool = False
+
+
+def _policy(value: object, prefix: str) -> str:
+    """One policy's value, as :class:`_Admin` keeps it."""
+    said = str(value or "").upper().replace("-", "_").removeprefix(prefix)
+    return "" if said == "UNSPECIFIED" else said
+
+
+def _admin(where: Path) -> _Admin | None:
+    """What the admin settings in this file hold agy to, read without ever being written.
+
+    Read again only once the file has changed, so that a daemon outliving an organization's
+    change of mind is held to the change, and asking costs a `stat` otherwise.
+
+    Args:
+      where: The file (:data:`_ADMIN`).
+
+    Returns:
+      It, or None where there is no such file or agy could not read one either: it starts
+      without settings it cannot parse rather than refusing to, and says so in its log.
+    """
+    try:
+        stamp = where.stat().st_mtime_ns
+    except OSError:
+        return None
+    return _administered(where, stamp)
+
+
+@functools.cache
+def _administered(where: Path, stamp: int) -> _Admin | None:
+    """:func:`_admin`, for the file as it was at one modification time."""
+    del stamp
+    try:
+        raw: object = json.loads(where.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    said = cast("dict[str, Any]", raw)
+
+    def section(name: str) -> dict[str, Any]:
+        held = said.get(name)
+        return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+
+    controls = section("adminControls")
+    return _Admin(
+        where,
+        terminal=_policy(
+            controls.get("terminalCommandAutoExecutionPolicy"),
+            "TERMINAL_COMMAND_AUTO_EXECUTION_POLICY_",
+        ),
+        files=_policy(
+            controls.get("outsideWorkspaceFileAccessPolicy"), "FILE_ACCESS_POLICY_"
+        ),
+        plugins=section("pluginControls").get("pluginsDisabled") is True,
+        mcp=section("mcpControls").get("mcpEnabled") is False,
+    )
+
+
+def _jails() -> bool:
+    """Whether agy's terminal sandbox can start here, which takes an unprivileged user namespace.
+
+    Linux can withhold one three ways -- Ubuntu's AppArmor restriction, Debian's sysctl, and
+    no namespaces at all -- and agy's sandbox dies bringing its loopback up under any of them.
+    """
+    if sys.platform != "linux":
+        return True
+    for knob, forbids in (
+        ("kernel/apparmor_restrict_unprivileged_userns", "1"),
+        ("kernel/unprivileged_userns_clone", "0"),
+        ("user/max_user_namespaces", "0"),
+    ):
+        try:
+            if Path("/proc/sys", knob).read_text().strip() == forbids:
+                return False
+        except OSError:
+            continue
+    return True
+
 
 #: The agent a turn is started as (`--agent`) where its fence writes nothing: one of Humanize's
 #: own, whose toolset is the reading tools and the shell, and none of the CLI's other built-in
@@ -479,6 +603,61 @@ def _plug(root: Path, toolbox: Toolbox) -> None:
             (plugin / name).write_text(text, encoding="utf-8")
 
 
+def _unheld(admin: _Admin) -> None:
+    """Refuses a fenced agent whose every command agy's admin settings would have it deny.
+
+    A headless turn denies what the settings hold for review, there being nobody to ask, and
+    an agent of Humanize's keeps its shell whatever its fence writes: so settings holding every
+    command, or every one outside a terminal sandbox this machine cannot start, leave no way of
+    running it that works. Anything less is run, and said (:meth:`AntigravityCLIAgent._instead`).
+
+    Args:
+      admin: The settings.
+
+    Raises:
+      Unserved: If they leave the agent no command it may run.
+    """
+    if admin.terminal == "REQUIRE_REVIEW":
+        held = "hold every command for review"
+    elif admin.terminal == "PROCEED_IN_SANDBOX" and not _jails():
+        held = (
+            "hold every command outside agy's terminal sandbox for review, and that sandbox "
+            "cannot start on this machine, which withholds unprivileged user namespaces"
+        )
+    else:
+        return
+    raise Unserved(
+        f"{_COMMAND} cannot run its agent's commands: its admin settings ({admin.where}) "
+        f"{held} (adminControls.terminalCommandAutoExecutionPolicy = {admin.terminal}), "
+        "and a headless turn denies what is held"
+    )
+
+
+def _refused(denied: object) -> str:
+    """What agy says it refused a turn told to ask nothing, as a notice says it.
+
+    Args:
+      denied: The result's `denied_actions`: a list of what was refused, each naming its tool
+        and why where it says.
+
+    Returns:
+      The words.
+    """
+    named: list[str] = []
+    for entry in cast("list[object]", denied) if isinstance(denied, list) else [denied]:
+        if isinstance(entry, dict):
+            one = cast("dict[str, Any]", entry)
+            tool = str(one.get("tool_name") or one.get("tool") or json.dumps(one))
+            why = str(one.get("reason") or "")
+            named.append(f"{tool} ({why})" if why else tool)
+        else:
+            named.append(str(entry))
+    return (
+        f"{_COMMAND} refused {'; '.join(named)} although told to ask nothing: its "
+        "organization's admin controls or a deny rule of the user's refused it, not the fence"
+    )
+
+
 class AntigravityCLISession(StreamSessionBase):
     """An Antigravity conversation, resumed by the id its first turn reported.
 
@@ -528,6 +707,9 @@ class AntigravityCLISession(StreamSessionBase):
     ) -> Iterator[Event]:
         """Keeps ordinary turns warm and preserves print-only command behavior."""
         with self._lock:
+            agent = cast("AntigravityCLIAgent", self._agent)
+            if (instead := agent._instead()) is not None:  # noqa: SLF001 -- its own agent's
+                yield Event(kind="notice", text=instead)
             try:
                 # A commanded prompt goes down the finite transport because that is where the
                 # CLI expands its own commands -- so an agent told not to expand them has
@@ -685,6 +867,29 @@ class AntigravityCLISession(StreamSessionBase):
         # opening with a dash is still a prompt.
         return [*argv, "--print", prompt], None
 
+    def offers(self, tools: Iterable[FakeTool] | None) -> None:
+        """Says which of the flow's callbacks the agent may reach for, as every session does.
+
+        Raises:
+          Unserved: If agy's admin settings turn off plugins or MCP servers, the way those
+            callbacks reach it (:func:`_plug`): refused where they are offered rather than at
+            a turn that would run without them.
+        """
+        agent = cast("AntigravityCLIAgent", self._agent)
+        admin = agent._policed(agent.config)  # noqa: SLF001 -- its own agent's
+        if tools and admin is not None and (admin.plugins or admin.mcp):
+            off = (
+                "plugins (pluginControls.pluginsDisabled)"
+                if admin.plugins
+                else "MCP servers (mcpControls.mcpEnabled)"
+            )
+            raise Unserved(
+                f"{_COMMAND} cannot be offered the flow's tools: its admin settings "
+                f"({admin.where}) turn off {off}, and the tools reach it as an MCP server "
+                "in a plugin"
+            )
+        super().offers(tools)
+
     def _offered(self) -> tuple[object, ...]:
         """What the flow's callbacks are for the process: their names, and where they are."""
         toolbox = self._agent.toolbox
@@ -771,6 +976,14 @@ class AntigravityCLISession(StreamSessionBase):
             self._previous = Usage({**self._previous, **cumulative})
             # It says how the run ended in a word rather than only in its exit status, and a
             # run that was cancelled or refused is not a turn that landed.
+            if self._agent.config.fence is not None and (
+                denied := told.get("denied_actions")
+            ):
+                # Told to ask nothing, what agy still refuses is not the fence's doing but an
+                # organization's admin controls -- the console's, which no file shows before
+                # the turn, included -- or a deny rule of the user's. Said rather than left a
+                # success that did less than it was asked.
+                yield Event(kind="notice", text=_refused(denied))
             status = str(told.get("status") or "")
             if failed := str(told.get("error") or ""):
                 self._failed = failed
@@ -1001,9 +1214,12 @@ class AntigravityCLIAgent(AgentBase):
             own agy, driven natively, which runs in its own home there; and an account naming
             a home of its own with `--app_data_dir` (:meth:`virtual`), refused here as well as
             where a turn is spawned, so that it is said before the first turn rather than at
-            it.
+            it. And a fenced agent whose commands agy's admin settings would deny every one of
+            (:func:`_unheld`), said when the session opens rather than at each command.
         """
         super()._serves(config)
+        if config.fence is not None and (admin := self._policed(config)) is not None:
+            _unheld(admin)
         if _defined(config) is None:
             return
         from hmz.coganchor import providers
@@ -1023,6 +1239,59 @@ class AntigravityCLIAgent(AgentBase):
         )
         if account is not None and _homes_itself(account.args):
             raise Unserved(_OWN_HOME)
+
+    #: Where agy reads its organization's admin settings on this machine (:data:`_ADMIN`).
+    admin: ClassVar[Path] = _ADMIN
+
+    #: Whether what agy's admin settings make of a fenced turn has been said, which is once.
+    _instead_said: bool = False
+
+    def _policed(self, config: AgentConfig) -> _Admin | None:
+        """The admin settings agy runs under, where they are this machine's to read.
+
+        Args:
+          config: What its turns are to run at.
+
+        Returns:
+          Them, or None where there are none, or where agy runs on another machine -- natively
+          on the target or as a harness put elsewhere -- whose settings are its own.
+        """
+        anchor: AnchorConfig | None = getattr(config.machine, "anchor", None)
+        if anchor is not None:
+            from hmz.coganchor.elsewhere import elsewhere
+
+            if anchor.native or elsewhere(anchor):
+                return None
+        return _admin(self.admin)
+
+    def _instead(self) -> str | None:
+        """What a fenced agent runs at instead, its admin settings having said so: said once.
+
+        Returns:
+          The words, the first time there are any; None every other time, for an agent
+          nobody fenced, and where the settings hold it to nothing.
+        """
+        config = self.config
+        if self._instead_said or config.fence is None:
+            return None
+        admin = self._policed(config)
+        if admin is None:
+            return None
+        held: list[str] = []
+        if admin.terminal == "PROCEED_IN_SANDBOX":
+            held.append(
+                "runs its commands in its own terminal sandbox, and is refused any that would "
+                "leave it (adminControls.terminalCommandAutoExecutionPolicy)"
+            )
+        if admin.files in ("DENY", "ALWAYS_ASK"):
+            held.append(
+                "is refused its file tools outside its workspace directories "
+                "(adminControls.outsideWorkspaceFileAccessPolicy)"
+            )
+        if not held:
+            return None
+        self._instead_said = True
+        return f"{_COMMAND} {', and '.join(held)}, as its admin settings ({admin.where}) say"
 
     #: The directory every session's plugin (:meth:`AntigravityCLISession._plugin`) is made
     #: in, made the first time one is.

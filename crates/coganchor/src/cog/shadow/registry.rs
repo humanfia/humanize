@@ -12,6 +12,7 @@ use std::io::{self, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -20,8 +21,13 @@ use super::ledger::python_json;
 use super::{from_path, normpath};
 use crate::proto::json::{self, to_os};
 
-/// Where mirrors are recorded when nothing says otherwise (`REGISTRY_DIR`).
-pub const REGISTRY_DIR: &str = "~/.cache/humanize/shadows";
+/// Where mirrors are recorded when nothing says otherwise: Humanize's own state, under
+/// `$XDG_STATE_HOME` where that is an absolute path and here where it is not.
+pub const REGISTRY_DIR: &str = "~/.local/state/humanize/shadows";
+
+/// Where releases before recorded them, under the cache: moved to the registry the first time
+/// it is asked for (see [`settle`]).
+pub const FORMERLY: &str = "~/.cache/humanize/shadows";
 
 /// What points the registry somewhere else, for one process and everything it starts: for a
 /// machine that keeps its caches elsewhere, and for a test suite (`SHADOWS`).
@@ -31,12 +37,60 @@ pub const SHADOWS: &str = "HUMANIZE_SHADOWS";
 /// (`UNMIRRORED` in `hmz.coganchor.anchor`, whose caller added them in Python).
 pub const UNMIRRORED: &str = "cannot keep the local copy of the work at";
 
-/// The registry directory: `$HUMANIZE_SHADOWS`, else [`REGISTRY_DIR`], `~` expanded.
+/// The registry directory: `$HUMANIZE_SHADOWS`, else `$XDG_STATE_HOME/humanize/shadows`, else
+/// [`REGISTRY_DIR`], `~` expanded. Only the last two take over a registry kept at [`FORMERLY`]:
+/// one the variable names is wherever it was put.
 pub(super) fn registry_dir() -> PathBuf {
-    let said = std::env::var_os(SHADOWS)
-        .filter(|said| !said.is_empty())
-        .unwrap_or_else(|| REGISTRY_DIR.into());
-    expand_user(&said)
+    if let Some(said) = std::env::var_os(SHADOWS).filter(|said| !said.is_empty()) {
+        return expand_user(&said);
+    }
+    // A relative value is ignored, as the XDG specification has it.
+    let at = match std::env::var_os("XDG_STATE_HOME").filter(|said| Path::new(said).is_absolute()) {
+        Some(state) => Path::new(&state).join("humanize/shadows"),
+        None => expand_user(REGISTRY_DIR.as_ref()),
+    };
+    settle(&expand_user(FORMERLY.as_ref()), &at);
+    at
+}
+
+/// Moves a registry kept at `was` to `now`, once a process, where `now` is not there: one that
+/// is holds what this release has recorded since, and the two are never merged. A rename, and
+/// across devices a copy made beside `now` and renamed to it once it is whole, so that `now` is
+/// never seen half there; then the original removed. Never fails: a registry anything else
+/// refuses to move is left where it is, and a new one begun.
+pub(super) fn settle(was: &Path, now: &Path) {
+    static SETTLED: Mutex<Vec<(PathBuf, PathBuf)>> = Mutex::new(Vec::new());
+    {
+        let mut settled = SETTLED
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let pair = (was.to_path_buf(), now.to_path_buf());
+        if settled.contains(&pair) {
+            return;
+        }
+        settled.push(pair);
+    }
+    if fs::symlink_metadata(now).is_ok() || fs::symlink_metadata(was).is_err() {
+        return;
+    }
+    if let Some(parent) = now.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    // Atomic, and refused where another process has meanwhile made `now` and put something in it.
+    match fs::rename(was, now) {
+        Err(why) if why.raw_os_error() == Some(libc::EXDEV) => {}
+        _ => return,
+    }
+    let name = now.file_name().unwrap_or_default().to_string_lossy();
+    let staged = now.with_file_name(format!(".{name}.{}", std::process::id()));
+    if crate::cog::homes::copytree(was, &staged)
+        .and_then(|()| fs::rename(&staged, now))
+        .is_err()
+    {
+        let _ = fs::remove_dir_all(&staged);
+        return;
+    }
+    let _ = fs::remove_dir_all(was);
 }
 
 /// The record of the mirror at `mirror` in `registry` (`_registry_entry`). The digest is of

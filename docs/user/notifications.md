@@ -72,7 +72,7 @@ To configure notifications, run `/settings notifications`. Press <kbd>enter</kbd
 | **Done**, **Failed**, **Stopped**, **Questions**, **Waiting** | No card, bell or dot for that kind. |
 | **System** | A card in `hmz` alone: no bell, no system notification. |
 
-`hmz` saves these settings under `notifications` in `settings.yaml`. See [settings.yaml](/reference/settings).
+`hmz` saves these settings under `notifications` in `settings.toml`. See [settings.toml](/reference/settings).
 
 ## Good to know
 

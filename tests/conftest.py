@@ -16,6 +16,7 @@ state is what they are for; tests themselves may not.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import json
 import os
@@ -37,7 +38,7 @@ import hmz.runtime.flowing.verses
 from hmz.runtime import telemetry
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator, Iterator
 
     from hmz.coganchor.backends import Model
     from hmz.daemon.private import Private
@@ -45,9 +46,25 @@ if TYPE_CHECKING:
 #: Asking a backend what it runs, kept so that `asking` can give it back.
 _ASKS = hmz.coganchor.models.ask
 
-#: The home of whoever runs the suite, read before any fixture names another: what no test
-#: may write into.
-_THEIR_HOME = Path(os.environ.get("HUMANIZE_HOME") or Path.home() / ".hmz")
+#: Each base directory Humanize keeps one of its own in, by the variable that moves it and
+#: where it is otherwise, under `HOME`.
+BASES = {
+    "XDG_CONFIG_HOME": ".config",
+    "XDG_DATA_HOME": ".local/share",
+    "XDG_STATE_HOME": ".local/state",
+    "XDG_CACHE_HOME": ".cache",
+}
+
+
+def _theirs(variable: str, otherwise: str) -> Path:
+    """One of Humanize's directories of whoever runs the suite, as `hmz` finds it."""
+    said = Path(os.environ.get(variable, ""))
+    return (said if said.is_absolute() else Path.home() / otherwise) / "humanize"
+
+
+#: The home of whoever runs the suite, read before any fixture names another -- each of its
+#: directories, and `~/.hmz` where every release before kept it: what no test may write into.
+_THEIR_HOMES = (*(_theirs(*one) for one in BASES.items()), Path.home() / ".hmz")
 
 #: Their `HOME` and `PATH`, read as early: what `tests/system`, which signs in as them and runs
 #: what they installed, is given back for a test (`as_them`), the suite's own being neither.
@@ -80,7 +97,7 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     one cannot patch: `git` there is told that GitHub is a directory that is not there, so
     that its clone fails at once, as `_clones_nothing_elsewhere` fails one here.
     """
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize-home"))
+    rehome(monkeypatch, tmp_path / "xdg")
     monkeypatch.setenv("HUMANIZE_SENTRY", "off")
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
@@ -104,8 +121,62 @@ _SEARCHED = os.pathsep.join(
 )
 
 
+def places(under: Path) -> dict[str, str]:
+    """A home under one directory, as the variables naming it: each base a directory of its own.
+
+    `<under>/config`, `<under>/data`, `<under>/state` and `<under>/cache`, Humanize's own
+    directory `humanize` in each.
+    """
+    return {
+        one: str(under / one.removeprefix("XDG_").removesuffix("_HOME").lower())
+        for one in BASES
+    }
+
+
+def own(home: Path) -> dict[str, str]:
+    """A home where a person's own is, under their home directory, as the variables naming it."""
+    return {one: str(home / otherwise) for one, otherwise in BASES.items()}
+
+
+def rehome(monkeypatch: pytest.MonkeyPatch, under: Path) -> None:
+    """Moves a test's home under one directory (:func:`places`), until the test ends."""
+    for name, value in places(under).items():
+        monkeypatch.setenv(name, value)
+
+
+@contextlib.contextmanager
+def homed(under: Path) -> Generator[Path]:
+    """This process's home under one directory (:func:`places`) for a block, and then not.
+
+    Yields:
+      Its data directory, which holds epics and chats.
+    """
+    was = {one: os.environ.get(one) for one in BASES}
+    os.environ |= places(under)
+    try:
+        yield under / "data" / "humanize"
+    finally:
+        for one, value in was.items():
+            if value is None:
+                os.environ.pop(one, None)
+            else:
+                os.environ[one] = value
+
+
 def as_them(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Gives one test the `HOME` and `PATH` of whoever runs the suite: `tests/system` alone."""
+    """Gives one test the `HOME` and `PATH` of whoever runs the suite: `tests/system` alone.
+
+    What a release kept in their `~/.hmz` is theirs, and the test's home is not where it is
+    moved to: a test skips until their own `hmz` has moved it, which marks it as moved
+    (:data:`hmz.MOVED`).
+    """
+    import hmz
+
+    for old in (".hmz", ".humanize"):
+        at = Path(THEIRS["HOME"]) / old
+        moved = at / hmz.MOVED
+        if at.exists() and not (moved.exists() and moved.read_text()):
+            pytest.skip(f"{at} is not moved yet: run `hmz` once, which moves it")
     for name, value in THEIRS.items():
         monkeypatch.setenv(name, value)
 
@@ -141,7 +212,7 @@ def _temporary() -> Iterator[Path]:
 def _suite_places(_temporary: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
     """A home and a `TMPDIR` of the suite's own under every test's, never given back.
 
-    `hmz.home()` and `hmz.machine()` read the environment at each call, and a test's own
+    `hmz.data()` and `hmz.machine()` read the environment at each call, and a test's own
     (`_humanize_home`, `_machine_temp`) are undone as it ends: a thread that outlives its test
     -- a host letting go of a chat, a flowverse fetch -- would write into the home, and reach
     the daemon, of whoever runs the suite. What a test's are undone to is the suite's, which
@@ -156,10 +227,9 @@ def _suite_places(_temporary: Path, tmp_path_factory: pytest.TempPathFactory) ->
     between.mkdir()
     nobody = _temporary / "nobody"
     nobody.mkdir()
-    os.environ |= {
+    os.environ |= places(_temporary / "home") | {
         "HOME": str(nobody),
         "PATH": _SEARCHED,
-        "HUMANIZE_HOME": str(_temporary / "home"),
         "HUMANIZE_SHADOWS": str(_temporary / "shadows"),
         "HUMANIZE_SENTRY": "off",
         "HUMANIZE_PRICES": "off",
@@ -177,25 +247,29 @@ _TAIL = 1 << 20
 def kept_there() -> dict[str, tuple[int, int]]:
     """What the home of whoever runs the suite holds, each as it was last written.
 
-    A directory's entries by name alone (an epic, a chat, a flowverse, a provider), a file by
-    when it was written and how long it is (`settings.yaml`, `history.jsonl`).
+    By path: a directory's entries by name alone (an epic, a chat, a flowverse, a provider), a
+    file by when it was written and how long it is (`settings.toml`, `history.jsonl`).
     """
     held: dict[str, tuple[int, int]] = {}
-    try:
-        top = list(os.scandir(_THEIR_HOME))
-    except OSError:
-        return held
-    for one in top:
+    for home in _THEIR_HOMES:
         try:
-            if one.is_dir(follow_symlinks=False):
-                held.update(
-                    {f"{one.name}/{under.name}": (0, 0) for under in os.scandir(one)}
-                )
-            else:
-                found = one.stat(follow_symlinks=False)
-                held[one.name] = (found.st_mtime_ns, found.st_size)
+            top = list(os.scandir(home))
         except OSError:
             continue
+        for one in top:
+            try:
+                if one.is_dir(follow_symlinks=False):
+                    held.update(
+                        {
+                            str(Path(one.path, under.name)): (0, 0)
+                            for under in os.scandir(one)
+                        }
+                    )
+                else:
+                    found = one.stat(follow_symlinks=False)
+                    held[one.path] = (found.st_mtime_ns, found.st_size)
+            except OSError:
+                continue
     return held
 
 
@@ -231,8 +305,8 @@ def written_there(
         was = before.get(name)
         if was == (written, size):
             continue
-        at = _THEIR_HOME / name
-        if "/" not in name:
+        at = Path(name)
+        if at.parent in _THEIR_HOMES:
             # Read from where it ended if it only grew, as a history does; whole otherwise.
             grown = was is not None and size >= was[1]
             named = _names(at, was[1] if was and grown else 0, encoded)
@@ -241,7 +315,7 @@ def written_there(
                 _holding(at, encoded)
             )
         if named:
-            found.append(str(at))
+            found.append(name)
     return found
 
 

@@ -44,12 +44,13 @@ relay.example.com {
 
 ## Register a daemon at the relay
 
-On the daemon's machine, add listeners to `~/.hmz/settings.yaml`. The daemon opens them as soon as you save the file.
+On the daemon's machine, add listeners to `~/.config/humanize/settings.toml`. The daemon opens them as soon as you save the file.
 
-```yaml
-listen:
-  - relay:wss://relay.example.com
-  - webrtc:wss://relay.example.com
+```toml
+listen = [
+  "relay:wss://relay.example.com",
+  "webrtc:wss://relay.example.com",
+]
 ```
 
 `relay:` accepts connections from terminals and Desktop. `webrtc:` accepts browsers. Both share one registration at the relay. A daemon with a listener stays running when idle. To start it automatically after a reboot, install it as a login service (see [The daemon](/user/daemon)).
@@ -122,14 +123,16 @@ turn:turn.example.com:3478 alex not-a-real-key
 
 Join multiple URLs for one server with commas. A URL starts with `stun:`, `stuns:`, `turn:`, or `turns:`. Saved credentials appear as `••••` and stay unchanged unless you edit them. Saving reconnects the daemon with the new servers.
 
-**On the daemon**, add `ice_servers` to `~/.hmz/settings.yaml`:
+**On the daemon**, add `ice_servers` to `~/.config/humanize/settings.toml`:
 
-```yaml
-ice_servers:
-  - urls: stun:stun.example.com:3478
-  - urls: turn:turn.example.com:3478
-    username: alex
-    credential: not-a-real-key
+```toml
+[[ice_servers]]
+urls = "stun:stun.example.com:3478"
+
+[[ice_servers]]
+urls = "turn:turn.example.com:3478"
+username = "alex"
+credential = "not-a-real-key"
 ```
 
 ## Use shared EasyTier nodes
@@ -160,4 +163,4 @@ To add your own node, type `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, or 
 - If a daemon loses its connection to the relay, it retries after 1 second, doubling up to 60 seconds, while its other listeners keep working.
 - The relay enforces a 65 536-byte limit on text messages, a 1 048 576-byte limit on binary messages, a 30-second ping interval (a ping unanswered for 60 seconds closes the connection), and a 10-second timeout for a daemon to answer a join.
 
-See the [daemon reference](/reference/daemon) for all routes and listeners, [settings.yaml](/reference/settings) for configuration keys, and the [CLI reference](/reference/cli) for commands.
+See the [daemon reference](/reference/daemon) for all routes and listeners, [settings.toml](/reference/settings) for configuration keys, and the [CLI reference](/reference/cli) for commands.

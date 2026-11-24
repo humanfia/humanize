@@ -11,7 +11,6 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
-import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
+from hmz import config
 from hmz.coganchor import nous, providers
 from hmz.coganchor.agents import (
     CodexAgent,
@@ -34,6 +34,7 @@ from hmz.coganchor.faking import FakeCli, FakeCommand
 from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     CODEX,
     Endpoint,
@@ -316,6 +317,57 @@ def test_an_approval_asked_of_an_agent_with_no_fence_is_refused(
     assert json.loads(CodexAgent(CONFIG).new()("approve")) == {"decision": "decline"}
 
 
+def test_requirements_forbidding_never_run_it_asking_and_grant_what_it_asks(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Read from the server before any thread, so nothing is refused on the way."""
+    (codex.bin / "requirements").write_text(
+        json.dumps({"allowedApprovalPolicies": ["on-request", "untrusted"]})
+    )
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
+    told: list[str] = []
+    agent.watch(
+        lambda _who, _session, event: (
+            told.append(event.text) if event.kind == "notice" else None
+        )
+    )
+
+    assert json.loads(agent.new()("approve")) == {"decision": "accept"}
+
+    assert not [one for one in codex.said() if one.startswith("refused ")]
+    (opened,) = _told(codex, "thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (
+        "danger-full-access",
+        "on-request",
+    )
+    assert opened["approvalsReviewer"] == "user"
+    assert any("with approval on-request" in one for one in told)
+
+
+def test_requirements_nothing_will_do_under_fail_the_session_before_a_thread(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`never` forbidden and every request reviewed by a model: no grant is held by that."""
+    (codex.bin / "requirements").write_text(
+        json.dumps(
+            {
+                "allowedApprovalPolicies": ["on-request", "untrusted"],
+                "allowedApprovalsReviewers": ["auto_review"],
+            }
+        )
+    )
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
+
+    with pytest.raises(Failed, match="approvals reviewers auto_review") as failed:
+        agent.new()("hello")
+
+    assert failed.value.__class__.__name__ == "Unrecoverable"
+    assert not _told(codex, "thread/start")
+    assert "hello" not in codex.said()
+
+
 def test_a_question_is_put_to_whoever_drives_the_agent(codex: Standins) -> None:
     agent = CodexAgent(CONFIG)
     asked: list[Question] = []
@@ -438,7 +490,7 @@ def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
 ) -> None:
     held = standins(tmp_path, monkeypatch, "CODEX_PROVIDER_KEY", "LITELLM_GATEWAY_KEY")
     held.install("codex", ROUTED)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     # A credential path answered by another is the supervisor's, which is tested where it is
     # written; an account that is variables alone is what is under test here.
@@ -586,9 +638,9 @@ def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
 
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", local)],
@@ -639,9 +691,9 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carv
         return None
 
     monkeypatch.setattr("hmz.coganchor.fence.unheld", unheld)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     (tmp_path / "secret").mkdir()
     fence = Fence.of(
@@ -678,9 +730,9 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_it_asks_before_a_comman
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", WRITE)],
@@ -721,9 +773,9 @@ def test_a_codex_its_sandbox_held_is_started_again_inside_the_fence_once_it_asks
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
     fence = Fence.of(
         rules=[("/", READ), ("~", READ), (".", WRITE)],

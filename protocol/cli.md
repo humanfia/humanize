@@ -386,7 +386,7 @@ where it begins with `.`, `/` or `~`, and as a `name` otherwise.
 **7.3.3** A `name` with a `<flowverse>` of `local` or `user` MUST NOT have an `<owner>`.
 
 **7.3.4** `@local/<flow>` MUST name the flow `<flow>` in the directory `.hmz/flows` of the
-workspace, and `@user/<flow>` the flow `<flow>` in `~/.hmz/flows`.
+workspace, and `@user/<flow>` the flow `<flow>` in `<data>/flows` (Section 4.9 of [FILES]).
 
 **7.3.5** A bare `<flow>` MUST resolve to the first flow of that name found by looking, in order, in
 `local`, `user`, `official` and then every other flowverse (Section 3 of [PYTHON]).

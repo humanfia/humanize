@@ -32,6 +32,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.watchdog import WATCHDOG
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     Endpoint,
     Standins,
@@ -448,7 +449,7 @@ def test_mcode_under_an_account_a_gateway_holds_runs_the_model_through_it(
 ) -> None:
     held = standins(tmp_path, monkeypatch, "LITELLM_GATEWAY_KEY", "MINIMAX_DATA_DIR")
     held.install("mcode", ROUTED)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     # A credential path answered by another is the supervisor's, tested where it is written.
     monkeypatch.setattr(Provider, "swaps", _unswapped)

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use coganchor::cog::statepaths::{
-    AgentProfile, COMMON_STATE_PATHS, PROFILES, Resolved, profile_for, resolve,
+    AgentProfile, COMMON_STATE_PATHS, PROFILES, Resolved, XDG_HOMES, profile_for, resolve,
 };
 
 static ENV: Mutex<()> = Mutex::new(());
@@ -28,6 +28,10 @@ impl Root {
         fs::create_dir(at.join("home")).unwrap();
         set("HOME", &at.join("home"));
         set("PATH", &at.join("empty"));
+        for one in XDG_HOMES {
+            // SAFETY: as in `set`.
+            unsafe { std::env::remove_var(one) };
+        }
         Root {
             _dir: dir,
             at,
@@ -157,6 +161,9 @@ fn resolve_keeps_the_agents_own_state_and_humanizes_here() {
         ".hmz",
         ".humanize",
         ".cache/humanize",
+        ".config/humanize",
+        ".local/share/humanize",
+        ".local/state/humanize",
     ] {
         assert!(
             found.state.contains(&root.s(&format!("home/{kept}"))),
@@ -172,6 +179,34 @@ fn resolve_keeps_the_agents_own_state_and_humanizes_here() {
     assert!(has(&found, &program));
     assert!(has(&found, &root.path("home/.claude")));
     assert!(has(&found, Path::new("/bin/sh"))); // the interpreter it names outright
+}
+
+#[test]
+fn resolve_keeps_humanizes_own_wherever_xdg_moves_it() {
+    let root = Root::new();
+    program(&root.path("bin/claude"), "#!/bin/sh\n");
+    set_path(&[root.path("bin")]);
+    for (one, under) in XDG_HOMES.iter().zip(["conf", "data", "state", "cache"]) {
+        set(one, &root.path(under));
+    }
+    // A relative one is no XDG directory at all.
+    set("XDG_STATE_HOME", Path::new("relative/state"));
+
+    let found = resolve(&argv(&["claude"])).unwrap();
+
+    for under in ["conf", "data", "cache"] {
+        assert!(
+            found.state.contains(&root.s(&format!("{under}/humanize"))),
+            "{under}"
+        );
+    }
+    assert!(!found.state.iter().any(|one| one.contains("relative")));
+    // And the defaults still, where an earlier process may have left something.
+    assert!(found.state.contains(&root.s("home/.local/state/humanize")));
+    for one in XDG_HOMES {
+        // SAFETY: as in `set`.
+        unsafe { std::env::remove_var(one) };
+    }
 }
 
 #[test]

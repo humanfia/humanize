@@ -267,7 +267,7 @@ Humanize reads logs from each harness's home directory and from the epic's `sess
 | `opencode` | `~/.local/share/opencode` | SQLite `opencode.db`, read-only | `opencode:<id>` | Yes |
 | `mimo` | `~/.local/share/mimocode` | SQLite `mimocode.db`, read-only | `mimo:<id>` | Yes |
 | `mcode` | `~/.minimax` | `v2/sessions/*/*/*/*-session_*/messages.jsonl`, and SQLite `v2/sqlite/runtime-state.sqlite` for the workspace, read-only | `mcode:<id>` | No, their work is in the parent's log |
-| `litellm` | `~/.cache/humanize/litellm` | `sessions/*.jsonl` | `litellm:<id>` | A forked conversation hangs from its origin |
+| `litellm` | `~/.local/state/humanize/litellm` | `sessions/*.jsonl` | `litellm:<id>` | A forked conversation hangs from its origin |
 
 `cursor-agent` and CLIs added over ACP have no reader; their sessions do not appear in traces, timelines, or transcripts.
 

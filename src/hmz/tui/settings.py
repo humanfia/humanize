@@ -267,7 +267,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in Humanize's own words, and a person should not have to know
-    the shape of a YAML file to turn a thing off. What is held lands together when it is saved,
+    the shape of a TOML file to turn a thing off. What is held lands together when it is saved,
     from the bar or from the question leaving asks, and each setting takes effect at once where
     it can; where it cannot, the row says when it will while it is held and the transcript says
     so once it is saved. What runs a command of its own -- making an account, signing one in,
@@ -325,7 +325,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         #: The agent a new chat in this directory talks to, or None where none was chosen.
         self._chat_agent = self._chat_agent_was = settings.chat_agent
         #: Which kinds of notice are told, and whether the system shows them too: kept with the
-        #: web interface's, under `notifications` in this machine's `settings.yaml`.
+        #: web interface's, under `notifications` in this machine's `settings.toml`.
         wanted = preferences()
         self._kinds: dict[str, bool] = dict(wanted["kinds"])
         self._kinds_was = dict(self._kinds)

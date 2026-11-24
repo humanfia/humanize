@@ -174,7 +174,7 @@ To publish your modified flow, move the directory into its own repository and ad
 ## Good to know
 
 - Keep flow imports free of side effects like network calls or file writes, because Humanize imports every installed flow to list it.
-- Fetching an index updates available releases without changing installed flows, and discards any local edits to the index in `~/.hmz/flowverses/<name>/index/` (installed flows live beside it in `installed/`).
+- Fetching an index updates available releases without changing installed flows, and discards any local edits to the index in `~/.local/share/humanize/flowverses/<name>/index/` (installed flows live beside it in `installed/`).
 - `hmz exec` never installs flows and refuses to run a listed flow that is not yet installed.
 - Pass `-f 'git+https://github.com/alex/review-flow@v0.2.0#review'` to run a release directly by URL without installing it; see [Call another flow](/builder/calling-flows).
 - The built-in flowverses `official`, `local`, and `user` cannot be removed or used as names for added flowverses. A flowverse name uses letters, digits, `.`, `_`, and `-`.

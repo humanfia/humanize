@@ -1,4 +1,4 @@
-"""The daemon ids a client of this machine pins, as `settings.yaml` keeps them under `daemons`.
+"""The daemon ids a client of this machine pins, as `settings.toml` keeps them under `daemons`.
 
 A client knows another machine's daemon by its id alone, and learns it once: from a pairing
 code, or from what the daemon said over a carrier that already proved who it is. Every later

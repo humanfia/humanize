@@ -89,10 +89,10 @@ def test_where_a_place_came_from_is_said_with_nothing_secret(stand: Stands) -> N
     assert places.whence(cast("Any", Verse("theirs"))) == "-"
     assert places.whence(cast("Any", Verse("theirs")), "nowhere") == "nowhere"
     assert places.whence(cast("Any", Verse(verses.LOCAL))) == (
-        f"your own flows in {verses.MINE[verses.LOCAL]}"
+        f"your own flows in {verses.shown(verses.LOCAL)}"
     )
     assert places.whence(cast("Any", Verse(verses.USER, "x"))) == (
-        f"your own flows in {verses.MINE[verses.USER]}"
+        f"your own flows in {verses.shown(verses.USER)}"
     )
 
 
