@@ -139,7 +139,10 @@ def test_the_page_is_turned_to_chinese(world: World) -> None:
         reel.save()
 
 
-async def test_the_terminal_draws_in_the_terminals_colours(world: World) -> None:
+async def test_the_terminal_draws_in_the_terminals_colours(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEXTUAL_THEME", "terminal")
     async with world.tui((96, 26)) as (app, pilot):
         await shows(pilot, MODEL)
         await pilot.pause(0.4)

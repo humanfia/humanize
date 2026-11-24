@@ -1,0 +1,442 @@
+{
+ "entries": [
+  {
+   "wants": "where the harness of an environment's sessions runs: on this machine, and what it runs lands in the environment",
+   "where": "value of the row `harness` on the sheet of one environment in the monitor of the terminal interface, a phrase in lower case starting with `on`, no full stop",
+   "text": "on this machine, running in this environment"
+  },
+  {
+   "wants": "where the harness of an environment's sessions runs: on this machine, in this workdir",
+   "where": "value of the row `harness` on the sheet of one environment in the monitor of the terminal interface, a phrase in lower case starting with `on`, no full stop",
+   "text": "on this machine, in this folder"
+  },
+  {
+   "wants": "where the harness of an environment's sessions runs: on the environment's own machine, with the agent's CLI installed there",
+   "where": "value of the row `harness` on the sheet of one environment in the monitor of the terminal interface, a phrase in lower case starting with `on`, no full stop",
+   "text": "on the environment's machine"
+  },
+  {
+   "wants": "where the harness of an environment's sessions runs: on a runtime of its own, reaching this environment through the anchor",
+   "where": "value of the row `harness` on the sheet of one environment in the monitor of the terminal interface, a phrase in lower case starting with `on`, no full stop",
+   "text": "on its own runtime, through the anchor"
+  },
+  {
+   "wants": "says which sessions' harnesses went to one place: {where} is the place, {sessions} the sessions' names",
+   "where": "part of the row `harness` on the sheet of one environment, of the shape `{where} for {sessions}`",
+   "text": "{where} for {sessions}"
+  },
+  {
+   "wants": "how much memory each GPU a flow asks of a machine has: {size} is an amount such as `24 GiB`",
+   "where": "one item of what a flow needs of a machine, beside `4 CPUs` and `16 GiB memory`, keeps {size}",
+   "text": "{size} per GPU"
+  },
+  {
+   "wants": "column heading over the names of the nodes of a run's graph, drawn as a list",
+   "where": "column heading of a table in the monitor of the terminal interface, one word in lower case",
+   "text": "node"
+  },
+  {
+   "wants": "column heading over what each node runs (its agent and model) and where it runs",
+   "where": "column heading of a table in the monitor of the terminal interface, two words in lower case joined by ` · `",
+   "text": "model · runtime"
+  },
+  {
+   "wants": "column heading over how many turns each node has taken",
+   "where": "column heading of a table in the monitor of the terminal interface, one word in lower case",
+   "text": "turns"
+  },
+  {
+   "wants": "explains the `+` after a token count: the figure is a minimum, because not every agent reports this kind of token",
+   "where": "muted line under a table of token kinds in the monitor of the terminal interface, begins with `+ `, short, no full stop",
+   "text": "+ at least this many; not every harness reports it"
+  },
+  {
+   "wants": "title of the sheet where a line of the board is typed: first its name, then what it says",
+   "where": "title of a sheet of the terminal interface, two words",
+   "text": "Board line"
+  },
+  {
+   "wants": "says what the board is: shared by you (the reader is addressed as you) and the flow, and neither waits for the other",
+   "where": "the line under the title of a sheet of the terminal interface, one or two short sentences",
+   "text": "You and the flow share the board, and neither waits for the other."
+  },
+  {
+   "wants": "what the button Next does while a board entry is being named: the entry is named first, then what it says is typed",
+   "where": "the muted line beside a button of a sheet of the terminal interface, a short phrase in lower case starting with a verb, no full stop",
+   "text": "name the line first, then type what it says"
+  },
+  {
+   "wants": "what the button Save does for a board entry: writes the entry on the board, and an empty one is taken off the board",
+   "where": "the muted line beside a button of a sheet of the terminal interface, a short phrase in lower case starting with a verb, no full stop",
+   "text": "write the line to the board, or remove it if empty"
+  },
+  {
+   "wants": "what the enter key does while a board entry's name is being typed: goes on to typing its value",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Type value"
+  },
+  {
+   "wants": "what the enter key does while a board entry's value is being typed: saves the entry, or removes it if nothing was typed",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, a short phrase, capitalised like the page's button names",
+   "text": "Save or remove"
+  },
+  {
+   "wants": "says that the environment the sheet was opened on is not one of the epic's any more",
+   "where": "the line under the title of a sheet of the terminal interface, one sentence with a full stop",
+   "text": "This environment is no longer part of the epic."
+  },
+  {
+   "wants": "says what the thing shown is: an environment of the epic, where its sessions work",
+   "where": "the line under the title of a sheet of the terminal interface, one sentence with a full stop",
+   "text": "An environment of the epic, where its sessions work."
+  },
+  {
+   "wants": "name of the row saying what an environment was set up as, the way `-e` spells it",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, lower case, at most three words",
+   "text": "set up as"
+  },
+  {
+   "wants": "name of the row listing the capabilities a flow declared for an environment",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, one word in lower case",
+   "text": "grants"
+  },
+  {
+   "wants": "name of the row listing what a flow asks of an environment's machine: CPUs, memory, GPUs",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, one word in lower case",
+   "text": "machine"
+  },
+  {
+   "wants": "name of the row saying how many of an environment's sessions are working",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, one word in lower case",
+   "text": "status"
+  },
+  {
+   "wants": "says an environment's role was granted no capability beyond running in it",
+   "where": "value of the row `grants` on the sheet of one environment, a phrase in lower case, no full stop",
+   "text": "none beyond running here"
+  },
+  {
+   "wants": "how many of the sessions of an environment are working: {working} of its {n} sessions; the text must name sessions, as in `2 of 3 sessions working`",
+   "where": "value of the row `status` on the sheet of one environment, keeps {working} and {n}, no full stop",
+   "text": "{working} of {n} sessions working",
+   "one": "{working} of {n} session working"
+  },
+  {
+   "wants": "heading over the list of the sessions that work in an environment",
+   "where": "heading on the sheet of one environment in the monitor of the terminal interface, one word with a capital",
+   "text": "Sessions"
+  },
+  {
+   "wants": "what the enter key does on a session listed on the sheet of an environment: leaves the monitor and reads that session's log",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Read log"
+  },
+  {
+   "wants": "name of the row saying what happens to the turn under way when an epic's budget is spent",
+   "where": "field name on the sheet of an epic in the monitor of the terminal interface, two words in lower case",
+   "text": "when spent"
+  },
+  {
+   "wants": "what happens when an epic's budget is spent: the last turn finishes",
+   "where": "value of the row `when spent`, a phrase in lower case, no full stop",
+   "text": "the last turn finishes"
+  },
+  {
+   "wants": "what happens when an epic's budget is spent: the turn is cut off at once",
+   "where": "value of the row `when spent`, a phrase in lower case, no full stop",
+   "text": "cut off at once"
+  },
+  {
+   "wants": "what happens when an epic's budget is spent: the turn is cut off at once by the limits {limits} (such as `cost or time`), and by any other limit the last turn finishes",
+   "where": "value of the row `when spent`, a phrase in lower case, no full stop, keeps {limits}",
+   "text": "{limits} cut off at once; otherwise the last turn finishes"
+  },
+  {
+   "wants": "name of the row saying the limit of an epic's budget, where it has none",
+   "where": "field name on the sheet of an epic in the monitor of the terminal interface, one word in lower case",
+   "text": "limit"
+  },
+  {
+   "wants": "says what force-stopping an epic does: each turn under way fails rather than finishing",
+   "where": "the line under the question `Close every session now?` in a small box of the terminal interface, one sentence with a full stop",
+   "text": "Every turn under way fails rather than finishing."
+  },
+  {
+   "wants": "says what stopping an epic does to others: it stops for every frontend reading it",
+   "where": "the line under the question `Stop this epic?` in a small box of the terminal interface, one sentence with a full stop",
+   "text": "It stops for everyone reading it."
+  },
+  {
+   "wants": "what choosing Force stop does: closes every session now",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "closes every session now"
+  },
+  {
+   "wants": "what choosing Stop does: stops the epic",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "stops the epic"
+  },
+  {
+   "wants": "what choosing Cancel does when asked whether to stop an epic: the epic is left going",
+   "where": "the muted line beside a choice in a small box of the terminal interface, a short phrase in lower case with no full stop, saying what picking it does",
+   "text": "leaves the epic running"
+  },
+  {
+   "wants": "what the button Stop on an epic's sheet does: stops the epic for everybody reading it",
+   "where": "the muted line beside a button of a sheet of the terminal interface, a short phrase in lower case starting with a verb, no full stop",
+   "text": "stop the epic for everyone reading it"
+  },
+  {
+   "wants": "says what the row of an outworlder in the monitor is: an outworlder, which carries messages from the flow to you (the reader is addressed as you)",
+   "where": "muted words after the role's name on a row of the monitor of the terminal interface, lower case, begins with `outworlder:`, no full stop",
+   "text": "outworlder: carries messages from the flow to you"
+  },
+  {
+   "wants": "marks the row of the monitor whose log is the one being read in the log beside it",
+   "where": "one word in lower case after a row of the monitor of the terminal interface",
+   "text": "reading"
+  },
+  {
+   "wants": "says why the monitor draws no agent yet: no agent has taken a turn, and agents appear as they take turns",
+   "where": "muted line in the empty monitor of the terminal interface, lower case, no full stop",
+   "text": "no agent has taken a turn yet; they appear as they do"
+  },
+  {
+   "wants": "says under an agent opened out to its sessions that no session has said which one it is yet",
+   "where": "muted line under a node in the monitor of the terminal interface, lower case, no full stop",
+   "text": "no session yet"
+  },
+  {
+   "wants": "heading of the lines listing the settings of the run that were changed from the flow's defaults",
+   "where": "one-word heading with a capital in the facts under the graph of the monitor of the terminal interface",
+   "text": "Changes"
+  },
+  {
+   "wants": "heading of the lines listing who else is reading this epic: its other frontends",
+   "where": "one-word heading with a capital in the facts under the graph of the monitor of the terminal interface",
+   "text": "Readers"
+  },
+  {
+   "wants": "heading of the lines listing handovers between agents that the graph has no arrow for",
+   "where": "one-word heading with a capital in the facts under the graph of the monitor of the terminal interface",
+   "text": "Handovers"
+  },
+  {
+   "wants": "how fast a model is writing: {rate} output tokens a second",
+   "where": "muted figure after a model's token count in the monitor of the terminal interface, very short, of the shape `{rate} out/s`",
+   "text": "{rate} out/s"
+  },
+  {
+   "wants": "names the screen on the status line: the monitor of the epic",
+   "where": "first word of the status line of the monitor of the terminal interface, one word in lower case",
+   "text": "monitor"
+  },
+  {
+   "wants": "what the up and down arrows do in the monitor: move to another node of the graph",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Node"
+  },
+  {
+   "wants": "what the space key does on a node whose sessions are shown under it: shuts them away again",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Hide sessions"
+  },
+  {
+   "wants": "what the space key does on a node of the monitor: shows the sessions under it",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Sessions"
+  },
+  {
+   "wants": "says what the board is, beside its heading: shared by you (the reader is addressed as you) and the flow",
+   "where": "muted words after the heading Board in the monitor of the terminal interface, lower case, no full stop",
+   "text": "shared by you and the flow"
+  },
+  {
+   "wants": "the last row of the board, which adds a new entry to it",
+   "where": "muted row label after a `+` in the monitor of the terminal interface, two words in lower case",
+   "text": "new entry"
+  },
+  {
+   "wants": "says the board entry {name} was saved to the board",
+   "where": "line under the board in the monitor of the terminal interface, short, keeps {name} first, no full stop",
+   "text": "{name} saved"
+  },
+  {
+   "wants": "says the board entry {name} was removed from the board",
+   "where": "line under the board in the monitor of the terminal interface, short, keeps {name} first, no full stop",
+   "text": "{name} removed"
+  },
+  {
+   "wants": "says nothing was typed for a new board entry, so nothing was saved",
+   "where": "line under the board in the monitor of the terminal interface, short, lower case, no full stop",
+   "text": "nothing typed"
+  },
+  {
+   "wants": "says a timeline cannot be drawn because it is of version {theirs} and this interface draws version {ours}",
+   "where": "error line in Exomyth of the terminal interface, one sentence with a full stop, keeps {theirs} and {ours}",
+   "text": "This timeline is version {theirs}; this view reads version {ours}."
+  },
+  {
+   "wants": "placeholder of the box where the name of a span to search the timeline for is typed",
+   "where": "placeholder of a search box in Exomyth of the terminal interface, two words in lower case",
+   "text": "span name"
+  },
+  {
+   "wants": "says the search found no span named {name}",
+   "where": "line under the timeline in Exomyth of the terminal interface, short, lower case, no full stop, keeps {name} at the end",
+   "text": "no span named {name}"
+  },
+  {
+   "wants": "column heading over the stacks of the flame view: the stack of spans a weight is of",
+   "where": "column heading in Exomyth of the terminal interface, one word in lower case",
+   "text": "stack"
+  },
+  {
+   "wants": "says what the flame is weighed by: {weight} is `time`, `tokens in`, `tokens out` or `count`",
+   "where": "muted line under the flame view in Exomyth of the terminal interface, of the shape `weighed by {weight}`",
+   "text": "weighed by {weight}"
+  },
+  {
+   "wants": "says how the flame treats sessions: merged into one stack",
+   "where": "muted words under the flame view in Exomyth of the terminal interface, two words in lower case beginning with `sessions`",
+   "text": "sessions merged"
+  },
+  {
+   "wants": "says how the flame treats sessions: each session apart, in a stack of its own",
+   "where": "muted words under the flame view in Exomyth of the terminal interface, two words in lower case beginning with `sessions`",
+   "text": "sessions apart"
+  },
+  {
+   "wants": "says what the table of slices is sorted by: {column} is the column's name",
+   "where": "muted line under the slices view in Exomyth of the terminal interface, of the shape `sorted by {column}`",
+   "text": "sorted by {column}"
+  },
+  {
+   "wants": "says the figures shown are of the range of time that is marked, not of the whole run",
+   "where": "one muted word in lower case under a view in Exomyth of the terminal interface",
+   "text": "range"
+  },
+  {
+   "wants": "what the up and down arrows do in the flame view: move to another stack",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Stack"
+  },
+  {
+   "wants": "what the m key does in the flame view when sessions are merged: draws each session apart, in a stack of its own",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Split sessions"
+  },
+  {
+   "wants": "what the up and down arrows do in the slices view: move to another slice",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Slice"
+  },
+  {
+   "wants": "what the O key does in the slices view: reverses the order the table is sorted in",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Reverse order"
+  },
+  {
+   "wants": "what the v key does in the timeline when no range is marked: starts marking a range of time from the cursor",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Mark range"
+  },
+  {
+   "wants": "what the v key does in the timeline while a range is being marked: holds the range where it is, so the cursor moves without changing it",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Hold range"
+  },
+  {
+   "wants": "what the v key does in the timeline when a range is held: drops the range",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Clear range"
+  },
+  {
+   "wants": "what the a and d keys do in the timeline: pan it left and right",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Pan"
+  },
+  {
+   "wants": "what the p key does in the timeline: opens the details of the process the row is of",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Process"
+  },
+  {
+   "wants": "what the 0 key does in the timeline: shows the whole run",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Whole run"
+  },
+  {
+   "wants": "what the space key does in the timeline: folds a process's rows away, or unfolds them",
+   "where": "key hint on the bottom line of a sheet of the terminal interface, one or two words, capitalised like the page's button names",
+   "text": "Fold"
+  },
+  {
+   "wants": "how deep a span is nested: {n} levels under its track's top",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `depth {n}`",
+   "text": "depth {n}"
+  },
+  {
+   "wants": "when a span or process started, {time} after the run began",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `start {time}`",
+   "text": "start {time}"
+  },
+  {
+   "wants": "how long a span, process or range lasted: {time}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `lasted {time}`",
+   "text": "lasted {time}"
+  },
+  {
+   "wants": "where a marked range of time begins: {time} after the run began",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `from {time}`",
+   "text": "from {time}"
+  },
+  {
+   "wants": "where a marked range of time ends: {time} after the run began",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `to {time}`",
+   "text": "to {time}"
+  },
+  {
+   "wants": "how many tracks a process has: {n} tracks",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, keeps {n}",
+   "text": "{n} tracks",
+   "one": "{n} track"
+  },
+  {
+   "wants": "the operating-system process id of a process: {pid}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `pid {pid}`",
+   "text": "pid {pid}"
+  },
+  {
+   "wants": "the process that started this one: {name}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `parent {name}`",
+   "text": "parent {name}"
+  },
+  {
+   "wants": "the file a process's record was read from: {path}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `record {path}`",
+   "text": "record {path}"
+  },
+  {
+   "wants": "how many input tokens a range of time used: {tokens}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `{tokens} in`",
+   "text": "{tokens} in"
+  },
+  {
+   "wants": "how many output tokens a range of time used: {tokens}",
+   "where": "one fact in the details pane of Exomyth of the terminal interface, of the shape `{tokens} out`",
+   "text": "{tokens} out"
+  },
+  {
+   "wants": "how many of the agents of a run are working now: {working} of {total}",
+   "where": "one fact on the row of the epic in the monitor of the terminal interface, beside `12 turns`, of the shape `{working} of {total} working`",
+   "text": "{working} of {total} working"
+  },
+  {
+   "wants": "name of the row saying what an environment of a given kind is targeted at: the ssh host, the docker runtime or the cluster it is put on, which the product calls the environment's target (not a backup target and not a paired device)",
+   "where": "field name on the sheet of one environment in the monitor of the terminal interface, beside the rows `kind` and `workdir`, one noun in lower case",
+   "text": "target"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

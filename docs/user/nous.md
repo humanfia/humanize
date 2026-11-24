@@ -100,20 +100,20 @@ Run `/settings nous` to list each nous you have written down, its retries and it
 
 ![The Nous page of the terminal interface, a row per nous](/shots/user-nous-terminal.svg)
 
-Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. **Search…** or <kbd>/</kbd> narrows the list. To configure a concrete nous, type its ID in `name` or pick it with `choose`. The form of a saved nous has **Remove**, and editing `name` renames a virtual nous.
+Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. **Search…** or <kbd>/</kbd> narrows the list. To configure a concrete nous, type its ID in `Name` or pick it with `Choose`. The form of a saved nous has **Remove**, and editing `Name` renames a virtual nous.
 
 | Row | What it sets |
 | --- | --- |
-| `name` | Concrete nous ID or virtual nous name. |
-| `choose` | Concrete nous from a list. Shown while adding. |
-| `effort` | Effort of a concrete nous. Shown while adding. |
-| `tries` | `none`, 1, 2, 3, 5, 8, 13 or 21. |
-| `policy` | Wait between tries. |
-| `limit` | `no limit`, or 30 seconds up to an hour. |
-| `graph` | Graph of a virtual nous. |
-| `then` | `then` graph. |
+| `Name` | Concrete nous ID or virtual nous name. |
+| `Choose` | Concrete nous from a list. Shown while adding. |
+| `Effort` | Effort of a concrete nous. Shown while adding. |
+| `Tries` | `none`, 1, 2, 3, 5, 8, 13 or 21. |
+| `Wait` | Wait between tries. |
+| `Limit` | `no limit`, or 30 seconds up to an hour. |
+| `Graph` | Graph of a virtual nous. |
+| `Then` | `then` graph. |
 
-The graph form shows `start`, one row per node, and `add node`. Each node has `id` and `kind`. A use node has `nous` and `choose`. A balance node has `strategy`, `among` (formatted as `claude/opus 2, codex/gpt-5 1`), `choose` and `spread`. Once the graph has another node, each node ends with one `on` row per fault.
+The graph form shows `Start`, one row per node, and `Add node`. Each node has `Node id` and `Kind`. A use node has `Nous` and `Choose`. A balance node has `Strategy`, `Among` (formatted as `claude/opus 2, codex/gpt-5 1`), `Choose` and `Spread`. Once the graph has another node, each node ends with one `On <fault>` row per fault.
 
 ![From a nous to its form, its graph and a balance node, in the terminal](/shots/user-nous-terminal-graph.svg)
 

@@ -164,7 +164,7 @@ async def test_an_epic_ending_under_a_menu_is_told_by_a_card(world: World) -> No
         await pilot.press("escape")
         await until(pilot, lambda: len(app.screen_stack) == 1, "the menu to close")
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory", "●")
+        await shows(pilot, "Every epic in this folder", "●")
         # The card goes by itself after a few seconds; the dot stays until the epic is opened.
         await until(pilot, lambda: not app._notifications, "the card to go")  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         await _settled(pilot, 0.3)

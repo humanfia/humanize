@@ -104,9 +104,9 @@ See [Connect to other machines](/user/daemons) for other ways to add a daemon, r
 `hmz` connects over the `relay:` route and never opens a `webrtc:` route.
 
 1. Run `/settings daemons`.
-2. Select **Add daemon** and set `mode` to `Pairing code`.
-3. Fill in `name` and `code`.
-4. Press <kbd>enter</kbd> on the new daemon and select `connect`.
+2. Select **New daemon** and set `Mode` to `Pairing code`.
+3. Fill in `Name` and `Pairing code`.
+4. Press <kbd>enter</kbd> on the new daemon and select `Connect`.
 
 ![The Daemons page of /settings in the terminal: Local, and devbox reached at relay:wss://relay.example.com, up](/shots/user-relay-terminal.svg)
 

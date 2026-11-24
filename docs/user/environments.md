@@ -105,11 +105,11 @@ To set environments for an epic:
 
 The bottom row shows the equivalent `-e` flag syntax. You can also type a full spec in the bottom row to fill the fields above it.
 
-![The terminal form Environment for box: backend ssh, host gpu-box, workdir ~/shop, and the last row reading ssh@gpu-box](/shots/user-environments-terminal-role.svg)
+![The terminal form Runtime for box: Backend ssh, Host gpu-box, Workdir ~/shop, and the last row reading ssh@gpu-box](/shots/user-environments-terminal-role.svg)
 
-Press <kbd>enter</kbd> on the machine row to list that backend's saved runtimes. Choose **Add an ssh host** (or the button for your backend) to save a new runtime to `/settings` and select it. For `ssh`, choose **Name a host…** to enter an unsaved `[user@]host[:port]` or ssh config alias for this role only.
+Press <kbd>enter</kbd> on the machine row to list that backend's saved runtimes. Choose **Add runtime** to save a new runtime to `/settings` and select it. For `ssh`, choose **Other host…** to enter an unsaved `[user@]host[:port]` or ssh config alias for this role only.
 
-![The terminal list Select the ssh host to use: the saved host gpu-box, and the buttons Add an ssh host, Name a host… and Search…](/shots/user-environments-terminal-host.svg)
+![The terminal list Choose SSH host: the saved host gpu-box, and the buttons Add runtime, Other host… and Search…](/shots/user-environments-terminal-host.svg)
 
 ## From the command line
 

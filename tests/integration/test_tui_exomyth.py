@@ -140,7 +140,9 @@ async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
 
         # From the first thought to the tool two spans on, held, and summed by category.
         await pilot.press("down", "down", "v", "right", "right", "v")
-        await shows(pilot, "Range", "lasted 6s", "category", "llm", "tool", "v drop")
+        await shows(
+            pilot, "Range", "lasted 6s", "category", "llm", "tool", "v Clear range"
+        )
         whole = _ruler(app)
         await pilot.press("f")
         await until(pilot, lambda: _ruler(app) != whole, "the range to fill the window")
@@ -168,9 +170,9 @@ async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
             if "Bash: pytest" in str(sliced.get_option_at_index(at).prompt)
         )
         await pilot.press(*["down"] * (at - (sliced.highlighted or 0)), "enter")
-        await shows(pilot, "1 of 1 · Bash: pytest", "v drop")
+        await shows(pilot, "1 of 1 · Bash: pytest", "v Clear range")
         await pilot.press("escape")
-        await until(pilot, lambda: "v Range" in screen(app), "the range let go")
+        await until(pilot, lambda: "v Mark range" in screen(app), "the range let go")
         await pilot.press("shift+tab")
         await shows(pilot, "sorted by self↑")
         await pilot.press("escape")

@@ -149,7 +149,7 @@ async def test_the_accounts_in_the_terminal(world: World) -> None:
     async with world.tui((100, 24)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings accounts")
-        await shows(pilot, "personal", "work", "as local")
+        await shows(pilot, "personal", "work", "Local")
         await pilot.pause(0.5)
         shots.tui(app, f"{_PAGE}-terminal")
 
@@ -159,14 +159,14 @@ async def test_an_account_is_filled_in_at_the_terminal(world: World) -> None:
     async with world.tui((100, 30)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings accounts")
-        await shows(pilot, "personal", "as local")
+        await shows(pilot, "personal", "Local")
         await pilot.pause(0.5)
         reel = shots.Reel(f"{_PAGE}-terminal-add")
         reel.tui(app, hold=1.6, keys="/settings accounts")
         await pilot.click("#act-add")
-        await shows(pilot, "Add an account", "account name")
+        await shows(pilot, "New account", "what the account is called")
         await pilot.pause(0.3)
-        reel.tui(app, hold=1.6, caption="Add an account")
+        reel.tui(app, hold=1.6, caption="Add account")
         await opens(pilot, "way")
         await on(pilot, Dropdown)
         await pilot.pause(0.3)
@@ -183,7 +183,7 @@ async def test_an_account_is_filled_in_at_the_terminal(world: World) -> None:
         await pilot.pause(0.5)
         # On to its button, as tab goes: the line over it says what Done will do.
         app.screen.query_one("#act-done").focus()
-        await shows(pilot, "adds claude/work")
+        await shows(pilot, "adds the account claude/work")
         await pilot.pause(0.3)
         reel.tui(app, hold=3.5, caption="Answered: Done adds it", poster=True)
         reel.save()
@@ -195,13 +195,13 @@ async def test_an_account_is_held_to_be_removed(world: World) -> None:
     async with world.tui((100, 24)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings accounts")
-        await shows(pilot, "personal", "work", "as local")
+        await shows(pilot, "personal", "work", "Local")
         await onto(pilot, "claude/work")
         await pilot.pause(0.5)
         reel = shots.Reel(f"{_PAGE}-terminal-menu")
         reel.tui(app, hold=1.4)
         await pilot.press("enter")
-        await shows(pilot, "edit settings", "sign in again", "Remove")
+        await shows(pilot, "Edit", "Sign in again", "Remove")
         await pilot.pause(0.3)
         reel.tui(app, hold=2.6, keys="enter", caption="An account's menu", poster=True)
         await pilot.click("#act-remove")
@@ -227,8 +227,6 @@ async def test_an_agents_account_is_picked_in_the_terminal(world: World) -> None
         await on(pilot, Agent)
         await opens(pilot, "provider")
         await on(pilot, Accounts)
-        await shows(
-            pilot, "Select the account to run as", "as local", "personal", "work"
-        )
+        await shows(pilot, "Pick an account", "Local", "personal", "work")
         await pilot.pause(0.5)
         shots.tui(app, f"{_PAGE}-terminal-pick")

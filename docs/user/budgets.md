@@ -53,7 +53,7 @@ Under **Setup**, the **Budget** line states the limits and what happens at each:
 | `duration` | `1h30m`, `90s`, `PT2H`; empty for no limit |
 | `cost` | US dollars; `0` for no limit |
 | `output_tokens` | a count; `0` for no limit |
-| `graceful_duration`, `graceful_cost`, `graceful_output_tokens` | `on` lets the turn under way finish; `off` cuts it off at once |
+| `graceful_duration`, `graceful_cost`, `graceful_output_tokens` | `On` lets the turn under way finish; `Off` cuts it off at once |
 
 The `budget` row then shows the stop conditions, such as `stops at 30m, 2.0k out, $20.00`. A flow with no budget reads `none set; an epic needs one`, and choosing **Save** fails with `this flow requires a budget: set the budget first`. Humanize remembers the budget for the flow in this folder.
 

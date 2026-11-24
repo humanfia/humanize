@@ -372,7 +372,7 @@ async def test_exomyth_in_the_terminal(world: World) -> None:
     async with world.tui((110, 32)) as (app, pilot):
         await shows(pilot, MODEL)
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory", "rlar")
+        await shows(pilot, "Every epic in this folder", "rlar")
         await pilot.press("enter")
         await shows(pilot, "the epic as a timeline of its sessions")
         await onto(pilot, "exomyth")
@@ -386,10 +386,10 @@ async def test_exomyth_in_the_terminal(world: World) -> None:
         await pilot.press("down", "down", "down", "enter")
         for _ in range(8):
             await _settled(pilot, 0.3)
-            if "│ Bash: pytest -q" in screen(app):
+            if "┃ Bash: pytest -q" in screen(app):
                 break
             await pilot.press("left")
-        await shows(pilot, "│ Bash: pytest -q", "6 passed")
+        await shows(pilot, "┃ Bash: pytest -q", "6 passed")
         await _settled(pilot, 0.8)
         shots.tui(app, f"{_PAGE}-terminal")
         await pilot.press("escape")

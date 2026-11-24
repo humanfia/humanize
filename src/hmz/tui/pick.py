@@ -66,6 +66,7 @@ from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import to_json
+from rich.cells import cell_len
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
@@ -528,7 +529,7 @@ def switched(title: str, current: str, means: tuple[str, str] = ("", "")) -> Dro
     """
     return Drop(
         title,
-        (Value(_YES, _YES, means[0]), Value(_NO, _NO, means[1])),
+        (Value(_YES, t("On"), means[0]), Value(_NO, t("Off"), means[1])),
         current,
         cursor=_NO if current == _YES else _YES,
     )
@@ -574,17 +575,20 @@ def _chip(
     """
     if toggles:
         dot = "●" if value == _YES else "○"
+        word = t("On") if value == _YES else t("Off") if value == _NO else value
         if value == _YES and not here:
-            return f"[$success]{dot}[/] {_YES} [$text-muted]{_DROPS}[/]", len(_YES) + 4
-        said = f"{dot} {value} {_DROPS}"
-        return _shade("$text-muted", said, here=here), len(said)
+            return f"[$success]{dot}[/] {word} [$text-muted]{_DROPS}[/]", cell_len(
+                word
+            ) + 4
+        said = f"{dot} {word} {_DROPS}"
+        return _shade("$text-muted", said, here=here), cell_len(said)
     if not value and not moves and not caret:
         return _shade("$text-muted", "—", here=here), 1
     tail = (f" {moves}" if value else moves) if moves else ""
     shown = escape(value) if here else f"[$secondary]{escape(value)}[/]"
     return (
         f"{shown}{caret}{_shade('$text-muted', tail, here=here) if tail else ''}",
-        len(value) + (1 if caret else 0) + len(tail),
+        cell_len(value) + (1 if caret else 0) + cell_len(tail),
     )
 
 
@@ -618,6 +622,22 @@ def hinted(does: str) -> str:
     """
     capital = does[:1].upper() + does[1:]
     return t(capital) if known(capital) else does
+
+
+def _worded(said: str) -> str:
+    """What another part of Humanize says, in the words of :mod:`hmz.words` where it is one.
+
+    An account's way of signing in says what it is in the page's own words, and a flow says
+    what a parameter is in its own: the first is said in the language spoken, the second as
+    it was written.
+
+    Args:
+      said: The text.
+
+    Returns:
+      It, in the language spoken where it is one of the words, else as it is.
+    """
+    return t(said) if said and known(said) else said
 
 
 def _act(key: str) -> str:
@@ -762,7 +782,7 @@ class Sheet[T](ModalScreen[T | None]):
 
     #: What the button that answers a form says, for a sheet that is one. The same word on
     #: every form, so that the way out of one is found where it was found on the last.
-    DONE: ClassVar[str] = "done"
+    DONE: ClassVar[str] = t("Done")
 
     #: Whether typing on a row that is written begins writing it, which a form's rows are:
     #: a letter on a sheet of questions can only be an answer, so the enter that used to
@@ -1776,7 +1796,7 @@ class Sheet[T](ModalScreen[T | None]):
             + (f" {_shade('$success', _INFORCE, here=here)}" if inforce else "")
             + (f" {_shade('$accent', _UNREAD, here=here)}" if unread else "")
         )
-        shown = len(label) + (2 if inforce else 0) + (2 if unread else 0)
+        shown = cell_len(label) + (2 if inforce else 0) + (2 if unread else 0)
         pad = " " * max(1, _LABEL - shown)
         # Wrapped here rather than by the list, so that a second line starts under the first
         # rather than under the name: the column of what each thing is stays a column.
@@ -1816,7 +1836,7 @@ class Sheet[T](ModalScreen[T | None]):
         """
         width = self._width_of(self.query_one("#choices", OptionList))
         said, cells = chip
-        shown = len(named) + (2 if inforce else 0)
+        shown = cell_len(named) + (2 if inforce else 0)
         pad = max(2, width - 2 - shown - cells)
         if here:
             self._values_at = 1 + shown + pad
@@ -1857,7 +1877,7 @@ class Sheet[T](ModalScreen[T | None]):
         width = self._width_of(self.query_one("#choices", OptionList))
         unsaved = f"● {t('Unsaved')}"
         said = f"{summary}  {unsaved}" if pending else summary
-        pad = " " * max(2, width - 5 - len(title) - len(said))
+        pad = " " * max(2, width - 5 - cell_len(title) - cell_len(said))
         right = _shade("$text-muted", summary, here=here) + (
             f"  {_shade('$warning', unsaved, here=here)}" if pending else ""
         )
@@ -2357,15 +2377,21 @@ def spent(budget: Budget) -> str:
     if budget.duration is not None:
         caps.append((_units(budget.duration), graces.duration))
     if budget.output_tokens is not None:
-        caps.append((f"{thousands(budget.output_tokens)} out", graces.output_tokens))
+        caps.append(
+            (
+                t("{tokens} out", tokens=thousands(budget.output_tokens)),
+                graces.output_tokens,
+            )
+        )
     if budget.cost is not None and not math.isinf(budget.cost):
         caps.append((money(budget.cost), graces.cost))
     if not caps:
-        return "no limit"
+        return t("no limit")
     if not any(graceful for _, graceful in caps):
-        return ", ".join(cap for cap, _ in caps) + ", even mid-turn"
+        return t("{limits}, cut off at once", limits=", ".join(cap for cap, _ in caps))
     return ", ".join(
-        cap if graceful else f"{cap} even mid-turn" for cap, graceful in caps
+        cap if graceful else t("{limit} cut off at once", limit=cap)
+        for cap, graceful in caps
     )
 
 
@@ -2769,6 +2795,19 @@ class Form[T](Drafts[T]):
         del held
         return False
 
+    def worded(self, held: str, value: str) -> str:
+        """What a value picked on a row is called on the screen, where it is not the value.
+
+        Args:
+          held: The row.
+          value: The value, as it is kept.
+
+        Returns:
+          The value, unless a form says otherwise.
+        """
+        del held
+        return value
+
     def shown(self, one: Question) -> str:
         """What one row says it holds: what was typed, or a bullet apiece for a secret."""
         value = self._typed_in.get(one.held, "")
@@ -2788,7 +2827,7 @@ class Form[T](Drafts[T]):
             *self.beside(),
             Action(
                 _ACT_DONE,
-                self.DONE,
+                t(self.DONE),
                 self.done_about(),
                 self.action_done,
                 variant="primary",
@@ -2830,17 +2869,17 @@ class Form[T](Drafts[T]):
         # one line at all. Said where it works and nowhere else.
         self._footed(
             *(
-                (Key(_CHORD, "new line"),)
+                (Key(_CHORD, t("New line")),)
                 if self._editing and self.lines(self._editing)
                 else ()
             ),
-            *((Key(_FINISH, "complete"),) if finishing else ()),
+            *((Key(_FINISH, t("Complete")),) if finishing else ()),
             *(
-                (Key("enter", "open"),)
+                (Key("enter", t("Open")),)
                 if self._kind(self.under()) == _OPENS_ONTO
                 else ()
             ),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         )
 
     def _line(self, one: Question, *, here: bool) -> str:
@@ -2867,7 +2906,13 @@ class Form[T](Drafts[T]):
         toggles = one.kind == _STEPS and switch(self.choices(one.held))
         return self._setting(
             one.named,
-            _chip(self.shown(one), moves, here=here, caret=caret, toggles=toggles),
+            _chip(
+                self.worded(one.held, self.shown(one)),
+                moves,
+                here=here,
+                caret=caret,
+                toggles=toggles,
+            ),
             one.about,
             here=here,
         )
@@ -2901,7 +2946,7 @@ class Form[T](Drafts[T]):
                 else named
             )
         if len(found) > _PATHS_SHOWN:
-            said.append(f"and {len(found) - _PATHS_SHOWN} more")
+            said.append(t("{n} more", n=len(found) - _PATHS_SHOWN))
         return "  ".join(said)
 
     def _finishes(self, row: str) -> None:
@@ -2969,7 +3014,7 @@ class Form[T](Drafts[T]):
             return switched(question.named, now)
         return Drop(
             question.named,
-            [Value(one, one, self.means(row, one)) for one in values],
+            [Value(one, self.worded(row, one), self.means(row, one)) for one in values],
             now,
         )
 
@@ -3155,24 +3200,27 @@ class Speaks(Form[str]):
         return [
             Question(
                 "command",
-                "command",
-                "command to run the agent, e.g. my-agent --acp",
+                t("Command"),
+                t("the command that runs the agent, like my-agent --acp"),
                 needed=not self._typed_in.get("command", "").strip(),
             )
         ]
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "saves it as a backend"
+        return t("saves it as a backend")
 
     def _ask(self) -> None:
         """Says what one of these is."""
-        self.query_one("#asked", Label).update("Add a CLI that speaks ACP")
+        self.query_one("#asked", Label).update(t("Add a CLI that speaks ACP"))
         self.query_one("#about", Label).update(
-            "Any coding agent that supports the Agent Client Protocol, "
-            "communicating over stdin and stdout using the command you "
-            "provide. The protocol does not configure models or effort, so it "
-            "runs with its own configuration."
+            t(
+                "Any coding agent that speaks the Agent Client "
+                "Protocol over stdin and stdout when started by "
+                "your command. The protocol does not set models or "
+                "effort, so the agent runs with its own "
+                "configuration."
+            )
         )
         self._fill()
 
@@ -3186,7 +3234,7 @@ class Speaks(Form[str]):
             self._fill()
             return
         if not argv:
-            self._wrong = "command is required"
+            self._wrong = t("This needs an answer.")
             self._fill()
             return
         self.dismiss(said)
@@ -3207,7 +3255,7 @@ _HOW_LONG = "for"
 def _lasting(seconds: float) -> str:
     """How long something may go on for, as a row of a sheet says it."""
     if not seconds:
-        return "no limit"
+        return t("no limit")
     if seconds < 60:  # noqa: PLR2004 -- a minute, in the units the number is in
         return f"{seconds:.0f}s"
     return f"{seconds / 60:.0f}m"
@@ -3233,25 +3281,37 @@ class Budgeted(BaseModel):
 
     duration: str = Field(
         default="",
-        description="maximum epic duration: 1h30m, 90s, PT2H; empty for no limit",
+        description=t(
+            "the longest the epic may take, like 1h30m, 90s or PT2H; empty for no limit"
+        ),
     )
     cost: float = Field(
-        default=0.0, ge=0, description="maximum cost in US dollars, 0 for no limit"
+        default=0.0,
+        ge=0,
+        description=t("the most the epic may cost, in US dollars; 0 for no limit"),
     )
     output_tokens: int = Field(
-        default=0, ge=0, description="maximum output tokens, 0 for no limit"
+        default=0,
+        ge=0,
+        description=t("the most output tokens the epic may write; 0 for no limit"),
     )
     graceful_duration: bool = Field(
         default=True,
-        description="finish the current turn when the duration is reached",
+        description=t(
+            "on: the turn going when the time limit is reached is let finish"
+        ),
     )
     graceful_cost: bool = Field(
         default=True,
-        description="finish the current turn when the cost is reached",
+        description=t(
+            "on: the turn going when the cost limit is reached is let finish"
+        ),
     )
     graceful_output_tokens: bool = Field(
         default=True,
-        description="finish the current turn when the output tokens are reached",
+        description=t(
+            "on: the turn going when the output token limit is reached is let finish"
+        ),
     )
 
     @field_validator("duration")
@@ -3268,7 +3328,7 @@ class Budgeted(BaseModel):
     def _limits_something(self) -> Budgeted:
         """Refuses a budget that limits nothing, which is no budget."""
         if not (self.duration or self.cost or self.output_tokens):
-            raise ValueError("set at least one of duration, cost and output_tokens")
+            raise ValueError(t("Set at least one limit of the budget."))
         return self
 
     @classmethod
@@ -3416,7 +3476,7 @@ class Configures(Drafts["BaseModel"]):
     the int and the literal the flow declared, and says what is wrong with anything else.
     """
 
-    DONE = "set"
+    DONE = t("Set")
 
     def __init__(
         self,
@@ -3466,12 +3526,16 @@ class Configures(Drafts["BaseModel"]):
 
     def _ask(self) -> None:
         """Says what is being set up."""
-        self.query_one("#asked", Label).update(self._asked or f"Set up {self._flow}")
+        self.query_one("#asked", Label).update(
+            self._asked or t("Set up {name}", name=self._flow)
+        )
         self.query_one("#about", Label).update(
             self._about
             or (
-                "Configure how this flow runs. Options and validation are defined "
-                "by the flow itself."
+                t(
+                    "Set how this flow runs. The flow itself defines "
+                    "the options and checks them."
+                )
             )
         )
         self._fill()
@@ -3481,8 +3545,8 @@ class Configures(Drafts["BaseModel"]):
         return [
             Action(
                 _ACT_DONE,
-                self.DONE,
-                "all of the above",
+                t(self.DONE),
+                t("all of the above"),
                 self.applied,
                 variant="primary",
             )
@@ -3513,7 +3577,7 @@ class Configures(Drafts["BaseModel"]):
         self.query_one("#tuning", Label).update(
             f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
         )
-        self._footed(Key("esc", "back"))
+        self._footed(Key("esc", t("Back")))
 
     def _row_of(self, at: int) -> int:
         """Which row of the list one setting is on, once the headings are counted.
@@ -3580,7 +3644,7 @@ class Configures(Drafts["BaseModel"]):
         """
         value = self._typed_in[name]
         field = dict(self._fields)[name]
-        about = field.description or ""
+        about = _worded(field.description or "")
         # A value still selected whole is drawn reversed, as a selection is, and the next
         # letter replaces it rather than landing after it; there is no caret beside it.
         if value and self._editing == name and self._whole == name:
@@ -3840,13 +3904,9 @@ class Picks(Sheet[str]):
     def actions(self) -> list[Action]:
         """Adding one, asking again, and searching, for a list that does each."""
         return [
+            *((Action(_ACT_ADD, t(self.adds), "", self.added),) if self.adds else ()),
             *(
-                (Action(_ACT_ADD, f"add {self.adds}", "", self.added),)
-                if self.adds
-                else ()
-            ),
-            *(
-                (Action(_ACT_AGAIN, self.again, "", self.asked_again),)
+                (Action(_ACT_AGAIN, t(self.again), "", self.asked_again),)
                 if self.again
                 else ()
             ),
@@ -3962,7 +4022,8 @@ def _sets(provider: Provider) -> str:
       somebody can read it, and a key on a screen is a key in a photograph.
     """
     variables = ", ".join(sorted(provider.env))
-    return f"{provider.way}{_DOT}{variables}" if variables else provider.way
+    made = t("made by {way}", way=provider.way)
+    return f"{made}{_DOT}{variables}" if variables else made
 
 
 def _drives(backend: str) -> type[AgentBase] | None:
@@ -4041,7 +4102,9 @@ async def made(host: App[None], cli: str = "") -> Made:
     way = accounts.way(signs.cli, signs.way)
     if way is None:  # the form steps through that backend's own, so there are none else
         return Made(
-            why=f"{signs.way} is not a supported sign-in method for {signs.cli}"
+            why=t(
+                "{way} is not a sign-in method for {cli}.", way=signs.way, cli=signs.cli
+            )
         )
     try:
         provider = accounts.make(signs.cli, signs.name, way, signs.answers)
@@ -4160,7 +4223,7 @@ _CALLED = "name"
 #: The row a way that asks nothing in particular is answered in, and the question on it. Its
 #: own id rather than a variable's, since what is typed here is the variables themselves.
 _TYPED = " "
-_TYPED_ABOUT = "environment variables, as NAME=VALUE, one per line"
+_TYPED_ABOUT = t("environment variables, as NAME=VALUE, one per line")
 #: What each row asking whether to write the account down for another backend as well is put
 #: up under, in front of that backend's name.
 _ALSO = "also:"
@@ -4326,19 +4389,24 @@ class Signing(Form[Signs]):
                 rows.append(
                     Question(
                         _CLI,
-                        "cli",
-                        "installed here"
-                        if cli in self._here
-                        else "not installed here yet",
+                        t("CLI"),
+                        t("Installed") if cli in self._here else t("Not installed"),
                         kind=_STEPS,
                     )
                 )
-            rows.append(Question(_BY, "way", way.about if way else "", kind=_STEPS))
+            rows.append(
+                Question(
+                    _BY,
+                    t("Sign-in method"),
+                    _worded(way.about) if way else "",
+                    kind=_STEPS,
+                )
+            )
             rows.append(
                 Question(
                     _CALLED,
-                    "name",
-                    "account name",
+                    t("Name"),
+                    t("what the account is called, which an agent is given it by"),
                     needed=not self._typed_in.get(_CALLED, "").strip(),
                 )
             )
@@ -4350,9 +4418,9 @@ class Signing(Form[Signs]):
                 Question(
                     one.env,
                     one.env,
-                    f"{one.about}; leave blank to keep current value"
+                    f"{_worded(one.about)}{_DOT}{t('Left empty, kept as it is')}"
                     if keeps
-                    else one.about,
+                    else _worded(one.about),
                     secret=one.secret,
                     needed=not self._typed_in.get(one.env)
                     and not one.fixed
@@ -4366,20 +4434,22 @@ class Signing(Form[Signs]):
             rows.append(
                 Question(
                     _TYPED,
-                    "variables",
-                    _TYPED_ABOUT,
+                    t("Variables"),
+                    t(_TYPED_ABOUT),
                     secret=True,
                     needed=self._making and not self._typed_in.get(_TYPED, "").strip(),
                 )
             )
         name = self._name or self._typed_in.get(_CALLED, "")
         for other in self._among():
-            about = (
-                "installed here" if other in self._here else "not installed here yet"
-            )
+            about = t("Installed") if other in self._here else t("Not installed")
             if self._making and name and _hmz().accounts.find(other, name) is not None:
-                about += f"{_DOT}overwrites {other}/{name}"
-            rows.append(Question(f"{_ALSO}{other}", f"also for {other}", about, _STEPS))
+                about += _DOT + t("overwrites {account}", account=f"{other}/{name}")
+            rows.append(
+                Question(
+                    f"{_ALSO}{other}", t("Also for {cli}", cli=other), about, _STEPS
+                )
+            )
         return rows
 
     def shown(self, one: Question) -> str:
@@ -4443,17 +4513,22 @@ class Signing(Form[Signs]):
         cli = self._cli()
         named = f"{cli}/{self._name or self._typed_in.get(_CALLED, '').strip()}"
         if self._making:
-            said = f"adds {named}"
+            said = [t("adds the account {account}", account=named)]
         elif self._copies:
-            said = f"updates {named} once /settings is saved"
+            said = [
+                t(
+                    "updates the account {account} once /settings is saved",
+                    account=named,
+                )
+            ]
         else:
-            said = f"signs {named} in again"
+            said = [t("signs the account {account} in again", account=named)]
         if way is not None and way.argv:
-            said += ", running its login in the terminal"
+            said.append(t("runs the CLI's own sign-in in the terminal"))
         elsewhere = [other for other in self._among() if self._also(other)]
         if elsewhere:
-            said += f", for {', '.join(elsewhere)} too"
-        return said
+            said.append(t("also for {clis}", clis=", ".join(elsewhere)))
+        return _DOT.join(said)
 
     def note(self) -> str:
         """What to say about a CLI that is not installed here, where one is being made."""
@@ -4462,35 +4537,42 @@ class Signing(Form[Signs]):
             return ""
         way = self._way()
         if way is not None and way.argv:
-            return (
-                f"{escape(cli)} is not installed, and this sign-in method requires "
-                "running its login"
+            return t(
+                "{cli} is not installed, and this method has to run its own sign-in",
+                cli=escape(cli),
             )
-        return f"{escape(cli)} is not installed; install it to use this account"
+        return t(
+            "{cli} is not installed; install it to use this account", cli=escape(cli)
+        )
 
     def _ask(self) -> None:
         """Says what is being made, corrected or signed in, and puts the questions up."""
         cli = escape(self._cli())
         named = f"{cli}/{escape(self._name)}"
         self.query_one("#asked", Label).update(
-            (f"Add a {cli} account" if self._fixed else "Add an account")
+            (t("New {cli} account", cli=cli) if self._fixed else t("New account"))
             if self._making
-            else f"Edit {named}"
+            else t("Edit {cli} · {name}", cli=cli, name=escape(self._name))
             if self._copies
-            else f"Sign {named} in again"
+            else t("Sign {account} in again", account=named)
         )
         self.query_one("#about", Label).update(
             (
-                "A saved sign-in for one CLI, kept separate from the CLI's default "
-                "and other accounts. Secrets are masked and never shown."
+                t(
+                    "A saved sign-in for one CLI, kept separate from "
+                    "the CLI's own and from other accounts. Secrets "
+                    "are masked and never shown."
+                )
             )
             if self._making
             else (
-                "Edit account settings. Secrets are never displayed, so leave "
-                "blank to keep current values."
+                t(
+                    "What the account sets. Secrets are never shown, "
+                    "so leave one blank to keep it as it is."
+                )
             )
             if self._copies
-            else "Required settings for this sign-in method."
+            else t("What this sign-in method asks for.")
         )
         self._fill()
 
@@ -4504,8 +4586,10 @@ class Signing(Form[Signs]):
         way = self._way()
         cli = self._cli()
         if way is None:
-            self._wrong = (
-                f"{cli} has no sign-in method named {self._typed_in.get(_BY, '')}"
+            self._wrong = t(
+                "{way} is not a sign-in method for {cli}.",
+                way=self._typed_in.get(_BY, ""),
+                cli=cli,
             )
             self._fill()
             return
@@ -4535,18 +4619,20 @@ class Signing(Form[Signs]):
             self._fill()
             return
         if self._making and accounts.find(cli, name) is not None:
-            self._wrong = (
-                f"{cli} already has an account named {name}; edit it from its "
-                "row, or choose a different name"
+            self._wrong = t(
+                "{cli} already has an account named {name}; edit "
+                "that one from its row, or pick another name.",
+                cli=cli,
+                name=name,
             )
             self._fill()
             return
         if still := accounts.asks(way, answers):
-            self._wrong = f"{still[0]} is required"
+            self._wrong = t("{what} still has to be filled in.", what=still[0])
             self._fill()
             return
         if not answers and not way.argv:
-            self._wrong = "fill in credentials to sign in"
+            self._wrong = t("There are no credentials yet; fill them in to sign in.")
             self._fill()
             return
         self.dismiss(
@@ -4828,7 +4914,7 @@ class Reports(Popup):
 #: The account an agent runs as when nobody has chosen one, which is always the first row it
 #: is chosen from: the machine is signed in already, and that is what an agent nobody was
 #: asked about has always run as.
-_LOCAL = "as local"
+_LOCAL = t("Local")
 
 #: The rows the sheet is made of, by the id each is put up under. In the order they are asked,
 #: which is the order of what depends on what: the CLI settles which accounts and which models
@@ -4906,10 +4992,11 @@ class Agent(Drafts[Runs]):
 
     def _ask(self) -> None:
         """Says whose agent this is, and what setting it up settles."""
-        self.query_one("#asked", Label).update(f"Set up {escape(self._named)}")
+        self.query_one("#asked", Label).update(
+            t("Set up {name}", name=escape(self._named))
+        )
         self.query_one("#about", Label).update(
-            "Configure this agent: select its CLI, account, model, and "
-            "reasoning effort."
+            t("Set up this agent: its CLI, account, model and reasoning effort.")
         )
         self._fill()
 
@@ -4921,13 +5008,19 @@ class Agent(Drafts[Runs]):
           asked. The fleet row only for a model that runs a turn as one.
         """
         rows: list[tuple[str, str, str]] = [
-            (_CLI, self._cli or "—", "coding agent CLI to use"),
-            (_ACCOUNT, self._provider or _LOCAL, "account to run as"),
-            (_MODEL, self._model or "—", "model to use"),
-            (_EFFORT, self._effort or "—", "reasoning effort"),
+            (_CLI, self._cli or "—", t("the CLI the agent runs")),
+            (_ACCOUNT, self._provider or t(_LOCAL), t("the account the agent runs as")),
+            (_MODEL, self._model or "—", t("the model the agent runs")),
+            (_EFFORT, self._effort or "—", t("how hard the model is asked to think")),
         ]
         if self._swarms():
-            rows.append((_SWARM, _YES if self._swarm else _NO, "run turns as a swarm"))
+            rows.append(
+                (
+                    _SWARM,
+                    _YES if self._swarm else _NO,
+                    t("on: a turn is run as a swarm"),
+                )
+            )
         return rows
 
     def crumb(self) -> str:
@@ -4967,7 +5060,7 @@ class Agent(Drafts[Runs]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{self._said}[/]" if self._said else ""
         )
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        self._footed(Key("enter", t("Open")), Key("esc", t("Close")))
 
     def _line(self, held: str, value: str, about: str, *, here: bool) -> str:
         """One row: what is being said, what it is set to at the far end, and what it means.
@@ -4987,7 +5080,13 @@ class Agent(Drafts[Runs]):
         moves = _DROPS if self.drops(held) else "" if held in _DROPPED else _OPENS
         # Called what the rest of Humanize calls it -- an account -- whatever it is kept
         # under.
-        said = "account" if held == _ACCOUNT else held
+        said = {
+            _CLI: t("CLI"),
+            _ACCOUNT: t("Account"),
+            _MODEL: t("Model"),
+            _EFFORT: t("Effort"),
+            _SWARM: t("Swarm"),
+        }.get(held, held)
         chip = _chip(value, moves, here=here, toggles=held == _SWARM)
         return self._setting(said, chip, about, here=here)
 
@@ -5066,12 +5165,15 @@ class Agent(Drafts[Runs]):
         """
         if row == _SWARM:
             return switched(
-                "swarm",
+                t("Swarm"),
                 _YES if self._swarm else _NO,
-                ("run turns as a swarm", "run turns as one agent"),
+                (
+                    t("on: a turn is run as a swarm"),
+                    t("off: a turn is run as one agent"),
+                ),
             )
         return Drop(
-            "effort", [Value(one, one) for one in self._efforts()], self._effort
+            t("Effort"), [Value(one, one) for one in self._efforts()], self._effort
         )
 
     def dropped(self, row: str, picked: str) -> None:
@@ -5099,7 +5201,7 @@ class Agent(Drafts[Runs]):
             self._opens(held)
         elif held == _EFFORT:
             # Not dropped, so there is no model yet to say which efforts it takes.
-            self._said = "choose a model first; efforts belong to the model"
+            self._said = t("pick a model first: the efforts are the model's")
             self._fill()
 
     @work
@@ -5143,7 +5245,7 @@ class Agent(Drafts[Runs]):
     async def _chose_account(self, showing: App[None]) -> None:
         """Asks which account its turns run as, out of that CLI's own."""
         if not self._cli:
-            self._said = "choose a coding agent first; accounts belong to the CLI"
+            self._said = t("pick a CLI first: the accounts are the CLI's")
             return
         chosen = await showing.push_screen_wait(Accounts(self._cli, self._provider))
         if chosen is None or chosen == self._provider:
@@ -5160,7 +5262,10 @@ class Agent(Drafts[Runs]):
     async def _asks_models(self) -> None:
         """Asks this agent's CLI what it runs as its account, saying so while it does."""
         cli, provider = self._cli, self._provider
-        self._said = f"checking models for {escape(cli)} as {escape(provider)}…"
+        self._said = t(
+            "Asking {name} for models…",
+            name=escape(f"{cli}@{provider}" if provider else cli),
+        )
         self._fill()
         runs, why = await asks(cli, provider)
         if (self._cli, self._provider) != (cli, provider):
@@ -5170,8 +5275,13 @@ class Agent(Drafts[Runs]):
             ""
             if runs
             else bad(
-                f"could not get models for {escape(cli)} as {escape(provider)}"
-                + (f": {escape(why)}" if why else "")
+                t(
+                    "{harness} would not answer: {why}",
+                    harness=escape(f"{cli}@{provider}" if provider else cli),
+                    why=escape(why),
+                )
+                if why
+                else t("No models listed")
             )
         )
         self._fill()
@@ -5179,7 +5289,7 @@ class Agent(Drafts[Runs]):
     async def _chose_model(self, showing: App[None]) -> None:
         """Asks which of that CLI's models it runs, and starts it at the hardest effort."""
         if not self._cli:
-            self._said = "choose a coding agent first; models belong to the CLI"
+            self._said = t("pick a CLI first: the models are the CLI's")
             return
         catalogue = Catalogue(self._cli, self._provider, self._models(), self._model)
         chosen = await showing.push_screen_wait(catalogue)
@@ -5208,10 +5318,10 @@ class Clis(Picks):
     cannot is one choosing would make the run refuse to start, so it is not offered.
     """
 
-    asked = "Select a coding agent"
-    about = (
-        "The CLI for this agent. Accounts and models belong to the CLI, so "
-        "choosing another resets them."
+    asked = t("Pick a CLI")
+    about = t(
+        "The CLI this agent runs. Accounts and models are "
+        "a CLI's own, so picking another resets them."
     )
 
     def __init__(
@@ -5249,9 +5359,9 @@ class Clis(Picks):
                     backend,
                     _hmz().adding(backend)
                     if backend in self._unavailable
-                    else _many(len(self._agents[backend]), "model")
+                    else t("{n} models", n=len(self._agents[backend]))
                     if self._agents[backend]
-                    else "no models reported yet",
+                    else t("No models listed"),
                 )
             )
         return listed
@@ -5266,12 +5376,12 @@ class Clis(Picks):
                 *([str(role.harness)] if role.harness is not None else []),
                 *sorted(one.__name__ for one in role.capabilities),
             ]
-            return (
-                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no "
-                f"coding agent "
-                "installed here has that"
+            return t(
+                "the role {role} needs {needs}, and no CLI installed here has that",
+                role=escape(role.name),
+                needs=escape(", ".join(asked)),
             )
-        return "no coding agent installed here can run this agent"
+        return t("No harness installed here can fill it.")
 
 
 class Accounts(Picks):
@@ -5282,13 +5392,13 @@ class Accounts(Picks):
     here, this being the moment somebody finds out they have none for this CLI.
     """
 
-    asked = "Select the account to run as"
-    about = (
-        "Accounts belong to a specific CLI; each CLI has its own sign-ins. "
-        "Sessions, settings, and skills belong to the CLI regardless of which "
-        "account it runs as."
+    asked = t("Pick an account")
+    about = t(
+        "An account is one CLI's: each CLI has its own "
+        "sign-ins. Sessions, settings and skills are the "
+        "CLI's whichever account it runs as."
     )
-    adds = "an account"
+    adds = t("Add account")
 
     def __init__(self, backend: str, current: str = "") -> None:
         """Initializes the choosing.
@@ -5303,7 +5413,7 @@ class Accounts(Picks):
 
     def crumb(self) -> str:
         """What the sheet an account is made on was opened from."""
-        return "account"
+        return t("Account")
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The machine's own first, and then every account that CLI has here."""
@@ -5323,15 +5433,19 @@ class Accounts(Picks):
         return [
             (
                 "",
-                _LOCAL,
+                t(_LOCAL),
                 (
-                    "use credentials and the base URL saved by dsh, or environment "
-                    "variables"
+                    t(
+                        "uses the credentials and base URL dsh saved, or "
+                        "environment variables"
+                    )
                 )
                 if self._backend == "dsh"
-                else "use the API keys litellm reads from this machine's environment"
+                else t(
+                    "uses the API keys litellm reads from this machine's environment"
+                )
                 if self._backend == "litellm"
-                else "use the account signed in on this machine",
+                else t("signed in outside Humanize"),
             ),
             *((one.name, one.name, _sets(one)) for one in found),
         ]
@@ -5341,13 +5455,14 @@ class Accounts(Picks):
         if self._said:
             return self._said
         if self._backend == "dsh" and len(self._rows or []) < 2:  # noqa: PLR2004
-            return (
-                "DeepSeek Harness needs an API key; add an account to save "
-                "one, or set DEEPSEEK_API_KEY and reopen hmz"
+            return t(
+                "the DeepSeek harness needs an API key: add an "
+                "account to save one, or set DEEPSEEK_API_KEY and "
+                "open hmz again"
             )
         if len(self._rows or []) > 1:
             return ""
-        return f"{escape(self._backend)} has no saved accounts yet"
+        return t("No account yet.")
 
     def added(self) -> None:
         """Makes one, which is what the button under the choices is for."""
@@ -5380,9 +5495,11 @@ class Accounts(Picks):
             self._fill()
             return
         if outcome.status:
-            self._said = (
-                f"{escape(outcome.provider.name)} was saved, but sign-in "
-                f"failed with exit code {outcome.status}"
+            self._said = t(
+                "the account {name} was saved, but its sign-in "
+                "exited with status {status}",
+                name=escape(outcome.provider.name),
+                status=outcome.status,
             )
             self._rows = None
             self._fill()
@@ -5400,7 +5517,7 @@ class Catalogue(Picks):
     somewhere else.
     """
 
-    again = "check again"
+    again = t("Refresh models")
 
     def __init__(
         self,
@@ -5419,11 +5536,12 @@ class Catalogue(Picks):
           current: The model it runs now.
         """
         super().__init__(current)
-        self.asked = f"Select a model for {backend}"
-        self.about = (
-            f"The model {backend} uses for this agent's turns, and its "
-            "reasoning effort. These are the models last reported for this "
-            "account."
+        self.asked = t("Pick a model of {cli}", cli=backend)
+        self.about = t(
+            "The model {cli} runs this agent's turns on, and "
+            "its reasoning effort. These are the models it "
+            "last listed for this account.",
+            cli=backend,
         )
         self._backend = backend
         self._provider = provider
@@ -5442,7 +5560,7 @@ class Catalogue(Picks):
             (
                 one.name,
                 one.name,
-                ", ".join(one.efforts) + (f"{_DOT}swarms" if one.swarms else ""),
+                ", ".join(one.efforts) + (_DOT + t("swarms") if one.swarms else ""),
             )
             for one in self._models
         ]
@@ -5450,15 +5568,16 @@ class Catalogue(Picks):
     def nothing(self) -> str:
         """What to say where there is no model to say anything else about."""
         if self._asking:
-            return f"checking {escape(self._backend)} for models…"
+            return t("Asking {harness} for models…", harness=escape(self._backend))
         if self._said:
             return self._said
         if self._models:
             return ""  # narrowed away by what was typed, which the search itself says
-        whose = f" as {escape(self._provider)}" if self._provider else ""
-        return (
-            f"{escape(self._backend)} has not reported any models{whose} yet; "
-            "select check again to query them"
+        whose = f"{self._backend}@{self._provider}" if self._provider else self._backend
+        return t(
+            "{name} has listed no models yet; {button} asks it for them",
+            name=escape(whose),
+            button=t("Refresh models"),
         )
 
     def asked_again(self) -> None:
@@ -5492,7 +5611,7 @@ class Catalogue(Picks):
             self._fill()
             return
         self._asking, self._models = False, found
-        self._said = "" if found else f"no models found for {escape(self._backend)}"
+        self._said = "" if found else t("No models listed")
         self._rows = None
         self.query_one("#choices", OptionList).highlighted = 0
         self._drawn = 0
@@ -5532,9 +5651,10 @@ class Places(Picks):
         """
         super().__init__(current)
         self.asked = asked
-        self.about = (
-            "A concrete nous is a CLI, an account and a model; a virtual nous is a "
-            "name for a graph of others. Search by any of them."
+        self.about = t(
+            "A concrete nous is a CLI, an account and a model; "
+            "a virtual nous is a name for a graph of others. "
+            "Search by any of them."
         )
         self._offered = dict(offered)
         self._named = tuple(named)
@@ -5544,7 +5664,7 @@ class Places(Picks):
     def rows(self) -> list[tuple[str, str, str]]:
         """The virtual nous, then every concrete one by CLI and account, and those not asked."""
         hmz = _hmz()
-        listed = [(one, one, "virtual nous") for one in self._named]
+        listed = [(one, one, t("Virtual nous")) for one in self._named]
         for cli in sorted(self._offered):
             if _drives(cli) is None:
                 continue
@@ -5562,7 +5682,10 @@ class Places(Picks):
                         (
                             f"{_UNASKED}{cli}{_HALVES}{account}",
                             f"{whose}/…",
-                            "models not reported yet; select to query them",
+                            t(
+                                "its models are not listed yet; picking it asks "
+                                "for them"
+                            ),
                         )
                     )
                     continue
@@ -5574,10 +5697,10 @@ class Places(Picks):
     def nothing(self) -> str:
         """What came of asking, or that there is nothing to choose."""
         if self._asking:
-            return f"checking {escape(self._asking)} for models…"
+            return t("Asking {name} for models…", name=escape(self._asking))
         if self._said:
             return self._said
-        return "" if self._rows else "no installed coding agent has a model to offer"
+        return "" if self._rows else t("no CLI installed here has a model to offer")
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -5611,7 +5734,7 @@ class Places(Picks):
         if not account:
             self._offered[cli] = _hmz().accounts.models(cli)
         self._asking = ""
-        self._said = bad(escape(why)) if why else "" if runs else "no models found"
+        self._said = bad(escape(why)) if why else "" if runs else t("No models listed")
         self._rows = None
         self._fill()
 
@@ -5667,33 +5790,44 @@ def _node_said(node: Node) -> str:
     if node.use:
         return node.use
     among = ", ".join(f"{name}×{weight}" for name, weight in node.among)
-    spread = f"; spread {node.spread}" if node.spread else ""
-    return f"{node.balance}({among}{spread})"
+    if node.spread:
+        return t(
+            "{balance}: {among}, {spread} at most",
+            balance=node.balance,
+            among=among,
+            spread=node.spread,
+        )
+    return f"{node.balance}: {among}"
 
 
 def _graph_said(graph: Graph | None) -> str:
     """A graph as a row says it: its nodes in order from the start, or `none`."""
     if graph is None:
-        return "none"
+        return t("none")
     return " → ".join(_node_said(one) for one in _ordered(graph))
 
 
 def _nous_said(one: Nous) -> str:
     """One nous as its row says it: which kind, how it is tried again, its graph, its then."""
     tries = (
-        "no retries"
+        t("once")
         if not one.tries
-        else f"{one.tries} {'retry' if one.tries == 1 else 'retries'}"
+        else t("{n} more goes, {policy}", n=one.tries, policy=one.policy)
     )
-    graph = (f"graph {_graph_said(one.graph)}",) if one.graph is not None else ()
+    graph = (
+        (t("graph {graph}", graph=_graph_said(one.graph)),)
+        if one.graph is not None
+        else ()
+    )
     return _DOT.join(
         (
-            "virtual" if one.virtual else "concrete",
+            t("Virtual") if one.virtual else t("Concrete"),
             tries,
-            one.policy,
-            _lasting(one.timeout),
+            t("at most {time}", time=_lasting(one.timeout))
+            if one.timeout
+            else t("no limit"),
             *graph,
-            f"then {_graph_said(one.then)}",
+            t("then {graph}", graph=_graph_said(one.then)),
         )
     )
 
@@ -5766,14 +5900,15 @@ def _refusal(one: Nous, others: Sequence[Nous]) -> str:
     book = _hmz().nous
     name = book.reads(one.name)
     if not name:
-        return (
-            f"{one.name!r} is not a nous: expected HARNESS[@ACCOUNT]/MODEL[:EFFORT] "
-            "or a name"
+        return t(
+            "{name} is not a nous; one is written "
+            "HARNESS[@ACCOUNT]/MODEL[:EFFORT], or is a name.",
+            name=repr(one.name),
         )
     if "/" not in name and one.graph is None:
-        return f"{name} is a virtual nous, and needs a graph"
+        return t("{name} is a virtual nous, and needs a graph.", name=name)
     if not one.says():
-        return f"{name} says nothing: give it retries or a then"
+        return t("{name} says nothing; give it more tries or a then.", name=name)
     made = replace(one, name=name)
     for graph in (one.graph, one.then):
         if graph is not None and (why := _graph_refusal(name, graph)[1]):
@@ -5872,10 +6007,14 @@ class NousForm(Form["Nous | str"]):
                 (
                     Question(
                         _NAME,
-                        "name",
-                        "HARNESS[@ACCOUNT]/MODEL[:EFFORT], or a name for a virtual nous"
+                        t("Name"),
+                        t(
+                            "a concrete nous as "
+                            "HARNESS[@ACCOUNT]/MODEL[:EFFORT], or a name for a "
+                            "virtual nous"
+                        )
                         if self._unwritten
-                        else "renames this virtual nous",
+                        else t("renames this virtual nous"),
                         needed=not self._said_name(),
                     ),
                 )
@@ -5886,8 +6025,11 @@ class NousForm(Form["Nous | str"]):
                 (
                     Question(
                         _CHOOSE,
-                        "choose",
-                        "a concrete nous the accounts and installed harnesses run",
+                        t("Choose"),
+                        t(
+                            "opens the list of concrete nous the accounts and "
+                            "installed CLIs run"
+                        ),
                         _OPENS_ONTO,
                     ),
                 )
@@ -5898,8 +6040,8 @@ class NousForm(Form["Nous | str"]):
                 (
                     Question(
                         _EFFORT,
-                        "effort",
-                        "how hard the model is asked to think",
+                        t("Effort"),
+                        t("how hard the model is asked to think"),
                         _STEPS,
                     ),
                 )
@@ -5907,23 +6049,33 @@ class NousForm(Form["Nous | str"]):
                 else ()
             ),
             Question(
-                _HOW_MANY, "tries", "how many times to retry a failed turn", _STEPS
+                _HOW_MANY,
+                t("Tries"),
+                t("how many more times a turn that fails is tried"),
+                _STEPS,
             ),
             Question(
                 _POLICY,
-                "policy",
-                said.about if said is not None else "how long to wait between retries",
+                t("Wait"),
+                _worded(said.about)
+                if said is not None
+                else t("how long is waited between one try and the next"),
                 _STEPS,
             ),
-            Question(_HOW_LONG, "limit", "the longest to keep retrying", _STEPS),
+            Question(
+                _HOW_LONG,
+                t("Limit"),
+                t("the longest a turn is tried again for"),
+                _STEPS,
+            ),
             *(
                 ()
                 if self._concrete()
                 else (
                     Question(
                         _OF_GRAPH,
-                        "graph",
-                        "what this virtual nous is: nodes tried along their edges",
+                        t("Graph"),
+                        t("what this virtual nous is: nodes tried along their edges"),
                         _OPENS_ONTO,
                         needed=self._graph is None,
                     ),
@@ -5931,8 +6083,8 @@ class NousForm(Form["Nous | str"]):
             ),
             Question(
                 _THEN,
-                "then",
-                "where a turn goes once its tries are spent, in a new conversation",
+                t("Then"),
+                t("where a turn goes once its tries are spent, in a new conversation"),
                 _OPENS_ONTO,
             ),
         ]
@@ -5983,8 +6135,8 @@ class NousForm(Form["Nous | str"]):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "removes this nous when saved",
+                t("Remove"),
+                t("removes this nous once the settings are saved"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -5992,7 +6144,7 @@ class NousForm(Form["Nous | str"]):
 
     def done_about(self) -> str:
         """What answering it does, which is hold it."""
-        return "applies this nous when /settings is saved"
+        return t("keeps this nous, written once /settings is saved")
 
     def opens(self, held: str) -> None:
         """Opens the list of concrete nous, or the graph form on its graph or its then."""
@@ -6011,14 +6163,14 @@ class NousForm(Form["Nous | str"]):
         try:
             if held == _CHOOSE:
                 chosen: object = await showing.push_screen_wait(
-                    Places(self._offered, "Choose a concrete nous", self._said_name())
+                    Places(self._offered, t("Pick a concrete nous"), self._said_name())
                 )
             else:
                 chosen = await showing.push_screen_wait(
                     GraphForm(
                         self._offered,
                         self._graph if held == _OF_GRAPH else self._then,
-                        owner=self._said_name() or "this nous",
+                        owner=self._said_name() or t("this nous"),
                         named=[
                             one.name
                             for one in self._others
@@ -6047,11 +6199,15 @@ class NousForm(Form["Nous | str"]):
     def _ask(self) -> None:
         """Says which nous this is, and what a nous is."""
         self.query_one("#asked", Label).update(
-            "Add nous" if self._unwritten else escape(self._from)
+            t("New nous") if self._unwritten else escape(self._from)
         )
         self.query_one("#about", Label).update(
-            "What an agent thinks with: a concrete nous, or a virtual one that stands "
-            "for a graph. A failed turn is retried as it says, then goes to its then."
+            t(
+                "What an agent thinks with: a concrete nous, or a "
+                "virtual one that stands for a graph. A turn that "
+                "fails is tried again as it says, then goes to its "
+                "then."
+            )
         )
         self._fill()
 
@@ -6076,11 +6232,15 @@ class NousForm(Form["Nous | str"]):
         if self._renames and name != self._from:
             others = [_renamed(one, self._from, name) for one in others]
         if not name:
-            self._wrong = "name is required"
+            self._wrong = t("A name is needed.")
         elif self._renames and self._concrete():
-            self._wrong = f"{name!r} cannot name a virtual nous"
+            self._wrong = t(
+                "{name} is written as a concrete nous, so it "
+                "cannot name a virtual one.",
+                name=repr(name),
+            )
         elif canonical in {one.name for one in others}:
-            self._wrong = f"{canonical} is already a nous"
+            self._wrong = t("{name} is there already.", name=canonical)
         else:
             self._wrong = _refusal(made, others)
         if self._wrong:
@@ -6131,7 +6291,10 @@ class GraphForm(Form["Graph | str"]):
             *(
                 (
                     Question(
-                        _START, "start", "the node a turn is taken at first", _STEPS
+                        _START,
+                        t("Start"),
+                        t("the node a turn is taken at first"),
+                        _STEPS,
                     ),
                 )
                 if self._graph_nodes
@@ -6143,8 +6306,11 @@ class GraphForm(Form["Graph | str"]):
             ),
             Question(
                 _ADD_NODE,
-                "add node",
-                "a use node naming one nous, or a balance node picking among several",
+                t("Add node"),
+                t(
+                    "a use node naming one nous, or a balance node "
+                    "picking among several"
+                ),
                 _OPENS_ONTO,
                 needed=not self._graph_nodes,
             ),
@@ -6173,8 +6339,8 @@ class GraphForm(Form["Graph | str"]):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "the turn goes nowhere once the tries are spent",
+                t("Remove"),
+                t("removes the then: a turn goes nowhere once its tries are spent"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -6182,7 +6348,7 @@ class GraphForm(Form["Graph | str"]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "keeps this graph on the nous form"
+        return t("keeps this graph on the nous form")
 
     def opens(self, held: str) -> None:
         """Opens the node form on a node, or on a node to add."""
@@ -6252,11 +6418,14 @@ class GraphForm(Form["Graph | str"]):
     def _ask(self) -> None:
         """Says whose graph this is, and what one is."""
         self.query_one("#asked", Label).update(
-            f"{escape(self._owner)}: {'then' if self._is_then else 'graph'}"
+            f"{escape(self._owner)}: {t('Then') if self._is_then else t('Graph')}"
         )
         self.query_one("#about", Label).update(
-            "A turn starts at the start node. A node that fails follows the edge named "
-            "after its fault, or else its * edge; with neither, the graph fails."
+            t(
+                "A turn starts at the start node. A node that "
+                "fails follows the edge named after its fault, or "
+                "else its * edge; with neither, the graph fails."
+            )
         )
         self._fill()
 
@@ -6279,7 +6448,7 @@ class GraphForm(Form["Graph | str"]):
 def _edges_said(node: Node) -> str:
     """Where a node's failures go, as its row on the graph form says it."""
     if not node.on:
-        return "no edges: a failure here fails the graph"
+        return t("a node with no edges: a failure here fails the graph")
     return ", ".join(f"{fault} → {to}" for fault, to in node.on)
 
 
@@ -6339,50 +6508,58 @@ class NodeForm(Form["Node | str"]):
         balances = self._balances()
         strategy = next(
             (
-                one.about
+                _worded(one.about)
                 for one in _hmz().nous.strategies()
                 if one.name == self._typed_in[_BALANCE]
             ),
-            "how it picks",
+            t("how a balance node picks among its nous"),
         )
         what = (
             [
-                Question(_BALANCE, "strategy", strategy, _STEPS),
+                Question(_BALANCE, t("Strategy"), strategy, _STEPS),
                 Question(
                     _AMONG,
-                    "among",
-                    "nous with weights: claude/opus 2, codex/gpt-5 1",
+                    t("Among"),
+                    t("nous with their weights, as claude/opus 2, codex/gpt-5 1"),
                     needed=not self._typed_in[_AMONG].strip(),
                 ),
                 Question(
                     _CHOOSE,
-                    "choose",
-                    "adds a nous to pick among, at weight 1",
+                    t("Choose"),
+                    t("adds a nous to pick among, at weight 1"),
                     _OPENS_ONTO,
                 ),
                 Question(
-                    _SPREAD, "spread", "how many of them to try before it fails", _STEPS
+                    _SPREAD,
+                    t("Spread"),
+                    t("how many of them are tried before the node fails"),
+                    _STEPS,
                 ),
             ]
             if balances
             else [
                 Question(
                     _USE,
-                    "nous",
-                    "the nous it takes the turn at, concrete or virtual",
+                    t("Nous"),
+                    t("the nous the node takes the turn at, concrete or virtual"),
                     needed=not self._typed_in[_USE].strip(),
                 ),
-                Question(_CHOOSE, "choose", "picks the nous it uses", _OPENS_ONTO),
+                Question(
+                    _CHOOSE,
+                    t("Choose"),
+                    t("opens the list the nous it uses is picked from"),
+                    _OPENS_ONTO,
+                ),
             ]
         )
         edges = (
             [
                 Question(
                     f"{_ON}{fault}",
-                    f"on {fault}",
-                    "where a failure no other edge names goes"
+                    t("On {fault}", fault=fault),
+                    t("where a failure no other edge names goes")
                     if fault == _ANY
-                    else f"where a {fault} failure goes",
+                    else t("where a failure of the fault {fault} goes", fault=fault),
                     _STEPS,
                 )
                 for fault in self._faults
@@ -6392,12 +6569,15 @@ class NodeForm(Form["Node | str"]):
         )
         return [
             Question(
-                _ID, "id", "what the edges call it", needed=not self._typed_in[_ID]
+                _ID,
+                t("Node id"),
+                t("what the edges call the node"),
+                needed=not self._typed_in[_ID],
             ),
             Question(
                 _KIND,
-                "kind",
-                "use: one nous; balance: one of several, picked by a strategy",
+                t("Kind"),
+                t("use: one nous; balance: one of several, picked by a strategy"),
                 _STEPS,
             ),
             *what,
@@ -6425,15 +6605,20 @@ class NodeForm(Form["Node | str"]):
         """What a strategy does, said beside it."""
         if held == _BALANCE:
             return next(
-                (one.about for one in _hmz().nous.strategies() if one.name == value), ""
+                (
+                    _worded(one.about)
+                    for one in _hmz().nous.strategies()
+                    if one.name == value
+                ),
+                "",
             )
         if held.startswith(_ON) and value == _NO_EDGE:
-            return "the graph fails"
+            return t("with no edge for a fault, the graph fails")
         return ""
 
     def note(self) -> str:
         """That edges need another node to go to."""
-        return "" if self._taken else "add another node to give this one edges"
+        return "" if self._taken else t("add another node to give this one edges")
 
     def _among(self) -> list[tuple[str, int]]:
         """The nous it picks among, each with its weight, as written."""
@@ -6466,7 +6651,7 @@ class NodeForm(Form["Node | str"]):
             chosen = await self._interface().push_screen_wait(
                 Places(
                     self._offered,
-                    "Choose a nous",
+                    t("Pick a nous"),
                     "" if self._balances() else self._typed_in[_USE],
                     named=self._named,
                 )
@@ -6487,7 +6672,7 @@ class NodeForm(Form["Node | str"]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "keeps this node on the graph form"
+        return t("keeps this node on the graph form")
 
     def beside(self) -> list[Action]:
         """Taking it away, for a node already on the graph."""
@@ -6496,8 +6681,8 @@ class NodeForm(Form["Node | str"]):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "removes this node and the edges to it",
+                t("Remove"),
+                t("removes this node and the edges to it"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -6506,11 +6691,15 @@ class NodeForm(Form["Node | str"]):
     def _ask(self) -> None:
         """Says which node this is."""
         self.query_one("#asked", Label).update(
-            "Add node" if self._unwritten else escape(self._typed_in[_ID])
+            t("Add node") if self._unwritten else escape(self._typed_in[_ID])
         )
         self.query_one("#about", Label).update(
-            "A use node takes the turn at one nous; a balance node picks one of "
-            "several and moves to another when it fails, until spread have failed."
+            t(
+                "A use node takes the turn at one nous; a balance "
+                "node picks one of several and moves to another "
+                "when it fails, until as many as its spread have "
+                "failed."
+            )
         )
         self._fill()
 
@@ -6537,12 +6726,12 @@ class NodeForm(Form["Node | str"]):
             else Node(id_, use=self._typed_in[_USE].strip(), on=on)
         )
         if id_ in self._taken:
-            self._wrong = f"another node is called {id_}"
+            self._wrong = t("{name} is there already.", name=id_)
             self._fill()
             return
         # Checked alone, its edges left off: they go to nodes only the graph has.
         made, self._wrong = _graph_refusal(
-            "this node", Graph(id_, (replace(node, on=()),))
+            t("this node"), Graph(id_, (replace(node, on=()),))
         )
         if made is None:
             self._fill()
@@ -6559,10 +6748,12 @@ class NousPage(Pages):
     """
 
     #: What the page says it is.
-    NOUS_ABOUT = (
-        "What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; "
-        "a virtual nous is a name for a graph of others. A failed turn is retried as "
-        "the nous says, then goes to its then."
+    NOUS_ABOUT = t(
+        "What agents think with. A concrete nous is "
+        "HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual nous "
+        "is a name for a graph of others. A turn that "
+        "fails is tried again as the nous says, then goes "
+        "to its then."
     )
 
     def __init__(self) -> None:
@@ -6588,8 +6779,8 @@ class NousPage(Pages):
         return [
             Action(
                 _ACT_ADD,
-                "add nous",
-                "a concrete nous, or a virtual one",
+                t("Add nous"),
+                t("adds a concrete nous, or a virtual one"),
                 lambda: self._writes_nous(None),
             ),
             self._searches(),
@@ -6615,11 +6806,11 @@ class NousPage(Pages):
             landing,
         )
         self._drawn = listing.highlighted
-        said = self._said or ("" if rows else "no nous written down yet")
+        said = self._said or ("" if rows else t("No nous yet."))
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "edit"), Key("esc", "close"))
+        self._footed(Key("enter", t("Edit")), Key("esc", t("Close")))
 
     def _took_nous(self, named: str) -> None:
         """Opens the form of the nous chosen.
@@ -6677,10 +6868,14 @@ class NousPage(Pages):
             None,
         )
         if naming is not None:
-            self._said = bad(escape(f"{naming} still names {name}"))
+            self._said = bad(
+                escape(
+                    t("The nous {naming} still names {name}.", naming=naming, name=name)
+                )
+            )
         else:
             self._nous = [one for one in self._nous if one.name != name]
-            self._said = iffy(f"{escape(name)} is removed when saved")
+            self._said = iffy(t("{name} is removed when saved", name=escape(name)))
             self.changed()
         self._fill()
 
@@ -6704,7 +6899,11 @@ class NousPage(Pages):
             except (OSError, ValueError) as why:
                 told.append(f"hmz: {escape(str(why))}")
             else:
-                told.append(f"[dim]{escape(was)} is now {escape(name)}[/dim]")
+                told.append(
+                    "[dim]"
+                    + t("{was} is now {name}", was=escape(was), name=escape(name))
+                    + "[/dim]"
+                )
         before = {one.name: one for one in self._nous_was}
         held = {one.name: one for one in self._nous}
         left: list[tuple[str, Nous | None]] = [
@@ -6723,7 +6922,7 @@ class NousPage(Pages):
                     failed.append((name, one, why))
                 else:
                     told.append(
-                        f"[dim]{escape(name)} removed[/dim]"
+                        "[dim]" + t("{name} removed", name=escape(name)) + "[/dim]"
                         if one is None
                         else f"[dim]{escape(name)}: {escape(_nous_said(one))}[/dim]"
                     )
@@ -6736,9 +6935,9 @@ class NousPage(Pages):
 #: When an epic is backed up without anybody asking, by the word settings keeps each under:
 #: what each is called on a row. Every N minutes is a row of minutes rather than a switch.
 _POLICIES = {
-    "session": "On session close",
-    "interval": "Every N minutes",
-    "end": "On epic end",
+    "session": t("On session close"),
+    "interval": t("Every N minutes"),
+    "end": t("On epic end"),
 }
 
 #: How many minutes apart Every N minutes may back a running epic up, picked from.
@@ -6753,7 +6952,7 @@ _ONE_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
 
 def _minutes(every: int) -> str:
     """How many minutes apart, as the Every N minutes row says it."""
-    return f"{every} minutes"
+    return t("{n} minutes", n=every)
 
 
 class Repo(NamedTuple):
@@ -6779,11 +6978,11 @@ class Repo(NamedTuple):
 def _when_backed(repo: Repo) -> str:
     """When an epic is backed up to one target, as the one line a row has room for."""
     said = [
-        f"every {_minutes(repo.every)}" if one == "interval" else label.lower()
+        t("Every {n} minutes", n=repo.every) if one == "interval" else t(label)
         for one, label in _POLICIES.items()
         if one in repo.policies
     ]
-    return ", ".join(said) or "manual only"
+    return ", ".join(said) or t("Manual")
 
 
 class Backing(Form["Repo | str"]):
@@ -6824,21 +7023,38 @@ class Backing(Form["Repo | str"]):
         return [
             Question(
                 _NAMED,
-                "name",
-                "one short word, as --backup takes it",
+                t("Name"),
+                t("one short word, as --backup takes it"),
                 needed=not self._typed_in[_NAMED],
             ),
             Question(
                 _URL,
-                "URL",
-                "the repository, reached with your own git",
+                t("URL"),
+                t("the repository, reached with your own git"),
                 needed=not self._typed_in[_URL],
             ),
-            Question(_BRANCH, "branch", "where epics are committed"),
-            Question("session", _POLICIES["session"], "as each session ends", _STEPS),
-            Question("interval", _POLICIES["interval"], "while the epic runs", _STEPS),
-            Question("end", _POLICIES["end"], "once the epic ends", _STEPS),
-            Question(_DEFAULT, "Default", "new epics go here unless told", _STEPS),
+            Question(_BRANCH, t("Branch"), t("the branch epics are committed to")),
+            Question(
+                "session",
+                t(_POLICIES["session"]),
+                t("backs an epic up as each of its sessions ends"),
+                _STEPS,
+            ),
+            Question(
+                "interval",
+                t(_POLICIES["interval"]),
+                t("backs an epic up this often while it runs"),
+                _STEPS,
+            ),
+            Question(
+                "end", t(_POLICIES["end"]), t("backs an epic up once it ends"), _STEPS
+            ),
+            Question(
+                _DEFAULT,
+                t("Default"),
+                t("new epics are backed up here unless told otherwise"),
+                _STEPS,
+            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -6855,8 +7071,8 @@ class Backing(Form["Repo | str"]):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "removes this target when saved",
+                t("Remove"),
+                t("removes this backup target once the settings are saved"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -6864,16 +7080,19 @@ class Backing(Form["Repo | str"]):
 
     def done_about(self) -> str:
         """What answering it does, which is hold it."""
-        return "applies this target when /settings is saved"
+        return t("keeps this backup target, written once /settings is saved")
 
     def _ask(self) -> None:
         """Says which target this is, and what one is."""
         self.query_one("#asked", Label).update(
-            "Add backup target" if self._unwritten else escape(self._typed_in[_NAMED])
+            t("New target") if self._unwritten else escape(self._typed_in[_NAMED])
         )
         self.query_one("#about", Label).update(
-            "A repository epics are copied to, one commit per backup, pushed with "
-            "your own git. No policy means only when you ask."
+            t(
+                "A repository epics are copied to, one commit a "
+                "backup, pushed with your own git. With no policy "
+                "on, only when you ask."
+            )
         )
         self._fill()
 
@@ -6883,11 +7102,13 @@ class Backing(Form["Repo | str"]):
         name = self._typed_in[_NAMED].strip()
         url = self._typed_in[_URL].strip()
         if not _ONE_WORD.fullmatch(name):
-            self._wrong = "name is one short word: letters, digits, - and _"
+            self._wrong = t(
+                "A backup target's name is one short word of letters, digits, - and _."
+            )
         elif name in self._taken:
-            self._wrong = f"another target is named {name}"
+            self._wrong = t("{name} is there already.", name=name)
         elif not url:
-            self._wrong = "URL is required"
+            self._wrong = t("{what} still has to be filled in.", what=t("URL"))
         if self._wrong:
             self._fill()
             return
@@ -6933,14 +7154,18 @@ class Targets(Form[tuple[str, ...]]):
 
     def done_about(self) -> str:
         """What answering it does, which is hold it."""
-        return "backs each epic up to the targets switched on"
+        return t("backs each epic up to the targets switched on")
 
     def _ask(self) -> None:
         """Says what this is for."""
-        self.query_one("#asked", Label).update("Backup")
+        self.query_one("#asked", Label).update(t("Backup"))
         self.query_one("#about", Label).update(
-            "Where each epic of this flow here is backed up, as each target's policies "
-            "say, remembered with its budget. Targets are added on /settings backup."
+            t(
+                "Where each epic of this flow here is backed up, "
+                "as each target's policies say, remembered with "
+                "its budget. Targets are added on the Backup page "
+                "of /settings."
+            )
         )
         self._fill()
 
@@ -6958,9 +7183,10 @@ class Backups(Pages):
     """
 
     #: What the page says it is.
-    BACKUP_ABOUT = (
-        "Repositories epics are backed up to, with your own git. A new epic goes to "
-        "the ones marked ✔ unless told otherwise."
+    BACKUP_ABOUT = t(
+        "Repositories epics are backed up to, with your "
+        "own git. A new epic goes to the ones marked ✔ "
+        "unless told otherwise."
     )
 
     def __init__(self) -> None:
@@ -6988,8 +7214,8 @@ class Backups(Pages):
             [
                 Action(
                     _ACT_DOWNLOAD,
-                    "download…",
-                    "an epic a target holds, into this machine",
+                    t("Download…"),
+                    t("brings an epic a backup target holds onto this machine"),
                     self._downloads,
                 )
             ]
@@ -6999,8 +7225,8 @@ class Backups(Pages):
         return [
             Action(
                 _ACT_ADD,
-                "add target",
-                "a repository to back epics up to",
+                t("Add target"),
+                t("adds a repository to back epics up to"),
                 lambda: self._writes_backup(None),
             ),
             *downloads,
@@ -7055,11 +7281,11 @@ class Backups(Pages):
             landing,
         )
         self._drawn = listing.highlighted
-        said = self._said or ("" if rows else "no backup targets yet")
+        said = self._said or ("" if rows else t("No backup target yet."))
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "edit"), Key("esc", "close"))
+        self._footed(Key("enter", t("Edit")), Key("esc", t("Close")))
 
     def _took_backup(self, named: str) -> None:
         """Opens the form of the target chosen.
@@ -7094,7 +7320,9 @@ class Backups(Pages):
         if isinstance(chosen, str):
             if chosen == _TAKES_AWAY and repo is not None:
                 self._repos.remove(repo)
-                self._said = iffy(f"{escape(repo.name)} is removed when saved")
+                self._said = iffy(
+                    t("{name} is removed when saved", name=escape(repo.name))
+                )
                 self.changed()
                 self._fill()
             return
@@ -7123,7 +7351,9 @@ class Backups(Pages):
         except (OSError, ValueError) as why:
             told.append(f"hmz: {escape(str(why))}")
         else:
-            told.append(f"[dim]{_many(len(self._repos), 'backup target')} saved[/dim]")
+            told.append(
+                "[dim]" + t("{n} backup targets saved", n=len(self._repos)) + "[/dim]"
+            )
 
 
 #: What can be done to one account, which is what enter opens rather than what a row of
@@ -7168,10 +7398,10 @@ class Account(Picks):
         self._cli = cli
         self._name = name
         self._gone = gone
-        self.asked = f"{cli}/{name}" if name else f"{cli} as local"
-        self.about = (
-            "Editing and removal take effect when /settings is saved; signing in "
-            "happens immediately."
+        self.asked = f"{cli}{_DOT}{name or t(_LOCAL)}"
+        self.about = t(
+            "An edit and a removal take effect once /settings "
+            "is saved; signing in happens at once."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -7181,13 +7411,16 @@ class Account(Picks):
         return [
             (
                 _CORRECTS,
-                "edit settings",
-                "ask the setup questions again",
+                t("Edit"),
+                t("asks again what the account's sign-in method asks for"),
             ),
             (
                 _SIGNS_IN,
-                "sign in again",
-                "run the CLI's sign-in again; takes over the terminal while running",
+                t("Sign in again"),
+                t(
+                    "runs the CLI's own sign-in again, which takes the "
+                    "terminal while it runs"
+                ),
             ),
         ]
 
@@ -7198,10 +7431,12 @@ class Account(Picks):
         return [
             Action(
                 _ACT_REMOVE,
-                "cancel removal" if self._gone else "remove",
-                "keep the account after all"
+                t("Keep account") if self._gone else t("Remove"),
+                t("keeps the account after all")
                 if self._gone
-                else "remove the account and its credentials when /settings is saved",
+                else t(
+                    "removes the account and its credentials once /settings is saved"
+                ),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="default" if self._gone else "error",
             )
@@ -7217,9 +7452,11 @@ class Account(Picks):
         """
         if self._name:
             return ""
-        return (
-            f"this is {escape(self._cli)} as local: Humanize keeps no "
-            "credentials for it, so you cannot edit, sign in, or remove it"
+        return t(
+            "the CLI {cli} is signed in outside Humanize, "
+            "which keeps no credentials for it: there is "
+            "nothing to edit, sign in again or remove",
+            cli=escape(self._cli),
         )
 
 
@@ -7243,17 +7480,16 @@ class Providers(Pages):
     """
 
     #: What the page says it is.
-    ACCOUNTS_ABOUT = (
-        "Each account is a named set of credentials, kept separate from the CLI's own "
-        "and from each other. You assign an account to an agent when setting "
-        "it up. Creating and signing in happen immediately; other changes take "
-        "effect when this menu is saved, and apply from an agent's next "
-        "session."
+    ACCOUNTS_ABOUT = t(
+        "An agent is given an account where it is set up, "
+        "as -a spells it: {spec}. What changes here is "
+        "what an agent’s next session runs as.",  # noqa: RUF001 -- the page's
+        spec="{spec}",
     )
 
     #: What a row says about an account whose change lands when the menu is saved, and when
     #: that change is felt: not by a session that is running, which read its account once.
-    NEXT_SESSION = "from the next agent session"
+    NEXT_SESSION = t("from an agent's next session")
 
     def __init__(self) -> None:
         """Holds nothing until the page is first read."""
@@ -7306,15 +7542,15 @@ class Providers(Pages):
     def _account_about(self, one: Provider) -> str:
         """What a row says about one account, what is going to happen to it, and when."""
         named = self._named(one)
-        said = _sets(one) if one.name else "the account signed in on this machine"
+        said = _sets(one) if one.name else t("signed in outside Humanize")
         if named in self._asking:
-            said += f"{_DOT}checking models…"
+            said += _DOT + t("Asking…")
         if named in self._edits:
-            said += f"{_DOT}edited"
+            said += _DOT + t("edited")
         if named in self._gone:
-            said += f"{_DOT}will be removed"
+            said += _DOT + t("will be removed")
         if named in self._edits or named in self._gone:
-            said += f"{_DOT}{self.NEXT_SESSION}"
+            said += _DOT + t(self.NEXT_SESSION)
         return said
 
     def _account_actions(self) -> list[Action]:
@@ -7322,11 +7558,22 @@ class Providers(Pages):
         return [
             Action(
                 _ACT_ADD,
-                "add an account",
-                "a sign-in for one CLI: API key, login, or gateway",
+                t("Add account"),
+                t(
+                    "adds a sign-in for one CLI: an API key, its own "
+                    "login, or a gateway"
+                ),
                 self._adds_account,
             ),
-            Action(_ACT_SPEAKS, "add a custom CLI", "supports ACP", self._speaks),
+            Action(
+                _ACT_SPEAKS,
+                t("Add CLI"),
+                t(
+                    "adds a CLI of your own, by the command that "
+                    "starts it, which has to speak ACP"
+                ),
+                self._speaks,
+            ),
             self._searches(),
             self._saves_all(),
         ]
@@ -7352,7 +7599,7 @@ class Providers(Pages):
                 Option(
                     self._row(
                         seen,
-                        one.name or _LOCAL,
+                        one.name or t(_LOCAL),
                         self._account_about(one),
                         here=named == landing,
                         inforce=False,
@@ -7362,28 +7609,29 @@ class Providers(Pages):
             )
         self._put(listing, rows, landing)
         self._drawn = listing.highlighted
-        said = self._said or ("" if self._accounts else "no accounts yet")
+        said = self._said or ("" if self._accounts else t("No account yet."))
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        self._footed(Key("enter", t("Open")), Key("esc", t("Close")))
 
     @staticmethod
-    def _machines(cli: str, doing: str) -> str:
-        """Why the account this machine is signed into is not one to do that to.
+    def _machines(cli: str) -> str:
+        """Why the account this machine is signed into is not one to edit or sign in.
 
         Args:
           cli: The backend it is of.
-          doing: What was asked for.
 
         Returns:
           The line to say under the list. Humanize did not make that account and keeps no
           credentials for it -- it is the CLI as whoever is at this machine runs it -- so
           there is nothing here to do to it.
         """
-        return (
-            f"cannot {doing} {escape(cli)} as local: Humanize keeps no credentials "
-            "for it"
+        return t(
+            "the CLI {cli} is signed in outside Humanize, "
+            "which keeps no credentials for it: there is "
+            "nothing to edit, sign in again or remove",
+            cli=escape(cli),
         )
 
     def _drops_account(self, one: Provider) -> None:
@@ -7401,10 +7649,10 @@ class Providers(Pages):
         if named in self._gone:
             # Said and taken back, which is the other half of what that row offers.
             self._gone.discard(named)
-            self._said = f"{escape(named)} stays"
+            self._said = t("{name} stays", name=escape(named))
         else:
             self._gone.add(named)
-            self._said = f"{escape(named)} will be removed when this menu is saved"
+            self._said = t("{name} is removed when saved", name=escape(named))
         self.changed()
         self._fill()
 
@@ -7455,13 +7703,17 @@ class Providers(Pages):
           one: The account.
         """
         if not one.name:
-            self._said = self._machines(one.cli, "edit")
+            self._said = self._machines(one.cli)
             self._fill()
             return
         way = _hmz().accounts.way(one.cli, one.way)
         if way is None:
             self._said = bad(
-                f"{escape(one.way)} is not a sign-in method for {escape(one.cli)}"
+                t(
+                    "{way} is not a sign-in method for {cli}.",
+                    way=escape(one.way),
+                    cli=escape(one.cli),
+                )
             )
             self._fill()
             return
@@ -7475,9 +7727,11 @@ class Providers(Pages):
         named = self._named(one)
         self._edits[named] = signs.answers
         self._alike[named] = signs.also
-        self._said = f"{escape(named)} will be updated when this menu is saved"
+        self._said = t("{name} is updated when saved", name=escape(named))
         if signs.also:
-            self._said += f", for {escape(', '.join(signs.also))} as well"
+            self._said += _DOT + t(
+                "also for {clis}", clis=escape(", ".join(signs.also))
+            )
         self.changed()
         self._fill()
 
@@ -7507,34 +7761,51 @@ class Providers(Pages):
                 self._fill()
             return
         self._told.append(
-            f"[dim]{escape(one.cli)}/{escape(one.name)} saved to "
-            f"{escape(str(one.at))}[/dim]"
+            "[dim]"
+            + t(
+                "{name} saved to {path}",
+                name=f"{escape(one.cli)}/{escape(one.name)}",
+                path=escape(str(one.at)),
+            )
+            + "[/dim]"
         )
         if outcome.way_runs and not outcome.status:
             # Said as well as written down: a way with a command of its own owned the
             # terminal while it ran, and whether it landed is the half worth reading.
             self._told.append(
-                f"[dim]{escape(one.cli)}/{escape(one.name)} is signed in[/dim]"
+                "[dim]"
+                + t(
+                    "{account} is signed in",
+                    account=f"{escape(one.cli)}/{escape(one.name)}",
+                )
+                + "[/dim]"
             )
         elif outcome.status:
             self._told.append(
                 f"hmz: {escape(outcome.why)}"
                 if outcome.why
-                else f"hmz: sign-in failed with exit code {outcome.status}"
+                else "hmz: "
+                + t("sign-in exited with status {status}", status=outcome.status)
             )
         if outcome.copied:
             self._told.append(
-                f"[dim]{escape(one.name)} also saved for "
-                f"{escape(', '.join(outcome.copied))}[/dim]"
+                "[dim]"
+                + t(
+                    "{name} also saved for {clis}",
+                    name=escape(one.name),
+                    clis=escape(", ".join(outcome.copied)),
+                )
+                + "[/dim]"
             )
         self._read_accounts()
         self._aim = self._named(one)
         if outcome.status:
             self._said = bad(
                 escape(outcome.why)
-                or (
-                    f"sign-in for {escape(one.name)} failed with exit code "
-                    f"{outcome.status}"
+                or t(
+                    "the sign-in of {name} exited with status {status}",
+                    name=escape(one.name),
+                    status=outcome.status,
                 )
             )
             self._fill()
@@ -7558,7 +7829,7 @@ class Providers(Pages):
         self._asking.add(named)
         self._tell(
             _ACCOUNTS,
-            f"checking available models for {escape(one.cli)} as {escape(one.name)}…",
+            t("Asking {name} for models…", name=escape(f"{one.cli}@{one.name}")),
         )
         self._fill()
         runs, why = await asks(one.cli, one.name)
@@ -7566,8 +7837,12 @@ class Providers(Pages):
         said = self._landed(one, 0, runs=runs, why=why)
         if copied:
             said = (
-                f"{escape(one.name)} is also saved for "
-                f"{escape(', '.join(copied))}\n{said}"
+                t(
+                    "{name} also saved for {clis}",
+                    name=escape(one.name),
+                    clis=escape(", ".join(copied)),
+                )
+                + f"\n{said}"
             )
         self._tell(_ACCOUNTS, said)
         self._fill()
@@ -7586,16 +7861,30 @@ class Providers(Pages):
           The line to say under the list.
         """
         if status:
-            return f"sign-in for {escape(one.name)} failed with exit code {status}"
+            return t(
+                "the sign-in of {name} exited with status {status}",
+                name=escape(one.name),
+                status=status,
+            )
         if runs:
-            return (
-                f"{escape(one.cli)} supports {_many(runs, 'model')} as "
-                f"{escape(one.name)}"
+            return t(
+                "{cli} lists {n} models as {name}",
+                cli=escape(one.cli),
+                n=runs,
+                name=escape(one.name),
             )
         return bad(
-            f"could not get models for {escape(one.cli)} as {escape(one.name)}"
-            + (f": {escape(why)}" if why else "")
-            + "; retry from the model row of an agent using this account"
+            (
+                t(
+                    "{harness} would not answer: {why}",
+                    harness=escape(f"{one.cli}@{one.name}"),
+                    why=escape(why),
+                )
+                if why
+                else t("No models listed")
+            )
+            + _DOT
+            + t("try again from the model row of an agent that runs as it")
         )
 
     @work
@@ -7607,14 +7896,16 @@ class Providers(Pages):
         """
         accounts = _hmz().accounts
         if not one.name:
-            self._said = self._machines(one.cli, "sign in")
+            self._said = self._machines(one.cli)
             self._fill()
             return
         way = accounts.way(one.cli, one.way)
         if way is None or not way.argv:
-            self._said = (
-                f"{escape(one.name)} uses {escape(one.way)}, which has no "
-                "command to run; edit its settings instead"
+            self._said = t(
+                "{name} was made by {way}, which runs no command "
+                "to sign in; edit it instead",
+                name=escape(one.name),
+                way=escape(one.way),
             )
             self._fill()
             return
@@ -7640,9 +7931,14 @@ class Providers(Pages):
             self._fill()
             return
         self._told.append(
-            f"[dim]{escape(one.cli)}/{escape(one.name)} is signed in[/dim]"
+            "[dim]"
+            + t(
+                "{account} is signed in",
+                account=f"{escape(one.cli)}/{escape(one.name)}",
+            )
+            + "[/dim]"
             if not status
-            else f"hmz: {escape(way.argv[0])} exited {status}"
+            else f"hmz: {escape(way.argv[0])}: " + t("exit {status}", status=status)
         )
         if status:
             self._said = self._landed(one, status, runs=0)
@@ -7685,10 +7981,15 @@ class Providers(Pages):
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._said = f"{escape(name)} added as a backend"
+        self._said = t("{name} added as a backend", name=escape(name))
         self._told.append(
-            f"[dim]{escape(name)} is saved as a backend: `{escape(command)}` "
-            "starts it[/dim]"
+            "[dim]"
+            + t(
+                "{name} is saved as a backend; {command} starts it",
+                name=escape(name),
+                command=escape(command),
+            )
+            + "[/dim]"
         )
         self._fill()
 
@@ -7712,9 +8013,11 @@ class Providers(Pages):
                 told.append(f"hmz: {escape(str(why))}")
                 continue
             told.append(
-                f"[dim]{escape(taken)} and its credentials were removed[/dim]"
+                "[dim]"
+                + t("{name} and its credentials were removed", name=escape(taken))
+                + "[/dim]"
                 if gone
-                else f"hmz: no account {escape(taken)}"
+                else "hmz: " + t("there is no account {name}", name=escape(taken))
             )
         for one in self._accounts:
             named = self._named(one)
@@ -7726,7 +8029,9 @@ class Providers(Pages):
                 except (OSError, ValueError) as why:
                     told.append(f"hmz: {escape(str(why))}")
                     continue
-                told.append(f"[dim]{escape(named)} is updated[/dim]")
+                told.append(
+                    "[dim]" + t("{name} updated", name=escape(named)) + "[/dim]"
+                )
                 self._corrected.append((one.cli, one.name))
                 for cli in self._alike.get(named, ()):
                     try:
@@ -7735,13 +8040,21 @@ class Providers(Pages):
                         told.append(f"hmz: {escape(str(why))}")
                         continue
                     told.append(
-                        f"[dim]{escape(cli)}/{escape(one.name)} is updated "
-                        "with it[/dim]"
+                        "[dim]"
+                        + t(
+                            "{name} updated with it",
+                            name=f"{escape(cli)}/{escape(one.name)}",
+                        )
+                        + "[/dim]"
                     )
         if len(told) > was:
             # When it is felt, said once rather than on every line: an agent reads the
             # account it was configured with once, so one running now carries on as it was.
-            told.append(f"[dim]account changes take effect {self.NEXT_SESSION}[/dim]")
+            told.append(
+                "[dim]"
+                + t("account changes take effect from an agent's next session")
+                + "[/dim]"
+            )
 
 
 # -------------------------------------------------------------------------------- runtimes
@@ -7759,20 +8072,26 @@ _SSH, _DOCKER, _DOCKER_SWARM, _APPLE, _SLURM = (
 
 #: What one runtime of each is called on the form that adds one.
 _KINDS = {
-    _SSH: "an ssh host",
-    _DOCKER: "a docker host",
-    _DOCKER_SWARM: "a docker swarm",
-    _APPLE: "a host for Apple containers",
-    _SLURM: "a Slurm cluster",
+    _SSH: t("SSH host"),
+    _DOCKER: t("Docker container"),
+    _DOCKER_SWARM: t("Docker swarm"),
+    _APPLE: t("Apple container"),
+    _SLURM: t("Slurm cluster"),
 }
 
 #: The kinds the one button that adds a runtime drops, in its order, each with what it is.
 _ADDING = (
-    Value(_SSH, "ssh host", "a machine reached over ssh"),
-    Value(_DOCKER, "docker host", "a local or remote docker daemon"),
-    Value(_DOCKER_SWARM, "docker swarm", "a docker swarm, through one of its managers"),
-    Value(_APPLE, "apple containers", "Apple's Linux containers on this Mac"),
-    Value(_SLURM, "slurm cluster", "the Slurm cluster this machine submits to"),
+    Value(_SSH, t("SSH host"), t("a machine reached over ssh")),
+    Value(
+        _DOCKER, t("Docker container"), t("a docker daemon, here or on another machine")
+    ),
+    Value(
+        _DOCKER_SWARM,
+        t("Docker swarm"),
+        t("a docker swarm, through one of its managers"),
+    ),
+    Value(_APPLE, t("Apple container"), t("Apple's Linux containers on this Mac")),
+    Value(_SLURM, t("Slurm cluster"), t("the Slurm cluster this machine submits to")),
 )
 
 #: How many of a swarm's nodes, or a Slurm partition's, a check names before it only counts
@@ -7853,7 +8172,10 @@ def _bytes(said: str) -> int:
     read = _SIZE.fullmatch(said.strip())
     if read is None:
         raise ValueError(
-            f"memory: {said!r} must be a number and unit, such as 64G or 512M"
+            t(
+                "Memory {said} has to be a number and a unit, like 64G or 512M.",
+                said=repr(said),
+            )
         )
     unit = read[2] or ""
     return int(float(read[1]) * 1024 ** (_UNITS.index(unit.upper()) + 1 if unit else 0))
@@ -7874,7 +8196,9 @@ def _number(said: str, what: str) -> float:
     except ValueError:
         value = math.nan
     if not math.isfinite(value):
-        raise ValueError(f"{what}: {said!r} is not a number")
+        raise ValueError(
+            t("{what}: {value}", what=what, value=t("This needs a number."))
+        )
     return value
 
 
@@ -7895,7 +8219,9 @@ def _options(said: str) -> dict[str, str]:
             continue
         key, _, value = one.partition("=") if "=" in one else one.partition(" ")
         if not key.strip() or not value.strip():
-            raise ValueError(f"options: {one!r} is not KEYWORD=VALUE")
+            raise ValueError(
+                t("The ssh option {said} is not written KEYWORD=VALUE.", said=repr(one))
+            )
         held[key.strip()] = value.strip()
     return held
 
@@ -7930,11 +8256,15 @@ def _config_named(config: str) -> str:
 def _hands_out(cpus: float, memory: int, gpus: Sequence[str] = ()) -> str:
     """What a docker daemon may hand out, or a swarm's tasks or a cluster's jobs reserve."""
     held = [
-        *((f"{cpus:g} CPUs",) if cpus else ()),
+        *((t("{n} CPUs", n=f"{cpus:g}"),) if cpus else ()),
         *((_sized(memory),) if memory else ()),
-        *((f"GPUs {', '.join(gpus)}",) if gpus else ()),
+        *(
+            (t("{what}: {value}", what=t("GPUs"), value=", ".join(gpus)),)
+            if gpus
+            else ()
+        ),
     ]
-    return ", ".join(held) or "no limits"
+    return ", ".join(held) or t("no limit")
 
 
 def _swarm_line(one: SwarmRuntime) -> list[str]:
@@ -7946,10 +8276,24 @@ def _swarm_line(one: SwarmRuntime) -> list[str]:
     return [
         one.endpoint,
         *((one.image,) if one.image else ()),
-        *((f"on {', '.join(one.constraints)}",) if one.constraints else ()),
+        *(
+            (
+                t(
+                    "{what}: {value}",
+                    what=t("Constraints"),
+                    value=", ".join(one.constraints),
+                ),
+            )
+            if one.constraints
+            else ()
+        ),
         _hands_out(one.cpus, one.memory),
-        *((f"GPUs as {one.gpu_resource}",) if one.gpu_resource else ()),
-        *((f"max {one.max_tasks} tasks",) if one.max_tasks else ()),
+        *(
+            (t("gpus as {resource}", resource=one.gpu_resource),)
+            if one.gpu_resource
+            else ()
+        ),
+        *((t("at most {n} tasks", n=one.max_tasks),) if one.max_tasks else ()),
     ]
 
 
@@ -7959,16 +8303,34 @@ def _slurm_line(one: SlurmRuntime) -> list[str]:
     Each of what `sbatch` is told only where it says something: blank is the cluster's own.
     """
     return [
-        f"partition {one.partition}" if one.partition else "default partition",
-        *((f"account {one.account}",) if one.account else ()),
-        *((f"qos {one.qos}",) if one.qos else ()),
-        *((f"time {one.time}",) if one.time else ()),
-        *((f"on {one.constraint}",) if one.constraint else ()),
-        *((f"python {one.python}",) if one.python else ()),
-        *((f"via {one.via}",) if one.via != "srun" else ()),
+        t("{what}: {value}", what=t("Partition"), value=one.partition)
+        if one.partition
+        else t("default partition"),
+        *(
+            (t("{what}: {value}", what=t("Account"), value=one.account),)
+            if one.account
+            else ()
+        ),
+        *((t("{what}: {value}", what=t("QoS"), value=one.qos),) if one.qos else ()),
+        *((t("{what}: {value}", what=t("Time"), value=one.time),) if one.time else ()),
+        *(
+            (t("{what}: {value}", what=t("Constraint"), value=one.constraint),)
+            if one.constraint
+            else ()
+        ),
+        *(
+            (t("{what}: {value}", what=t("Python"), value=one.python),)
+            if one.python
+            else ()
+        ),
+        *(
+            (t("{what}: {value}", what=t("Via"), value=one.via),)
+            if one.via != "srun"
+            else ()
+        ),
         _hands_out(one.cpus, one.memory),
-        *((f"max {one.max_jobs} jobs",) if one.max_jobs else ()),
-        *((f"waits {one.max_wait}s for a node",) if one.max_wait else ()),
+        *((t("at most {n} jobs", n=one.max_jobs),) if one.max_jobs else ()),
+        *((t("waits {n}s for a node", n=one.max_wait),) if one.max_wait else ()),
     ]
 
 
@@ -7983,14 +8345,28 @@ def _machine_line(one: Runtime) -> str:
         if host.alias:
             config = _config_named(host.config)
             reach = (
-                f"from {config}"
+                t("from {config}", config=config)
                 if reach == host.name and not host.host
-                else f"{reach}, from {config}"
+                else f"{reach}, " + t("from {config}", config=config)
             )
         said = [
             reach,
-            *((f"key {host.identity_file}",) if host.identity_file else ()),
-            *((f"through {host.proxy_jump}",) if host.proxy_jump else ()),
+            *(
+                (
+                    t(
+                        "{what}: {value}",
+                        what=t("Identity file"),
+                        value=host.identity_file,
+                    ),
+                )
+                if host.identity_file
+                else ()
+            ),
+            *(
+                (t("{what}: {value}", what=t("Proxy jump"), value=host.proxy_jump),)
+                if host.proxy_jump
+                else ()
+            ),
             *((f"-o {', '.join(host.options)}",) if host.options else ()),
         ]
     elif one.backend == _DOCKER_SWARM:
@@ -7998,11 +8374,11 @@ def _machine_line(one: Runtime) -> str:
     elif one.backend == _APPLE:
         boxes = cast("AppleContainerRuntime", one)
         said = [
-            "this Mac",
+            t("this Mac"),
             *((boxes.image,) if boxes.image else ()),
             _hands_out(boxes.cpus, boxes.memory),
             *(
-                (f"max {boxes.max_containers} containers",)
+                (t("at most {n} containers", n=boxes.max_containers),)
                 if boxes.max_containers
                 else ()
             ),
@@ -8014,21 +8390,31 @@ def _machine_line(one: Runtime) -> str:
         said = [
             daemon.endpoint,
             *((daemon.image,) if daemon.image else ()),
-            *((f"OCI runtime {daemon.runtime}",) if daemon.runtime else ()),
-            f"in running container {daemon.container}"
+            *(
+                (t("{what}: {value}", what=t("OCI runtime"), value=daemon.runtime),)
+                if daemon.runtime
+                else ()
+            ),
+            t("in the running container {container}", container=daemon.container)
             if daemon.container
             else _hands_out(daemon.cpus, daemon.memory, daemon.gpus),
-            *((f"as {daemon.exec_user}",) if daemon.exec_user else ()),
             *(
-                (f"max {daemon.max_containers} containers",)
+                (t("{what}: {value}", what=t("User"), value=daemon.exec_user),)
+                if daemon.exec_user
+                else ()
+            ),
+            *(
+                (t("at most {n} containers", n=daemon.max_containers),)
                 if daemon.max_containers
                 else ()
             ),
         ]
     if one.workdir:
-        said.append(f"working directory: {one.workdir}")
+        said.append(t("{what}: {value}", what=t("Workdir"), value=one.workdir))
     if one.fallback:
-        said.append(f"falls back to {', '.join(one.fallback)}")
+        said.append(
+            t("{what}: {value}", what=t("Falls back to"), value=", ".join(one.fallback))
+        )
     return _DOT.join(said)
 
 
@@ -8042,28 +8428,28 @@ def _answered(one: Runtime, said: _Had) -> str:
     """
     named = f"{one.backend}/{one.name}"
     if not said.reached:
-        return bad(escape(f"{named} could not be reached: {said.said}"))
+        return bad(
+            escape(t("{name} could not be reached: {why}", name=named, why=said.said))
+        )
     swarm = one.backend in (_DOCKER_SWARM, _SLURM)
     lead = (
         f": {_SERVED_BY.get(one.backend, 'docker')} {said.version}"
         if said.version
-        else f": home {said.home}"
+        else ": " + t("{what}: {value}", what=t("Home"), value=said.home)
         if said.home
         else ""
     )
     has = (
-        f"{_nodes(said.nodes, 'job' if one.backend == _SLURM else 'task')}; "
-        f"{_has(said)} all told"
+        f"{_nodes(said.nodes, job=one.backend == _SLURM)}; "
+        + t("{has} all told", has=_has(said))
         if swarm
         else _has(said)
     )
-    line = escape(f"{named} answers{lead}; {has}")
+    line = escape(t("{name} answers", name=named) + f"{lead}; {has}")
     if failed := _failed(said):
         line += "\n" + iffy(escape(failed))
     if said.short:
-        line += "\n" + iffy(
-            escape(f"lacks configured resources: {'; '.join(said.short)}")
-        )
+        line += "\n" + iffy(escape(t("short of: {what}", what="; ".join(said.short))))
     return line
 
 
@@ -8071,21 +8457,21 @@ def _answered(one: Runtime, said: _Had) -> str:
 _SERVED_BY = {_DOCKER_SWARM: "swarm", _APPLE: "container", _SLURM: "slurm"}
 
 
-def _nodes(names: Sequence[str], given: str = "task") -> str:
+def _nodes(names: Sequence[str], *, job: bool = False) -> str:
     """A swarm's nodes that may take a task, as a line says them: counted, the first named.
 
     Or a Slurm partition's that may take a job.
 
     Args:
       names: Their host names.
-      given: What one of them may take: a `task`, or a `job`.
+      job: Whether what one of them may take is a job, of Slurm, rather than a task.
     """
     if not names:
-        return f"no node may take a {given}"
-    count = f"{len(names)} node{'' if len(names) == 1 else 's'}"
+        return t("no node may take a job") if job else t("no node may take a task")
+    count = t("{n} nodes", n=len(names))
     shown = ", ".join(names[:_NAMED_NODES])
     more = len(names) - _NAMED_NODES
-    return f"{count}: {shown}" + (f" and {more} more" if more > 0 else "")
+    return f"{count}: {shown}" + (", " + t("{n} more", n=more) if more > 0 else "")
 
 
 def _through(one: Runtime, host: str) -> bool:
@@ -8119,7 +8505,11 @@ async def _checked(one: Runtime) -> _Had | str:
     try:
         return await asyncio.to_thread(envs.check, one)
     except (OSError, ValueError, RuntimeError) as why:
-        return f"{one.backend}/{one.name} could not be checked: {why}"
+        return t(
+            "{name} could not be checked: {why}",
+            name=f"{one.backend}/{one.name}",
+            why=why,
+        )
 
 
 def _failed(said: _Had) -> str:
@@ -8132,21 +8522,30 @@ def _failed(said: _Had) -> str:
     if said.usable is None or len(said.usable) >= len(said.gpus):
         return ""
     gone = [one for one in said.gpus if one not in said.usable]
-    return (
-        f"{len(said.usable)} of {len(said.gpus)} GPUs answer; GPU {', '.join(gone)} "
-        + ("does not" if len(gone) == 1 else "do not")
+    return t(
+        "{usable} of {total} GPUs answer; {gone} does not.",
+        usable=len(said.usable),
+        total=len(said.gpus),
+        gone=", ".join(gone),
     )
 
 
 def _has(said: _Had) -> str:
     """What a runtime said it has, as one line: its CPUs, memory, GPUs and OCI runtimes."""
-    has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
+    has = [t("{n} CPUs", n=f"{said.cpus:g}"), _sized(said.memory)]
     if said.gpus:
-        gpus = f"GPUs {', '.join(said.gpus)}"
+        gpus = t("{what}: {value}", what=t("GPUs"), value=", ".join(said.gpus))
         has.append(
-            f"{gpus}, {_sized(said.gpu_memory)} each" if said.gpu_memory else gpus
+            t("{gpus}, {size} each", gpus=gpus, size=_sized(said.gpu_memory))
+            if said.gpu_memory
+            else gpus
         )
-    runs = f"; OCI runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
+    runs = (
+        "; "
+        + t("{what}: {value}", what=t("OCI runtimes"), value=", ".join(said.runtimes))
+        if said.runtimes
+        else ""
+    )
     return f"{', '.join(has)}{runs}"
 
 
@@ -8207,8 +8606,11 @@ def _fallback_row() -> Question:
     """The row a runtime's fallback list is written on, which both forms ask last."""
     return Question(
         _FALLEN_TO,
-        "falls back to",
-        "runtimes to try in order if this one cannot: docker:box, ssh:gpu2",
+        t("Falls back to"),
+        t(
+            "the runtimes tried in order where this one cannot "
+            "be used, as docker:box, ssh:gpu2"
+        ),
     )
 
 
@@ -8219,10 +8621,12 @@ def _listed(said: str) -> list[str]:
 
 #: The row of either form a harness's runtime is written on, and what it says.
 _HARNESS = "harness"
-_HARNESS_ABOUT = (
-    "where an agent's harness runs, and nowhere else: env (the CLI on this runtime's "
-    "machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, "
-    "apple-container:<name>, slurm:<name>; blank for env"
+_HARNESS_ABOUT = t(
+    "where an agent's harness runs, and nowhere else: "
+    "env (the CLI on this runtime's machine), local "
+    "(here), or ssh:<name>, docker:<name>, "
+    "swarm:<name>, apple-container:<name>, "
+    "slurm:<name>; blank for env"
 )
 
 
@@ -8291,8 +8695,11 @@ class Hosting(Form["Runtime"]):
             rows.append(
                 Question(
                     _ALIAS,
-                    "alias",
-                    f"the Host entry in {_config_named(one.config)}",
+                    t("Alias"),
+                    t(
+                        "the Host entry it is read from in the ssh config {config}",
+                        config=_config_named(one.config),
+                    ),
                     needed=not typed.get(_ALIAS, "").strip()
                     and not typed.get(_HOST, "").strip(),
                 )
@@ -8300,10 +8707,10 @@ class Hosting(Form["Runtime"]):
         rows.append(
             Question(
                 _HOST,
-                "host",
-                "override host; leave blank to use the config"
+                t("Host"),
+                t("the host to reach instead; blank for what the ssh config says")
                 if aliased
-                else "hostname, IP address, or user@host:port",
+                else t("a hostname, an IP address, or user@host:port"),
                 needed=not aliased and not typed.get(_HOST, "").strip(),
             )
         )
@@ -8311,27 +8718,42 @@ class Hosting(Form["Runtime"]):
             rows.append(
                 Question(
                     _CALLED,
-                    "name",
-                    "name used in -e and /flow",
+                    t("Name"),
+                    t("the name a runtime is given, which -e and /flow name it by"),
                     needed=not typed.get(_CALLED, "").strip(),
                 )
             )
         rows.extend(
             [
-                Question(_USER, "user", "username; leave blank to use your ssh config"),
-                Question(_PORT, "port", "leave blank to use your ssh config, or 22"),
-                Question(_KEY, "identity file", "path to private key", path=True),
-                Question(_JUMP, "proxy jump", "jump host to connect through, if any"),
                 Question(
-                    _OPTIONS, "options", "additional ssh options: KEYWORD=VALUE, …"
+                    _USER,
+                    t("User"),
+                    t("the user to sign in as; blank for what your ssh config says"),
+                ),
+                Question(
+                    _PORT,
+                    t("Port"),
+                    t("the port; blank for what your ssh config says, or 22"),
+                ),
+                Question(
+                    _KEY,
+                    t("Identity file"),
+                    t("the path of the private key"),
+                    path=True,
+                ),
+                Question(_JUMP, t("Proxy jump"), t("the host to jump through, if any")),
+                Question(
+                    _OPTIONS,
+                    t("SSH options"),
+                    t("more ssh options, as KEYWORD=VALUE, …"),
                 ),
                 Question(
                     _WORKDIR,
-                    "workdir",
-                    "default working directory when -e specifies none: /abs or ~/path",
+                    t("Workdir"),
+                    t("the working directory where -e names none: /abs or ~/path"),
                 ),
                 _fallback_row(),
-                Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
+                Question(_HARNESS, t("Harness runs on"), t(_HARNESS_ABOUT)),
             ]
         )
         return rows
@@ -8372,18 +8794,27 @@ class Hosting(Form["Runtime"]):
     def done_about(self) -> str:
         """What answering it does: saves it, and asks it what it has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
-        doing = "updates" if self._one else "adds"
-        return f"{doing} ssh/{name}, and checks its resources"
+        named = f"ssh/{name}"
+        does = (
+            t("updates the runtime {name}", name=named)
+            if self._one
+            else t("adds the runtime {name}", name=named)
+        )
+        return does + _DOT + t("checks its resources")
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit ssh/{self._one.name}") if self._one else "Add an ssh host"
+            t("Edit {name}", name=escape(f"ssh/{self._one.name}"))
+            if self._one
+            else f"{t('New runtime')}{_DOT}{t('SSH host')}"
         )
         self.query_one("#about", Label).update(
-            "A machine where flow environments run. Connects using your ssh "
-            "config plus settings configured here. Keys are specified by path "
-            "and never read."
+            t(
+                "A machine flow environments run on. It is reached "
+                "with your ssh config and what is set here. A key "
+                "is named by its path and never read."
+            )
         )
         self._fill()
 
@@ -8395,7 +8826,13 @@ class Hosting(Form["Runtime"]):
         """
         port = typed.get(_PORT, "")
         if port and not port.isdigit():
-            raise ValueError(f"port: {port!r} must be a number")
+            raise ValueError(
+                t(
+                    "{what}: {value}",
+                    what=t("Port"),
+                    value=t("This needs a whole number."),
+                )
+            )
         fields: dict[str, Any] = {
             "host": typed.get(_HOST, ""),
             "user": typed.get(_USER, ""),
@@ -8421,9 +8858,10 @@ class Hosting(Form["Runtime"]):
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(_SSH, name) is not None:
-            self._wrong = (
-                f"an ssh host named {name} already exists; edit it from its "
-                "row, or choose a different name"
+            self._wrong = t(
+                "A runtime {name} is there already; edit it from "
+                "its row, or pick another name.",
+                name=f"ssh/{name}",
             )
             self._fill()
             return
@@ -8464,12 +8902,22 @@ _CONSTRAINTS, _TASKS, _RESOURCE, _NODES = (
 
 #: The ways a docker daemon is reached, as its form steps through them, and what each is.
 _ENDPOINTS = {
-    "local": "the default docker daemon on this machine",
-    "socket": "a daemon's unix socket on this machine",
-    "tcp": "a daemon listening at an address",
-    "saved ssh host": "the daemon on a saved ssh host",
-    "ssh address": "the daemon on any host via ssh",
-    "context": "an existing docker context",
+    "local": t("the docker daemon this machine uses by default"),
+    "socket": t("a daemon's unix socket on this machine"),
+    "tcp": t("a daemon listening at an address"),
+    "saved ssh host": t("the daemon on an ssh host saved as a runtime"),
+    "ssh address": t("the daemon on any host ssh reaches"),
+    "context": t("a docker context there already is"),
+}
+
+#: What each is called on the row it is picked on.
+_ENDPOINT_SAID = {
+    "local": t("Local"),
+    "socket": t("Socket"),
+    "tcp": t("TCP"),
+    "saved ssh host": t("Saved SSH host"),
+    "ssh address": t("SSH address"),
+    "context": t("Context"),
 }
 
 #: What each of them but `local` is spelled with, and the row the rest of it is written on.
@@ -8498,11 +8946,11 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
     #: The backend it is saved for.
     BACKEND: ClassVar[str] = _DOCKER
     #: What one is called on the form, after `a`.
-    KIND: ClassVar[str] = "docker host"
+    KIND: ClassVar[str] = t("Docker container")
     #: What the form says it is, under its title.
     ABOUT: ClassVar[str] = ""
     #: What answering it does besides saving it.
-    CHECKS: ClassVar[str] = "detects host resources"
+    CHECKS: ClassVar[str] = t("detects the host's resources")
     #: The rows detecting writes into, in the order it walks through them.
     DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY)
 
@@ -8599,17 +9047,35 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         spelled, row = _REACHED[kind]
         return spelled + self._typed_in.get(row, "").strip()
 
+    def worded(self, held: str, value: str) -> str:
+        """What a kind of endpoint is called on its row.
+
+        Args:
+          held: The row.
+          value: The value, as it is kept.
+
+        Returns:
+          The kind of endpoint in words, and anything else as it is.
+        """
+        if held == _ENDPOINT and value in _ENDPOINT_SAID:
+            return t(_ENDPOINT_SAID[value])
+        return value
+
     def asked(self) -> list[Question]:
         """Where it is, its name, and what it may hand out."""
         typed = self._typed_in
         kind = typed.get(_ENDPOINT, "local")
-        rows = [Question(_ENDPOINT, "endpoint", _ENDPOINTS.get(kind, ""), _STEPS)]
+        rows = [
+            Question(
+                _ENDPOINT, t("Endpoint"), _worded(_ENDPOINTS.get(kind, "")), _STEPS
+            )
+        ]
         if kind == "socket":
             rows.append(
                 Question(
                     _SOCKET,
-                    "socket",
-                    "socket path: /run/docker.sock",
+                    t("Socket"),
+                    t("the path of the socket, as /run/docker.sock"),
                     needed=not typed.get(_SOCKET, "").strip(),
                     path=True,
                 )
@@ -8618,10 +9084,10 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             rows.append(
                 Question(
                     _ADDRESS,
-                    "address",
-                    "host:port to connect to"
+                    t("Address"),
+                    t("the host:port to connect to")
                     if kind == "tcp"
-                    else "[user@]host[:port]",
+                    else t("the host, as [user@]host[:port]"),
                     needed=not typed.get(_ADDRESS, "").strip(),
                 )
             )
@@ -8629,9 +9095,11 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
                 rows.append(
                     Question(
                         _TLS,
-                        "tls",
-                        "directory containing ca.pem, cert.pem and key.pem; "
-                        "blank for none",
+                        t("TLS directory"),
+                        t(
+                            "the directory holding ca.pem, cert.pem and "
+                            "key.pem; blank for none"
+                        ),
                         path=True,
                     )
                 )
@@ -8640,10 +9108,10 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             rows.append(
                 Question(
                     _VIA,
-                    "on",
+                    t("SSH host"),
                     _machine_line(via)
                     if via is not None
-                    else "saved ssh host running the docker daemon",
+                    else t("the saved ssh host the docker daemon runs on"),
                     _OPENS_ONTO,
                     needed=via is None,
                 )
@@ -8652,8 +9120,8 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             rows.append(
                 Question(
                     _CONTEXT,
-                    "context",
-                    "docker context name",
+                    t("Context"),
+                    t("the name of the docker context"),
                     needed=not typed.get(_CONTEXT, "").strip(),
                 )
             )
@@ -8661,12 +9129,12 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             rows.append(
                 Question(
                     _CALLED,
-                    "name",
-                    "name used in -e and /flow",
+                    t("Name"),
+                    t("the name a runtime is given, which -e and /flow name it by"),
                     needed=not typed.get(_CALLED, "").strip(),
                 )
             )
-        rows.append(Question(_HARNESS, "harness runs on", _HARNESS_ABOUT))
+        rows.append(Question(_HARNESS, t("Harness runs on"), t(_HARNESS_ABOUT)))
         # What it may hand out last, over the row that asks the daemon what it has: what is
         # written in there is walked through and typed over, and then the form is done.
         rows.extend(self._holds())
@@ -8744,8 +9212,8 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         return [
             Action(
                 _ACT_DETECT,
-                "detect",
-                "detect host resources and fill them in",
+                t("Detect"),
+                t("asks the host what resources it has, and fills them in"),
                 self._detects,
             )
         ]
@@ -8786,7 +9254,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             self._fill()
             return
         self._detecting, self._wrong = True, ""
-        self._noted = f"detecting resources on {escape(self._endpoint())}…"
+        self._noted = t("detecting resources on {name}…", name=escape(self._endpoint()))
         self._fill()
         said = await _checked(probe)
         self._detecting, self._noted = False, ""
@@ -8794,7 +9262,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             self._wrong = (
                 said
                 if isinstance(said, str)
-                else f"the daemon did not respond: {said.said}"
+                else t("The docker daemon did not answer: {why}", why=said.said)
             )
             self._fill()
             return
@@ -8803,7 +9271,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
                 self._typed_in[held] = value
                 self._fresh.add(held)
         failed = _failed(said)
-        self._noted = escape(f"detected {_has(said)}: auto-filled") + (
+        self._noted = escape(t("detected {has}; filled in", has=_has(said))) + (
             f"\n{iffy(escape(failed))}" if failed else ""
         )
         self.changed()
@@ -8844,17 +9312,22 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
     def done_about(self) -> str:
         """What answering it does: saves it, and asks the daemon what it has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
-        doing = "updates" if self._one else "adds"
-        return f"{doing} {self.BACKEND}/{name} and {self.CHECKS}"
+        named = f"{self.BACKEND}/{name}"
+        does = (
+            t("updates the runtime {name}", name=named)
+            if self._one
+            else t("adds the runtime {name}", name=named)
+        )
+        return does + _DOT + t(self.CHECKS)
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit {self.BACKEND}/{self._one.name}")
+            t("Edit {name}", name=escape(f"{self.BACKEND}/{self._one.name}"))
             if self._one
-            else f"Add a {self.KIND}"
+            else f"{t('New runtime')}{_DOT}{t(self.KIND)}"
         )
-        self.query_one("#about", Label).update(self.ABOUT)
+        self.query_one("#about", Label).update(t(self.ABOUT))
         self._fill()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
@@ -8870,18 +9343,24 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             RuntimeError
         ):  # `~somebody` nobody is, which would crash whatever reads it
             raise ValueError(
-                f"tls: home directory does not exist for {tls!r}"
+                t(
+                    "The TLS directory {path} is under the home "
+                    "directory of a user there is not.",
+                    path=repr(tls),
+                )
             ) from None
         try:
             argv = shlex.split(typed.get(_ARGS, ""))
         except ValueError as why:
-            raise ValueError(f"run args: {why}") from None
+            raise ValueError(
+                t("{what}: {value}", what=t("Run arguments"), value=why)
+            ) from None
         return {
             "endpoint": self._endpoint(),
             "tls_dir": tls if typed.get(_ENDPOINT) == "tcp" else "",
             "image": typed.get(_IMAGE, ""),
             "run_args": argv,
-            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "cpus": _number(typed.get(_CPUS, ""), t("CPUs")),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _listed(typed.get(_FALLEN_TO, "")),
@@ -8897,9 +9376,10 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(self.BACKEND, name) is not None:
-            self._wrong = (
-                f"a {self.KIND} named {name} already exists; edit it from its "
-                "row, or choose a different name"
+            self._wrong = t(
+                "A runtime {name} is there already; edit it from "
+                "its row, or pick another name.",
+                name=f"{self.BACKEND}/{name}",
             )
             self._fill()
             return
@@ -8919,7 +9399,9 @@ def _how_many(said: str, what: str) -> int:
       ValueError: For one that is not a whole number.
     """
     if said and not said.isdigit():
-        raise ValueError(f"{what}: {said!r} must be a number")
+        raise ValueError(
+            t("{what}: {value}", what=what, value=t("This needs a whole number."))
+        )
     return int(said or 0)
 
 
@@ -8935,11 +9417,12 @@ class Docking(_Daemon["DockerRuntime"]):
     """
 
     BACKEND: ClassVar[str] = _DOCKER
-    KIND: ClassVar[str] = "docker host"
-    ABOUT: ClassVar[str] = (
-        "A docker daemon where flow environments run in containers: on "
-        "this machine, over ssh, or at an address. Flows running on it are "
-        "limited to the resources configured here."
+    KIND: ClassVar[str] = t("Docker container")
+    ABOUT: ClassVar[str] = t(
+        "A docker daemon flow environments run on, in "
+        "containers: on this machine, over ssh, or at an "
+        "address. Flows on it are held to the resources "
+        "set here."
     )
     DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY, _GPUS)
 
@@ -8960,25 +9443,35 @@ class Docking(_Daemon["DockerRuntime"]):
         return [
             Question(
                 _IMAGE,
-                "image",
-                "default image, unless specified by the flow",
+                t("Image@@container"),
+                t("the image an environment starts from, unless the flow names one"),
             ),
-            Question(_RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"),
-            Question(_ARGS, "run args", "extra arguments for docker run"),
+            Question(
+                _RUNTIME,
+                t("OCI runtime"),
+                t("an OCI runtime, like nvidia; blank for the daemon's own"),
+            ),
+            Question(_ARGS, t("Run arguments"), t("more arguments for docker run")),
             Question(
                 _AT_ONCE,
-                "max containers",
-                "max concurrent containers; blank for no limit",
+                t("Max containers"),
+                t("the most containers running at once; blank for no limit"),
             ),
             Question(
                 _WORKDIR,
-                "workdir",
-                "default working directory when -e specifies no directory",
+                t("Workdir"),
+                t("the working directory where -e names none"),
             ),
             _fallback_row(),
-            Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
-            Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
-            Question(_GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"),
+            Question(_CPUS, t("CPUs"), t("the most CPUs; blank for all the host has")),
+            Question(
+                _MEMORY,
+                t("Memory"),
+                t("the most memory, like 64G; blank for all the host has"),
+            ),
+            Question(
+                _GPUS, t("GPUs"), t("GPU ids, like 0, 1; blank for all the host has")
+            ),
         ]
 
     def _detected(self, said: _Had) -> dict[str, str]:
@@ -9003,7 +9496,7 @@ class Docking(_Daemon["DockerRuntime"]):
         return {
             "runtime": typed.get(_RUNTIME, ""),
             "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
-            "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
+            "max_containers": _how_many(typed.get(_AT_ONCE, ""), t("Max containers")),
             "gpu_memory": kept.gpu_memory if kept is not None else 0,
             # Not on this form, as the GPUs' memory is not: kept as they were, so that
             # correcting a runtime here takes none of them away.
@@ -9026,7 +9519,12 @@ def _pairs(said: str) -> dict[str, str]:
             continue
         node, _, via = one.partition("=")
         if not node.strip() or not via.strip():
-            raise ValueError(f"nodes: {one!r} is not HOSTNAME=SSH-HOST")
+            raise ValueError(
+                t(
+                    "The swarm node {said} is not written as HOSTNAME=SSH-HOST.",
+                    said=repr(one),
+                )
+            )
         held[node.strip()] = via.strip()
     return held
 
@@ -9050,14 +9548,16 @@ class Swarming(_Daemon["SwarmRuntime"]):
     """
 
     BACKEND: ClassVar[str] = _DOCKER_SWARM
-    KIND: ClassVar[str] = "docker swarm"
-    ABOUT: ClassVar[str] = (
-        "A docker swarm where flow environments run as services of one task, "
-        "placed on whichever node has room. Reached through a manager's "
-        "daemon: on this machine, over ssh, or at an address. Flows on it are "
-        "limited to the quota configured here."
+    KIND: ClassVar[str] = t("Docker swarm")
+    ABOUT: ClassVar[str] = t(
+        "A docker swarm flow environments run on as "
+        "services of one task, placed on whichever node "
+        "has room. It is reached through a manager's "
+        "daemon: on this machine, over ssh, or at an "
+        "address. Flows on it are held to the quota set "
+        "here."
     )
-    CHECKS: ClassVar[str] = "checks its nodes"
+    CHECKS: ClassVar[str] = t("checks its nodes")
 
     def _held(self, one: SwarmRuntime) -> dict[str, str]:
         """Its constraints, GPU resource, nodes and how many tasks it may run.
@@ -9077,34 +9577,60 @@ class Swarming(_Daemon["SwarmRuntime"]):
         return [
             Question(
                 _IMAGE,
-                "image",
-                "default image, unless specified by the flow; every node pulls it",
+                t("Image@@container"),
+                t(
+                    "the image an environment starts from, unless the "
+                    "flow names one; every node pulls it"
+                ),
             ),
-            Question(_ARGS, "run args", "extra arguments for docker service create"),
+            Question(
+                _ARGS, t("Run arguments"), t("more arguments for docker service create")
+            ),
             Question(
                 _CONSTRAINTS,
-                "constraints",
-                "placement constraints, e.g. node.labels.gpu==true, …",
+                t("Constraints"),
+                t("placement constraints, like node.labels.gpu==true, …"),
             ),
-            Question(_TASKS, "max tasks", "max concurrent tasks; blank for no limit"),
+            Question(
+                _TASKS,
+                t("Max tasks"),
+                t("the most tasks running at once; blank for no limit"),
+            ),
             Question(
                 _NODES,
-                "nodes",
-                "HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address",
+                t("Nodes"),
+                t(
+                    "how each node is reached, as HOSTNAME=SSH-HOST, "
+                    "…; blank to reach each at ssh://its address"
+                ),
             ),
             Question(
                 _WORKDIR,
-                "workdir",
-                "default working directory, on every node, when -e specifies none",
+                t("Workdir"),
+                t("the working directory, on every node, where -e names none"),
             ),
             _fallback_row(),
             Question(
                 _RESOURCE,
-                "gpu resource",
-                "generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU",
+                t("GPU resource"),
+                t(
+                    "the generic resource nodes advertise their GPUs "
+                    "as, like NVIDIA-GPU"
+                ),
             ),
-            Question(_CPUS, "cpus", "CPUs all tasks may reserve; blank for no quota"),
-            Question(_MEMORY, "memory", "e.g. 64G for all tasks; blank for no quota"),
+            Question(
+                _CPUS,
+                t("CPUs"),
+                t("the CPUs all tasks may reserve between them; blank for no quota"),
+            ),
+            Question(
+                _MEMORY,
+                t("Memory"),
+                t(
+                    "the memory all tasks may reserve between them, "
+                    "like 64G; blank for no quota"
+                ),
+            ),
         ]
 
     def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
@@ -9119,7 +9645,7 @@ class Swarming(_Daemon["SwarmRuntime"]):
                 for one in typed.get(_CONSTRAINTS, "").split(",")
                 if one.strip()
             ],
-            "max_tasks": _how_many(typed.get(_TASKS, ""), "max tasks"),
+            "max_tasks": _how_many(typed.get(_TASKS, ""), t("Max tasks")),
             "gpu_resource": typed.get(_RESOURCE, ""),
             "nodes": _pairs(typed.get(_NODES, "")),
         }
@@ -9139,7 +9665,7 @@ class Containing(Form["Runtime"]):
     """
 
     #: What one is called, after `a`.
-    KIND: ClassVar[str] = "host for Apple containers"
+    KIND: ClassVar[str] = t("Apple container")
     #: The rows detecting writes into, in the order it walks through them.
     DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY)
 
@@ -9178,29 +9704,37 @@ class Containing(Form["Runtime"]):
             rows.append(
                 Question(
                     _CALLED,
-                    "name",
-                    "name used in -e and /flow",
+                    t("Name"),
+                    t("the name a runtime is given, which -e and /flow name it by"),
                     needed=not self._typed_in.get(_CALLED, "").strip(),
                 )
             )
         return [
             *rows,
-            Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
-            Question(_IMAGE, "image", "default image, unless specified by the flow"),
-            Question(_ARGS, "run args", "extra arguments for container run"),
+            Question(_HARNESS, t("Harness runs on"), t(_HARNESS_ABOUT)),
+            Question(
+                _IMAGE,
+                t("Image@@container"),
+                t("the image an environment starts from, unless the flow names one"),
+            ),
+            Question(_ARGS, t("Run arguments"), t("more arguments for container run")),
             Question(
                 _AT_ONCE,
-                "max containers",
-                "max concurrent containers; blank for no limit",
+                t("Max containers"),
+                t("the most containers running at once; blank for no limit"),
             ),
             Question(
                 _WORKDIR,
-                "workdir",
-                "default working directory when -e specifies no directory",
+                t("Workdir"),
+                t("the working directory where -e names none"),
             ),
             _fallback_row(),
-            Question(_CPUS, "cpus", "max CPUs; blank to use all of this Mac's"),
-            Question(_MEMORY, "memory", "e.g. 16G; blank to use all of this Mac's"),
+            Question(_CPUS, t("CPUs"), t("the most CPUs; blank for all this Mac has")),
+            Question(
+                _MEMORY,
+                t("Memory"),
+                t("the most memory, like 16G; blank for all this Mac has"),
+            ),
         ]
 
     def beside(self) -> list[Action]:
@@ -9208,8 +9742,8 @@ class Containing(Form["Runtime"]):
         return [
             Action(
                 _ACT_DETECT,
-                "detect",
-                "detect this Mac's resources and fill them in",
+                t("Detect"),
+                t("asks this Mac what resources it has, and fills them in"),
                 self._detects,
             )
         ]
@@ -9220,7 +9754,7 @@ class Containing(Form["Runtime"]):
         if self._detecting:
             return
         self._detecting, self._wrong = True, ""
-        self._noted = "detecting resources on this Mac…"
+        self._noted = t("detecting resources on this Mac…")
         self._fill()
         said = await _checked(_hmz().runtimes.new(_APPLE, "local"))
         self._detecting, self._noted = False, ""
@@ -9228,7 +9762,7 @@ class Containing(Form["Runtime"]):
             self._wrong = (
                 said
                 if isinstance(said, str)
-                else f"Apple's container did not respond: {said.said}"
+                else t("Apple's container did not answer: {why}.", why=said.said)
             )
             self._fill()
             return
@@ -9239,7 +9773,7 @@ class Containing(Form["Runtime"]):
             if value:
                 self._typed_in[held] = value
                 self._fresh.add(held)
-        self._noted = escape(f"detected {_has(said)}: auto-filled")
+        self._noted = escape(t("detected {has}; filled in", has=_has(said)))
         self.changed()
         self._fill()
         # On the first of them, for the typing over, from the button that asked. Moved now
@@ -9279,20 +9813,28 @@ class Containing(Form["Runtime"]):
     def done_about(self) -> str:
         """What answering it does: saves it, and asks what the Mac has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
-        doing = "updates" if self._one else "adds"
-        return f"{doing} {_APPLE}/{name} and detects host resources"
+        named = f"{_APPLE}/{name}"
+        does = (
+            t("updates the runtime {name}", name=named)
+            if self._one
+            else t("adds the runtime {name}", name=named)
+        )
+        return does + _DOT + t("detects the host's resources")
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit {_APPLE}/{self._one.name}")
+            t("Edit {name}", name=escape(f"{_APPLE}/{self._one.name}"))
             if self._one
-            else f"Add a {self.KIND}"
+            else f"{t('New runtime')}{_DOT}{t(self.KIND)}"
         )
         self.query_one("#about", Label).update(
-            "This Mac, where flow environments run in Linux containers of Apple's "
-            "container, each a small virtual machine of its own. Flows running on it "
-            "are limited to the resources configured here."
+            t(
+                "This Mac, where flow environments run in Linux "
+                "containers of Apple's container, each a small "
+                "virtual machine of its own. Flows on it are held "
+                "to the resources set here."
+            )
         )
         self._fill()
 
@@ -9305,13 +9847,15 @@ class Containing(Form["Runtime"]):
         try:
             argv = shlex.split(typed.get(_ARGS, ""))
         except ValueError as why:
-            raise ValueError(f"run args: {why}") from None
+            raise ValueError(
+                t("{what}: {value}", what=t("Run arguments"), value=why)
+            ) from None
         return {
             "image": typed.get(_IMAGE, ""),
             "run_args": argv,
-            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "cpus": _number(typed.get(_CPUS, ""), t("CPUs")),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
-            "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
+            "max_containers": _how_many(typed.get(_AT_ONCE, ""), t("Max containers")),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
@@ -9323,9 +9867,10 @@ class Containing(Form["Runtime"]):
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(_APPLE, name) is not None:
-            self._wrong = (
-                f"a {self.KIND} named {name} already exists; edit it from its "
-                "row, or choose a different name"
+            self._wrong = t(
+                "A runtime {name} is there already; edit it from "
+                "its row, or pick another name.",
+                name=f"{_APPLE}/{name}",
             )
             self._fill()
             return
@@ -9353,8 +9898,8 @@ _PARTITION, _CHARGED, _QOS, _TIME_LIMIT, _CONSTRAINT, _PYTHON, _JOBS, _WAIT = (
 
 #: How a job's node is reached once it runs, as the `via` row steps through them.
 _SLURM_VIAS = {
-    "srun": "a step of the job per connection, which every cluster allows",
-    "tcp": "a port the job serves; needs this machine to reach its nodes",
+    "srun": t("a step of the job for each connection, which every cluster allows"),
+    "tcp": t("a port the job serves, which needs this machine to reach its nodes"),
 }
 
 
@@ -9373,7 +9918,7 @@ class Slurming(Form["Runtime"]):
     """
 
     #: What one is called, after `a`.
-    KIND: ClassVar[str] = "Slurm cluster"
+    KIND: ClassVar[str] = t("Slurm cluster")
 
     def __init__(self, one: SlurmRuntime | None = None) -> None:
         """Initializes the form on one, or on nothing for one being added.
@@ -9421,51 +9966,92 @@ class Slurming(Form["Runtime"]):
     def asked(self) -> list[Question]:
         """Its partition, its name, what `sbatch` is told, and what its jobs may have."""
         rows = [
-            Question(_PARTITION, "partition", "blank for the cluster's default"),
+            Question(
+                _PARTITION,
+                t("Partition"),
+                t(
+                    "the partition jobs are submitted to; blank for "
+                    "the cluster's default"
+                ),
+            ),
         ]
         if self._one is None:
             rows.append(
                 Question(
                     _CALLED,
-                    "name",
-                    "name used in -e and /flow",
+                    t("Name"),
+                    t("the name a runtime is given, which -e and /flow name it by"),
                     needed=not self._typed_in.get(_CALLED, "").strip(),
                 )
             )
         return [
             *rows,
-            Question(_HARNESS, "harness runs on", _HARNESS_ABOUT),
-            Question(_CHARGED, "account", "blank for your default account"),
-            Question(_QOS, "qos", "quality of service; blank for the default"),
+            Question(_HARNESS, t("Harness runs on"), t(_HARNESS_ABOUT)),
+            Question(
+                _CHARGED,
+                t("Account"),
+                t("the Slurm account jobs are charged to; blank for your default"),
+            ),
+            Question(
+                _QOS, t("QoS"), t("the quality of service; blank for the default")
+            ),
             Question(
                 _TIME_LIMIT,
-                "time",
-                "max run time per job, e.g. 4:00:00; blank for the partition's",
+                t("Time"),
+                t("the longest a job may run, like 4:00:00; blank for the partition's"),
             ),
-            Question(_CONSTRAINT, "constraint", "node features a job needs, e.g. a100"),
+            Question(
+                _CONSTRAINT,
+                t("Constraint"),
+                t("the node features a job needs, like a100"),
+            ),
             Question(
                 _PYTHON,
-                "python",
-                "Python 3.12+ on its nodes, /abs or ~/path; blank for theirs",
+                t("Python"),
+                t(
+                    "a Python 3.12 or newer on its nodes, as /abs or "
+                    "~/path; blank for the nodes' own"
+                ),
             ),
             Question(
-                _VIA, "via", _SLURM_VIAS.get(self._typed_in.get(_VIA, ""), ""), _STEPS
+                _VIA,
+                t("Via"),
+                _worded(_SLURM_VIAS.get(self._typed_in.get(_VIA, ""), "")),
+                _STEPS,
             ),
-            Question(_ARGS, "run args", "extra arguments for sbatch"),
-            Question(_JOBS, "max jobs", "max concurrent jobs; blank for no limit"),
+            Question(_ARGS, t("Run arguments"), t("more arguments for sbatch")),
+            Question(
+                _JOBS,
+                t("Max jobs"),
+                t("the most jobs running at once; blank for no limit"),
+            ),
             Question(
                 _WAIT,
-                "max wait",
-                "seconds a job may wait for a node; blank for as long as it waits",
+                t("Max wait"),
+                t(
+                    "the seconds a job may wait for a node; blank for "
+                    "as long as it takes"
+                ),
             ),
             Question(
                 _WORKDIR,
-                "workdir",
-                "default working directory, on every node, when -e specifies none",
+                t("Workdir"),
+                t("the working directory, on every node, where -e names none"),
             ),
             _fallback_row(),
-            Question(_CPUS, "cpus", "CPUs all jobs may reserve; blank for no quota"),
-            Question(_MEMORY, "memory", "e.g. 64G for all jobs; blank for no quota"),
+            Question(
+                _CPUS,
+                t("CPUs"),
+                t("the CPUs all jobs may reserve between them; blank for no quota"),
+            ),
+            Question(
+                _MEMORY,
+                t("Memory"),
+                t(
+                    "the memory all jobs may reserve between them, "
+                    "like 64G; blank for no quota"
+                ),
+            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -9483,7 +10069,7 @@ class Slurming(Form["Runtime"]):
           A few words.
         """
         del held
-        return _SLURM_VIAS.get(value, "")
+        return _worded(_SLURM_VIAS.get(value, ""))
 
     def writes(self, row: str, event: events.Key) -> bool:
         """Takes a letter, and calls it after the partition being typed, where it is.
@@ -9508,21 +10094,28 @@ class Slurming(Form["Runtime"]):
     def done_about(self) -> str:
         """What answering it does: saves it, and asks the cluster what its partition has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
-        doing = "updates" if self._one else "adds"
-        return f"{doing} {_SLURM}/{name} and checks its partition's nodes"
+        named = f"{_SLURM}/{name}"
+        does = (
+            t("updates the runtime {name}", name=named)
+            if self._one
+            else t("adds the runtime {name}", name=named)
+        )
+        return does + _DOT + t("checks the nodes of its partition")
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit {_SLURM}/{self._one.name}")
+            t("Edit {name}", name=escape(f"{_SLURM}/{self._one.name}"))
             if self._one
-            else f"Add a {self.KIND}"
+            else f"{t('New runtime')}{_DOT}{t(self.KIND)}"
         )
         self.query_one("#about", Label).update(
-            "The Slurm cluster this machine submits to, where each flow "
-            "environment is a job of its own, placed on whichever node of its "
-            "partition has room. Flows on it are limited to the quota configured "
-            "here."
+            t(
+                "The Slurm cluster this machine submits to, where "
+                "each flow environment is a job of its own, placed "
+                "on whichever node of its partition has room. "
+                "Flows on it are held to the quota set here."
+            )
         )
         self._fill()
 
@@ -9535,7 +10128,9 @@ class Slurming(Form["Runtime"]):
         try:
             argv = shlex.split(typed.get(_ARGS, ""))
         except ValueError as why:
-            raise ValueError(f"run args: {why}") from None
+            raise ValueError(
+                t("{what}: {value}", what=t("Run arguments"), value=why)
+            ) from None
         return {
             "partition": typed.get(_PARTITION, ""),
             "account": typed.get(_CHARGED, ""),
@@ -9545,10 +10140,10 @@ class Slurming(Form["Runtime"]):
             "python": typed.get(_PYTHON, ""),
             "via": typed.get(_VIA, "") or "srun",
             "run_args": argv,
-            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "cpus": _number(typed.get(_CPUS, ""), t("CPUs")),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
-            "max_jobs": _how_many(typed.get(_JOBS, ""), "max jobs"),
-            "max_wait": _how_many(typed.get(_WAIT, ""), "max wait"),
+            "max_jobs": _how_many(typed.get(_JOBS, ""), t("Max jobs")),
+            "max_wait": _how_many(typed.get(_WAIT, ""), t("Max wait")),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _listed(typed.get(_FALLEN_TO, "")),
             "harness": _harness(typed.get(_HARNESS, "")),
@@ -9560,9 +10155,10 @@ class Slurming(Form["Runtime"]):
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(_SLURM, name) is not None:
-            self._wrong = (
-                f"a {self.KIND} named {name} already exists; edit it from its "
-                "row, or choose a different name"
+            self._wrong = t(
+                "A runtime {name} is there already; edit it from "
+                "its row, or pick another name.",
+                name=f"{_SLURM}/{name}",
             )
             self._fill()
             return
@@ -9648,13 +10244,20 @@ class Importing(Form[Imported]):
             name = re.sub(r"[^A-Za-z0-9._-]", "-", one.alias).lstrip("._-")
             saved = self._saved.get(name)
             if not name:
-                off[one.alias] = "invalid host name"
+                off[one.alias] = t("That name is not allowed.")
             elif name in taken:
-                off[one.alias] = f"{taken[name]} already uses the name {name}"
+                off[one.alias] = t(
+                    "another host of the config, {other}, already "
+                    "takes the name {name}",
+                    other=taken[name],
+                    name=name,
+                )
             elif saved is not None and saved.made != IMPORTED:
-                off[one.alias] = f"a manually added host is already saved as {name}"
+                off[one.alias] = t(
+                    "a runtime added by hand is saved as {name} already", name=name
+                )
             elif saved is not None:
-                off[one.alias] = "already imported"
+                off[one.alias] = t("Imported")
             taken.setdefault(name, one.alias)
         return off
 
@@ -9667,8 +10270,8 @@ class Importing(Form[Imported]):
         rows = [
             Question(
                 _CONFIG,
-                "from",
-                "the ssh config to read: default, or another file",
+                t("SSH config"),
+                t("the ssh config to read: your own, or another file"),
                 needed=not self._typed_in.get(_CONFIG, "").strip(),
                 path=True,
             )
@@ -9685,8 +10288,22 @@ class Importing(Form[Imported]):
             f"{one.user}@{one.host}:{one.port}"
             if one.user
             else f"{one.host}:{one.port}",
-            *((f"key {', '.join(one.identity_files)}",) if one.identity_files else ()),
-            *((f"through {one.proxy_jump}",) if one.proxy_jump else ()),
+            *(
+                (
+                    t(
+                        "{what}: {value}",
+                        what=t("Identity file"),
+                        value=", ".join(one.identity_files),
+                    ),
+                )
+                if one.identity_files
+                else ()
+            ),
+            *(
+                (t("{what}: {value}", what=t("Proxy jump"), value=one.proxy_jump),)
+                if one.proxy_jump
+                else ()
+            ),
             *((self._off[one.alias],) if one.alias in self._off else ()),
         ]
         return _DOT.join(said)
@@ -9698,21 +10315,21 @@ class Importing(Form[Imported]):
     def note(self) -> str:
         """That the config is being read, or that it names nothing."""
         if self._reading:
-            return f"reading {escape(self._typed_in.get(_CONFIG, ''))}…"
+            return t("Reading {name}…", name=escape(self._typed_in.get(_CONFIG, "")))
         if self._read is not None and not self._hosts and not self._wrong:
-            return f"{escape(self._read)} contains no hosts to import"
+            return t("It names no host.")
         return ""
 
     def done_about(self) -> str:
         """What answering it does: which hosts it saves."""
         on = [one.alias for one in self._hosts if self._on(one.alias)]
         if not on:
-            return "imports nothing until a host is selected"
+            return t("imports nothing until a host is ticked")
         # Three by name, which a row has room for, and a count past that.
         return (
-            f"imports {', '.join(on)}"
+            t("imports the hosts {hosts}", hosts=", ".join(on))
             if len(on) <= 3  # noqa: PLR2004
-            else f"imports {len(on)} hosts"
+            else t("imports {n} hosts", n=len(on))
         )
 
     def edited(self) -> None:
@@ -9723,11 +10340,13 @@ class Importing(Form[Imported]):
 
     def _ask(self) -> None:
         """Says what an import is, puts the form up, and reads the config."""
-        self.query_one("#asked", Label).update("Import ssh hosts")
+        self.query_one("#asked", Label).update(t("Import SSH hosts"))
         self.query_one("#about", Label).update(
-            "Hosts from an ssh config, as read by ssh. Each is saved under its "
-            "Host name and continues reading the config, which is never "
-            "modified."
+            t(
+                "Hosts of an ssh config, as ssh reads it. Each is "
+                "saved under its Host name and goes on being read "
+                "from the config, which is never written."
+            )
         )
         self._fill()
         self._reads()
@@ -9765,9 +10384,9 @@ class Importing(Form[Imported]):
     def action_done(self) -> None:
         """Answers with the hosts switched on, once there are any."""
         if self._reading:
-            self._wrong = "the config is still being read"
+            self._wrong = t("Reading SSH config…")
         elif not any(self._on(one.alias) for one in self._hosts):
-            self._wrong = "select at least one host to import"
+            self._wrong = t("Pick a host of your SSH config.")
         if self._wrong:
             self._fill()
             return
@@ -9809,19 +10428,22 @@ class Machine(Picks):
     def rows(self) -> list[tuple[str, str, str]]:
         """Correcting it, and checking it."""
         return [
-            (_CORRECTS, "edit", "edit saved settings"),
+            (_CORRECTS, t("Edit"), t("changes what is saved of the runtime")),
             (
                 _CHECKS,
-                "check",
-                "check host resources: home directory, CPUs, memory, and GPUs"
+                t("Check"),
+                t(
+                    "asks an ssh host what it has: its home directory, "
+                    "CPUs, memory and GPUs"
+                )
                 if self._one.backend == _SSH
-                else "check the swarm's nodes against its quota"
+                else t("checks a swarm's nodes against its quota")
                 if self._one.backend == _DOCKER_SWARM
-                else "check this Mac's resources against its limits"
+                else t("checks this Mac's resources against its limits")
                 if self._one.backend == _APPLE
-                else "check the partition's nodes against its quota"
+                else t("checks the nodes of a Slurm partition against its quota")
                 if self._one.backend == _SLURM
-                else "check daemon resources against its limits",
+                else t("checks a docker daemon's resources against its limits"),
             ),
         ]
 
@@ -9830,8 +10452,8 @@ class Machine(Picks):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "remove this host immediately",
+                t("Remove"),
+                t("removes this runtime at once"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -9862,22 +10484,18 @@ class Hosts(Picks):
         self._backend = backend
         self._unsaved = unsaved
         self._said = ""
-        self.adds = _KINDS.get(backend, "")
-        self.asked = {
-            _SSH: "Select the ssh host to use",
-            _DOCKER: "Select the docker host to use",
-            _DOCKER_SWARM: "Select the docker swarm to use",
-            _APPLE: "Select the host for Apple containers to use",
-            _SLURM: "Select the Slurm cluster to use",
-        }.get(backend, f"Select the {backend} host to use")
-        self.about = (
-            "Saved on the runtimes page of /settings; any host you add here is "
-            "saved there."
+        self.adds = t("Add runtime") if backend in _KINDS else ""
+        self.asked = t(
+            "Choose {what}", what=t(_KINDS[backend]) if backend in _KINDS else backend
+        )
+        self.about = t(
+            "Saved on the Runtimes page of /settings; a "
+            "runtime added here is saved there."
         )
 
     def crumb(self) -> str:
         """What the form a host is added on was opened from."""
-        return "host"
+        return t("Host")
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Every runtime of the backend saved here, each with what reaches it."""
@@ -9894,8 +10512,8 @@ class Hosts(Picks):
                 1 if self.adds else 0,
                 Action(
                     _ACT_UNSAVED,
-                    "name a host…",
-                    "one nobody saved: any host ssh can reach",
+                    t("Other host…"),
+                    t("names a host nobody saved: any host ssh reaches"),
                     self._types,
                 ),
             )
@@ -9905,7 +10523,7 @@ class Hosts(Picks):
         """What came of adding one, or that there is none saved yet."""
         if self._said:
             return self._said
-        return "" if self._rows else f"no {escape(self._backend)} host is saved yet"
+        return "" if self._rows else t("No other runtime yet.")
 
     def added(self) -> None:
         """Adds one, which is then the one chosen."""
@@ -9967,22 +10585,25 @@ class Unsaved(Form[str]):
         return [
             Question(
                 _HOST,
-                "host",
-                "[user@]host[:port], or an alias in your ssh config",
+                t("Host"),
+                t("the host, as [user@]host[:port], or an alias of your ssh config"),
                 needed=not self._typed_in.get(_HOST, "").strip(),
             )
         ]
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "assigns the role to this host without saving it"
+        return t("puts the role on this host without saving it")
 
     def _ask(self) -> None:
         """Says what a host not saved is."""
-        self.query_one("#asked", Label).update("Unsaved ssh host")
+        self.query_one("#asked", Label).update(t("Other host"))
         self.query_one("#about", Label).update(
-            "Connects using your ssh config with no extra settings. To save a "
-            "host with a name, go to the runtimes page of /settings."
+            t(
+                "It is reached with your ssh config and nothing "
+                "more. To save a host under a name, go to the "
+                "Runtimes page of /settings."
+            )
         )
         self._fill()
 
@@ -9990,11 +10611,11 @@ class Unsaved(Form[str]):
         """Answers with the host, once it is one."""
         said = self._typed_in.get(_HOST, "").strip()
         if not said:
-            self._wrong = "host is required"
+            self._wrong = t("Say the host.")
         elif re.search(r"[\s/\[\]]", said):
-            self._wrong = (
-                f"{said!r} is not a valid host: cannot contain spaces, slashes or "
-                "brackets"
+            self._wrong = t(
+                "{said} is not a host; one has no spaces, slashes or brackets.",
+                said=repr(said),
             )
         if self._wrong:
             self._fill()
@@ -10046,21 +10667,21 @@ _BACKEND, _PROVIDER, _SPELLED = "backend", "provider", "spelled"
 
 #: What each backend is, said beside its row and beside it on the list it is picked from.
 _BACKENDS_ABOUT = {
-    "local": "this machine",
-    _SSH: "a machine reached over ssh",
-    _DOCKER: "a container on a docker daemon",
-    _DOCKER_SWARM: "a container on whichever node of a docker swarm has room",
-    _APPLE: "an Apple container on this Mac",
-    _SLURM: "a job on whichever node of a Slurm partition has room",
+    "local": t("this machine"),
+    _SSH: t("a machine reached over ssh"),
+    _DOCKER: t("a container on a docker daemon"),
+    _DOCKER_SWARM: t("a container on whichever node of a docker swarm has room"),
+    _APPLE: t("an Apple container on this Mac"),
+    _SLURM: t("a job on whichever node of a Slurm partition has room"),
 }
 
 #: What the machine is called on the row it is chosen on.
 _ON_ROW = {
-    _SSH: "host",
-    _DOCKER: "daemon",
-    _DOCKER_SWARM: "swarm",
-    _APPLE: "host",
-    _SLURM: "cluster",
+    _SSH: t("Host"),
+    _DOCKER: t("Daemon"),
+    _DOCKER_SWARM: t("Docker swarm"),
+    _APPLE: t("Host"),
+    _SLURM: t("Slurm cluster"),
 }
 
 
@@ -10174,8 +10795,10 @@ class Placing(Form[str]):
         rows = [
             Question(
                 _BACKEND,
-                "backend",
-                _BACKENDS_ABOUT.get(backend, "where the environment runs"),
+                t("Backend"),
+                t(_BACKENDS_ABOUT[backend])
+                if backend in _BACKENDS_ABOUT
+                else t("where the environment runs"),
                 _STEPS,
             )
         ]
@@ -10186,16 +10809,21 @@ class Placing(Form[str]):
             rows.append(
                 Question(
                     _PROVIDER,
-                    _ON_ROW.get(backend, "provider"),
+                    t(_ON_ROW[backend]) if backend in _ON_ROW else t("Runtime"),
                     _machine_line(found)
                     if found is not None
-                    else "not saved: connects via ssh as entered"
+                    else t(
+                        "a host that is not saved: reached with ssh as it is written"
+                    )
                     if provider and backend == _SSH
-                    else "not saved in settings"
+                    else t("Not saved")
                     if provider
-                    else "choose a saved host, or add one"
+                    else t("pick a saved host, or add one")
                     if backend == _SSH
-                    else f"none: {backend} on this machine, or choose a saved one",
+                    else t(
+                        "none named: {backend} on this machine, or pick a saved one",
+                        backend=backend,
+                    ),
                     _OPENS_ONTO if backend in _KINDS else _WRITES,
                     needed=not provider and backend == _SSH,
                 )
@@ -10203,12 +10831,15 @@ class Placing(Form[str]):
         rows.append(
             Question(
                 _WORKDIR,
-                "workdir",
-                "absolute path on this machine"
+                t("Workdir"),
+                t("Directory on this computer")
                 if backend == self._local or (backend == _APPLE and not saved)
-                else f"leave blank to use saved default: {saved}"
+                else t(
+                    "blank for the working directory saved with the runtime: {saved}",
+                    saved=saved,
+                )
                 if saved
-                else "remote working directory: /path or ~/path under home",
+                else t("the working directory there: /path, or ~/path under home"),
                 needed=not typed.get(_WORKDIR, "").strip() and not saved,
                 # Finished only where it is a directory here: one on another machine is
                 # one this machine's disk says nothing about.
@@ -10216,7 +10847,11 @@ class Placing(Form[str]):
             )
         )
         rows.append(
-            Question(_SPELLED, "as -e", "full -e spec: typing one sets the rows above")
+            Question(
+                _SPELLED,
+                t("As -e"),
+                t("the whole of what -e takes; writing one sets the rows above"),
+            )
         )
         return rows
 
@@ -10235,7 +10870,7 @@ class Placing(Form[str]):
           A few words.
         """
         del held
-        return _BACKENDS_ABOUT.get(value, "")
+        return _worded(_BACKENDS_ABOUT.get(value, ""))
 
     def stepped(self, held: str) -> None:
         """Lets go of the machine and the directory, which were the last backend's.
@@ -10335,16 +10970,25 @@ class Placing(Form[str]):
         """What answering it does: holds where the role is until the flow is saved."""
         spec = self._typed_in.get(_SPELLED, "").strip()
         if not spec:
-            return f"leaves {self._role} unset"
-        return f"sets {self._role} to {spec} when the flow is saved"
+            return t("leaves the role {role} with no environment", role=self._role)
+        return t(
+            "puts the role {role} on {spec} once the flow is saved",
+            role=self._role,
+            spec=spec,
+        )
 
     def _ask(self) -> None:
         """Says which role this is, and lands on the first thing still to be answered."""
-        self.query_one("#asked", Label).update(escape(f"Environment for {self._role}"))
+        self.query_one("#asked", Label).update(
+            escape(t("Runtime for {role}", role=self._role))
+        )
         self.query_one("#about", Label).update(
-            "The machine and working directory for this environment role. "
-            "Choosing a machine saved on the runtimes page of /settings by "
-            "name includes its saved working directory."
+            t(
+                "The machine and working directory of this "
+                "environment role. A runtime saved on the Runtimes "
+                "page of /settings, picked by its name, brings the "
+                "working directory saved with it."
+            )
         )
         self._fill()
         first = next((at for at, one in enumerate(self._now or []) if one.needed), None)
@@ -10365,15 +11009,17 @@ class Placing(Form[str]):
         ):
             # `-e` reads what follows `local` from its slash, so a relative one would be
             # spelled as one under the root rather than refused.
-            self._wrong = f"{workdir!r} is not an absolute path on this machine"
+            self._wrong = t(
+                "{path} is not an absolute path on this machine.", path=repr(workdir)
+            )
         elif not spec and any(
             typed.get(one, "").strip() for one in (_PROVIDER, _WORKDIR)
         ):
             missing = next((one for one in self.asked() if one.needed), None)
             self._wrong = (
-                f"fill in the {missing.named} as well"
+                t("{what} still has to be filled in.", what=missing.named)
                 if missing
-                else "specify an environment"
+                else t("No environment is written yet.")
             )
         elif spec:
             self._wrong = placed(self._role, spec)
@@ -10402,13 +11048,14 @@ class Machines(Pages):
     """
 
     #: What the page says it is.
-    MACHINES_ABOUT = (
-        "Saved ssh hosts, docker daemons with the resources each may hand "
-        "out, docker swarms with what their tasks may reserve, this Mac's "
-        "Apple containers, and Slurm clusters with what their jobs are "
-        "submitted under, used by name as flow environments in -e "
-        "and /flow. "
-        "Changes take effect immediately."
+    MACHINES_ABOUT = t(
+        "Saved ssh hosts, docker daemons with the "
+        "resources each may hand out, docker swarms with "
+        "what their tasks may reserve, this Mac's Apple "
+        "containers, and Slurm clusters with what their "
+        "jobs are submitted under, named as flow "
+        "environments by -e and /flow. A change takes "
+        "effect at once."
     )
 
     def __init__(self) -> None:
@@ -10437,15 +11084,17 @@ class Machines(Pages):
         return [
             Action(
                 _ACT_ADD,
-                "add a runtime…",
-                "an ssh host, a docker host, a docker swarm, Apple containers or a "
-                "Slurm cluster",
+                t("Add runtime…"),
+                t(
+                    "adds an ssh host, a docker daemon, a docker "
+                    "swarm, Apple containers or a Slurm cluster"
+                ),
                 self._picks_kind,
             ),
             Action(
                 _ACT_IMPORTS,
-                f"import {_OWN_CONFIG}",
-                "hosts from this or another config file",
+                t("Read SSH config"),
+                t("Import hosts from your SSH config as runtimes."),
                 self._imports_hosts,
             ),
             self._searches(),
@@ -10470,7 +11119,7 @@ class Machines(Pages):
                     rows.append(Option("", disabled=True))
                 group = one.backend
                 rows.append(Option(f" [$primary]{escape(group)}[/]", disabled=True))
-            about = f"{line}{_DOT}checking…" if keyed in self._checking else line
+            about = line + _DOT + t("Asking…") if keyed in self._checking else line
             rows.append(
                 Option(
                     self._row(
@@ -10482,14 +11131,12 @@ class Machines(Pages):
         self._put(listing, rows, landing)
         self._drawn = listing.highlighted
         said = self._said or (
-            ""
-            if self._saved_machines
-            else "no machines saved yet; a role can still name one directly"
+            "" if self._saved_machines else t("No other runtime yet.")
         )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        self._footed(Key("enter", t("Open")), Key("esc", t("Close")))
 
     def _took_machine(self, named: str) -> None:
         """Opens what there is to do with the runtime chosen.
@@ -10543,7 +11190,12 @@ class Machines(Pages):
         button = self.query_one(f"#act-{_ACT_ADD}")
         try:
             picked = await showing.push_screen_wait(
-                Dropdown("add a runtime", _ADDING, "", at=button.region.offset)
+                Dropdown(
+                    t("Add runtime"),
+                    [Value(one.value, t(one.label), t(one.about)) for one in _ADDING],
+                    "",
+                    at=button.region.offset,
+                )
             )
         finally:
             self.opened()
@@ -10573,8 +11225,13 @@ class Machines(Pages):
                 self._fill()
             return
         self._told.append(
-            f"[dim]{escape(self._machine_key(one))} saved to "
-            f"{escape(str(one.at))}[/dim]"
+            "[dim]"
+            + t(
+                "{name} saved to {path}",
+                name=escape(self._machine_key(one)),
+                path=escape(str(one.at)),
+            )
+            + "[/dim]"
         )
         self._read_machines()
         self._aim = self._machine_key(one)
@@ -10611,7 +11268,11 @@ class Machines(Pages):
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._told.append(f"[dim]{escape(self._machine_key(fixed))} updated[/dim]")
+        self._told.append(
+            "[dim]"
+            + t("{name} updated", name=escape(self._machine_key(fixed)))
+            + "[/dim]"
+        )
         self._read_machines()
         self._aim = self._machine_key(fixed)
         self._checks(fixed)
@@ -10629,12 +11290,12 @@ class Machines(Pages):
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._told.append(f"[dim]{escape(keyed)} removed[/dim]")
-        self._said = f"{escape(keyed)} removed"
+        self._told.append("[dim]" + t("{name} removed", name=escape(keyed)) + "[/dim]")
+        self._said = t("{name} removed", name=escape(keyed))
         # A docker daemon reached through the host that went is reached through nothing, and
         # so is a swarm whose manager was, or one of whose nodes was.
         if one.backend == _SSH:
-            for backend, what in ((_DOCKER, "docker"), (_DOCKER_SWARM, "a swarm")):
+            for backend in (_DOCKER, _DOCKER_SWARM):
                 stranded = [
                     each.name
                     for each in self._saved_machines
@@ -10643,8 +11304,11 @@ class Machines(Pages):
                 if stranded:
                     self._said += "\n" + iffy(
                         escape(
-                            f"{', '.join(stranded)} reached {what} through this host; "
-                            "edit them"
+                            t(
+                                "{names} reached their daemon through this host; "
+                                "edit them",
+                                names=", ".join(stranded),
+                            )
                         )
                     )
         self._was = ""
@@ -10687,12 +11351,22 @@ class Machines(Pages):
         whence = _config_named(chosen.config or "")
         if made:
             self._told.append(
-                f"[dim]{escape(names)} imported from {escape(whence)}[/dim]"
+                "[dim]"
+                + t(
+                    "{names} imported from {config}",
+                    names=escape(names),
+                    config=escape(whence),
+                )
+                + "[/dim]"
             )
-        said = f"imported {names or 'nothing'} from {whence}"
+        said = (
+            t("{names} imported from {config}", names=names, config=whence)
+            if made
+            else t("nothing imported from {config}", config=whence)
+        )
         if chosen.left:
-            said += f"; left {', '.join(chosen.left)}"
-        self._said = escape(f"{said}. Open a host to check it.")
+            said += "; " + t("left {names}", names=", ".join(chosen.left))
+        self._said = escape(said + _DOT + t("open a host to check it"))
         self._read_machines()
         if made:
             self._aim = self._machine_key(made[0])
@@ -10713,7 +11387,7 @@ class Machines(Pages):
         # This one's own, so that the answer to one asked before it was corrected is not
         # taken for the answer to what it is now: the last asked is the one said.
         turn = self._checking[keyed] = object()
-        self._tell(_MACHINES, f"checking {escape(keyed)}…")
+        self._tell(_MACHINES, t("checking {name}…", name=escape(keyed)))
         self._fill()
         said = await _checked(one)
         if self._checking.get(keyed) is not turn:
@@ -10729,10 +11403,10 @@ class Machines(Pages):
 #: The modes a daemon is added or edited in: its pairing code, claimed at once; a `Host` of the
 #: ssh config; what `ssh` is told, typed in; or its routes, typed in order.
 _PAIRED, _SSH_CONFIG, _STORED, _ROUTED = (
-    "Pairing code",
-    "SSH Config",
-    "Custom",
-    "Routes",
+    "pair",
+    "ssh-config",
+    "custom",
+    "routes",
 )
 _MODES = (_PAIRED, _SSH_CONFIG, _STORED, _ROUTED)
 
@@ -10833,21 +11507,24 @@ class Daemoning(Form["dict[str, Any] | str"]):
                 else (
                     Question(
                         _CALLED,
-                        "name",
-                        "what /epics @<name> calls it",
+                        t("Name"),
+                        t(
+                            "what the daemon is called, which /epics @<name> "
+                            "lists its epics by"
+                        ),
                         needed=not typed[_CALLED].strip(),
                     ),
                 )
             ),
-            Question(_MODE, "mode", self.means(_MODE, mode), _STEPS),
+            Question(_MODE, t("Mode"), self.means(_MODE, mode), _STEPS),
         ]
         if mode == _PAIRED:
             return [
                 *rows,
                 Question(
                     _CODE,
-                    "code",
-                    "hmz-pair:…, as hmz devices pair printed it there",
+                    t("Pairing code"),
+                    t("Starts with hmz-pair: and is made on the other machine."),
                     needed=not typed[_CODE].strip(),
                 ),
             ]
@@ -10856,8 +11533,8 @@ class Daemoning(Form["dict[str, Any] | str"]):
                 *rows,
                 Question(
                     _ALIAS,
-                    "host",
-                    "a Host of your ssh config",
+                    t("Host"),
+                    t("A host in your SSH config"),
                     _STEPS,
                     needed=not typed[_ALIAS],
                 ),
@@ -10867,8 +11544,11 @@ class Daemoning(Form["dict[str, Any] | str"]):
                 *rows,
                 Question(
                     _ROUTES,
-                    "routes",
-                    "in the order tried: stdio:ssh://host, tcp://host:port, …",
+                    t("Routes"),
+                    t(
+                        "Tried in this order, each as tcp://host:port, "
+                        "relay:wss://…, webrtc:wss://… or another route."
+                    ),
                     needed=not typed[_ROUTES].strip(),
                 ),
             ]
@@ -10876,23 +11556,35 @@ class Daemoning(Form["dict[str, Any] | str"]):
             *rows,
             Question(
                 _BRINGS,
-                "import",
-                f"reading {escape(self._bringing)}…"
+                t("Import"),
+                t("Reading {name}…", name=escape(self._bringing))
                 if self._bringing
-                else "fills these from a host of your ssh config",
+                else t("fills the rows below from a host of your ssh config"),
                 _STEPS,
             ),
             Question(
                 _HOST,
-                "host",
-                "hostname or IP address",
+                t("Host"),
+                t("a hostname or an IP address"),
                 needed=not typed[_HOST].strip(),
             ),
-            Question(_USER, "user", "username; leave blank to use your ssh config"),
-            Question(_PORT, "port", "leave blank to use your ssh config, or 22"),
-            Question(_KEY, "identity file", "path to private key", path=True),
-            Question(_JUMP, "proxy jump", "jump host to connect through, if any"),
-            Question(_OPTIONS, "options", "additional ssh options: KEYWORD=VALUE, …"),
+            Question(
+                _USER,
+                t("User"),
+                t("the user to sign in as; blank for what your ssh config says"),
+            ),
+            Question(
+                _PORT,
+                t("Port"),
+                t("the port; blank for what your ssh config says, or 22"),
+            ),
+            Question(
+                _KEY, t("Identity file"), t("the path of the private key"), path=True
+            ),
+            Question(_JUMP, t("Proxy jump"), t("the host to jump through, if any")),
+            Question(
+                _OPTIONS, t("SSH options"), t("more ssh options, as KEYWORD=VALUE, …")
+            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -10903,15 +11595,36 @@ class Daemoning(Form["dict[str, Any] | str"]):
             return self._read_hosts()
         return ()
 
+    def worded(self, held: str, value: str) -> str:
+        """What a way of adding a daemon is called on its row.
+
+        Args:
+          held: The row.
+          value: The value, as it is kept.
+
+        Returns:
+          The mode in the page's words, and anything else as it is.
+        """
+        if held != _MODE:
+            return value
+        return {
+            _PAIRED: t("Pairing code"),
+            _SSH_CONFIG: t("SSH config"),
+            _STORED: t("Custom"),
+            _ROUTED: t("Routes"),
+        }.get(value, value)
+
     def means(self, held: str, value: str) -> str:
         """What each mode is, on the list it is picked from."""
         if held != _MODE:
             return ""
         return {
-            _PAIRED: "the code hmz devices pair printed there, claimed now",
-            _SSH_CONFIG: "a Host of your ssh config, reached as it says",
-            _STORED: "what ssh is told: typed in, or imported",
-            _ROUTED: "its routes, in the order they are tried",
+            _PAIRED: t(
+                "the code hmz devices pair printed on the other machine, claimed now"
+            ),
+            _SSH_CONFIG: t("a Host of your ssh config, reached as the config says"),
+            _STORED: t("what ssh is told a part at a time: typed in, or imported"),
+            _ROUTED: t("the daemon's routes, in the order they are tried"),
         }[value]
 
     def _read_hosts(self) -> list[str]:
@@ -10971,8 +11684,8 @@ class Daemoning(Form["dict[str, Any] | str"]):
         return [
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "removes this daemon",
+                t("Remove"),
+                t("removes this daemon"),
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -10980,17 +11693,19 @@ class Daemoning(Form["dict[str, Any] | str"]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "saves this daemon"
+        return t("saves this daemon")
 
     def _ask(self) -> None:
         """Says which daemon this is, and what one is."""
         self.query_one("#asked", Label).update(
-            "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
+            t("New daemon") if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, added from the code hmz devices pair prints "
-            "there, or "
-            "from its routes: its epics are listed with /epics @<name>."
+            t(
+                "Another machine's hmz, added by the code hmz "
+                "devices pair prints there, or by its routes. Its "
+                "epics are listed with /epics @<name>."
+            )
         )
         self._fill()
 
@@ -11008,17 +11723,23 @@ class Daemoning(Form["dict[str, Any] | str"]):
         mode = typed[_MODE]
         if mode == _SSH_CONFIG:
             if not typed[_ALIAS]:
-                raise ValueError("host is required")
+                raise ValueError(t("Say the host."))
             return [str(Route("ssh", host=typed[_ALIAS]))]
         if mode == _ROUTED:
             said = _listed(typed[_ROUTES])
             if not said:
-                raise ValueError("routes are required")
+                raise ValueError(t("A daemon needs at least one route."))
             return [str(Route.parse(one)) for one in said]
         if not typed[_HOST]:
-            raise ValueError("host is required")
+            raise ValueError(t("Say the host."))
         if typed[_PORT] and not typed[_PORT].isdigit():
-            raise ValueError("port is a number")
+            raise ValueError(
+                t(
+                    "{what}: {value}",
+                    what=t("Port"),
+                    value=t("This needs a whole number."),
+                )
+            )
         options = {
             keyword: typed[held] for keyword, held in _KEYED.items() if typed[held]
         } | _options(typed[_OPTIONS])
@@ -11041,12 +11762,14 @@ class Daemoning(Form["dict[str, Any] | str"]):
         self._wrong = ""
         routes: list[str] = []
         if not name:
-            self._wrong = "name is required"
+            self._wrong = t("A name is needed.")
         elif self._one is None and name in self._taken:
-            self._wrong = f"another daemon is named {name}"
+            self._wrong = t("There is already a daemon {name}.", name=name)
         elif typed[_MODE] == _PAIRED:
             if not typed[_CODE]:
-                self._wrong = "code is required"
+                self._wrong = t(
+                    "{what} still has to be filled in.", what=t("Pairing code")
+                )
         else:
             try:
                 routes = self._routes(typed)
@@ -11078,7 +11801,7 @@ class Bringing(Form[tuple[str, ...]]):
     def asked(self) -> list[Question]:
         """A switch per host."""
         return [
-            Question(alias, alias, f"as {one['name']}", _STEPS)
+            Question(alias, alias, t("as {name}", name=one["name"]), _STEPS)
             for alias, one in self._offered.items()
         ]
 
@@ -11089,14 +11812,16 @@ class Bringing(Form[tuple[str, ...]]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "adds each host switched on as a daemon"
+        return t("adds each host switched on as a daemon")
 
     def _ask(self) -> None:
         """Says what this is for."""
-        self.query_one("#asked", Label).update("Import daemons")
+        self.query_one("#asked", Label).update(t("Import daemons"))
         self.query_one("#about", Label).update(
-            "Hosts of your ssh config, each reached as its Host says. Your ssh config "
-            "is never written."
+            t(
+                "Hosts of your ssh config, each reached as its "
+                "Host says. Your ssh config is never written."
+            )
         )
         self._fill()
 
@@ -11137,11 +11862,11 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
         """A switch per page, then one per daemon."""
         return [
             *(
-                Question(f"{_PAGE_ROW}{one}", one, "carried", _STEPS)
+                Question(f"{_PAGE_ROW}{one}", one, t("carried"), _STEPS)
                 for one in self._pages
             ),
             *(
-                Question(f"{_DAEMON_ROW}{one}", one, "written to", _STEPS)
+                Question(f"{_DAEMON_ROW}{one}", one, t("written to"), _STEPS)
                 for one in self._daemons
             ),
         ]
@@ -11153,15 +11878,17 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "writes the pages switched on to each daemon switched on"
+        return t("writes the pages switched on to each daemon switched on")
 
     def _ask(self) -> None:
         """Says what this is for."""
-        self.query_one("#asked", Label).update("Batch apply")
+        self.query_one("#asked", Label).update(t("Batch apply"))
         self.query_one("#about", Label).update(
-            "This machine's settings, written to other daemons as each of their "
-            "pages saves "
-            "them. Accounts stay put: only a secret sets them."
+            t(
+                "This machine's settings, written to other daemons "
+                "as each of their pages saves them. Accounts stay "
+                "put: only a secret sets them."
+            )
         )
         self._fill()
 
@@ -11175,7 +11902,7 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
             one.removeprefix(_DAEMON_ROW) for one in on if one.startswith(_DAEMON_ROW)
         )
         if not pages or not daemons:
-            self._wrong = "switch on a page and a daemon"
+            self._wrong = t("Nothing to write yet; switch on a page and a daemon.")
             self._fill()
             return
         self.dismiss((pages, daemons))
@@ -11188,7 +11915,7 @@ _CONNECTS, _EDITS, _PAIRS, _DEVICES = "connect", "edit", "pair", "devices"
 class Devices(Picks):
     """The devices paired with one daemon, picking one to revoke."""
 
-    asked = "Devices"
+    asked = t("Devices")
     SEARCHES: ClassVar = False
 
     def __init__(self, daemon: str, devices: Sequence[Mapping[str, Any]]) -> None:
@@ -11200,7 +11927,10 @@ class Devices(Picks):
         """
         super().__init__()
         self._devices = list(devices)
-        self.about = f"Each device paired with {escape(daemon)}: enter revokes one."
+        self.about = t(
+            "Each device paired with the daemon {daemon}. Enter revokes one.",
+            daemon=escape(daemon),
+        )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Each device: when it was added, last seen, and how many sessions it holds."""
@@ -11210,11 +11940,11 @@ class Devices(Picks):
                 str(one["name"]),
                 _DOT.join(
                     [
-                        f"added {_when(str(one.get('added') or ''))}",
-                        f"seen {_when(str(one.get('seen') or ''))}"
+                        t("added {when}", when=_when(str(one.get("added") or ""))),
+                        t("seen {when}", when=_when(str(one.get("seen") or "")))
                         if one.get("seen")
-                        else "never seen",
-                        _many(int(one.get("live") or 0), "session"),
+                        else t("never seen"),
+                        t("{n} live", n=int(one.get("live") or 0)),
                     ]
                 ),
             )
@@ -11223,7 +11953,7 @@ class Devices(Picks):
 
     def nothing(self) -> str:
         """Where there is none."""
-        return "" if self._devices else "no device is paired with it"
+        return "" if self._devices else t("No device paired yet.")
 
 
 class Revokes(Popup):
@@ -11238,12 +11968,18 @@ class Revokes(Popup):
           device: The device.
         """
         super().__init__()
-        self.asked = f"Revoke {escape(device)}?"
-        self.about = "Closes its sessions there; it pairs again only with a new code."
+        self.asked = t("Revoke {name}?", name=escape(device))
+        self.about = t(
+            "Revoking a device closes its sessions there; it "
+            "pairs again only with a new code."
+        )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Revoking it, or keeping it."""
-        return [("yes", "revoke", "revoke it now"), ("no", "keep", "keep it")]
+        return [
+            ("yes", t("Revoke"), t("revokes the device now")),
+            ("no", t("Cancel"), t("keeps the device")),
+        ]
 
 
 def _rpc(
@@ -11287,7 +12023,7 @@ def _rpc(
     except RpcError as why:
         raise OSError(why.message) from why
     except Closed as why:
-        raise OSError("the daemon went away") from why
+        raise OSError(t("This machine's daemon went away while it was asked.")) from why
     finally:
         peer.close()
 
@@ -11301,9 +12037,10 @@ class Daemons(Pages):
     """
 
     #: What the page says it is.
-    DAEMONS_ABOUT = (
-        "This machine's daemon, and other machines' reached by their routes. "
-        "/epics @<name> lists the epics of one; m on one is its menu."
+    DAEMONS_ABOUT = t(
+        "This machine's daemon, and other machines' "
+        "reached by their routes. /epics @<name> lists the "
+        "epics of one; m on one is its menu."
     )
 
     def __init__(self) -> None:
@@ -11331,7 +12068,7 @@ class Daemons(Pages):
         """Each daemon's row, Local first: its routes, and how it stands."""
         reach = remotes()
         return [
-            "this machine",
+            t("this machine"),
             *(
                 f"{', '.join(one['routes'])}{_DOT}{_stands(reach.state(one['name']))}"
                 for one in self._daemons
@@ -11343,20 +12080,20 @@ class Daemons(Pages):
         return [
             Action(
                 _ACT_ADD,
-                "add daemon",
-                "another machine, from its pairing code or its routes",
+                t("New daemon"),
+                t("adds another machine, by its pairing code or its routes"),
                 lambda: self._writes_daemon(None),
             ),
             Action(
                 _ACT_IMPORTS,
-                "import…",
-                "hosts of your ssh config",
+                t("Import…"),
+                t("adds hosts of your ssh config as daemons"),
                 self._brings_daemons,
             ),
             Action(
                 _ACT_BATCH,
-                "batch apply…",
-                "this machine's settings, written to other daemons",
+                t("Batch apply…"),
+                t("writes this machine's settings to other daemons"),
                 self._batches,
                 lambda: bool(self._daemons),
             ),
@@ -11384,7 +12121,7 @@ class Daemons(Pages):
             return
         pages, daemons = chosen
         sent = _hmz().carried(pages)
-        self._said = f"applying to {', '.join(daemons)}…"
+        self._said = t("applying to {daemons}…", daemons=", ".join(daemons))
         self._fill()
 
         def applies(name: str) -> str:
@@ -11393,7 +12130,7 @@ class Daemons(Pages):
                     _rpc(name, method, params, writes=True)
             except (LookupError, OSError, RuntimeError, ValueError) as why:
                 return f"{name}: {why}"
-            return f"{name}: applied"
+            return t("{what}: {value}", what=name, value=t("Applied"))
 
         said = await asyncio.gather(
             *(asyncio.to_thread(applies, one) for one in daemons)
@@ -11421,7 +12158,13 @@ class Daemons(Pages):
             listing,
             [
                 Option(
-                    self._row(seen, name, about, here=name == landing, inforce=False),
+                    self._row(
+                        seen,
+                        t("Local") if name == "Local" else name,
+                        about,
+                        here=name == landing,
+                        inforce=False,
+                    ),
                     id=f"={name}",
                 )
                 for seen, (name, about) in enumerate(rows)
@@ -11430,12 +12173,14 @@ class Daemons(Pages):
         )
         self._drawn = listing.highlighted
         said = self._said or (
-            "" if self._daemons else "no other daemons yet: add one, or import some"
+            ""
+            if self._daemons
+            else t("Only Local so far. Add another machine under New daemon.")
         )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "menu"), Key("esc", "close"))
+        self._footed(Key("enter", t("Menu")), Key("esc", t("Close")))
 
     def menu(self) -> tuple[str, list[Action]] | None:
         """What can be done to the daemon under the cursor: to Local, only its devices."""
@@ -11443,7 +12188,7 @@ class Daemons(Pages):
             return None
         under = self.under()
         if under == "Local":
-            return ("Local", self._pairing(LOCAL_DAEMON))
+            return (t("Local"), self._pairing(LOCAL_DAEMON))
         one = next((one for one in self._daemons if one["name"] == under), None)
         if one is None:
             return None
@@ -11453,23 +12198,26 @@ class Daemons(Pages):
             [
                 Action(
                     _CONNECTS,
-                    "connect",
-                    "reach it now, installing hmz there where it must",
+                    t("Connect"),
+                    t("reaches the daemon now, installing hmz there where it has to"),
                     lambda: self._connects(name),
                 ),
                 Action(
-                    _EDITS, "edit…", "what reaches it", lambda: self._writes_daemon(one)
+                    _EDITS,
+                    t("Edit"),
+                    t("changes what reaches the daemon"),
+                    lambda: self._writes_daemon(one),
                 ),
                 Action(
                     _ACT_REMOVE,
-                    "remove",
-                    "take it away",
+                    t("Remove"),
+                    t("removes this daemon"),
                     lambda: self._removes_daemon(name),
                     variant="error",
                 ),
                 Action(
                     _COPY_NAME,
-                    "copy name",
+                    t("Copy name"),
                     name,
                     lambda: self.copies(name),
                 ),
@@ -11486,14 +12234,14 @@ class Daemons(Pages):
         return [
             Action(
                 _PAIRS,
-                "pair a device…",
-                "a code another device adds it from",
+                t("Pair a device"),
+                t("makes a code another device adds the daemon from, and copies it"),
                 lambda: self._pairs(name),
             ),
             Action(
                 _DEVICES,
-                "devices…",
-                "the devices paired with it, and revoking one",
+                t("Devices"),
+                t("lists the devices paired with the daemon, where one is revoked"),
                 lambda: self._lists_devices(name),
             ),
         ]
@@ -11523,7 +12271,7 @@ class Daemons(Pages):
         """Asks a daemon for a pairing code, and shows it, copied."""
         import asyncio
 
-        self._said = f"asking {escape(name)} for a code…"
+        self._said = t("asking {name} for a code…", name=escape(name))
         self._fill()
         try:
             said = await asyncio.to_thread(_rpc, name, "pair.create", {}, writes=True)
@@ -11532,7 +12280,7 @@ class Daemons(Pages):
         else:
             code = str(said["code"])
             self.copies(code)
-            self._said = f"copied: {escape(code)}"
+            self._said = t("{what}: {value}", what=t("Copied"), value=escape(code))
         self._fill()
 
     @work
@@ -11565,8 +12313,12 @@ class Daemons(Pages):
         except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            self._said = iffy(f"{escape(str(picked))} revoked")
-            self._told.append(f"[dim]device {escape(str(picked))} revoked[/dim]")
+            self._said = iffy(t("{name} revoked", name=escape(str(picked))))
+            self._told.append(
+                "[dim]"
+                + t("device {name} revoked", name=escape(str(picked)))
+                + "[/dim]"
+            )
         self._fill()
 
     def _removes_daemon(self, name: str) -> None:
@@ -11576,8 +12328,10 @@ class Daemons(Pages):
         except (LookupError, OSError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            self._said = iffy(f"{escape(name)} removed")
-            self._told.append(f"[dim]daemon {escape(name)} removed[/dim]")
+            self._said = iffy(t("{name} removed", name=escape(name)))
+            self._told.append(
+                "[dim]" + t("daemon {name} removed", name=escape(name)) + "[/dim]"
+            )
         self._read_daemons_again()
 
     def _read_daemons_again(self) -> None:
@@ -11616,7 +12370,7 @@ class Daemons(Pages):
         name = chosen.pop("name")
         try:
             if "code" in chosen:
-                self._said = f"pairing with {escape(name)}…"
+                self._said = t("pairing with {name}…", name=escape(name))
                 self._fill()
                 await asyncio.to_thread(remotes().pair, name, chosen["code"])
             else:
@@ -11624,8 +12378,10 @@ class Daemons(Pages):
         except (OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            self._aim, self._said = name, f"{escape(name)} saved"
-            self._told.append(f"[dim]daemon {escape(name)} saved[/dim]")
+            self._aim, self._said = name, t("{name} saved", name=escape(name))
+            self._told.append(
+                "[dim]" + t("daemon {name} saved", name=escape(name)) + "[/dim]"
+            )
         self._read_daemons_again()
 
     @work
@@ -11634,11 +12390,13 @@ class Daemons(Pages):
         try:
             offered = _hmz().daemons.offered()
         except OSError as why:
-            self._said = bad(escape(f"the ssh config could not be read: {why}"))
+            self._said = bad(
+                escape(t("The ssh config could not be read: {why}.", why=why))
+            )
             self._fill()
             return
         if not offered:
-            self._said = "every host of your ssh config is added already"
+            self._said = t("every host of your ssh config is a daemon already")
             self._fill()
             return
         if self.opening():
@@ -11658,7 +12416,7 @@ class Daemons(Pages):
         except (LookupError, OSError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            self._said = escape(f"{_many(len(added), 'daemon')} imported")
+            self._said = escape(t("{n} daemons imported", n=len(added)))
             self._told.append(f"[dim]{self._said}[/dim]")
             if added:
                 self._aim = added[0]
@@ -11753,20 +12511,6 @@ class Doing(NamedTuple):
     start: dict[str, Any] | None = None
 
 
-def _many(count: int, thing: str) -> str:
-    """How many of something there were, said as English says it.
-
-    Args:
-      count: How many.
-      thing: What they are, in the singular.
-
-    Returns:
-      The two words -- `1 session`, `3 sessions` -- since a sheet is prose and `1 sessions`
-      is a sheet that reads as a template somebody forgot to finish.
-    """
-    return f"{count} {thing}" if count == 1 else f"{count} {thing}s"
-
-
 def _asked_for(task: str) -> str:
     """What a run was asked to do, as much of it as a row has room for.
 
@@ -11790,7 +12534,7 @@ def _homed(said: str) -> str:
 
 def _ran_in(ran: Ran) -> str:
     """Where one run ran, as a row says it: an older one may not have written it down."""
-    return _homed(ran.workspace) if ran.workspace else "an unknown directory"
+    return _homed(ran.workspace) if ran.workspace else t("an unknown folder")
 
 
 def _figures(ran: Ran) -> list[str]:
@@ -11812,11 +12556,11 @@ def _figures(ran: Ran) -> list[str]:
         for part in (
             ", ".join(one.name or one.agent for one in ran.agents),
             money(float(cost)) if isinstance(cost, (int, float)) else "",
-            f"{thousands(float(tokens))} out"
+            t("{tokens} out", tokens=thousands(float(tokens)))
             if isinstance(tokens, (int, float)) and tokens
             else "",
-            f"took {took}" if took else "",
-            f"backed up to {', '.join(backed)}" if backed else "",
+            t("took {time}", time=took) if took else "",
+            t("backed up to {targets}", targets=", ".join(backed)) if backed else "",
         )
         if part
     ]
@@ -11932,12 +12676,16 @@ class Does(Picks):
         #: somebody copies, and a path wrapped into the middle of a sentence is one that has
         #: to be picked back out of it.
         self.about = (
-            f"{escape(str(ran.at))}\nIt {_how(ran)} with "
-            f"{_many(len(ran.agents), 'agent')} in "
-            f"{_many(len(ran.sessions), 'session')}."
+            f"{escape(str(ran.at))}\n"
+            + _DOT.join(
+                [
+                    _how(ran),
+                    t("{n} agents", n=len(ran.agents)),
+                    t("{n} sessions", n=len(ran.sessions)),
+                ]
+            )
             + "".join(
-                f"\n{escape(name)}: {escape(_backed(said))}"
-                for name, said in ran.backed.items()
+                "\n" + escape(_backed(name, said)) for name, said in ran.backed.items()
             )
         )
 
@@ -11953,32 +12701,42 @@ class Does(Picks):
             held.append(
                 (
                     RESUMES,
-                    "resume epic",
-                    "resume the flow from this epic",
+                    t("Resume epic"),
+                    t("starts the flow again from this epic"),
                 )
             )
         held.append(
-            (_GRAPH, "graph", "its agents, called flows and sessions, read back")
+            (_GRAPH, t("Graph"), t("its agents, called flows and sessions, read back"))
         )
         held.append(
             (
                 _EXPORTS,
-                "export epic",
-                "the entire epic as an archive, with its trace",
+                t("Export"),
+                t("writes the whole epic as one archive, with its trace"),
             )
         )
         # Not for a chat, which is one conversation rather than a flow of them to lay out.
         if not chatting(self._ran):
-            held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
+            held.append(
+                (_EXOMYTH, t("Exomyth"), t("the epic as a timeline of its sessions"))
+            )
         if self._uploads:
             held.append(
-                (_UPLOADS, "upload", "back the epic up to its targets, or the defaults")
+                (
+                    _UPLOADS,
+                    t("Upload"),
+                    t("backs the epic up to its targets, or to the default ones"),
+                )
             )
         held.extend(
             [
-                (_COPY_NAME, "copy name", "what the epic is called"),
-                (_COPY_TASK, "copy task", "what the epic was asked to do"),
-                (_COPY_PATH, "copy path", "where the epic is written down"),
+                (_COPY_NAME, t("Copy name"), t("copies what the epic is called")),
+                (_COPY_TASK, t("Copy task"), t("copies what the epic was asked to do")),
+                (
+                    _COPY_PATH,
+                    t("Copy path"),
+                    t("copies where the epic is written down"),
+                ),
             ]
         )
         return held
@@ -11989,20 +12747,30 @@ class Does(Picks):
             return ""
         if chatting(self._ran):
             # What an earlier hmz kept of a chat, which is read and no more.
-            return "this epic is of a chat an earlier hmz had, and cannot be carried on"
+            return t(
+                "this epic is of a chat an earlier hmz had, and cannot be carried on"
+            )
         if self._foreign:
-            return f"this epic cannot be resumed here: {escape(self._foreign)}"
-        return (
-            f"{escape(self._ran.flow)} is not resumable, so this epic cannot be resumed"
+            return t(
+                "this epic cannot be resumed here: {why}", why=escape(self._foreign)
+            )
+        return t(
+            "the flow {flow} is not resumable, so this epic cannot be resumed",
+            flow=escape(self._ran.flow),
         )
 
 
-def _backed(said: dict[str, Any]) -> str:
+def _backed(name: str, said: dict[str, Any]) -> str:
     """How one epic's last backup to one target went, as a line about it reads."""
     when = _when(str(said.get("at") or ""))
     if said.get("ok"):
-        return f"backed up {when}"
-    return f"failed {when}: {said.get('error') or 'unknown error'}"
+        return t("{name}: uploaded {when}", name=name, when=when)
+    return t(
+        "{name}: failed, {error} {when}",
+        name=name,
+        error=said.get("error") or t("unknown"),
+        when=when,
+    )
 
 
 def _how(ran: Ran) -> str:
@@ -12017,12 +12785,12 @@ def _how(ran: Ran) -> str:
       abandoned where it stood: the machine it was on went, or the interface came down under it.
     """
     if not ran.how and _hmz().epics.going(ran.at):
-        return "is still going"
+        return t("still going")
     return {
-        "done": "finished",
-        "failed": "failed",
-        "stopped": "stopped",
-    }.get(ran.how, "was left unfinished")
+        "done": t("done"),
+        "failed": t("failed"),
+        "stopped": t("stopped"),
+    }.get(ran.how, t("unfinished"))
 
 
 #: The row an export is told where it goes on.
@@ -12087,8 +12855,11 @@ class Exporting(Form[str]):
         return [
             Question(
                 _TO,
-                "to",
-                f"file, or directory to put {BUNDLE.format(epic=self._named)} in",
+                t("To"),
+                t(
+                    "a file, or a folder to put {name} in",
+                    name=BUNDLE.format(epic=self._named),
+                ),
                 needed=not self._typed_in.get(_TO, "").strip(),
                 path=True,
             )
@@ -12096,14 +12867,17 @@ class Exporting(Form[str]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "writes the archive there"
+        return t("writes the archive there")
 
     def _ask(self) -> None:
         """Says what an export is."""
-        self.query_one("#asked", Label).update("Export epic")
+        self.query_one("#asked", Label).update(t("Export epic"))
         self.query_one("#about", Label).update(
-            "The entire epic as one archive, with its trace, to send to somebody "
-            "who was not there. Credentials are struck out of every byte of it."
+            t(
+                "The whole epic as one archive, with its trace, to "
+                "send to somebody who was not there. Credentials "
+                "are struck out of every byte of it."
+            )
         )
         self._fill()
 
@@ -12111,7 +12885,7 @@ class Exporting(Form[str]):
         """Answers with where it goes, once that is somewhere."""
         said = self._typed_in.get(_TO, "").strip()
         if not said:
-            self._wrong = "where to export to is required"
+            self._wrong = t("This needs an answer.")
             self._fill()
             return
         # As it was written rather than as a path: a separator it ends in says a directory
@@ -12144,8 +12918,11 @@ class ImportingEpic(Form[str]):
         return [
             Question(
                 _FILE,
-                "file",
-                f"the {BUNDLE.removeprefix('{epic}')} to import",
+                t("File"),
+                t(
+                    "Only a {suffix} file is imported.",
+                    suffix=BUNDLE.removeprefix("{epic}"),
+                ),
                 needed=not self._typed_in.get(_FILE, "").strip(),
                 path=True,
             )
@@ -12153,13 +12930,13 @@ class ImportingEpic(Form[str]):
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "imports the epic"
+        return t("imports the epic")
 
     def _ask(self) -> None:
         """Says what an import is."""
-        self.query_one("#asked", Label).update("Import epic")
+        self.query_one("#asked", Label).update(t("Import epic"))
         self.query_one("#about", Label).update(
-            "An epic somebody exported, read back in under the directory it ran in."
+            t("An epic somebody exported, read back in under the folder it ran in.")
         )
         self._fill()
 
@@ -12167,7 +12944,7 @@ class ImportingEpic(Form[str]):
         """Answers with the file, once there is one."""
         said = _dropped(self._typed_in.get(_FILE, ""))
         if not said:
-            self._wrong = "the file to import is required"
+            self._wrong = t("This needs an answer.")
             self._fill()
             return
         self.dismiss(said)
@@ -12216,12 +12993,12 @@ def exported(ran: Ran, at: str) -> tuple[Path, int, str]:
     _, document = runs.traced(ran.at, output=ran.at / TRACES / EXPORTED)
     landed, _ = runs.bundled(ran.at, output=at)
     said = document["otherData"]
-    held = f"{_many(_counted(said, 'sessions'), 'session')}, "
-    held += _many(_counted(said, "slices"), "slice")
+    held = t("{n} sessions", n=_counted(said, "sessions")) + ", "
+    held += t("{n} slices", n=_counted(said, "slices"))
     # Only where the run was profiled: a trace that reported nought programs on every run
     # would be one more thing to read past on the traces that are only ever sessions.
     if _counted(said, "programs"):
-        held += f", {_many(_counted(said, 'programs'), 'program')}"
+        held += ", " + t("{n} programs", n=_counted(said, "programs"))
     return landed, landed.stat().st_size, held
 
 
@@ -12244,15 +13021,22 @@ def _counted(said: dict[str, Any], of: str) -> int:
 
 #: What each copy row of an epic copies, and what the line under the list calls it.
 _COPIED: dict[str, Callable[[Ran], tuple[str, str]]] = {
-    _COPY_NAME: lambda ran: (ran.name, "name"),
-    _COPY_TASK: lambda ran: (ran.task, "task"),
-    _COPY_PATH: lambda ran: (str(ran.at), "path"),
+    _COPY_NAME: lambda ran: (ran.name, t("Name copied")),
+    _COPY_TASK: lambda ran: (ran.task, t("Task copied")),
+    _COPY_PATH: lambda ran: (str(ran.at), t("Path copied")),
 }
 
 #: What `/epics` is found by, each a row above its list whose values drop under it: how an
 #: epic went, its flow, and -- of a list of more than one directory -- its directory. Words
 #: without the `=` an epic's row carries, so that no epic is taken for one.
 _BY_HOW, _BY_FLOW, _BY_WORKSPACE = "status", "flow", "workspace"
+
+#: What each is called on its row.
+_BY_SAID = {
+    _BY_HOW: t("State"),
+    _BY_FLOW: t("Flow"),
+    _BY_WORKSPACE: t("Folder"),
+}
 
 #: How many epics one page of `/epics` holds, as a page of the web's list does.
 _PAGE = 50
@@ -12354,7 +13138,7 @@ class Epics(Sheet[Doing]):
 
     def _ask(self) -> None:
         """Says what these are, and puts them up."""
-        self.query_one("#asked", Label).update("Epics")
+        self.query_one("#asked", Label).update(t("Epics"))
         self._fill()
         if self._straight:
             self._goes_straight()
@@ -12436,13 +13220,15 @@ class Epics(Sheet[Doing]):
         return Action(
             _ACT_SCOPE,
             self._other(),
-            f"list the epics of {self._other()}",
+            t("lists the epics of this folder alone")
+            if self._every
+            else t("lists the epics of every folder on this machine"),
             self.action_scope,
         )
 
     def _other(self) -> str:
         """The scope the list turns to, as its button and its key say it."""
-        return "this directory" if self._every else "this machine"
+        return t("This folder") if self._every else t("This machine")
 
     def _ours(self, ran: Ran) -> bool:
         """Whether one run was run in this directory."""
@@ -12455,16 +13241,16 @@ class Epics(Sheet[Doing]):
         mostly runs that finished, and a column saying so of nearly all of them is a column
         that says nothing while taking the room the ones that did not need.
         """
-        said = _asked_for(ran.task) if ran.task else "no task"
+        said = _asked_for(ran.task) if ran.task else t("(no task)")
         if self._every:
             said = f"{_ran_in(ran)}{_DOT}{said}"
-        held = _DOT.join([said, *_figures(ran), _many(len(ran.sessions), "session")])
+        held = _DOT.join([said, *_figures(ran), t("{n} sessions", n=len(ran.sessions))])
         if ran.how != "done":
-            held += f"{_DOT}{_how(ran)}"
+            held += _DOT + _how(ran)
         # Asked of the flow rather than read off the run, for the reason the menu asks it of
         # the flow: a flow is a directory on disk, and one marked resumable since that run is
         # one whose older runs can be picked up now.
-        return f"{held}{_DOT}resumable" if self._carries_on(ran) else held
+        return held + _DOT + t("resumable") if self._carries_on(ran) else held
 
     def crumb(self) -> str:
         """What the sheet a run is gone into on was opened from: the command."""
@@ -12481,8 +13267,8 @@ class Epics(Sheet[Doing]):
             self._scope(),
             Action(
                 _ACT_IMPORTS,
-                "import…",
-                "an epic from a .hmzepic file",
+                t("Import…"),
+                t("imports an epic from a .hmzepic file"),
                 self.action_imports,
             ),
             _switching(self, LOCAL_DAEMON, self._told),
@@ -12490,15 +13276,15 @@ class Epics(Sheet[Doing]):
                 [
                     Action(
                         _ACT_NEWER,
-                        "newer",
-                        "the page of newer epics",
+                        t("Newer"),
+                        t("the page of newer epics"),
                         partial(self._pages, -1),
                         lambda: start > 0,
                     ),
                     Action(
                         _ACT_OLDER,
-                        "older",
-                        "the page of older epics",
+                        t("Older"),
+                        t("the page of older epics"),
                         partial(self._pages, 1),
                         lambda: start + _PAGE < self._total,
                     ),
@@ -12577,10 +13363,10 @@ class Epics(Sheet[Doing]):
         counts = Counter(self._value(one, row) for one in self._ran)
         values = list(ENDINGS) if row == _BY_HOW else sorted(counts)
         return Drop(
-            row,
+            t(_BY_SAID[row]),
             [
-                Value("", "all", str(len(self._ran))),
-                *(Value(one, one, str(counts[one])) for one in values),
+                Value("", t("All"), str(len(self._ran))),
+                *(Value(one, _worded(one), str(counts[one])) for one in values),
             ],
             self._by.get(row, ""),
         )
@@ -12634,9 +13420,17 @@ class Epics(Sheet[Doing]):
     def _fill(self) -> None:
         """Puts the runs up, the first a search found or the one the cursor was on."""
         self.query_one("#about", Label).update(
-            f"Every epic {'on this machine' if self._every else 'in this directory'}, "
-            f"newest first: {'workspace, ' if self._every else ''}task, agents, spend, "
-            "duration, session count, and status."
+            t(
+                "Every epic on this machine, newest first: its "
+                "folder, task, agents, spend, duration, session "
+                "count and status."
+            )
+            if self._every
+            else t(
+                "Every epic in this folder, newest first: its "
+                "task, agents, spend, duration, session count and "
+                "status."
+            )
         )
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
@@ -12663,9 +13457,11 @@ class Epics(Sheet[Doing]):
                 *(
                     Option(
                         self._setting(
-                            row,
+                            t(_BY_SAID[row]),
                             _chip(
-                                self._by.get(row) or "all", _DROPS, here=row == self._on
+                                _worded(self._by.get(row, "")) or t("All"),
+                                _DROPS,
+                                here=row == self._on,
                             ),
                             "",
                             here=row == self._on,
@@ -12707,7 +13503,14 @@ class Epics(Sheet[Doing]):
         said = self._said or (
             self._nothing()
             if not shown
-            else f"{self._from + 1}\N{EN DASH}{self._from + len(page)} of {len(shown)}"
+            else t(
+                "{from}–{to} of {total}",  # noqa: RUF001 -- the page's
+                **{
+                    "from": self._from + 1,
+                    "to": self._from + len(page),
+                    "total": len(shown),
+                },
+            )
             if len(shown) > _PAGE
             else ""
         )
@@ -12715,10 +13518,10 @@ class Epics(Sheet[Doing]):
             f"[$text-muted]{said}[/]" if said else ""
         )
         self._footed(
-            Key("enter", "open"),
+            Key("enter", t("Open")),
             Key("ctrl+t", self._other()),
-            Key("i", "import"),
-            Key("esc", "close"),
+            Key("i", t("Import")),
+            Key("esc", t("Close")),
         )
 
     def leaving(self) -> None:
@@ -12732,12 +13535,12 @@ class Epics(Sheet[Doing]):
     def _nothing(self) -> str:
         """What an empty list says: that it is being read, that nothing found, or nothing ran."""
         if self._reading:
-            return "reading…"
+            return t("Reading…")
         if self._ran:
-            return "no epic is like that"
+            return t("Nothing is like that.")
         if self._every:
-            return "no flow has been run on this machine yet"
-        return "no flow has been run in this directory yet"
+            return t("No epics yet.")
+        return t("No epic here yet.")
 
     async def _exports(self, ran: Ran, to: str) -> None:
         """Gathers one run's trace and packages the whole run up around it, as one archive.
@@ -12755,7 +13558,7 @@ class Epics(Sheet[Doing]):
 
         from hmz.runtime.exporting import sized
 
-        self._said = f"exporting {escape(ran.name)}…"
+        self._said = t("Exporting…")
         self._fill()
         try:
             at, size, held = await asyncio.to_thread(exported, ran, to)
@@ -12780,9 +13583,14 @@ class Epics(Sheet[Doing]):
             self._said = bad(escape(str(why)))
         else:
             self._said = (
-                f"backing {escape(ran.name)} up to {escape(', '.join(names))}"
+                t("Uploading to {targets}", targets=escape(", ".join(names)))
                 if names
-                else iffy("no default backup target: mark one on /settings backup")
+                else iffy(
+                    t(
+                        "there is no default backup target: mark one on "
+                        "the Backup page of /settings"
+                    )
+                )
             )
             if names:
                 self._told.append(f"[dim]{self._said}[/dim]")
@@ -12810,7 +13618,7 @@ class Epics(Sheet[Doing]):
             self.opened()
         if source is None:
             return
-        self._said = "importing…"
+        self._said = t("Importing…")
         self._fill()
         try:
             at = await asyncio.to_thread(self._runs.imported, source)
@@ -12824,7 +13632,9 @@ class Epics(Sheet[Doing]):
                 self._fill()
             return
         ran = self._runs.read(at)
-        said = f"imported into {_ran_in(ran) if ran else 'its directory'}"
+        said = t(
+            "imported into {folder}", folder=_ran_in(ran) if ran else t("its folder")
+        )
         self._said = escape(said)
         self._told.append(f"[dim]{escape(said)}[/dim]")
         await self._goes_to(at)
@@ -12953,7 +13763,7 @@ class Epics(Sheet[Doing]):
             if said in _COPIED:
                 what, named = _COPIED[said](ran)
                 self.copies(what)
-                self._said = f"{named} copied"
+                self._said = named
                 self._fill()
                 return
             if said == _EXOMYTH:
@@ -12977,17 +13787,18 @@ class Epics(Sheet[Doing]):
         if said == RESUMES and not self._ours(ran):
             # Refused rather than picked up here: a flow carries on in the directory it
             # works in, and this is not the one this epic's work is in.
-            self._said = (
-                f"this epic ran in {escape(_ran_in(ran))}; {said} it from hmz there"
+            self._said = t(
+                "this epic ran in the folder {folder}; resume it from hmz there",
+                folder=escape(_ran_in(ran)),
             )
             self._fill()
             return
         if said == RESUMES and self._underway():
             # Said here rather than on the way out: the question this sheet is asking is
             # still worth answering, and a flow is stopped with esc rather than from here.
-            self._said = (
-                "a flow is running; press ctrl+c twice to stop it before resuming "
-                "another"
+            self._said = t(
+                "a flow is running; press ctrl+c twice to stop it "
+                "before resuming another"
             )
             self._fill()
             return
@@ -13015,7 +13826,7 @@ def remotes() -> Any:
     with _REACHING:
         if not _REACH:
             # Asked of whoever is at this interface where a machine has no hmz.
-            _REACH.append(_hmz().daemons.remotes(install=None))
+            _REACH.append(_hmz().daemons.remotes(install=None, kind="tui"))
         return _REACH[0]
 
 
@@ -13035,7 +13846,7 @@ class Installs(Popup):
 
     CSS = _popup("Installs")
 
-    ESC: ClassVar = "not now"
+    ESC: ClassVar = t("Not now")
 
     PRIMARY: ClassVar = "yes"
 
@@ -13047,13 +13858,17 @@ class Installs(Popup):
         """
         super().__init__()
         self.daemon = daemon
-        self.asked = f"hmz is not installed on {daemon}. Install it?"
+        self.asked = t("hmz is not installed on {name}. Install it?", name=daemon)
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Installing it, or leaving the daemon unreached."""
         return [
-            ("yes", "install", "install hmz there, and uv where there is none"),
-            ("no", "not now", "leave it unreached until it is connected again"),
+            ("yes", t("Install"), t("installs hmz there, and uv where there is none")),
+            (
+                "no",
+                t("Not now"),
+                t("leaves the daemon unreached until it is connected again"),
+            ),
         ]
 
 
@@ -13070,10 +13885,11 @@ def daemon_names() -> list[str]:
 
 def _stands(said: dict[str, str]) -> str:
     """How one daemon stands, as a row says it: its state, and what was said last."""
-    word = said.get("state", "")
+    state = said.get("state", "")
+    word = _worded(state)
     if said.get("detail"):
         word += f": {said['detail']}"
-    elif word == "up" and said.get("version"):
+    elif state == "up" and said.get("version"):
         word += f", hmz {said['version']}"
     return word
 
@@ -13081,15 +13897,17 @@ def _stands(said: dict[str, str]) -> str:
 class Daemoned(Picks):
     """Which daemon's epics `/epics` lists: this machine's, or another reached by its routes."""
 
-    asked = "Daemon"
-    about = "Whose epics to list: this machine's, or another's reached by its routes."
+    asked = t("Daemon")
+    about = t(
+        "Whose epics to list: this machine's, or another's reached by its routes."
+    )
     SEARCHES: ClassVar = False
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Local, then every daemon written down, each with how it stands."""
         reach = remotes()
         return [
-            (LOCAL_DAEMON, "Local", "this machine"),
+            (LOCAL_DAEMON, t("Local"), t("this machine")),
             *(
                 (
                     one["name"],
@@ -13104,7 +13922,11 @@ class Daemoned(Picks):
 
     def nothing(self) -> str:
         """Where more are added, where there are none."""
-        return "" if len(self.rows()) > 1 else "add daemons on /settings daemons"
+        return (
+            ""
+            if len(self.rows()) > 1
+            else t("there is no other daemon: add one on the Daemons page of /settings")
+        )
 
 
 def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
@@ -13132,8 +13954,8 @@ def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
 
     return Action(
         _ACT_DAEMON,
-        "daemon…",
-        "list the epics of another daemon",
+        t("Daemon…"),
+        t("lists the epics of another daemon"),
         lambda: sheet.run_worker(switches()),
     )
 
@@ -13178,37 +14000,46 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         return [
             Question(
                 _THERE,
-                "workspace",
-                f"a directory on {self._daemon}",
+                t("Workspace"),
+                t("Directory on {name}", name=self._daemon),
                 needed=not typed[_THERE].strip(),
             ),
             Question(
                 _RUNS,
-                "flow",
-                "the flow, as -f names it",
+                t("Flow"),
+                t("the flow, as -f names it"),
                 needed=not typed[_RUNS].strip(),
             ),
             Question(
-                _TASK, "task", "what it is to do", needed=not typed[_TASK].strip()
+                _TASK,
+                t("Task"),
+                t("Describe the task"),
+                needed=not typed[_TASK].strip(),
             ),
             Question(
                 _GIVEN,
-                "agents",
-                "role=cli/model:effort, …; blank for what that directory last ran",
+                t("Agents"),
+                t(
+                    "the agents, as role=cli/model:effort, …; blank "
+                    "for what that folder last ran"
+                ),
             ),
         ]
 
     def done_about(self) -> str:
         """What answering it does."""
-        return f"starts the epic on {self._daemon}"
+        return t("starts the epic on the daemon {daemon}", daemon=self._daemon)
 
     def _ask(self) -> None:
         """Says what this is."""
-        self.query_one("#asked", Label).update("New epic")
+        self.query_one("#asked", Label).update(t("New epic"))
         self.query_one("#about", Label).update(
-            f"An epic on {escape(self._daemon)}, set up as that directory last "
-            f"ran the flow, "
-            "and followed here once it starts."
+            t(
+                "An epic on the daemon {daemon}, set up as that "
+                "folder last ran the flow, and followed here once "
+                "it starts.",
+                daemon=escape(self._daemon),
+            )
         )
         self._fill()
 
@@ -13219,9 +14050,14 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         given = [one.strip() for one in typed[_GIVEN].split(",") if one.strip()]
         self._wrong = ""
         if missing:
-            self._wrong = f"{missing[0]} is required"
+            self._wrong = t(
+                "{what} still has to be filled in.",
+                what={_THERE: t("Workspace"), _RUNS: t("Flow"), _TASK: t("Task")}[
+                    missing[0]
+                ],
+            )
         elif wrong := next((one for one in given if "=" not in one), ""):
-            self._wrong = f"agents: '{wrong}' is not role=agent"
+            self._wrong = t("{said} is not written role=agent.", said=repr(wrong))
         if self._wrong:
             self._fill()
             return
@@ -13258,8 +14094,11 @@ def _set_up(
             and not agents.get(role["name"])
         ):
             raise ValueError(
-                f"{role['name']} runs nothing there yet: say it as "
-                f"{role['name']}=<cli>/<model>:<effort>"
+                t(
+                    "The role {role} runs nothing there yet; say it as "
+                    "{role}=<cli>/<model>:<effort>.",
+                    role=role["name"],
+                )
             )
     return {
         "flow": flow,
@@ -13306,7 +14145,9 @@ class RemoteEpics(Sheet[Doing]):
 
     def _ask(self) -> None:
         """Says whose these are, and reads them."""
-        self.query_one("#asked", Label).update(f"Epics on {escape(self._daemon)}")
+        self.query_one("#asked", Label).update(
+            t("Epics on {daemon}", daemon=escape(self._daemon))
+        )
         self._fill()
         self._rereads()
 
@@ -13368,11 +14209,14 @@ class RemoteEpics(Sheet[Doing]):
             self._searches(),
             Action(
                 _ACT_STARTS,
-                "new epic…",
-                f"start an epic on {self._daemon} and follow it",
+                t("New epic…"),
+                t(
+                    "starts an epic on the daemon {daemon} and follows it",
+                    daemon=self._daemon,
+                ),
                 self.action_starts,
             ),
-            Action(_ACT_AGAIN, "refresh", "read the epics again", self._rereads),
+            Action(_ACT_AGAIN, t("Refresh"), t("reads the epics again"), self._rereads),
             _switching(self, self._daemon, self._told),
         ]
 
@@ -13387,7 +14231,7 @@ class RemoteEpics(Sheet[Doing]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        self._said = f"reaching {escape(self._daemon)}…"
+        self._said = t("Connecting {name}…", name=escape(self._daemon))
         self._fill()
         try:
             here = await asyncio.to_thread(_rpc, self._daemon, "workspaces.list")
@@ -13411,7 +14255,11 @@ class RemoteEpics(Sheet[Doing]):
         if chosen is None:
             return
         workspace, flow, task, given = chosen
-        self._said = f"setting {escape(flow)} up on {escape(self._daemon)}…"
+        self._said = t(
+            "setting {flow} up on {daemon}…",
+            flow=escape(flow),
+            daemon=escape(self._daemon),
+        )
         self._fill()
         try:
             start = await asyncio.to_thread(
@@ -13448,9 +14296,12 @@ class RemoteEpics(Sheet[Doing]):
         if not self._up():
             return
         self.query_one("#about", Label).update(
-            f"Every epic {escape(self._daemon)} holds and every chat going there, "
-            f"newest "
-            "first: workspace, task, status, and session count."
+            t(
+                "Every epic the daemon {daemon} holds and every "
+                "chat going there, newest first: its folder, task, "
+                "status and session count.",
+                daemon=escape(self._daemon),
+            )
         )
         listing = self.query_one("#choices", OptionList)
         at = listing.highlighted
@@ -13481,17 +14332,18 @@ class RemoteEpics(Sheet[Doing]):
                         _DOT.join(
                             [
                                 # Made for it alone, and nobody's folder (Section 17.3.1.1).
-                                "no folder"
+                                t("No folder")
                                 if one.get("folderless")
                                 else _homed(str(one.get("workspace") or "")),
-                                _asked_for(str(one.get("task") or "")) or "no task",
+                                _asked_for(str(one.get("task") or ""))
+                                or t("(no task)"),
                                 # A chat is one conversation, and says no count of them.
                                 *(
-                                    [_many(int(one.get("sessions") or 0), "session")]
+                                    [t("{n} sessions", n=int(one.get("sessions") or 0))]
                                     if "sessions" in one
                                     else []
                                 ),
-                                str(one.get("how") or ""),
+                                _worded(str(one.get("how") or "")),
                             ]
                         ),
                         here=one.get("name") == self._was,
@@ -13505,16 +14357,16 @@ class RemoteEpics(Sheet[Doing]):
         listing.highlighted = names.index(self._was) if self._was in names else None
         self._drawn = listing.highlighted
         said = self._said or (
-            f"reaching {escape(self._daemon)}…"
+            t("Connecting {name}…", name=escape(self._daemon))
             if self._reading
             else ""
             if self._ran
-            else f"no epic on {escape(self._daemon)} yet"
+            else t("No epics yet.")
         )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "menu"), Key("esc", "close"))
+        self._footed(Key("enter", t("Menu")), Key("esc", t("Close")))
 
     def menu(self) -> tuple[str, list[Action]] | None:
         """What can be done from here with the epic under the cursor, or the chat."""
@@ -13529,15 +14381,15 @@ class RemoteEpics(Sheet[Doing]):
                 [
                     Action(
                         FOLLOWS,
-                        "follow",
-                        "read it as it goes, and say the next line",
+                        t("Follow"),
+                        t("reads the chat as it goes, and says the next line"),
                         lambda: self._follows(one),
                     ),
                     Action(
                         _COPY_NAME,
-                        "copy id",
+                        t("Copy ID"),
                         name,
-                        lambda: self._copies(name, "id"),
+                        lambda: self._copies(name, t("ID copied")),
                     ),
                 ],
             )
@@ -13548,8 +14400,8 @@ class RemoteEpics(Sheet[Doing]):
                     [
                         Action(
                             FOLLOWS,
-                            "follow",
-                            "read it as it goes, and steer it",
+                            t("Follow"),
+                            t("reads the epic as it goes, and steers it"),
                             lambda: self._follows(one),
                         )
                     ]
@@ -13558,34 +14410,37 @@ class RemoteEpics(Sheet[Doing]):
                 ),
                 Action(
                     _EXPORTS,
-                    "export",
-                    "the entire epic as an archive, brought here",
+                    t("Export"),
+                    t("writes the whole epic as one archive, brought here"),
                     lambda: self.run_worker(self._exports(name)),
                     lambda: one.get("how") != "running",
                 ),
                 Action(
                     _UPLOADS,
-                    "upload",
-                    "back the epic up there, to its targets or the defaults",
+                    t("Upload"),
+                    t("backs the epic up there, to its targets or to the default ones"),
                     lambda: self.run_worker(self._uploads(name)),
                 ),
                 Action(
                     _COPY_NAME,
-                    "copy name",
+                    t("Copy name"),
                     name,
-                    lambda: self._copies(name, "name"),
+                    lambda: self._copies(name, t("Name copied")),
                 ),
                 Action(
                     _COPY_TASK,
-                    "copy task",
-                    "what the epic was asked to do",
+                    t("Copy task"),
+                    t("copies what the epic was asked to do"),
                     lambda: self.run_worker(self._copies_task(name)),
                 ),
                 Action(
                     _COPY_PATH,
-                    "copy workspace",
-                    "where the epic ran, there",
-                    lambda: self._copies(str(one.get("workspace", "")), "workspace"),
+                    t("Copy workspace"),
+                    t("copies where the epic ran, there"),
+                    lambda: self._copies(
+                        str(one.get("workspace", "")),
+                        t("Workspace copied"),
+                    ),
                 ),
             ],
         )
@@ -13610,14 +14465,14 @@ class RemoteEpics(Sheet[Doing]):
     def _copies(self, what: str, named: str) -> None:
         """Copies something of an epic, and says so under the list."""
         self.copies(what)
-        self._said = f"{named} copied"
+        self._said = named
         self._fill()
 
     async def _copies_task(self, name: str) -> None:
         """Copies the whole of what one epic was asked, which its row has only the start of."""
         import asyncio
 
-        self._said = "fetching the task…"
+        self._said = t("fetching the task…")
         self._fill()
         try:
             said = await asyncio.to_thread(
@@ -13627,7 +14482,7 @@ class RemoteEpics(Sheet[Doing]):
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._copies(str(said.get("task") or ""), "task")
+        self._copies(str(said.get("task") or ""), t("Task copied"))
 
     def leaving(self) -> None:
         """Leaves, saying in the transcript whatever was gathered while this was open."""
@@ -13650,7 +14505,7 @@ class RemoteEpics(Sheet[Doing]):
         to = await showing.push_screen_wait(Exporting(name))
         if to is None:
             return
-        self._said = f"exporting {escape(name)}…"
+        self._said = t("Exporting…")
         self._fill()
         try:
             at, size = await asyncio.to_thread(
@@ -13671,7 +14526,7 @@ class RemoteEpics(Sheet[Doing]):
         """
         import asyncio
 
-        self._said = f"backing {escape(name)} up…"
+        self._said = t("Uploading…")
         self._fill()
         try:
             said = await asyncio.to_thread(
@@ -13684,7 +14539,9 @@ class RemoteEpics(Sheet[Doing]):
             self._said = bad(escape(str(why)))
         else:
             queued = cast("list[object]", said.get("queued") or [])
-            self._said = escape(f"backing {name} up to {', '.join(map(str, queued))}")
+            self._said = escape(
+                t("Uploading to {targets}", targets=", ".join(map(str, queued)))
+            )
             self._told.append(f"[dim]{self._said}[/dim]")
         self._fill()
 
@@ -13726,7 +14583,13 @@ def _brought(daemon: str, name: str, at: Path) -> tuple[Path, int]:
                     if chunk["eof"]:
                         break
                     if not read:
-                        raise OSError(f"{daemon} sent nothing of {name}")
+                        raise OSError(
+                            t(
+                                "The daemon {daemon} sent nothing of the epic {name}.",
+                                daemon=daemon,
+                                name=name,
+                            )
+                        )
             beside.replace(at)
         finally:
             beside.unlink(missing_ok=True)

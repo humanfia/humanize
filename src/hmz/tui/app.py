@@ -3359,6 +3359,7 @@ class Humanize(App[None]):
                 stop=self._stops,
                 timelined=self._timelined,
                 exomyth=self._exomyth,
+                asking=self.asked_roles,
             ),
             self._back_from_monitor,
         )

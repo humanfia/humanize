@@ -229,12 +229,12 @@ If you leave a menu with unsaved changes, `Save changes?` opens with **Save** an
 | `/flow`, Flowverses | `open`, `fetch` or `fetch again`, `remove`, `copy URL` |
 | `/resume` in a chat | `Rename`, `Fork`, `Archive`, `Upload`, `Delete`, `Copy ID` |
 | `/ai` | `Rename`, `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, `Delete` |
-| `/settings daemons` | `connect`, `edit…`, `remove`, `copy name`, and on a daemon that is up `pair a device…` and `devices…`. `Local` has only the last two. |
-| `/epics` on another daemon | An epic: `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`. A chat: `follow`, `copy id`. |
+| `/settings daemons` | `Connect`, `Edit`, `Remove`, `Copy name`, and on a daemon that is up `Pair a device` and `Devices`. `Local` has only the last two. |
+| `/epics` on another daemon | An epic: `Follow`, `Export`, `Upload`, `Copy name`, `Copy task`, `Copy workspace`. A chat: `Follow`, `Copy ID`. |
 
-When an SSH machine has no hmz, a box asks `hmz is not installed on <name>. Install it?` over whatever is on screen, with `install` and `not now`. <kbd>esc</kbd> answers `not now`, which leaves the daemon `failed` with `hmz is not installed on <name>.` until you pick `connect` again. After `install`, that daemon is not asked about again while the interface runs and its routes stay the same.
+When an SSH machine has no hmz, a box asks `hmz is not installed on <name>. Install it?` over whatever is on screen, with `Install` and `Not now`. <kbd>esc</kbd> answers `Not now`, which leaves the daemon `failed` with `hmz is not installed on <name>.` until you pick `Connect` again. After `Install`, that daemon is not asked about again while the interface runs and its routes stay the same.
 
-<kbd>enter</kbd> or <kbd>m</kbd> on an epic of `/epics` opens its rows: `resume epic`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`. See [History and search](/user/history).
+<kbd>enter</kbd> or <kbd>m</kbd> on an epic of `/epics` opens its rows: `Resume epic`, `Graph`, `Export`, `Exomyth`, `Upload`, `Copy name`, `Copy task`, `Copy path`. See [History and search](/user/history).
 
 ### Epics list
 
@@ -283,8 +283,8 @@ Run `/env` to open an environment's panels. Press <kbd>tab</kbd> and <kbd>shift+
 | Changes | <kbd>x</kbd> | Discard, after a box. |
 | Changes | <kbd>c</kbd> | Commit. |
 | Changes | <kbd>r</kbd> | Refresh. |
-| Shell | `~.` at the start of a line | Leaves the shell running and returns to `hmz`. |
-| Shell | `~~` at the start of a line | Sends one `~`. |
+| Terminal | `~.` at the start of a line | Leaves the shell running and returns to `hmz`. |
+| Terminal | `~~` at the start of a line | Sends one `~`. |
 | Snapshots | <kbd>enter</kbd> | Rewinds to the snapshot, after a box. |
 
 Letter shortcuts in Files and Changes are disabled while the search box is open.
@@ -359,14 +359,14 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Timeline | <kbd>d</kbd> or <kbd>shift+→</kbd> | Pan on. |
 | Timeline | <kbd>enter</kbd> | Opens or shuts the pane of the span. |
 | Timeline | <kbd>p</kbd> | Opens or shuts the pane of the process. |
-| Timeline | <kbd>v</kbd> | Begins a range, then holds it, then drops it. |
+| Timeline | <kbd>v</kbd> | **Mark range**, then **Hold range**, then **Clear range**. |
 | Timeline | <kbd>f</kbd> | Fits the range, or the span. |
 | Timeline | <kbd>0</kbd> | Shows the whole epic. |
 | Timeline | <kbd>space</kbd> | Folds or opens the process. |
 | Timeline | <kbd>/</kbd> | Searches spans by name. <kbd>enter</kbd> finds. |
 | Timeline | <kbd>n</kbd> <kbd>N</kbd> | Next or previous span found. |
 | Flame | <kbd>t</kbd> | Next weight: time, tokens in, tokens out, count. |
-| Flame | <kbd>m</kbd> | Sessions merged or apart. |
+| Flame | <kbd>m</kbd> | **Merge sessions**, or **Split sessions**. |
 | Slices | <kbd>o</kbd> | Sorts by the next column. |
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |

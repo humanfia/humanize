@@ -116,7 +116,7 @@ Type `/epics` and press <kbd>enter</kbd>. You see both epics, newest first, with
 
 ![The list of epics: the resumed one and the one the budget stopped, both resumable](/shots/tutorials-overnight-run-epics.svg)
 
-Press <kbd>enter</kbd> on an epic, select `graph`, and press <kbd>enter</kbd> to read its sessions. In the app, the side panel shows `Spent`, `Output tokens`, `Took`, and `Sessions` under **Figures**, and the budget under **Setup**.
+Press <kbd>enter</kbd> on an epic, select `Graph`, and press <kbd>enter</kbd> to read its sessions. In the app, the side panel shows `Spent`, `Output tokens`, `Took`, and `Sessions` under **Figures**, and the budget under **Setup**.
 
 ![An ended epic in Humanize Desktop: stopped, with a Resume button, what it spent and its budget](/shots/tutorials-overnight-run-app-ended.svg)
 

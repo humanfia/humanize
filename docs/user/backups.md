@@ -74,13 +74,13 @@ Click the **Upload** arrow at the top of an epic, or choose **Upload** from the 
 
 Type `/settings backup` to list each target with its URL, branch, and policies. A `✔` marks a default target. Press <kbd>enter</kbd> on a target to edit it, or choose **Add target**. On the form, **Every N minutes** offers 5, 10, 15, 30, 60, or 120 minutes, and **Remove** deletes the target. Choose **Done** on the form, then **Save** on the page to write your changes.
 
-![/settings backup in the terminal interface lists lab and offsite; enter on lab opens its form with name, URL, branch, the three policies and Default](/shots/user-backups-tui.svg)
+![/settings backup in the terminal interface lists lab and offsite; enter on lab opens its form with Name, URL, Branch, the three policies and Default](/shots/user-backups-tui.svg)
 
 To choose targets for a flow, type `/flow`, press <kbd>enter</kbd> on the flow, and press <kbd>enter</kbd> on the `backup` row. A sheet opens with a switch for each target.
 
 ![The Backup sheet of the flow goal in the terminal interface: a switch per target, lab on and offsite off](/shots/user-backups-tui-flow.svg)
 
-To back up an epic now, open `/epics`, press <kbd>enter</kbd> on the epic, and choose `upload`, which is listed once a target exists. For a chat, type `/resume` inside a chat, press <kbd>m</kbd> on the chat, and choose `upload`.
+To back up an epic now, open `/epics`, press <kbd>enter</kbd> on the epic, and choose `Upload`, which is listed once a target exists. For a chat, type `/resume` inside a chat, press <kbd>m</kbd> on the chat, and choose `Upload`.
 
 To download, choose **Download…** on `/settings backup`, then press <kbd>enter</kbd> on an epic or chat. Choose **Fetch** to re-read the repository, **Target…** to switch targets, or **Search…** to filter by flow, task, directory, or machine.
 

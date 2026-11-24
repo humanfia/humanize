@@ -2647,6 +2647,10 @@ quotes such a word in lower case is to be read with the word as it is here.
 | 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
 | 4.6 | `no agent available` | `No agents`, and `No harness installed` where no harness is installed |
 | 7 | a refusal `hmz: no such command: /<name>`, and `hmz: /<name> is only available on …, not on …` | ``hmz: No such command: `/<name>`.``, and ``hmz: `/<name>` is only available on …, not on ….`` |
+| 7.20.3, 7.20.8, 7.20.9 | the page `Shell` | `Terminal` |
+| 7.20.5 | a box offering to keep the user's text or to read the file again | the box `<path> changed in the environment since you opened it.` offering **Reload**, **Keep mine** and **Show the diff** |
+| 7.20.5 | the editor's states `● edited`, `conflict: changed on disk`, `not saved: <why>` | `● Unsaved`, `Conflict`, `Not saved: <why>` |
+| 7.20.7 | the buttons `stage all`, `unstage all`, `commit…` | **Stage All Changes**, **Unstage All Changes**, **Commit** |
 | 7.21.2 | `the chat is already on the screen` | `The chat is already open.` |
 | 10.1 | under a question: `<name>'s to answer`, `yours to answer: type an answer, or /afk to stop being asked`, `type an answer, or /afk to stop being asked` | ``It is <name>'s to answer``, ``Yours to answer · type an answer, or `/afk` to stop being asked``, ``Type an answer, or `/afk` to stop being asked`` |
 | 10.11 | `form · <n> fields — press Enter to open` | `Form of <n> fields · Enter opens it` |
@@ -2660,6 +2664,31 @@ quotes such a word in lower case is to be read with the word as it is here.
 | 13.3 | `shift+tab switch view`, `/ commands`, `shift+enter newline`, `← monitor` | `shift+tab Next view`, `/ Commands`, `shift+enter New line`, `← Monitor` |
 | 13.3 | what `enter` does: `run`, `start`, `ask`, `send`, `answer`; what `ctrl+c` does: `clear`, `again to stop`, `again to exit`, `exit`, `stop`, `force stop` | `Run`, `Start`, `Ask`, `Send`, `Answer`; `Clear`, `Again to stop`, `Again to exit`, `Exit`, `Stop`, `Force stop` |
 | 13.4 | `↑↓ move`, `tab select`, `esc cancel` | `↑↓ Move`, `tab Choose`, `esc Cancel` |
+| 15.4 | a switch reading `on` or `off`, and a row of a form named in lower case (`name`, `host`, `port`, `identity file`, …) | `On` or `Off`, and the row named as the web interface names the field (`Name`, `Host`, `Port`, `Identity file`, …) |
+| 16 | a budget cap cut off mid-turn said as `<cap> even mid-turn` | `<cap> cut off at once` |
+| 16.5.3, 19.6.1, 19.6.3 | this machine's own sign-in, as `as local` | **Local**, with `signed in outside Humanize` beside it |
+| 16.6 | the form `Environment for <role>` | `Runtime for <role>` |
+| 17.1.2 | the scope `this directory`, and the epics `in this directory` | **This folder**, and the epics `in this folder` |
+| 17.1.3 | the filters `status`, `flow`, `workspace`, each opening on `all` | `State`, `Flow`, `Folder`, each opening on `All` |
+| 17.2 | an epic's rows `resume epic`, `graph`, `export epic`, `upload`, `copy name`, `copy task`, `copy path` | **Resume epic**, **Graph**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy path** |
+| 17.2 | an epic said to be `is still going`, `finished` or `was left unfinished` | `still going`, `done` or `unfinished` |
+| 17.3.1.1 | `no folder` | `No folder` |
+| 17.3.2 | `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`, `copy id` | **Follow**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy workspace**, **Copy ID** |
+| 19.5.2 | **Add daemon**, **edit…**, **connect**, **remove**, **copy name**, **Pair a device…**, **Devices…** | **New daemon**, **Edit**, **Connect**, **Remove**, **Copy name**, **Pair a device**, **Devices** |
+| 19.5.2 | the modes `Pairing code`, `SSH Config`, `Custom`, `Routes` | `Pairing code`, `SSH config`, `Custom`, `Routes` |
+| 19.5.4 | **install** and **not now** | **Install** and **Not now** |
+| 19.6.2 | **edit settings** and **sign in again** | **Edit** and **Sign in again** |
+| 19.6.4 | **Add an account** and **Add a custom CLI** | **Add account** and **Add CLI** |
+| 19.9 | **Add a runtime…**, `import ~/.ssh/config`, and a runtime's `edit`, `check` | **Add runtime…**, **Read SSH config**, and **Edit**, **Check** |
+| 19.9 | a runtime's kinds `ssh host`, `docker host`, `docker swarm`, `apple containers`, `slurm cluster` | `SSH host`, `Docker container`, `Docker swarm`, `Apple container`, `Slurm cluster` |
+| 19.10 | **Add target** on a form titled `Add backup target`, and **Download…** | **Add target** on a form titled `New target`, and **Download…** |
+| 20 | the board's sheet `Board entry`, its buttons `next` and `save`, and the row `add entry` | `Board line`, **Next** and **Save**, and `new entry` |
+| 20 | the switch and the keys line saying `graph` and `list` | **Graph** and **List**; the status line keeps `monitor · graph` and `monitor · list` |
+| 20 | the epic's sheet saying `Running.`, `Stopping.`, `Over.` | `Running`, `Stopping`, `Ended` |
+| 21 | the keys `merge` and `apart`, and `range`, `hold`, `drop` | **Merge sessions** and **Split sessions**, and **Mark range**, **Hold range**, **Clear range** |
+| 24.1.49 | write, delete | **Write**, **Delete** |
+| 24.1.50 | on to the value, then save | **Type value**, then **Save or remove** |
+| 24.1.109 | stage all, unstage all | **Stage All Changes**, **Unstage All Changes** |
 | 26.1 | the hint `keys` | `Keys` |
 | 29.1.1 | the hint `new epic` | `New epic` |
 | 29.5.1 | the hint `epic panel` | `Epic panel` |

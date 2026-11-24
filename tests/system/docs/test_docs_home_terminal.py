@@ -194,7 +194,7 @@ async def test_a_flow_in_the_terminal_on_a_desk(world: World) -> None:
         await shows(pilot, "4 turns")
         await _onto(pilot, app, "reviewer")
         reel.tui(app, hold=2.0)
-        await shows(pilot, "Flow done", "epic · over")
+        await shows(pilot, "Flow done", "epic · ended")
         await pilot.pause(0.2)
         reel.tui(app, hold=1.4)
         reel.save()

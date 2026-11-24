@@ -37,7 +37,7 @@ On **New epic**, tick **Profile flow**, **Profile environment** or both, then st
 ### In the terminal {#profile-in-the-terminal}
 
 1. Type `/flow` followed by the flow's name.
-2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `on`. A switch that is off reads `traced only`.
+2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `On`. A switch that is off reads `traced only`.
 3. Choose **Save**.
 
 ![The page of a flow in the terminal with both profiling rows on](/shots/user-tracing-terminal-switches.svg)
@@ -125,11 +125,13 @@ The **Slices** table below lists up to 200 span names with their Name, Category,
 
 ## Read a trace in the terminal {#in-the-terminal}
 
-Type `/epics`, press <kbd>enter</kbd> on an epic and choose `Exomyth`; the epic's `graph` page has an `Exomyth` button too. On the monitor of a running epic, press <kbd>ctrl+e</kbd> or click `Exomyth`; the trace refreshes every 3 seconds.
+Type `/epics`, press <kbd>enter</kbd> on an epic and choose `Exomyth`; the epic's `Graph` page has an `Exomyth` button too. On the monitor of a running epic, press <kbd>ctrl+e</kbd> or click `Exomyth`; the trace refreshes every 3 seconds.
 
 ![Exomyth in the terminal: the timeline with a tool call under the cursor and its pane open](/shots/user-tracing-terminal.svg)
 
-Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to cycle through the three views: timeline, flame and slices.
+Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to cycle through the three views: **Timeline**, **Flame** and **Slices**. The view you are on is named in cyan at the top right, and the bottom line lists its keys in the app's words, such as **Zoom**, **Details**, **Mark range** and **Show in timeline**.
+
+Spans are drawn as heavy blocks in the lane colours the app uses: a turn in the first lane, a session and a process in the third, a tool call in the fourth, a message in the fifth, an event in the sixth, and a model call in green inside its turn. The span under the cursor is the one pink block on the screen. In the terminal's own colour theme the same blocks are drawn in its ANSI colours.
 
 ![The three views of Exomyth in the terminal in turn: the timeline, the flame view and the slices table](/shots/user-tracing-terminal-views.svg)
 
@@ -141,14 +143,14 @@ Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to cycle through the three views: 
 | Timeline | <kbd>a</kbd> <kbd>shift+←</kbd> and <kbd>d</kbd> <kbd>shift+→</kbd> | Pan. |
 | Timeline | <kbd>enter</kbd> | Open the span pane (name, process, timing, tokens and arguments). |
 | Timeline | <kbd>p</kbd> | Open the process pane. |
-| Timeline | <kbd>v</kbd> | Start a time stretch at this span, move the cursor to extend it, press <kbd>v</kbd> to hold it, and press <kbd>v</kbd> again to drop it. The pane sums the stretch by category. |
+| Timeline | <kbd>v</kbd> | Start a time stretch at this span, move the cursor to extend it, press <kbd>v</kbd> to hold it, and press <kbd>v</kbd> again to clear it. The key reads **Mark range**, **Hold range**, then **Clear range**. The pane sums the stretch by category. |
 | Timeline | <kbd>f</kbd> | Fit the view to the stretch or span. |
 | Timeline | <kbd>0</kbd> | Show the whole epic. |
 | Timeline | <kbd>space</kbd> | Fold or unfold the process. |
 | Timeline | <kbd>/</kbd> | Search for a span by name. <kbd>n</kbd> and <kbd>N</kbd> jump to the next and previous match. |
 | Flame | <kbd>↑</kbd> <kbd>↓</kbd> | Move through the stacks. |
 | Flame | <kbd>t</kbd> | Cycle the weight: time, tokens in, tokens out, count. |
-| Flame | <kbd>m</kbd> | Toggle merging sessions. |
+| Flame | <kbd>m</kbd> | **Merge sessions** into one stack, or **Split sessions** apart. |
 | Slices | <kbd>↑</kbd> <kbd>↓</kbd> | Move through the slices. |
 | Slices | <kbd>o</kbd> and <kbd>O</kbd> | Sort by the next column, or reverse the sort order. |
 | Slices | <kbd>enter</kbd> | Jump to that slice's spans on the timeline. |
@@ -179,7 +181,7 @@ Span ids hold for one layout of the timeline. While an epic runs, it is laid out
 
 You can export a trace as a Chrome JSON file to open in Perfetto or `chrome://tracing`.
 
-In the terminal, type `/epics`, press <kbd>enter</kbd> on an epic and choose `export epic`. Humanize writes the trace to `traces/export.trace.json` inside the epic and packs it into the archive. See [Export and import a run](/user/export).
+In the terminal, type `/epics`, press <kbd>enter</kbd> on an epic and choose `Export`. Humanize writes the trace to `traces/export.trace.json` inside the epic and packs it into the archive. See [Export and import a run](/user/export).
 
 In Python, gather the trace of the latest epic in the current folder:
 

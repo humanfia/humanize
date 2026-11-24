@@ -37,7 +37,7 @@ A code pairs one device once and expires after 10 minutes. If a daemon is alread
 | `--route ROUTE` | A route the code carries. Repeatable. Defaults to the routes of the open listeners. |
 | `--seconds SECONDS` | Code lifetime in seconds, from `60` to `86400`. Default `600`. |
 
-A code needs a route to carry. Without an open listener or `--route`, the command prints `hmz devices pair: There is no route to pair over: give one, or listen.` and exits with status 1, and `pair a device…` in the terminal is refused the same way. Add a listener or pass `--route ROUTE`. The daemon waits up to 5 seconds for listeners that are still opening.
+A code needs a route to carry. Without an open listener or `--route`, the command prints `hmz devices pair: There is no route to pair over: give one, or listen.` and exits with status 1, and `Pair a device` in the terminal is refused the same way. Add a listener or pass `--route ROUTE`. The daemon waits up to 5 seconds for listeners that are still opening.
 
 For EasyTier, add an entry and a listener to `~/.config/humanize/settings.toml` on the remote machine, then run `hmz devices pair`. `hmz easytier set home --node tcp://node.example:11010 --secret-stdin` writes the same entry without editing the file:
 
@@ -118,11 +118,11 @@ Run `/settings daemons`.
 
 | Action | What it does |
 | --- | --- |
-| `Add daemon` | Opens a form with a `name` and a `mode`: `Pairing code`, `SSH Config` (a host from your ssh config), `Custom` (host, user, port, identity file, proxy jump, options), or `Routes` (comma-separated routes in order). |
+| `New daemon` | Opens a form with a `Name` and a `Mode`: `Pairing code`, `SSH config` (a host from your ssh config), `Custom` (host, user, port, identity file, proxy jump, options), or `Routes` (comma-separated routes in order). |
 | `Import…` | Adds hosts from your ssh config, with one toggle per host. |
 | `Batch apply…` | Copies this machine's `general`, `nous`, `runtimes`, and `backup` settings to the selected machines. |
 
-Press <kbd>enter</kbd> or <kbd>m</kbd> on a machine to open its menu: `connect`, `edit…`, `remove`, or `copy name`. Connected machines also show `pair a device…` (which copies a new pairing code) and `devices…` (where pressing <kbd>enter</kbd> on a device revokes it once you confirm). The menu of `Local` has only these two.
+Press <kbd>enter</kbd> or <kbd>m</kbd> on a machine to open its menu: `Connect`, `Edit`, `Remove`, or `Copy name`. Connected machines also show `Pair a device` (which copies a new pairing code) and `Devices` (where pressing <kbd>enter</kbd> on a device revokes it once you confirm). The menu of `Local` has only these two.
 
 Run `/epics @devbox` to list another machine's epics. Select a running epic to follow it live. See [History and search](/user/history).
 

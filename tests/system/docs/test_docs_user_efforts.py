@@ -174,7 +174,7 @@ async def test_a_model_that_swarms_has_a_switch(world: World) -> None:
         shots.tui(app, f"{_PAGE}-terminal-models")
         await opens(pilot, _KIMI_MODEL)
         await on(pilot, Agent)
-        await shows(pilot, "run turns as a swarm")
+        await shows(pilot, "a turn is run as a swarm")
         await _settled(pilot)
         await opens(pilot, "swarm")
         await on(pilot, Dropdown)

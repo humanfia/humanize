@@ -69,8 +69,8 @@ Revoking a device closes its sessions immediately, and it cannot reconnect witho
 ### In the terminal
 
 1. Type `/settings`, open **Daemons**, and press <kbd>enter</kbd> on a daemon.
-2. Choose `pair a device…` to generate a code, or `devices…` to list paired devices.
-3. Press <kbd>enter</kbd> on a device and choose `revoke`.
+2. Choose `Pair a device` to generate a code, or `Devices` to list paired devices.
+3. Press <kbd>enter</kbd> on a device and choose `Revoke`.
 
 ### From the command line
 

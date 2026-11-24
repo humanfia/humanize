@@ -120,7 +120,7 @@ After you pick an earlier chat with `/resume`, `/env` works before you send a me
 
 ![The terminal interface: /env lists the environments, one is opened on its Files page, a file is opened in the editor, and the Changes page shows a diff](/shots/user-environment-panels-tui.svg)
 
-An environment has up to four pages: Files, Changes, Shell, and Snapshots. Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to switch pages, and <kbd>esc</kbd> to go back. For Snapshots, see [Snapshots and rewind](/user/snapshots).
+An environment has up to four pages: Files, Changes, Terminal, and Snapshots. Press <kbd>tab</kbd> and <kbd>shift+tab</kbd> to switch pages, and <kbd>esc</kbd> to go back. For Snapshots, see [Snapshots and rewind](/user/snapshots).
 
 ### Edit and search files
 
@@ -135,7 +135,7 @@ An environment has up to four pages: Files, Changes, Shell, and Snapshots. Press
 | <kbd>ctrl+p</kbd> | Open a file by name |
 | <kbd>?</kbd> or <kbd>ctrl+shift+f</kbd> | Search in files |
 
-The built-in editor saves one second after you stop typing. Press <kbd>ctrl+s</kbd> to save immediately, or <kbd>esc</kbd> to save and close. If the file changes on disk while you edit, choose `reload`, `keep mine`, or `show diff`.
+The built-in editor saves one second after you stop typing. Press <kbd>ctrl+s</kbd> to save immediately, or <kbd>esc</kbd> to save and close. If the file changes on disk while you edit, choose **Reload**, **Keep mine**, or **Show the diff**.
 
 ![The built-in editor of the terminal interface with a Python file open](/shots/user-environment-panels-tui-editor.svg)
 
@@ -152,13 +152,13 @@ The built-in editor saves one second after you stop typing. Press <kbd>ctrl+s</k
 
 ![The Changes page of the terminal interface: one staged file, one changed file and one untracked file](/shots/user-environment-panels-tui-changes.svg)
 
-Use the buttons below the list to act on all files: `Stage all`, `Unstage all`, and `Commit…`.
+Use the buttons below the list to act on all files: **Stage All Changes**, **Unstage All Changes**, and **Commit**.
 
 ![The commit form of the terminal interface, with a message field and an amend switch](/shots/user-environment-panels-tui-commit.svg)
 
 ### Run a shell
 
-The Shell page hands your terminal over to a login shell in the environment. Exit the shell to return to `hmz`. Type `~.` at the start of a line to return to `hmz` and leave the shell running; type `~~` to send a literal tilde. When you return to the page, choose a running shell or `new shell`.
+The Terminal page hands your terminal over to a login shell in the environment. Exit the shell to return to `hmz`. Type `~.` at the start of a line to return to `hmz` and leave the shell running; type `~~` to send a literal tilde. When you return to the page, choose a terminal left running or **New terminal**.
 
 ### Keep a pane open beside the chat
 

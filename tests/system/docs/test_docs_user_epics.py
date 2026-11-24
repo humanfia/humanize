@@ -169,7 +169,7 @@ async def _settled(pilot: Pilot[None], seconds: float = 0.4) -> None:
     await pilot.pause()
 
 
-async def _done(pilot: Pilot[None], says: str = "enter done") -> None:
+async def _done(pilot: Pilot[None], says: str = "enter Done") -> None:
     """Walks to the button under a form with tab, and presses it."""
     app = cast("Humanize", pilot.app)
     for _ in range(4):
@@ -285,7 +285,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         # -- the environment role: where it works -----------------------------------
         await onto(pilot, "@repo")
         await pilot.press("enter")
-        await shows(pilot, "Environment for repo")
+        await shows(pilot, "Runtime for repo")
         await onto(pilot, "workdir")
         await pilot.press(*"~/shop")
         await _settled(pilot)
@@ -305,7 +305,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await pilot.pause(0.3)
         await pilot.press("2", "enter")
         await _settled(pilot)
-        await _done(pilot, "enter set")
+        await _done(pilot, "enter Set")
         await on(pilot, Flows)
         await shows(pilot, "rounds 2")
 
@@ -324,7 +324,7 @@ async def test_an_epic_is_set_up_in_the_terminal(world: World) -> None:
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-budget-sheet")
         reel.tui(app, hold=2.0, caption="the budget")
-        await _done(pilot, "enter set")
+        await _done(pilot, "enter Set")
         await on(pilot, Flows)
         await shows(pilot, "stops at")
         await onto(pilot, "0")

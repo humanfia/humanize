@@ -84,7 +84,7 @@ Click the daemon bar at the bottom of the sidebar and pick another machine. The 
 
 Run `/epics` in `hmz` to list the current directory's epics, newest first. You can open `/epics` even while an epic is running.
 
-Each row shows the start time, flow, task, agents, spend, output tokens, duration and session count, and `backed up to` with the backup targets that hold it. If an epic did not finish normally, the row shows `failed`, `stopped`, `was left unfinished` or `is still going`. It shows `resumable` when you can pick it up, and `●` when you were notified about it and have not opened it yet.
+Each row shows the start time, flow, task, agents, spend, output tokens, duration and session count, and `backed up to` with the backup targets that hold it. If an epic did not finish normally, the row shows `failed`, `stopped`, `unfinished` or `still going`. It shows `resumable` when you can pick it up, and `●` when you were notified about it and have not opened it yet.
 
 ![/epics lists four epics of this directory](/shots/user-history-epics.svg)
 
@@ -92,7 +92,7 @@ Each row shows the start time, flow, task, agents, spend, output tokens, duratio
 | --- | --- |
 | <kbd>enter</kbd>, <kbd>→</kbd>, <kbd>m</kbd> or click | Open the epic's menu |
 | <kbd>ctrl+t</kbd> or **This machine** | Toggle between this directory and all directories on this machine. `hmz` remembers your choice. |
-| `status`, `flow` rows | Filter by outcome or flow, with a count for each value. When listing all directories, a `workspace` row filters by directory. |
+| `State`, `Flow` rows | Filter by outcome or flow, with a count for each value. When listing all directories, a `Folder` row filters by directory. |
 | <kbd>/</kbd> or **Search…** | Search by flow, task and epic name, and by directory when listing all directories |
 | <kbd>i</kbd> or **Import…** | Import a `.hmzepic` file. See [Export and import a run](/user/export). |
 | **Daemon…** | List another daemon's epics |
@@ -104,16 +104,16 @@ Press <kbd>enter</kbd> on an epic. The top of the menu shows its path on disk, h
 
 | Row | What it does |
 | --- | --- |
-| `resume epic` | Picks the epic up. Shown when its flow is resumable. An imported epic whose workspace or commit is not on this machine has no such row, and the menu says why. Refused if the epic ran in another directory or another flow is running here. See [Resume a run](/user/resuming). |
-| `graph` | Shows its agents, called flows and sessions |
-| `export epic` | Saves it as a `.hmzepic` file, including its trace |
+| `Resume epic` | Picks the epic up. Shown when its flow is resumable. An imported epic whose workspace or commit is not on this machine has no such row, and the menu says why. Refused if the epic ran in another directory or another flow is running here. See [Resume a run](/user/resuming). |
+| `Graph` | Shows its agents, called flows and sessions |
+| `Export` | Saves it as a `.hmzepic` file, including its trace |
 | `Exomyth` | Opens its trace. See [Trace a run with Exomyth](/user/tracing). |
-| `upload` | Backs it up now. Shown when a backup target exists. |
-| `copy name`, `copy task`, `copy path` | Copies that value to the clipboard |
+| `Upload` | Backs it up now. Shown when a backup target exists. |
+| `Copy name`, `Copy task`, `Copy path` | Copies that value to the clipboard |
 
 ### Read the graph and sessions
 
-Choose `graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness, account and action count. If the epic called other flows, they appear as a tree under `called flows`. Choose **Exomyth** from the graph to open the trace.
+Choose `Graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness, account and action count. If the epic called other flows, they appear as a tree under `called flows`. Choose **Exomyth** from the graph to open the trace.
 
 Press <kbd>enter</kbd> on a session to read it from oldest action to newest: each `turn` with its prompt, each `model` call with its thinking, each tool call with input and output, and what the agent `said`. A tool call that failed is marked `✕ failed`.
 
@@ -129,16 +129,16 @@ Run `/epics @<name>` with a daemon name from your Daemons page, or open `/epics`
 
 ![/epics @server lists two epics held by the daemon named server](/shots/user-history-remote.svg)
 
-The list shows each epic's workspace on that machine, plus any active chat there as a row named `chat`. A chat or epic started without a folder shows `no folder` in place of the path. If the daemon cannot be reached, the list shows the reason. Press <kbd>enter</kbd> or <kbd>m</kbd> on a row:
+The list shows each epic's workspace on that machine, plus any active chat there as a row named `chat`. A chat or epic started without a folder shows `No folder` in place of the path. If the daemon cannot be reached, the list shows the reason. Press <kbd>enter</kbd> or <kbd>m</kbd> on a row:
 
 | Row | What it does |
 | --- | --- |
-| `follow` | Attaches to a running epic or chat so you can steer it like a local one. Shown only while it runs there. Press <kbd>esc</kbd> to return to the list and leave it running. |
-| `export` | Downloads the epic here as a `.hmzepic` file. Unavailable while it runs. |
-| `upload` | Backs the epic up on that machine |
-| `copy name`, `copy task`, `copy workspace` | Copies that value to the clipboard |
+| `Follow` | Attaches to a running epic or chat so you can steer it like a local one. Shown only while it runs there. Press <kbd>esc</kbd> to return to the list and leave it running. |
+| `Export` | Downloads the epic here as a `.hmzepic` file. Unavailable while it runs. |
+| `Upload` | Backs the epic up on that machine |
+| `Copy name`, `Copy task`, `Copy workspace` | Copies that value to the clipboard |
 
-A chat row has only `follow` and `copy id`. Press <kbd>n</kbd> or choose **New epic…** to start and follow an epic on that machine. Choose **Refresh** to reload the list. To add a daemon, see [Connect to other machines](/user/daemons).
+A chat row has only `Follow` and `Copy ID`. Press <kbd>n</kbd> or choose **New epic…** to start and follow an epic on that machine. Choose **Refresh** to reload the list. To add a daemon, see [Connect to other machines](/user/daemons).
 
 ## From the command line
 

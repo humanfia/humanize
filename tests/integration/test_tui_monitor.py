@@ -262,7 +262,7 @@ async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(
         # Stopping, or over already: the stand-in lets its turn go the moment it is told.
         await until(
             pilot,
-            lambda: "Stopping." in screen(app) or "Over." in screen(app),
+            lambda: "Stopping" in screen(app) or "Ended" in screen(app),
             "the epic to stop",
         )
         await pilot.press("escape")
@@ -299,6 +299,6 @@ async def test_an_epic_stopping_is_forced_from_its_page_once_asked() -> None:
         assert "Close every session now?" in screen(app)
         await pilot.press("enter")
 
-        await until(pilot, lambda: "Over." in screen(app), "the epic to be over")
+        await until(pilot, lambda: "Ended" in screen(app), "the epic to be over")
         assert app.forced == [True]
         assert "Force stop" not in screen(app)

@@ -343,7 +343,7 @@ async def test_an_epic_is_stopped_from_its_page_in_the_monitor(world: World) -> 
         await pilot.press("up")
         await pilot.pause()
         await pilot.press("enter")
-        await shows(pilot, "Running.", "tab actions")
+        await shows(pilot, "Running", "tab Actions")
         await _settled(pilot)
         _seen(app, "m2-epic")
         await pilot.press("tab")

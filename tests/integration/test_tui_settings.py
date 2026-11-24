@@ -108,7 +108,7 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
         assert "Ai-chan" not in drawn
 
         await picks(pilot, "details", "on")
-        await shows(pilot, "● on")
+        await shows(pilot, "● On")
         await leaves(pilot)
 
         await shows(pilot, "Details are on")
@@ -250,7 +250,49 @@ async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> N
         await shows(pilot, "0 accounts", "0 runtimes", "1 daemon", "0 targets")
 
         await opens(pilot, "accounts")
-        await shows(pilot, "no accounts yet", "Add an account")
+        await shows(pilot, "No account yet.", "Add account")
+
+
+async def test_the_accounts_page_says_what_the_page_says_in_chinese(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz import words
+    from hmz.coganchor import providers
+
+    providers.add("claude", "work", env={"ANTHROPIC_API_KEY": "key"})
+    for name in ("LC_ALL", "LC_MESSAGES"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LANG", "zh_CN.UTF-8")
+    try:
+        app = Humanize()
+        async with app.run_test(size=SIZE) as pilot:
+            await into_settings(pilot, "accounts")
+            # What the page says of accounts, its row of one made here, its buttons and
+            # the keys under them: each as the page says it in Chinese.
+            drawn = await shows(
+                pilot,
+                "在设置智能体时为其指定账户",
+                "cli@account/model",
+                "work",
+                "通过",
+                "创建",
+                "ANTHROPIC_API_KEY",
+                "添加账户",
+                "搜索",
+                "保存",
+                "打开",
+                "返回",
+            )
+            for english in ("Add account", "made by", "Search", "Save", "Back"):
+                assert english not in drawn
+
+            # And the form an account is made on: its title and the rows the page has.
+            await pilot.click("#act-add")
+            made = await shows(pilot, "新建账户", "运行框架", "登录方式", "名称")
+            for english in ("New account", "Sign-in method", "Name"):
+                assert english not in made
+    finally:
+        words.speak("en")
 
 
 async def test_an_account_that_cannot_be_removed_is_said_on_saving(
@@ -268,7 +310,7 @@ async def test_an_account_that_cannot_be_removed_is_said_on_saving(
             await into_settings(pilot, "accounts")
             await opens(pilot, "claude/work")
             await pilot.click("#act-remove")
-            await shows(pilot, "will be removed when this menu is saved")
+            await shows(pilot, "is removed when saved")
             await leaves(pilot)
 
             await shows(pilot, "Permission denied")
@@ -289,7 +331,7 @@ async def test_the_ways_through_the_gateway_are_dropped_under_one_heading(
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "accounts")
         await pilot.click("#act-add")
-        await shows(pilot, "Add an account")
+        await shows(pilot, "New account")
         await opens(pilot, "way")
         dropped = await on(pilot, Dropdown)
 
@@ -339,7 +381,7 @@ async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
         await onto(pilot, "slurm", "OptionList")
         await pilot.press("enter")
         await on(pilot, Slurming)
-        await shows(pilot, "Add a Slurm cluster")
+        await shows(pilot, "New runtime · Slurm cluster")
 
         await onto(pilot, "partition")
         await pilot.press(*"gpu", "enter")
@@ -351,7 +393,7 @@ async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
             pilot,
             "slurm/gpu answers: slurm 23.02.7; 2 nodes: gpu-01, gpu-02; "
             "128 CPUs, 1000G all told",
-            "partition gpu · no limits · max 4 jobs",
+            "Partition: gpu · no limit · at most 4 jobs",
         )
     saved = kept(tmp_path)["runtimes"]
     assert isinstance(saved, dict)

@@ -130,11 +130,11 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
         await opened(pilot)
         await typed(pilot, "/settings daemons")
         await on(pilot, Adjusts)
-        await shows(pilot, "Local", "no other daemons yet")
+        await shows(pilot, "Local", "Only Local so far.")
         pilot.app.save_screenshot("daemons-empty.svg", str(tmp_path))
 
         await _adds(pilot, "box")
-        await picks(pilot, "mode", "Custom")
+        await picks(pilot, "mode", "custom")
         await onto(pilot, "host")
         await pilot.press(*"box.example", "enter")
         await pilot.click("#act-done")
@@ -155,13 +155,13 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
         await on(pilot, RemoteEpics)
         await shows(pilot, "Epics on box", "tidy the far project", "ralph")
         # Said to be of no folder, never by the directory made for it (Section 17.3.1.1).
-        said = await shows(pilot, "no folder · nowhere at all")
+        said = await shows(pilot, "No folder · nowhere at all")
         assert "tmpab12cd34" not in said
         pilot.app.save_screenshot("epics-box.svg", str(tmp_path))
 
         # And one brought here from its menu.
         await _menu(pilot)
-        await shows(pilot, "export", "upload", "copy name")
+        await shows(pilot, "Export", "Upload", "Copy name")
         pilot.app.save_screenshot("epic-menu.svg", str(tmp_path))
         await onto(pilot, "export")
         await pilot.press("enter")
@@ -261,7 +261,7 @@ async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
         await picks(pilot, "daemon:box", "on")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
-        await shows(pilot, "box: applied")
+        await shows(pilot, "box: Applied")
 
     with homed(host.humanize):
         assert Hmz().settings.details
@@ -486,27 +486,27 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
             await shows(pilot, "tidy the far project")
 
             await pilot.press("n")
-            await shows(pilot, "reaching box…")
+            await shows(pilot, "Connecting box…")
             held.gate("workspaces.list").set()
             await on(pilot, Starting)
             await shows(pilot, "/w")
             await pilot.press("escape")
             await on(pilot, RemoteEpics)
-            assert "reaching box…" not in screen(pilot.app)
+            assert "Connecting box…" not in screen(pilot.app)
 
             await _menu(pilot, "e1")
             await onto(pilot, "copy-task")
             await pilot.press("enter")
             await shows(pilot, "fetching the task…")
             held.gate("runs.get").set()
-            await shows(pilot, "task copied")
+            await shows(pilot, "Task copied")
 
             await _menu(pilot, "e1")
             await onto(pilot, "upload")
             await pilot.press("enter")
-            await shows(pilot, "backing e1 up…")
+            await shows(pilot, "Uploading…")
             held.gate("runs.backup").set()
-            await shows(pilot, "backing e1 up to s3")
+            await shows(pilot, "Uploading to s3")
 
             # Followed on the interface's own screen, which says why it could not be.
             await _menu(pilot, "e1")
@@ -599,7 +599,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # A pairing code that is none is refused, and nothing is written.
         await _adds(pilot, "lab")
-        await shows(pilot, "Pairing code", "as hmz devices pair printed it there")
+        await shows(pilot, "Pairing code", "Starts with hmz-pair:")
         await pilot.press(*"hmz-pair:nope", "enter")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
@@ -607,7 +607,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # SSH Config: a Host of the ssh config, and nothing else.
         await _adds(pilot, "cfg")
-        await picks(pilot, "mode", "SSH Config")
+        await picks(pilot, "mode", "ssh-config")
         await shows(pilot, "a Host of your ssh config")
         await picks(pilot, "alias", "gpu")
         pilot.app.save_screenshot("daemon-ssh-config.svg", str(tmp_path))
@@ -617,7 +617,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # Custom, its fields filled from a host of the ssh config.
         await _adds(pilot, "kept")
-        await picks(pilot, "mode", "Custom")
+        await picks(pilot, "mode", "custom")
         await picks(pilot, "import", "gpu")
         await shows(pilot, "gpu.example", "2222")
         pilot.app.save_screenshot("daemon-custom.svg", str(tmp_path))
@@ -627,14 +627,14 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # Routes, in order: an untrusted one first needs the id a pairing code gives.
         await _adds(pilot, "far")
-        await picks(pilot, "mode", "Routes")
+        await picks(pilot, "mode", "routes")
         await onto(pilot, "routes")
         await pilot.press(*"tcp://10.0.0.1:41817, stdio:ssh://box", "enter")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
         await shows(pilot, "needs the id of the daemon it reaches")
         await _adds(pilot, "far")
-        await picks(pilot, "mode", "Routes")
+        await picks(pilot, "mode", "routes")
         await onto(pilot, "routes")
         await pilot.press(*"stdio:ssh://box, tcp://10.0.0.1:41817", "enter")
         await pilot.click("#act-done")
@@ -747,7 +747,7 @@ async def test_a_daemon_is_paired_from_its_code_and_a_device_revoked(
         await onto(pilot, "pair")
         await pilot.press("enter")
         await on(pilot, Adjusts)
-        await shows(pilot, "copied:", "hmz-pair:")
+        await shows(pilot, "Copied:", "hmz-pair:")
 
         await _menu(pilot, "lab")
         await onto(pilot, "devices")

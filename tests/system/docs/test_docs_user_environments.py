@@ -341,7 +341,7 @@ async def test_a_role_is_placed_in_the_terminal(world: World) -> None:
         await on(pilot, Flows)
         await onto(pilot, "@box")
         await pilot.press("enter")
-        await shows(pilot, "Environment for box")
+        await shows(pilot, "Runtime for box")
         # A whole spec typed in the last row sets the rows over it.
         await onto(pilot, "spelled")
         await pilot.press(*"ssh@gpu-box")
@@ -354,7 +354,7 @@ async def test_a_role_is_placed_in_the_terminal(world: World) -> None:
         await onto(pilot, "provider")
         await pilot.press("enter")
         await on(pilot, Hosts)
-        await shows(pilot, "Select the ssh host to use", "gpu-box", "Name a host")
+        await shows(pilot, "Choose SSH host", "gpu-box", "Other host")
         await pilot.pause(0.6)
         shots.tui(app, f"{_PAGE}-terminal-host")
 

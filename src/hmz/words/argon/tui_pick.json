@@ -1,0 +1,2271 @@
+{
+ "entries": [
+  {
+   "wants": "an amount of output tokens said short, as the page says them after a cost: {tokens} out",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "{tokens} out"
+  },
+  {
+   "wants": "the key that breaks a line in a row that takes several lines: New line",
+   "where": "what a key does, on the row of keys at the foot of a sheet, as the page writes a button: sentence case, a word or two, no full stop",
+   "text": "New line"
+  },
+  {
+   "wants": "the key that finishes the path being typed, as a shell's tab does: Complete",
+   "where": "what a key does, on the row of keys at the foot of a sheet, as the page writes a button: sentence case, a word or two, no full stop",
+   "text": "Complete"
+  },
+  {
+   "wants": "the row the command that starts an agent is written in: Command",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Command"
+  },
+  {
+   "wants": "the command that runs the agent, e.g. my-agent --acp",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the command that runs the agent, like my-agent --acp"
+  },
+  {
+   "wants": "what answering the form does: saves it as a backend",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "saves it as a backend"
+  },
+  {
+   "wants": "title of the form that adds a CLI of your own that speaks ACP: Add a CLI that speaks ACP",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Add a CLI that speaks ACP"
+  },
+  {
+   "wants": "Any coding agent that supports the Agent Client Protocol, communicating over stdin and stdout using the command you provide. The protocol does not configure models or effort, so it runs with its own configuration.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface, up to 40 words",
+   "text": "Any coding agent that speaks the Agent Client Protocol over stdin and stdout when started by your command. The protocol does not set models or effort, so the agent runs with its own configuration."
+  },
+  {
+   "wants": "the longest the epic may take, written as 1h30m, 90s or PT2H; empty for no limit",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "the longest the epic may take, like 1h30m, 90s or PT2H; empty for no limit"
+  },
+  {
+   "wants": "the most the epic may cost, in US dollars; 0 for no limit",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "the most the epic may cost, in US dollars; 0 for no limit"
+  },
+  {
+   "wants": "the most output tokens the epic may write; 0 for no limit",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "the most output tokens the epic may write; 0 for no limit"
+  },
+  {
+   "wants": "on: the turn going when the time limit is reached is let finish",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "on: the turn going when the time limit is reached is let finish"
+  },
+  {
+   "wants": "on: the turn going when the cost limit is reached is let finish",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "on: the turn going when the cost limit is reached is let finish"
+  },
+  {
+   "wants": "on: the turn going when the output token limit is reached is let finish",
+   "where": "quiet hint beside a row of the form an epic's budget is set on in the terminal interface, lower-case start, no full stop",
+   "text": "on: the turn going when the output token limit is reached is let finish"
+  },
+  {
+   "wants": "the button that answers the form a flow's parameters are set on: Set",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Set"
+  },
+  {
+   "wants": "title of the form something is set up on, a flow or an agent of one: Set up {name}",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Set up {name}"
+  },
+  {
+   "wants": "Configure how this flow runs. Options and validation are defined by the flow itself.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Set how this flow runs. The flow itself defines the options and checks them."
+  },
+  {
+   "wants": "what the button that answers the flow's form sets: all of the above",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "all of the above"
+  },
+  {
+   "wants": "refusal: {way} is not a sign-in method of the CLI {cli}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{way} is not a sign-in method for {cli}."
+  },
+  {
+   "wants": "environment variables, as NAME=VALUE, one per line",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "environment variables, as NAME=VALUE, one per line"
+  },
+  {
+   "wants": "what the account is called, which an agent is given it by",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "what the account is called, which an agent is given it by"
+  },
+  {
+   "wants": "the row an account's environment variables are written in: Variables",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Variables"
+  },
+  {
+   "wants": "saving it writes over the account {account}, which is there already: overwrites {account}",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "overwrites {account}"
+  },
+  {
+   "wants": "the switch that saves the same account for another CLI too: Also for {cli}",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Also for {cli}"
+  },
+  {
+   "wants": "what answering the form does: adds the account {account}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "adds the account {account}"
+  },
+  {
+   "wants": "what answering the form does: updates the account {account} once /settings is saved",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "updates the account {account} once /settings is saved"
+  },
+  {
+   "wants": "what answering the form does: signs the account {account} in again",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "signs the account {account} in again"
+  },
+  {
+   "wants": "it runs the CLI's own sign-in in the terminal",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "runs the CLI's own sign-in in the terminal"
+  },
+  {
+   "wants": "the same is done for the other CLIs {clis} too: also for {clis}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "also for {clis}"
+  },
+  {
+   "wants": "the CLI {cli} is not installed, and this sign-in method has to run its own sign-in",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{cli} is not installed, and this method has to run its own sign-in"
+  },
+  {
+   "wants": "the CLI {cli} is not installed; install it to use this account",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{cli} is not installed; install it to use this account"
+  },
+  {
+   "wants": "title of the form that adds an account of one CLI: New {cli} account",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "New {cli} account"
+  },
+  {
+   "wants": "title of the form an account is signed in again on: Sign {account} in again",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Sign {account} in again"
+  },
+  {
+   "wants": "A saved sign-in for one CLI, kept separate from the CLI's own and from other accounts. Secrets are masked and never shown.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A saved sign-in for one CLI, kept separate from the CLI's own and from other accounts. Secrets are masked and never shown."
+  },
+  {
+   "wants": "What the account sets. Secrets are never shown, so leave one blank to keep it as it is.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "What the account sets. Secrets are never shown, so leave one blank to keep it as it is."
+  },
+  {
+   "wants": "What this sign-in method asks for.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "What this sign-in method asks for."
+  },
+  {
+   "wants": "refusal: the CLI {cli} already has an account named {name}; edit that one from its row, or pick another name",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{cli} already has an account named {name}; edit that one from its row, or pick another name."
+  },
+  {
+   "wants": "refusal: the row {what} still has to be answered",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{what} still has to be filled in."
+  },
+  {
+   "wants": "refusal: there are no credentials yet; fill them in to sign in",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "There are no credentials yet; fill them in to sign in."
+  },
+  {
+   "wants": "Set up this agent: its CLI, account, model and reasoning effort.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Set up this agent: its CLI, account, model and reasoning effort."
+  },
+  {
+   "wants": "the CLI the agent runs",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the CLI the agent runs"
+  },
+  {
+   "wants": "the account the agent runs as",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the account the agent runs as"
+  },
+  {
+   "wants": "the model the agent runs",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the model the agent runs"
+  },
+  {
+   "wants": "how hard the model is asked to think",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how hard the model is asked to think"
+  },
+  {
+   "wants": "on: a turn is run as a swarm",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "on: a turn is run as a swarm"
+  },
+  {
+   "wants": "the switch that runs an agent's turns as a swarm: Swarm",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Swarm"
+  },
+  {
+   "wants": "off: a turn is run as one agent",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "off: a turn is run as one agent"
+  },
+  {
+   "wants": "pick a model first: the efforts are the model's",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "pick a model first: the efforts are the model's"
+  },
+  {
+   "wants": "pick a CLI first: the accounts are the CLI's",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "pick a CLI first: the accounts are the CLI's"
+  },
+  {
+   "wants": "pick a CLI first: the models are the CLI's",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "pick a CLI first: the models are the CLI's"
+  },
+  {
+   "wants": "title of the list the CLI of an agent is picked from: Pick a CLI",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Pick a CLI"
+  },
+  {
+   "wants": "The CLI this agent runs. Accounts and models are a CLI's own, so picking another resets them.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "The CLI this agent runs. Accounts and models are a CLI's own, so picking another resets them."
+  },
+  {
+   "wants": "the role {role} needs {needs}, and no CLI installed here has that",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the role {role} needs {needs}, and no CLI installed here has that"
+  },
+  {
+   "wants": "title of the list the account of an agent is picked from: Pick an account",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Pick an account"
+  },
+  {
+   "wants": "An account is one CLI's: each CLI has its own sign-ins. Sessions, settings and skills are the CLI's whichever account it runs as.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "An account is one CLI's: each CLI has its own sign-ins. Sessions, settings and skills are the CLI's whichever account it runs as."
+  },
+  {
+   "wants": "the row for no account of the DeepSeek harness: uses the credentials and base URL dsh saved, or environment variables",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "uses the credentials and base URL dsh saved, or environment variables"
+  },
+  {
+   "wants": "the row for no account of litellm: uses the API keys litellm reads from this machine's environment",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "uses the API keys litellm reads from this machine's environment"
+  },
+  {
+   "wants": "the DeepSeek harness needs an API key: add an account to save one, or set DEEPSEEK_API_KEY and open hmz again",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the DeepSeek harness needs an API key: add an account to save one, or set DEEPSEEK_API_KEY and open hmz again"
+  },
+  {
+   "wants": "the account {name} was saved, but its sign-in exited with status {status}",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the account {name} was saved, but its sign-in exited with status {status}"
+  },
+  {
+   "wants": "title of the list a model of the CLI {cli} is picked from: Pick a model of {cli}",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Pick a model of {cli}"
+  },
+  {
+   "wants": "The model {cli} runs this agent's turns on, and its reasoning effort. These are the models it last listed for this account.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "The model {cli} runs this agent's turns on, and its reasoning effort. These are the models it last listed for this account."
+  },
+  {
+   "wants": "{name} has listed no models yet; {button} asks it for them",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} has listed no models yet; {button} asks it for them"
+  },
+  {
+   "wants": "A concrete nous is a CLI, an account and a model; a virtual nous is a name for a graph of others. Search by any of them.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A concrete nous is a CLI, an account and a model; a virtual nous is a name for a graph of others. Search by any of them."
+  },
+  {
+   "wants": "its models are not listed yet; picking it asks for them",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "its models are not listed yet; picking it asks for them"
+  },
+  {
+   "wants": "no CLI installed here has a model to offer",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "no CLI installed here has a model to offer"
+  },
+  {
+   "wants": "part of a line about a virtual nous, naming its graph: graph {graph}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "graph {graph}"
+  },
+  {
+   "wants": "part of a line about a nous, naming where a turn goes once its tries are spent: then {graph}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "then {graph}"
+  },
+  {
+   "wants": "refusal: {name} is not a nous; one is written HARNESS[@ACCOUNT]/MODEL[:EFFORT], or is a name",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} is not a nous; one is written HARNESS[@ACCOUNT]/MODEL[:EFFORT], or is a name."
+  },
+  {
+   "wants": "refusal: {name} is a virtual nous, and needs a graph",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} is a virtual nous, and needs a graph."
+  },
+  {
+   "wants": "refusal: {name} says nothing; give it more tries or a then",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} says nothing; give it more tries or a then."
+  },
+  {
+   "wants": "a concrete nous as HARNESS[@ACCOUNT]/MODEL[:EFFORT], or a name for a virtual nous",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a concrete nous as HARNESS[@ACCOUNT]/MODEL[:EFFORT], or a name for a virtual nous"
+  },
+  {
+   "wants": "renames this virtual nous",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "renames this virtual nous"
+  },
+  {
+   "wants": "opens the list of concrete nous the accounts and installed CLIs run",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "opens the list of concrete nous the accounts and installed CLIs run"
+  },
+  {
+   "wants": "how many more times a turn that fails is tried",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how many more times a turn that fails is tried"
+  },
+  {
+   "wants": "how long is waited between one try and the next",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how long is waited between one try and the next"
+  },
+  {
+   "wants": "the row for the longest a nous keeps trying a turn again: Limit",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Limit"
+  },
+  {
+   "wants": "the longest a turn is tried again for",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the longest a turn is tried again for"
+  },
+  {
+   "wants": "what this virtual nous is: nodes tried along their edges",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "what this virtual nous is: nodes tried along their edges"
+  },
+  {
+   "wants": "where a turn goes once its tries are spent, in a new conversation",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "where a turn goes once its tries are spent, in a new conversation"
+  },
+  {
+   "wants": "removes this nous once the settings are saved",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes this nous once the settings are saved"
+  },
+  {
+   "wants": "what answering the form does: keeps this nous, written once /settings is saved",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "keeps this nous, written once /settings is saved"
+  },
+  {
+   "wants": "title of the list a concrete nous is picked from: Pick a concrete nous",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Pick a concrete nous"
+  },
+  {
+   "wants": "what a nous not named yet is called in a refusal about its graph: this nous",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "this nous"
+  },
+  {
+   "wants": "title of the form a nous is added on, concrete or virtual: New nous",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "New nous"
+  },
+  {
+   "wants": "What an agent thinks with: a concrete nous, or a virtual one that stands for a graph. A turn that fails is tried again as it says, then goes to its then.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "What an agent thinks with: a concrete nous, or a virtual one that stands for a graph. A turn that fails is tried again as it says, then goes to its then."
+  },
+  {
+   "wants": "refusal: {name} is written as a concrete nous, so it cannot name a virtual one",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} is written as a concrete nous, so it cannot name a virtual one."
+  },
+  {
+   "wants": "the node a turn is taken at first",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the node a turn is taken at first"
+  },
+  {
+   "wants": "a use node naming one nous, or a balance node picking among several",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a use node naming one nous, or a balance node picking among several"
+  },
+  {
+   "wants": "removes the then: a turn goes nowhere once its tries are spent",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes the then: a turn goes nowhere once its tries are spent"
+  },
+  {
+   "wants": "what answering the form does: keeps this graph on the nous form",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "keeps this graph on the nous form"
+  },
+  {
+   "wants": "A turn starts at the start node. A node that fails follows the edge named after its fault, or else its * edge; with neither, the graph fails.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A turn starts at the start node. A node that fails follows the edge named after its fault, or else its * edge; with neither, the graph fails."
+  },
+  {
+   "wants": "a node with no edges: a failure here fails the graph",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a node with no edges: a failure here fails the graph"
+  },
+  {
+   "wants": "how a balance node picks among its nous",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how a balance node picks among its nous"
+  },
+  {
+   "wants": "the row a balance node's strategy is picked on: Strategy",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Strategy"
+  },
+  {
+   "wants": "the row the nous a balance node picks among are written in: Among",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Among"
+  },
+  {
+   "wants": "nous with their weights, as claude/opus 2, codex/gpt-5 1",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "nous with their weights, as claude/opus 2, codex/gpt-5 1"
+  },
+  {
+   "wants": "adds a nous to pick among, at weight 1",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "adds a nous to pick among, at weight 1"
+  },
+  {
+   "wants": "the row for how many of its nous a balance node tries: Spread",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Spread"
+  },
+  {
+   "wants": "how many of them are tried before the node fails",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how many of them are tried before the node fails"
+  },
+  {
+   "wants": "the nous the node takes the turn at, concrete or virtual",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the nous the node takes the turn at, concrete or virtual"
+  },
+  {
+   "wants": "opens the list the nous it uses is picked from",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "opens the list the nous it uses is picked from"
+  },
+  {
+   "wants": "the row for the edge a node follows on one fault, {fault}: On {fault}",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "On {fault}"
+  },
+  {
+   "wants": "where a failure no other edge names goes",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "where a failure no other edge names goes"
+  },
+  {
+   "wants": "where a failure of the fault {fault} goes",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "where a failure of the fault {fault} goes"
+  },
+  {
+   "wants": "what the edges call the node",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "what the edges call the node"
+  },
+  {
+   "wants": "use: one nous; balance: one of several, picked by a strategy",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "use: one nous; balance: one of several, picked by a strategy"
+  },
+  {
+   "wants": "what no edge for a fault means: the graph fails",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "with no edge for a fault, the graph fails"
+  },
+  {
+   "wants": "add another node to give this one edges",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "add another node to give this one edges"
+  },
+  {
+   "wants": "what answering the form does: keeps this node on the graph form",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "keeps this node on the graph form"
+  },
+  {
+   "wants": "removes this node and the edges to it",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes this node and the edges to it"
+  },
+  {
+   "wants": "A use node takes the turn at one nous; a balance node picks one of several and moves to another when it fails, until as many as its spread have failed.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A use node takes the turn at one nous; a balance node picks one of several and moves to another when it fails, until as many as its spread have failed."
+  },
+  {
+   "wants": "what a node not named yet is called in a refusal: this node",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "this node"
+  },
+  {
+   "wants": "What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual nous is a name for a graph of others. A turn that fails is tried again as the nous says, then goes to its then.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface, up to 45 words",
+   "text": "What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual nous is a name for a graph of others. A turn that fails is tried again as the nous says, then goes to its then."
+  },
+  {
+   "wants": "the button that adds a nous: Add nous",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Add nous"
+  },
+  {
+   "wants": "adds a concrete nous, or a virtual one",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds a concrete nous, or a virtual one"
+  },
+  {
+   "wants": "no nous is written down yet",
+   "where": "said in place of a list that is empty, one short sentence with its full stop, as the page's `No account yet.`",
+   "text": "No nous yet."
+  },
+  {
+   "wants": "refusal to remove a nous: the nous {naming} still names {name}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The nous {naming} still names {name}."
+  },
+  {
+   "wants": "{name} is taken off the list now and removed once the settings are saved: {name} is removed when saved",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} is removed when saved"
+  },
+  {
+   "wants": "a nous was renamed: {was} is now {name}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{was} is now {name}"
+  },
+  {
+   "wants": "something of the settings was removed: {name} removed",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} removed"
+  },
+  {
+   "wants": "how far apart backups are made while an epic runs, as a value picked on a row: {n} minutes",
+   "where": "value of a row of a form, lower-case, no full stop",
+   "text": "{n} minutes",
+   "one": "{n} minute"
+  },
+  {
+   "wants": "one short word, as --backup takes it",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "one short word, as --backup takes it"
+  },
+  {
+   "wants": "the repository, reached with your own git",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the repository, reached with your own git"
+  },
+  {
+   "wants": "the branch epics are committed to",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the branch epics are committed to"
+  },
+  {
+   "wants": "backs an epic up as each of its sessions ends",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "backs an epic up as each of its sessions ends"
+  },
+  {
+   "wants": "backs an epic up this often while it runs",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "backs an epic up this often while it runs"
+  },
+  {
+   "wants": "backs an epic up once it ends",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "backs an epic up once it ends"
+  },
+  {
+   "wants": "new epics are backed up here unless told otherwise",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "new epics are backed up here unless told otherwise"
+  },
+  {
+   "wants": "removes this backup target once the settings are saved",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes this backup target once the settings are saved"
+  },
+  {
+   "wants": "what answering the form does: keeps this backup target, written once /settings is saved",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "keeps this backup target, written once /settings is saved"
+  },
+  {
+   "wants": "A repository epics are copied to, one commit a backup, pushed with your own git. With no policy on, only when you ask.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A repository epics are copied to, one commit a backup, pushed with your own git. With no policy on, only when you ask."
+  },
+  {
+   "wants": "refusal: a backup target's name is one short word of letters, digits, - and _",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "A backup target's name is one short word of letters, digits, - and _."
+  },
+  {
+   "wants": "what answering the form does: backs each epic up to the targets switched on",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "backs each epic up to the targets switched on"
+  },
+  {
+   "wants": "Where each epic of this flow here is backed up, as each target's policies say, remembered with its budget. Targets are added on the Backup page of /settings.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Where each epic of this flow here is backed up, as each target's policies say, remembered with its budget. Targets are added on the Backup page of /settings."
+  },
+  {
+   "wants": "Repositories epics are backed up to, with your own git. A new epic goes to the ones marked ✔ unless told otherwise.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Repositories epics are backed up to, with your own git. A new epic goes to the ones marked ✔ unless told otherwise."
+  },
+  {
+   "wants": "the button that downloads an epic out of a backup target, opening a list to pick it from: Download…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "Download…"
+  },
+  {
+   "wants": "brings an epic a backup target holds onto this machine",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "brings an epic a backup target holds onto this machine"
+  },
+  {
+   "wants": "adds a repository to back epics up to",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds a repository to back epics up to"
+  },
+  {
+   "wants": "the backup targets were written to the settings: {n} backup targets saved",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{n} backup targets saved",
+   "one": "{n} backup target saved"
+  },
+  {
+   "wants": "An edit and a removal take effect once /settings is saved; signing in happens at once.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "An edit and a removal take effect once /settings is saved; signing in happens at once."
+  },
+  {
+   "wants": "asks again what the account's sign-in method asks for",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "asks again what the account's sign-in method asks for"
+  },
+  {
+   "wants": "the row that runs an account's own sign-in again: Sign in again",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Sign in again"
+  },
+  {
+   "wants": "runs the CLI's own sign-in again, which takes the terminal while it runs",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "runs the CLI's own sign-in again, which takes the terminal while it runs"
+  },
+  {
+   "wants": "the button that keeps an account that was going to be removed: Keep account",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Keep account"
+  },
+  {
+   "wants": "keeps the account after all",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "keeps the account after all"
+  },
+  {
+   "wants": "removes the account and its credentials once /settings is saved",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes the account and its credentials once /settings is saved"
+  },
+  {
+   "wants": "the CLI {cli} is signed in outside Humanize, which keeps no credentials for it: there is nothing to edit, sign in again or remove",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the CLI {cli} is signed in outside Humanize, which keeps no credentials for it: there is nothing to edit, sign in again or remove"
+  },
+  {
+   "wants": "when a change to an account is felt: from an agent's next session",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "from an agent's next session"
+  },
+  {
+   "wants": "an account whose edit is held until the settings are saved: edited",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "edited"
+  },
+  {
+   "wants": "an account that is removed once the settings are saved: will be removed",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "will be removed"
+  },
+  {
+   "wants": "adds a sign-in for one CLI: an API key, its own login, or a gateway",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds a sign-in for one CLI: an API key, its own login, or a gateway"
+  },
+  {
+   "wants": "the button that adds a CLI of your own that speaks ACP: Add CLI",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Add CLI"
+  },
+  {
+   "wants": "adds a CLI of your own, by the command that starts it, which has to speak ACP",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds a CLI of your own, by the command that starts it, which has to speak ACP"
+  },
+  {
+   "wants": "an account that was going to be removed is kept after all: {name} stays",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} stays"
+  },
+  {
+   "wants": "an edit to {name} is held until the settings are saved: {name} is updated when saved",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} is updated when saved"
+  },
+  {
+   "wants": "something was written down: {name} saved to {path}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} saved to {path}"
+  },
+  {
+   "wants": "an account's own sign-in ran and ended well: {account} is signed in",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{account} is signed in"
+  },
+  {
+   "wants": "an account's own sign-in ended badly: sign-in exited with status {status}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "sign-in exited with status {status}"
+  },
+  {
+   "wants": "the account {name} was saved for other CLIs as well: {name} also saved for {clis}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} also saved for {clis}"
+  },
+  {
+   "wants": "the sign-in of the account {name} exited with status {status}",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the sign-in of {name} exited with status {status}"
+  },
+  {
+   "wants": "how many models the CLI {cli} lists when it runs as the account {name}: {cli} lists {n} models as {name}",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{cli} lists {n} models as {name}",
+   "one": "{cli} lists {n} model as {name}"
+  },
+  {
+   "wants": "where to ask an account for its models again: try again from the model row of an agent that runs as it",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "try again from the model row of an agent that runs as it"
+  },
+  {
+   "wants": "the account {name} was made by {way}, which runs no command to sign in; edit it instead",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} was made by {way}, which runs no command to sign in; edit it instead"
+  },
+  {
+   "wants": "a CLI of your own was added: {name} added as a backend",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} added as a backend"
+  },
+  {
+   "wants": "a CLI of your own was written down: {name} is saved as a backend; {command} starts it",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} is saved as a backend; {command} starts it"
+  },
+  {
+   "wants": "an account was removed: {name} and its credentials were removed",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} and its credentials were removed"
+  },
+  {
+   "wants": "there is no account {name}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "there is no account {name}"
+  },
+  {
+   "wants": "something of the settings was written again: {name} updated",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} updated"
+  },
+  {
+   "wants": "the same edit was written to the same account of another CLI: {name} updated with it",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{name} updated with it"
+  },
+  {
+   "wants": "account changes take effect from an agent's next session",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "account changes take effect from an agent's next session"
+  },
+  {
+   "wants": "a machine reached over ssh",
+   "where": "quiet line beside a kind of runtime on the list one is added from, lower-case start, no full stop",
+   "text": "a machine reached over ssh"
+  },
+  {
+   "wants": "a docker daemon, here or on another machine",
+   "where": "quiet line beside a kind of runtime on the list one is added from, lower-case start, no full stop",
+   "text": "a docker daemon, here or on another machine"
+  },
+  {
+   "wants": "a docker swarm, through one of its managers",
+   "where": "quiet line beside a kind of runtime on the list one is added from, lower-case start, no full stop",
+   "text": "a docker swarm, through one of its managers"
+  },
+  {
+   "wants": "Apple's Linux containers on this Mac",
+   "where": "quiet line beside a kind of runtime on the list one is added from, lower-case start, no full stop",
+   "text": "Apple's Linux containers on this Mac"
+  },
+  {
+   "wants": "the Slurm cluster this machine submits to",
+   "where": "quiet line beside a kind of runtime on the list one is added from, lower-case start, no full stop",
+   "text": "the Slurm cluster this machine submits to"
+  },
+  {
+   "wants": "refusal: an amount of memory, {said}, has to be a number and a unit, like 64G or 512M",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "Memory {said} has to be a number and a unit, like 64G or 512M."
+  },
+  {
+   "wants": "refusal: an ssh option, {said}, is not written KEYWORD=VALUE",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The ssh option {said} is not written KEYWORD=VALUE."
+  },
+  {
+   "wants": "the row a swarm's placement constraints are written in: Constraints",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Constraints"
+  },
+  {
+   "wants": "the generic resource a swarm's nodes advertise their GPUs as: GPUs as {resource}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "gpus as {resource}"
+  },
+  {
+   "wants": "the most tasks a swarm runtime runs at once: at most {n} tasks",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "at most {n} tasks",
+   "one": "at most {n} task"
+  },
+  {
+   "wants": "a Slurm runtime that names no partition: default partition",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "default partition"
+  },
+  {
+   "wants": "the row a Slurm quality of service is written in: QoS",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "QoS"
+  },
+  {
+   "wants": "the row the node features a Slurm job needs are written in: Constraint",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Constraint"
+  },
+  {
+   "wants": "the most jobs a Slurm runtime runs at once: at most {n} jobs",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "at most {n} jobs",
+   "one": "at most {n} job"
+  },
+  {
+   "wants": "how long a Slurm job may wait for a node, in seconds: waits {n}s for a node",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "waits {n}s for a node",
+   "one": "waits {n}s for a node"
+  },
+  {
+   "wants": "an ssh host that is read out of an ssh config file, {config}: from {config}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "from {config}"
+  },
+  {
+   "wants": "the most containers a runtime runs at once: at most {n} containers",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "at most {n} containers",
+   "one": "at most {n} container"
+  },
+  {
+   "wants": "the row a docker daemon's OCI runtime is written in: OCI runtime",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "OCI runtime"
+  },
+  {
+   "wants": "a docker runtime that runs everything in one container already running, {container}: in the running container {container}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "in the running container {container}"
+  },
+  {
+   "wants": "a runtime, {name}, did not answer when it was checked: {name} could not be reached: {why}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} could not be reached: {why}"
+  },
+  {
+   "wants": "what all the nodes of a cluster have between them: {has} all told",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "{has} all told"
+  },
+  {
+   "wants": "a runtime, {name}, answered when it was checked: {name} answers",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} answers"
+  },
+  {
+   "wants": "no node of a Slurm partition may take a job",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "no node may take a job"
+  },
+  {
+   "wants": "no node of a docker swarm may take a task",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "no node may take a task"
+  },
+  {
+   "wants": "a runtime, {name}, could not be checked: {name} could not be checked: {why}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{name} could not be checked: {why}"
+  },
+  {
+   "wants": "some GPUs of a runtime did not answer when it was checked: {usable} of {total} GPUs answer; {gone} does not",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop; `{gone}` is a list of GPU ids",
+   "text": "{usable} of {total} GPUs answer; {gone} does not."
+  },
+  {
+   "wants": "each of the GPUs just listed has this much memory: {gpus}, {size} each",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "{gpus}, {size} each"
+  },
+  {
+   "wants": "the OCI runtimes a docker daemon has: OCI runtimes",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "OCI runtimes"
+  },
+  {
+   "wants": "the runtimes tried in order where this one cannot be used, as docker:box, ssh:gpu2",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the runtimes tried in order where this one cannot be used, as docker:box, ssh:gpu2"
+  },
+  {
+   "wants": "where an agent's harness runs, and nowhere else: env (the CLI on this runtime's machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for env",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop; keep every word with a colon or in angle brackets as written, up to 40 words",
+   "text": "where an agent's harness runs, and nowhere else: env (the CLI on this runtime's machine), local (here), or ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for env"
+  },
+  {
+   "wants": "the Host entry it is read from in the ssh config {config}",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the Host entry it is read from in the ssh config {config}"
+  },
+  {
+   "wants": "the host to reach instead; blank for what the ssh config says",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the host to reach instead; blank for what the ssh config says"
+  },
+  {
+   "wants": "a hostname, an IP address, or user@host:port",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a hostname, an IP address, or user@host:port"
+  },
+  {
+   "wants": "the name a runtime is given, which -e and /flow name it by",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the name a runtime is given, which -e and /flow name it by"
+  },
+  {
+   "wants": "the user to sign in as; blank for what your ssh config says",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the user to sign in as; blank for what your ssh config says"
+  },
+  {
+   "wants": "the port; blank for what your ssh config says, or 22",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the port; blank for what your ssh config says, or 22"
+  },
+  {
+   "wants": "the path of the private key",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the path of the private key"
+  },
+  {
+   "wants": "the host to jump through, if any",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the host to jump through, if any"
+  },
+  {
+   "wants": "more ssh options, as KEYWORD=VALUE, …",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "more ssh options, as KEYWORD=VALUE, …"
+  },
+  {
+   "wants": "the working directory where -e names none: /abs or ~/path",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the working directory where -e names none: /abs or ~/path"
+  },
+  {
+   "wants": "what answering the form does: updates the runtime {name}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "updates the runtime {name}"
+  },
+  {
+   "wants": "what answering the form does: adds the runtime {name}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "adds the runtime {name}"
+  },
+  {
+   "wants": "what saving a runtime does besides: checks its resources",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "checks its resources"
+  },
+  {
+   "wants": "A machine flow environments run on. It is reached with your ssh config and what is set here. A key is named by its path and never read.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A machine flow environments run on. It is reached with your ssh config and what is set here. A key is named by its path and never read."
+  },
+  {
+   "wants": "refusal: a runtime {name} is there already; edit it from its row, or pick another name",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "A runtime {name} is there already; edit it from its row, or pick another name."
+  },
+  {
+   "wants": "the docker daemon this machine uses by default",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "the docker daemon this machine uses by default"
+  },
+  {
+   "wants": "a daemon's unix socket on this machine",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "a daemon's unix socket on this machine"
+  },
+  {
+   "wants": "a daemon listening at an address",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "a daemon listening at an address"
+  },
+  {
+   "wants": "the daemon on an ssh host saved as a runtime",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "the daemon on an ssh host saved as a runtime"
+  },
+  {
+   "wants": "the daemon on any host ssh reaches",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "the daemon on any host ssh reaches"
+  },
+  {
+   "wants": "a docker context there already is",
+   "where": "quiet hint beside the row Endpoint of the form a docker runtime is set on, saying what the kind of endpoint picked is; lower-case start, no full stop",
+   "text": "a docker context there already is"
+  },
+  {
+   "wants": "a docker daemon reached by its unix socket: Socket",
+   "where": "value picked on the row Endpoint of the form a docker runtime is set on, as the page writes an option: sentence case, a word or two",
+   "text": "Socket"
+  },
+  {
+   "wants": "a docker daemon reached at a TCP address: TCP",
+   "where": "value picked on the row Endpoint of the form a docker runtime is set on, as the page writes an option: sentence case, a word or two",
+   "text": "TCP"
+  },
+  {
+   "wants": "a docker daemon on an ssh host saved as a runtime: Saved SSH host",
+   "where": "value picked on the row Endpoint of the form a docker runtime is set on, as the page writes an option: sentence case, a word or two",
+   "text": "Saved SSH host"
+  },
+  {
+   "wants": "a docker daemon on a host ssh reaches, written as an address: SSH address",
+   "where": "value picked on the row Endpoint of the form a docker runtime is set on, as the page writes an option: sentence case, a word or two",
+   "text": "SSH address"
+  },
+  {
+   "wants": "what saving a docker runtime does besides: detects the host's resources",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "detects the host's resources"
+  },
+  {
+   "wants": "the row a docker daemon's unix socket is written in: Socket",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Socket"
+  },
+  {
+   "wants": "the path of the socket, as /run/docker.sock",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the path of the socket, as /run/docker.sock"
+  },
+  {
+   "wants": "the host:port to connect to",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the host:port to connect to"
+  },
+  {
+   "wants": "the host, as [user@]host[:port]",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the host, as [user@]host[:port]"
+  },
+  {
+   "wants": "the directory holding ca.pem, cert.pem and key.pem; blank for none",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the directory holding ca.pem, cert.pem and key.pem; blank for none"
+  },
+  {
+   "wants": "the saved ssh host the docker daemon runs on",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the saved ssh host the docker daemon runs on"
+  },
+  {
+   "wants": "the name of the docker context",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the name of the docker context"
+  },
+  {
+   "wants": "the button that asks a runtime's host what it has and fills the rows in: Detect",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Detect"
+  },
+  {
+   "wants": "asks the host what resources it has, and fills them in",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "asks the host what resources it has, and fills them in"
+  },
+  {
+   "wants": "the host of a runtime, {name}, is being asked what it has: detecting resources on {name}…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "detecting resources on {name}…"
+  },
+  {
+   "wants": "refusal: the docker daemon did not answer: {why}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The docker daemon did not answer: {why}"
+  },
+  {
+   "wants": "what a runtime's host has was found and written into the rows: detected {has}; filled in",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "detected {has}; filled in"
+  },
+  {
+   "wants": "refusal: the TLS directory {path} is under the home directory of a user there is not",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The TLS directory {path} is under the home directory of a user there is not."
+  },
+  {
+   "wants": "A docker daemon flow environments run on, in containers: on this machine, over ssh, or at an address. Flows on it are held to the resources set here.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "A docker daemon flow environments run on, in containers: on this machine, over ssh, or at an address. Flows on it are held to the resources set here."
+  },
+  {
+   "wants": "the image an environment starts from, unless the flow names one",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the image an environment starts from, unless the flow names one"
+  },
+  {
+   "wants": "an OCI runtime, like nvidia; blank for the daemon's own",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "an OCI runtime, like nvidia; blank for the daemon's own"
+  },
+  {
+   "wants": "more arguments for docker run",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "more arguments for docker run"
+  },
+  {
+   "wants": "the row for the most containers a runtime runs at once: Max containers",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Max containers"
+  },
+  {
+   "wants": "the most containers running at once; blank for no limit",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most containers running at once; blank for no limit"
+  },
+  {
+   "wants": "the working directory where -e names none",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the working directory where -e names none"
+  },
+  {
+   "wants": "the most CPUs; blank for all the host has",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most CPUs; blank for all the host has"
+  },
+  {
+   "wants": "the row an amount of memory a runtime may use is written in: Memory",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Memory"
+  },
+  {
+   "wants": "the most memory, like 64G; blank for all the host has",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most memory, like 64G; blank for all the host has"
+  },
+  {
+   "wants": "GPU ids, like 0, 1; blank for all the host has",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "GPU ids, like 0, 1; blank for all the host has"
+  },
+  {
+   "wants": "refusal: a node of a swarm, {said}, is not written HOSTNAME=SSH-HOST",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The swarm node {said} is not written as HOSTNAME=SSH-HOST."
+  },
+  {
+   "wants": "A docker swarm flow environments run on as services of one task, placed on whichever node has room. It is reached through a manager's daemon: on this machine, over ssh, or at an address. Flows on it are held to the quota set here.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface, up to 45 words",
+   "text": "A docker swarm flow environments run on as services of one task, placed on whichever node has room. It is reached through a manager's daemon: on this machine, over ssh, or at an address. Flows on it are held to the quota set here."
+  },
+  {
+   "wants": "what saving a swarm runtime does besides: checks its nodes",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "checks its nodes"
+  },
+  {
+   "wants": "the image an environment starts from, unless the flow names one; every node pulls it",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the image an environment starts from, unless the flow names one; every node pulls it"
+  },
+  {
+   "wants": "more arguments for docker service create",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "more arguments for docker service create"
+  },
+  {
+   "wants": "placement constraints, like node.labels.gpu==true, …",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "placement constraints, like node.labels.gpu==true, …"
+  },
+  {
+   "wants": "the row for the most tasks a swarm runtime runs at once: Max tasks",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Max tasks"
+  },
+  {
+   "wants": "the most tasks running at once; blank for no limit",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most tasks running at once; blank for no limit"
+  },
+  {
+   "wants": "how each node is reached, as HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "how each node is reached, as HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address"
+  },
+  {
+   "wants": "the working directory, on every node, where -e names none",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the working directory, on every node, where -e names none"
+  },
+  {
+   "wants": "the row the generic resource a swarm's nodes advertise GPUs as is written in: GPU resource",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "GPU resource"
+  },
+  {
+   "wants": "the generic resource nodes advertise their GPUs as, like NVIDIA-GPU",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the generic resource nodes advertise their GPUs as, like NVIDIA-GPU"
+  },
+  {
+   "wants": "the CPUs all tasks may reserve between them; blank for no quota",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the CPUs all tasks may reserve between them; blank for no quota"
+  },
+  {
+   "wants": "the memory all tasks may reserve between them, like 64G; blank for no quota",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the memory all tasks may reserve between them, like 64G; blank for no quota"
+  },
+  {
+   "wants": "more arguments for container run",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "more arguments for container run"
+  },
+  {
+   "wants": "the most CPUs; blank for all this Mac has",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most CPUs; blank for all this Mac has"
+  },
+  {
+   "wants": "the most memory, like 16G; blank for all this Mac has",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most memory, like 16G; blank for all this Mac has"
+  },
+  {
+   "wants": "asks this Mac what resources it has, and fills them in",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "asks this Mac what resources it has, and fills them in"
+  },
+  {
+   "wants": "this Mac is being asked what it has: detecting resources on this Mac…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "detecting resources on this Mac…"
+  },
+  {
+   "wants": "refusal: Apple's container did not answer: {why}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "Apple's container did not answer: {why}."
+  },
+  {
+   "wants": "This Mac, where flow environments run in Linux containers of Apple's container, each a small virtual machine of its own. Flows on it are held to the resources set here.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "This Mac, where flow environments run in Linux containers of Apple's container, each a small virtual machine of its own. Flows on it are held to the resources set here."
+  },
+  {
+   "wants": "srun: a step of the job for each connection, which every cluster allows",
+   "where": "quiet hint beside the row Via of the form a Slurm runtime is set on, saying how a job is reached; lower-case start, no full stop; do not repeat the word srun",
+   "text": "a step of the job for each connection, which every cluster allows"
+  },
+  {
+   "wants": "tcp: a port the job serves, which needs this machine to reach its nodes",
+   "where": "quiet hint beside the row Via of the form a Slurm runtime is set on, saying how a job is reached; lower-case start, no full stop; do not repeat the word tcp",
+   "text": "a port the job serves, which needs this machine to reach its nodes"
+  },
+  {
+   "wants": "the partition jobs are submitted to; blank for the cluster's default",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the partition jobs are submitted to; blank for the cluster's default"
+  },
+  {
+   "wants": "the Slurm account jobs are charged to; blank for your default",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the Slurm account jobs are charged to; blank for your default"
+  },
+  {
+   "wants": "the quality of service; blank for the default",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the quality of service; blank for the default"
+  },
+  {
+   "wants": "the longest a job may run, like 4:00:00; blank for the partition's",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the longest a job may run, like 4:00:00; blank for the partition's"
+  },
+  {
+   "wants": "the node features a job needs, like a100",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the node features a job needs, like a100"
+  },
+  {
+   "wants": "the row the path of the Python on a cluster's nodes is written in: Python",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Python"
+  },
+  {
+   "wants": "a Python 3.12 or newer on its nodes, as /abs or ~/path; blank for the nodes' own",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a Python 3.12 or newer on its nodes, as /abs or ~/path; blank for the nodes' own"
+  },
+  {
+   "wants": "the row for how a Slurm job is reached, srun or tcp: Via",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Via"
+  },
+  {
+   "wants": "more arguments for sbatch",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "more arguments for sbatch"
+  },
+  {
+   "wants": "the row for the most jobs a Slurm runtime runs at once: Max jobs",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Max jobs"
+  },
+  {
+   "wants": "the most jobs running at once; blank for no limit",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the most jobs running at once; blank for no limit"
+  },
+  {
+   "wants": "the row for how long a Slurm job may wait for a node: Max wait",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Max wait"
+  },
+  {
+   "wants": "the seconds a job may wait for a node; blank for as long as it takes",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the seconds a job may wait for a node; blank for as long as it takes"
+  },
+  {
+   "wants": "the CPUs all jobs may reserve between them; blank for no quota",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the CPUs all jobs may reserve between them; blank for no quota"
+  },
+  {
+   "wants": "the memory all jobs may reserve between them, like 64G; blank for no quota",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the memory all jobs may reserve between them, like 64G; blank for no quota"
+  },
+  {
+   "wants": "what saving a Slurm runtime does besides: checks the nodes of its partition",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "checks the nodes of its partition"
+  },
+  {
+   "wants": "The Slurm cluster this machine submits to, where each flow environment is a job of its own, placed on whichever node of its partition has room. Flows on it are held to the quota set here.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface, up to 45 words",
+   "text": "The Slurm cluster this machine submits to, where each flow environment is a job of its own, placed on whichever node of its partition has room. Flows on it are held to the quota set here."
+  },
+  {
+   "wants": "another host of the config, {other}, already takes the name {name}",
+   "where": "why a host of an ssh config is not ticked to be imported, said on its row after a middle dot; lower-case start, no full stop",
+   "text": "another host of the config, {other}, already takes the name {name}"
+  },
+  {
+   "wants": "a runtime added by hand is saved as {name} already",
+   "where": "why a host of an ssh config is not ticked to be imported, said on its row after a middle dot; lower-case start, no full stop",
+   "text": "a runtime added by hand is saved as {name} already"
+  },
+  {
+   "wants": "the ssh config to read: your own, or another file",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the ssh config to read: your own, or another file"
+  },
+  {
+   "wants": "what answering the form does while no host is ticked: imports nothing until a host is ticked",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "imports nothing until a host is ticked"
+  },
+  {
+   "wants": "what answering the form does: imports the hosts {hosts}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "imports the hosts {hosts}"
+  },
+  {
+   "wants": "what answering the form does: imports {n} hosts",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "imports {n} hosts",
+   "one": "imports {n} host"
+  },
+  {
+   "wants": "title of the form hosts of an ssh config are imported on as runtimes: Import SSH hosts",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Import SSH hosts"
+  },
+  {
+   "wants": "Hosts of an ssh config, as ssh reads it. Each is saved under its Host name and goes on being read from the config, which is never written.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Hosts of an ssh config, as ssh reads it. Each is saved under its Host name and goes on being read from the config, which is never written."
+  },
+  {
+   "wants": "changes what is saved of the runtime",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "changes what is saved of the runtime"
+  },
+  {
+   "wants": "asks an ssh host what it has: its home directory, CPUs, memory and GPUs",
+   "where": "quiet line beside the row Check of a runtime's menu in the terminal interface, lower-case start, no full stop",
+   "text": "asks an ssh host what it has: its home directory, CPUs, memory and GPUs"
+  },
+  {
+   "wants": "checks a swarm's nodes against its quota",
+   "where": "quiet line beside the row Check of a runtime's menu in the terminal interface, lower-case start, no full stop",
+   "text": "checks a swarm's nodes against its quota"
+  },
+  {
+   "wants": "checks this Mac's resources against its limits",
+   "where": "quiet line beside the row Check of a runtime's menu in the terminal interface, lower-case start, no full stop",
+   "text": "checks this Mac's resources against its limits"
+  },
+  {
+   "wants": "checks the nodes of a Slurm partition against its quota",
+   "where": "quiet line beside the row Check of a runtime's menu in the terminal interface, lower-case start, no full stop",
+   "text": "checks the nodes of a Slurm partition against its quota"
+  },
+  {
+   "wants": "checks a docker daemon's resources against its limits",
+   "where": "quiet line beside the row Check of a runtime's menu in the terminal interface, lower-case start, no full stop",
+   "text": "checks a docker daemon's resources against its limits"
+  },
+  {
+   "wants": "removes this runtime at once",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes this runtime at once"
+  },
+  {
+   "wants": "Saved on the Runtimes page of /settings; a runtime added here is saved there.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Saved on the Runtimes page of /settings; a runtime added here is saved there."
+  },
+  {
+   "wants": "names a host nobody saved: any host ssh reaches",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "names a host nobody saved: any host ssh reaches"
+  },
+  {
+   "wants": "the host, as [user@]host[:port], or an alias of your ssh config",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the host, as [user@]host[:port], or an alias of your ssh config"
+  },
+  {
+   "wants": "what answering the form does: puts the role on this host without saving it",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "puts the role on this host without saving it"
+  },
+  {
+   "wants": "title of the form an ssh host nobody saved is named on: Other host",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Other host"
+  },
+  {
+   "wants": "It is reached with your ssh config and nothing more. To save a host under a name, go to the Runtimes page of /settings.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "It is reached with your ssh config and nothing more. To save a host under a name, go to the Runtimes page of /settings."
+  },
+  {
+   "wants": "refusal: {said} is not a host; one has no spaces, slashes or brackets",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{said} is not a host; one has no spaces, slashes or brackets."
+  },
+  {
+   "wants": "a machine reached over ssh",
+   "where": "quiet line beside a kind of runtime on the row an environment's backend is picked on, lower-case start, no full stop",
+   "text": "a machine reached over ssh"
+  },
+  {
+   "wants": "a container on a docker daemon",
+   "where": "quiet line beside a kind of runtime on the row an environment's backend is picked on, lower-case start, no full stop",
+   "text": "a container on a docker daemon"
+  },
+  {
+   "wants": "a container on whichever node of a docker swarm has room",
+   "where": "quiet line beside a kind of runtime on the row an environment's backend is picked on, lower-case start, no full stop",
+   "text": "a container on whichever node of a docker swarm has room"
+  },
+  {
+   "wants": "an Apple container on this Mac",
+   "where": "quiet line beside a kind of runtime on the row an environment's backend is picked on, lower-case start, no full stop",
+   "text": "an Apple container on this Mac"
+  },
+  {
+   "wants": "a job on whichever node of a Slurm partition has room",
+   "where": "quiet line beside a kind of runtime on the row an environment's backend is picked on, lower-case start, no full stop",
+   "text": "a job on whichever node of a Slurm partition has room"
+  },
+  {
+   "wants": "where the environment runs",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "where the environment runs"
+  },
+  {
+   "wants": "a host that is not saved: reached with ssh as it is written",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a host that is not saved: reached with ssh as it is written"
+  },
+  {
+   "wants": "pick a saved host, or add one",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "pick a saved host, or add one"
+  },
+  {
+   "wants": "none named: {backend} on this machine, or pick a saved one",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "none named: {backend} on this machine, or pick a saved one"
+  },
+  {
+   "wants": "blank for the working directory saved with the runtime: {saved}",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "blank for the working directory saved with the runtime: {saved}"
+  },
+  {
+   "wants": "the working directory there: /path, or ~/path under home",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the working directory there: /path, or ~/path under home"
+  },
+  {
+   "wants": "the row the whole of what -e takes is written in: As -e",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "As -e"
+  },
+  {
+   "wants": "the whole of what -e takes; writing one sets the rows above",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the whole of what -e takes; writing one sets the rows above"
+  },
+  {
+   "wants": "what answering the form does with nothing written: leaves the role {role} with no environment",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "leaves the role {role} with no environment"
+  },
+  {
+   "wants": "what answering the form does: puts the role {role} on {spec} once the flow is saved",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "puts the role {role} on {spec} once the flow is saved"
+  },
+  {
+   "wants": "The machine and working directory of this environment role. A runtime saved on the Runtimes page of /settings, picked by its name, brings the working directory saved with it.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "The machine and working directory of this environment role. A runtime saved on the Runtimes page of /settings, picked by its name, brings the working directory saved with it."
+  },
+  {
+   "wants": "refusal: {path} is not an absolute path on this machine",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{path} is not an absolute path on this machine."
+  },
+  {
+   "wants": "refusal: no environment is written yet",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "No environment is written yet."
+  },
+  {
+   "wants": "Saved ssh hosts, docker daemons with the resources each may hand out, docker swarms with what their tasks may reserve, this Mac's Apple containers, and Slurm clusters with what their jobs are submitted under, named as flow environments by -e and /flow. A change takes effect at once.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface, up to 55 words",
+   "text": "Saved ssh hosts, docker daemons with the resources each may hand out, docker swarms with what their tasks may reserve, this Mac's Apple containers, and Slurm clusters with what their jobs are submitted under, named as flow environments by -e and /flow. A change takes effect at once."
+  },
+  {
+   "wants": "adds an ssh host, a docker daemon, a docker swarm, Apple containers or a Slurm cluster",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds an ssh host, a docker daemon, a docker swarm, Apple containers or a Slurm cluster"
+  },
+  {
+   "wants": "other runtimes, {names}, reached their docker daemon through the ssh host just removed: {names} reached their daemon through this host; edit them",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{names} reached their daemon through this host; edit them"
+  },
+  {
+   "wants": "ssh hosts {names} were imported as runtimes from the ssh config {config}: {names} imported from {config}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "{names} imported from {config}"
+  },
+  {
+   "wants": "no ssh host was imported from the ssh config {config}: nothing imported from {config}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "nothing imported from {config}"
+  },
+  {
+   "wants": "the hosts {names} of an ssh config were not imported: left {names}",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "left {names}"
+  },
+  {
+   "wants": "open a host to check it",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "open a host to check it"
+  },
+  {
+   "wants": "a runtime, {name}, is being asked what it has: checking {name}…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "checking {name}…"
+  },
+  {
+   "wants": "what the daemon is called, which /epics @<name> lists its epics by",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop; keep /epics @<name> as written",
+   "text": "what the daemon is called, which /epics @<name> lists its epics by"
+  },
+  {
+   "wants": "the row for how another machine's daemon is added, by a pairing code, an ssh host or its routes: Mode",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "Mode"
+  },
+  {
+   "wants": "fills the rows below from a host of your ssh config",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "fills the rows below from a host of your ssh config"
+  },
+  {
+   "wants": "a hostname or an IP address",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a hostname or an IP address"
+  },
+  {
+   "wants": "the code `hmz devices pair` printed on the other machine, claimed now",
+   "where": "quiet line beside a value of the row Mode of the form another machine's daemon is added on, lower-case start, no full stop; write the command without backticks",
+   "text": "the code hmz devices pair printed on the other machine, claimed now"
+  },
+  {
+   "wants": "a Host of your ssh config, reached as the config says",
+   "where": "quiet line beside a value of the row Mode of the form another machine's daemon is added on, lower-case start, no full stop",
+   "text": "a Host of your ssh config, reached as the config says"
+  },
+  {
+   "wants": "what ssh is told a part at a time: typed in, or imported",
+   "where": "quiet line beside a value of the row Mode of the form another machine's daemon is added on, lower-case start, no full stop",
+   "text": "what ssh is told a part at a time: typed in, or imported"
+  },
+  {
+   "wants": "the daemon's routes, in the order they are tried",
+   "where": "quiet line beside a value of the row Mode of the form another machine's daemon is added on, lower-case start, no full stop",
+   "text": "the daemon's routes, in the order they are tried"
+  },
+  {
+   "wants": "removes this daemon",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "removes this daemon"
+  },
+  {
+   "wants": "what answering the form does: saves this daemon",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "saves this daemon"
+  },
+  {
+   "wants": "Another machine's hmz, added by the code `hmz devices pair` prints there, or by its routes. Its epics are listed with /epics @<name>.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface; write the command without backticks and keep /epics @<name> as written",
+   "text": "Another machine's hmz, added by the code hmz devices pair prints there, or by its routes. Its epics are listed with /epics @<name>."
+  },
+  {
+   "wants": "what answering the form does: adds each host switched on as a daemon",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "adds each host switched on as a daemon"
+  },
+  {
+   "wants": "title of the form hosts of an ssh config are added on as daemons: Import daemons",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Import daemons"
+  },
+  {
+   "wants": "Hosts of your ssh config, each reached as its Host says. Your ssh config is never written.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Hosts of your ssh config, each reached as its Host says. Your ssh config is never written."
+  },
+  {
+   "wants": "a page of settings switched on to be written to other daemons: carried",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "carried"
+  },
+  {
+   "wants": "what answering the form does: writes the pages switched on to each daemon switched on",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "writes the pages switched on to each daemon switched on"
+  },
+  {
+   "wants": "This machine's settings, written to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "This machine's settings, written to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them."
+  },
+  {
+   "wants": "refusal: nothing to write yet; switch on a page and a daemon",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "Nothing to write yet; switch on a page and a daemon."
+  },
+  {
+   "wants": "Each device paired with the daemon {daemon}. Enter revokes one.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Each device paired with the daemon {daemon}. Enter revokes one."
+  },
+  {
+   "wants": "when a device was paired with a daemon: added {when}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "added {when}"
+  },
+  {
+   "wants": "Revoking a device closes its sessions there; it pairs again only with a new code.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Revoking a device closes its sessions there; it pairs again only with a new code."
+  },
+  {
+   "wants": "revokes the device now",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "revokes the device now"
+  },
+  {
+   "wants": "keeps the device",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "keeps the device"
+  },
+  {
+   "wants": "refusal: this machine's daemon went away while it was asked",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "This machine's daemon went away while it was asked."
+  },
+  {
+   "wants": "This machine's daemon, and other machines' reached by their routes. /epics @<name> lists the epics of one; m on one is its menu.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface; keep /epics @<name> and the key m as written",
+   "text": "This machine's daemon, and other machines' reached by their routes. /epics @<name> lists the epics of one; m on one is its menu."
+  },
+  {
+   "wants": "adds another machine, by its pairing code or its routes",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds another machine, by its pairing code or its routes"
+  },
+  {
+   "wants": "the button that adds hosts of your ssh config as daemons, opening a form: Import…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "Import…"
+  },
+  {
+   "wants": "adds hosts of your ssh config as daemons",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "adds hosts of your ssh config as daemons"
+  },
+  {
+   "wants": "the button that writes this machine's settings to other daemons, opening a form: Batch apply…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "Batch apply…"
+  },
+  {
+   "wants": "writes this machine's settings to other daemons",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "writes this machine's settings to other daemons"
+  },
+  {
+   "wants": "settings are being written to the daemons {daemons}: applying to {daemons}…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "applying to {daemons}…"
+  },
+  {
+   "wants": "reaches the daemon now, installing hmz there where it has to",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "reaches the daemon now, installing hmz there where it has to"
+  },
+  {
+   "wants": "changes what reaches the daemon",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "changes what reaches the daemon"
+  },
+  {
+   "wants": "the button that makes a pairing code for another device to add this daemon by: Pair a device",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Pair a device"
+  },
+  {
+   "wants": "makes a code another device adds the daemon from, and copies it",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "makes a code another device adds the daemon from, and copies it"
+  },
+  {
+   "wants": "lists the devices paired with the daemon, where one is revoked",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "lists the devices paired with the daemon, where one is revoked"
+  },
+  {
+   "wants": "the daemon {name} is being asked for a pairing code: asking {name} for a code…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "asking {name} for a code…"
+  },
+  {
+   "wants": "a device was revoked: {name} revoked",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} revoked"
+  },
+  {
+   "wants": "a device was revoked: device {name} revoked",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "device {name} revoked"
+  },
+  {
+   "wants": "a daemon was removed from the settings: daemon {name} removed",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "daemon {name} removed"
+  },
+  {
+   "wants": "this machine is pairing with the daemon {name}: pairing with {name}…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "pairing with {name}…"
+  },
+  {
+   "wants": "something was written to the settings: {name} saved",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{name} saved"
+  },
+  {
+   "wants": "a daemon was written to the settings: daemon {name} saved",
+   "where": "quiet line written to the log once it is done, lower-case start, no full stop",
+   "text": "daemon {name} saved"
+  },
+  {
+   "wants": "refusal: the ssh config could not be read: {why}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The ssh config could not be read: {why}."
+  },
+  {
+   "wants": "every host of your ssh config is a daemon already",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "every host of your ssh config is a daemon already"
+  },
+  {
+   "wants": "hosts of an ssh config were added as daemons: {n} daemons imported",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "{n} daemons imported",
+   "one": "{n} daemon imported"
+  },
+  {
+   "wants": "where an epic ran, when it did not write that down: an unknown folder",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "an unknown folder"
+  },
+  {
+   "wants": "the backup targets an epic is backed up to: backed up to {targets}",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "backed up to {targets}"
+  },
+  {
+   "wants": "starts the flow again from this epic",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "starts the flow again from this epic"
+  },
+  {
+   "wants": "its agents, called flows and sessions, read back",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "its agents, called flows and sessions, read back"
+  },
+  {
+   "wants": "writes the whole epic as one archive, with its trace",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "writes the whole epic as one archive, with its trace"
+  },
+  {
+   "wants": "the epic as a timeline of its sessions",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "the epic as a timeline of its sessions"
+  },
+  {
+   "wants": "backs the epic up to its targets, or to the default ones",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "backs the epic up to its targets, or to the default ones"
+  },
+  {
+   "wants": "copies what the epic is called",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "copies what the epic is called"
+  },
+  {
+   "wants": "copies what the epic was asked to do",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "copies what the epic was asked to do"
+  },
+  {
+   "wants": "copies where the epic is written down",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "copies where the epic is written down"
+  },
+  {
+   "wants": "this epic is of a chat an earlier hmz had, and cannot be carried on",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "this epic is of a chat an earlier hmz had, and cannot be carried on"
+  },
+  {
+   "wants": "this epic cannot be resumed here: {why}",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "this epic cannot be resumed here: {why}"
+  },
+  {
+   "wants": "the flow {flow} is not resumable, so this epic cannot be resumed",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "the flow {flow} is not resumable, so this epic cannot be resumed"
+  },
+  {
+   "wants": "where an epic's archive is written: a file, or a folder to put {name} in",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "a file, or a folder to put {name} in"
+  },
+  {
+   "wants": "what answering the form does: writes the archive there",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "writes the archive there"
+  },
+  {
+   "wants": "title of the form an epic is exported on as an archive: Export epic",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Export epic"
+  },
+  {
+   "wants": "The whole epic as one archive, with its trace, to send to somebody who was not there. Credentials are struck out of every byte of it.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "The whole epic as one archive, with its trace, to send to somebody who was not there. Credentials are struck out of every byte of it."
+  },
+  {
+   "wants": "the row the path of a file is written in: File",
+   "where": "label of a row of a form, as the page writes a field's name: sentence case, a word or two, no full stop",
+   "text": "File"
+  },
+  {
+   "wants": "what answering the form does: imports the epic",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "imports the epic"
+  },
+  {
+   "wants": "title of the form an exported epic is imported on: Import epic",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Import epic"
+  },
+  {
+   "wants": "An epic somebody exported, read back in under the folder it ran in.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "An epic somebody exported, read back in under the folder it ran in."
+  },
+  {
+   "wants": "how many slices a trace holds: {n} slices",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "{n} slices",
+   "one": "{n} slice"
+  },
+  {
+   "wants": "how many programs a trace holds: {n} programs",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "{n} programs",
+   "one": "{n} program"
+  },
+  {
+   "wants": "lists the epics of this folder alone",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "lists the epics of this folder alone"
+  },
+  {
+   "wants": "lists the epics of every folder on this machine",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "lists the epics of every folder on this machine"
+  },
+  {
+   "wants": "the button that lists the epics of this folder alone: This folder",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "This folder"
+  },
+  {
+   "wants": "the button that imports an epic from a file, opening a form: Import…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "Import…"
+  },
+  {
+   "wants": "imports an epic from a .hmzepic file",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "imports an epic from a .hmzepic file"
+  },
+  {
+   "wants": "the page of newer epics",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "the page of newer epics"
+  },
+  {
+   "wants": "the page of older epics",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "the page of older epics"
+  },
+  {
+   "wants": "Every epic on this machine, newest first: its folder, task, agents, spend, duration, session count and status.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Every epic on this machine, newest first: its folder, task, agents, spend, duration, session count and status."
+  },
+  {
+   "wants": "Every epic in this folder, newest first: its task, agents, spend, duration, session count and status.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Every epic in this folder, newest first: its task, agents, spend, duration, session count and status."
+  },
+  {
+   "wants": "there is no default backup target: mark one on the Backup page of /settings",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "there is no default backup target: mark one on the Backup page of /settings"
+  },
+  {
+   "wants": "the folder an imported epic ran in, when it cannot be read: its folder",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "its folder"
+  },
+  {
+   "wants": "where an imported epic was put: imported into {folder}",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "imported into {folder}"
+  },
+  {
+   "wants": "this epic ran in the folder {folder}; resume it from hmz there",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "this epic ran in the folder {folder}; resume it from hmz there"
+  },
+  {
+   "wants": "a flow is running; press ctrl+c twice to stop it before resuming another",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "a flow is running; press ctrl+c twice to stop it before resuming another"
+  },
+  {
+   "wants": "installs hmz there, and uv where there is none",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "installs hmz there, and uv where there is none"
+  },
+  {
+   "wants": "leaves the daemon unreached until it is connected again",
+   "where": "quiet line beside a row of a menu in the terminal interface, lower-case start, no full stop",
+   "text": "leaves the daemon unreached until it is connected again"
+  },
+  {
+   "wants": "Whose epics to list: this machine's, or another's reached by its routes.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Whose epics to list: this machine's, or another's reached by its routes."
+  },
+  {
+   "wants": "there is no other daemon: add one on the Daemons page of /settings",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop",
+   "text": "there is no other daemon: add one on the Daemons page of /settings"
+  },
+  {
+   "wants": "the button that lists another daemon's epics, opening a list of daemons: Daemon…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "Daemon…"
+  },
+  {
+   "wants": "lists the epics of another daemon",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "lists the epics of another daemon"
+  },
+  {
+   "wants": "the flow, as -f names it",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the flow, as -f names it"
+  },
+  {
+   "wants": "the agents, as role=cli/model:effort, …; blank for what that folder last ran",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "the agents, as role=cli/model:effort, …; blank for what that folder last ran"
+  },
+  {
+   "wants": "what answering the form does: starts the epic on the daemon {daemon}",
+   "where": "quiet hint beside the button that answers a form in the terminal interface, lower-case start, no full stop",
+   "text": "starts the epic on the daemon {daemon}"
+  },
+  {
+   "wants": "An epic on the daemon {daemon}, set up as that folder last ran the flow, and followed here once it starts.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "An epic on the daemon {daemon}, set up as that folder last ran the flow, and followed here once it starts."
+  },
+  {
+   "wants": "refusal: an agent, {said}, is not written role=agent",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "{said} is not written role=agent."
+  },
+  {
+   "wants": "refusal: the role {role} runs nothing there yet; say it as {role}=<cli>/<model>:<effort>",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop; keep {role}=<cli>/<model>:<effort> as written",
+   "text": "The role {role} runs nothing there yet; say it as {role}=<cli>/<model>:<effort>."
+  },
+  {
+   "wants": "title of the list of another daemon's epics: Epics on {daemon}",
+   "where": "sheet title in the terminal interface, sentence case, no full stop",
+   "text": "Epics on {daemon}"
+  },
+  {
+   "wants": "the button that starts an epic on another daemon, opening a form: New epic…",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop; ends with an ellipsis character",
+   "text": "New epic…"
+  },
+  {
+   "wants": "starts an epic on the daemon {daemon} and follows it",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "starts an epic on the daemon {daemon} and follows it"
+  },
+  {
+   "wants": "reads the epics again",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "reads the epics again"
+  },
+  {
+   "wants": "a flow, {flow}, is being set up on the daemon {daemon}: setting {flow} up on {daemon}…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "setting {flow} up on {daemon}…"
+  },
+  {
+   "wants": "Every epic the daemon {daemon} holds and every chat going there, newest first: its folder, task, status and session count.",
+   "where": "a sentence or two under the title of a sheet in the terminal interface",
+   "text": "Every epic the daemon {daemon} holds and every chat going there, newest first: its folder, task, status and session count."
+  },
+  {
+   "wants": "the row that follows a chat or an epic going on another daemon: Follow",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Follow"
+  },
+  {
+   "wants": "reads the chat as it goes, and says the next line",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "reads the chat as it goes, and says the next line"
+  },
+  {
+   "wants": "reads the epic as it goes, and steers it",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "reads the epic as it goes, and steers it"
+  },
+  {
+   "wants": "writes the whole epic as one archive, brought here",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "writes the whole epic as one archive, brought here"
+  },
+  {
+   "wants": "backs the epic up there, to its targets or to the default ones",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "backs the epic up there, to its targets or to the default ones"
+  },
+  {
+   "wants": "the row that copies the folder an epic ran in: Copy workspace",
+   "where": "button under a list in the terminal interface, as the page writes a button: sentence case, a few words, no full stop",
+   "text": "Copy workspace"
+  },
+  {
+   "wants": "copies where the epic ran, there",
+   "where": "quiet hint said when a button under a list is pointed at, lower-case start, no full stop",
+   "text": "copies where the epic ran, there"
+  },
+  {
+   "wants": "the folder an epic ran in was copied: Workspace copied",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; sentence case, as the page's `Name copied`",
+   "text": "Workspace copied"
+  },
+  {
+   "wants": "an epic's task is being fetched from another daemon: fetching the task…",
+   "where": "line a list says under itself while or after something is done, lower-case start, no full stop; ends with an ellipsis character",
+   "text": "fetching the task…"
+  },
+  {
+   "wants": "refusal: the daemon {daemon} sent nothing of the epic {name}",
+   "where": "error line under a form in the terminal interface, one short sentence with its full stop",
+   "text": "The daemon {daemon} sent nothing of the epic {name}."
+  },
+  {
+   "wants": "said of a model that can run a turn as a swarm: swarms",
+   "where": "part of a line about a runtime, joined to others with a middle dot, lower-case start, no full stop",
+   "text": "swarms"
+  },
+  {
+   "wants": "the name a host of an ssh config is added as a daemon under: as {name}",
+   "where": "quiet hint beside a row of a form in the terminal interface, lower-case start, no full stop",
+   "text": "as {name}"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

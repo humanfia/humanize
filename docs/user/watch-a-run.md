@@ -117,7 +117,7 @@ The first row shows the epic: state, active agent count, turns taken, time elaps
 
 ![The monitor's graph: a box per agent with its clock, what it runs, turns and tokens, and the handover counts between the boxes](/shots/user-watch-a-run-monitor-graph.svg)
 
-A box shows `●` (working) or `○` (idle), the agent's name, and a clock for the open turn's duration or `idle` with the time since the last turn. The second line shows role, what it runs, turns, tokens, and `reading` or `unread`. The third line names its environments. Between boxes, `↓ 1 · ↑ 1` counts handovers each way.
+Each box is a flat block in a heavy square frame, with a stripe down its left side in the agent's lane colour, the same colour the app gives that agent. The box under the cursor has its frame lit, and the node of a person who is being asked is marked in pink. A box shows `●` (working) or `○` (idle), the agent's name, and a clock for the open turn's duration or `idle` with the time since the last turn. The second line shows role, what it runs, turns, tokens, and `reading` or `unread`. The third line names its environments. Between boxes, `╱ ↓ 1 ╱ ↑ 1` counts handovers each way, and the handover the flow took last is lit.
 
 | Key | What it does |
 | --- | --- |
@@ -128,11 +128,11 @@ A box shows `●` (working) or `○` (idle), the agent's name, and a clock for t
 | <kbd>ctrl+e</kbd> | Open the epic in Exomyth (see [Trace a run with Exomyth](/user/tracing)) |
 | <kbd>→</kbd> | Go back to the log |
 
-You can also use the mouse: click an agent's box to select it, double-click to open it, click its left edge to expand or collapse it, click any other row to open it, and click `graph`, `list`, or `Exomyth` at the top.
+You can also use the mouse: click an agent's box to select it, double-click to open it, click its left edge to expand or collapse it, click any other row to open it, and click **Graph**, **List**, or **Exomyth** at the top.
 
 An expanded agent shows a branch per session with turns, tokens, clock, and environment. Subagents started by an agent appear under it, marked `◆` while working and `◇` when done. The monitor lists the first 4 and counts the rest.
 
-The list view shows the same nodes as a table with columns `node`, `runs · where`, `turns`, `time`, and `tokens`. Working nodes appear first, without handovers.
+The list view shows the same nodes as a table with columns `node`, `model · runtime`, `turns`, `time`, and `tokens`. Working nodes appear first, without handovers.
 
 Below the graph, the monitor shows run details:
 
@@ -140,9 +140,9 @@ Below the graph, the monitor shows run details:
 | --- | --- |
 | `Flow` | The flow running and any flow it called, with their time |
 | `Agents` | What each role runs, until the first agent works |
-| `Set` | The params changed from their defaults |
-| `Reading` | The other interfaces on the run, when there is more than one |
-| `Also` | Handovers between agents that are not neighbours |
+| `Changes` | The params changed from their defaults |
+| `Readers` | The other interfaces on the run, when there is more than one |
+| `Handovers` | Handovers between agents that are not neighbours |
 | `Tokens` | A line per model: tokens, money and output tokens per second |
 | `Kinds` | Tokens by kind |
 

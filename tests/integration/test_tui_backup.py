@@ -96,7 +96,7 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await opened(pilot)
         await typed(pilot, "/settings backup")
         await on(pilot, Adjusts)
-        await shows(pilot, "no backup targets yet")
+        await shows(pilot, "No backup target yet.")
 
         await pilot.click("#act-add")
         await on(pilot, Backing)
@@ -108,7 +108,7 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await pilot.click("#act-done")
 
         await on(pilot, Adjusts)
-        await shows(pilot, "lab ✔", "on epic end")
+        await shows(pilot, "lab ✔", "On epic end")
         await leaves(pilot)
         await shows(pilot, "1 backup target saved")
 
@@ -214,12 +214,12 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
 
         await on(pilot, Epics)
         (epic,) = epics(workspace)
-        await shows(pilot, f"backing {epic.name} up to lab")
+        await shows(pilot, "Uploading to lab")
         assert Hmz().backups.wait(60)
 
         await pilot.press("enter")
         await on(pilot, Does)
-        await shows(pilot, "lab: backed up")
+        await shows(pilot, "lab: uploaded")
 
     assert _log(lab) == [f"Back up epic {epic.name} (manual)"]
 

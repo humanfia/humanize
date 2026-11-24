@@ -48,7 +48,7 @@ Open **Settings**, then **General** under **Daemon**. Set **Error reports** to *
 
 ![The question hmz asks at first start: Report errors to Humanize?, with what is sent and never sent, and Yes and No](/shots/user-reporting-question.svg)
 
-To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `on` or `off`, and select **Save**. The change applies immediately. An unanswered setting reads `not set`.
+To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `On` or `Off`, and select **Save**. The change applies immediately. An unanswered setting reads `not set`.
 
 ![The General page of /settings in the terminal, with the cursor on Error reports, set to off](/shots/user-reporting-terminal.svg)
 
@@ -87,7 +87,7 @@ Error reports never include your run. To have someone inspect a failure, check [
    ![hmz --version prints the version](/shots/user-reporting-version.svg)
 
 2. The steps you took, whether a command or actions in the app or `hmz`. The form also asks for your operating system, the coding agents involved, and the flow.
-3. The run. Open the ended epic and click **Export** in its header, or type `/epics` in `hmz`, open the epic, and choose `export epic`. This creates a `.hmzepic` file containing the task, records, and session logs, with credentials replaced by `[redacted]`. See [Export and import a run](/user/export).
+3. The run. Open the ended epic and click **Export** in its header, or type `/epics` in `hmz`, open the epic, and choose `Export`. This creates a `.hmzepic` file containing the task, records, and session logs, with credentials replaced by `[redacted]`. See [Export and import a run](/user/export).
 
    ![The header of a finished epic, with the pointer on its Export button](/shots/user-reporting-export.svg)
 
