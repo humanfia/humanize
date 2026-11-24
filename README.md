@@ -91,6 +91,12 @@ hmz exec -f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop \
     -a agent=claude/claude-opus-5:high -p budget.cost=5 "Make the tests pass"
 ```
 
+Or teach your coding agents the `hmz` command line, as a skill in each one's own folder:
+
+```sh
+hmz skills add
+```
+
 Agents run with approvals bypassed, so start in a scratch repository. The
 [documentation](https://humanfia.ai/humanize/) starts with a
 [first task in the terminal](https://humanfia.ai/humanize/tutorials/first-task-terminal).

@@ -262,6 +262,75 @@ def test_a_session_is_opened_when_first_wanted_and_closed_after(
     client.close.assert_called_once_with()
 
 
+def _here(call: Call) -> None:
+    if call.loud:
+        raise PermissionError("no file")
+    call.answers({"daemon": call.daemon}, ["here"])
+
+
+HERE = Command(
+    "here", "Open", args=(Arg(("--loud",), "Cancel"),), run=_here, local=True
+)
+
+
+def test_a_local_command_takes_no_daemon_and_reaches_none(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(tree, "commands", lambda: {"here": HERE})
+    reach = mock.Mock()
+    monkeypatch.setattr(tree, "reach", reach)
+
+    assert tree.runs(["here", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"daemon": ""}
+    reach.assert_not_called()
+
+    with pytest.raises(SystemExit) as raised:
+        tree.runs(["here", "--daemon", "far"])
+    assert raised.value.code == tree.UNREAD
+    assert "--daemon" in capsys.readouterr().err
+
+    # A file that would not be written is a refusal: there is no daemon to be unreached.
+    assert tree.runs(["here", "--loud"]) == tree.REFUSED
+    assert capsys.readouterr().err == "hmz here: no file\n"
+    assert tree.runs(["here", "--loud", "--json"]) == tree.REFUSED
+    assert json.loads(capsys.readouterr().out) == {
+        "error": {"code": 0, "message": "no file"}
+    }
+
+
+def test_a_local_command_says_so_in_its_help_and_its_description() -> None:
+    assert tree.helps(["here"], HERE) == (
+        "Usage: hmz here [options]\n"
+        "\n"
+        "Open\n"
+        "\n"
+        "Options:\n"
+        "  --loud      Cancel\n"
+        "  --json      print one JSON document instead of text\n"
+        "  --no-color  print without terminal colours\n"
+        "  -h, --help  show this help and exit\n"
+        "\n"
+        "Exit codes:\n"
+        "  0  did what was asked\n"
+        "  1  the request was refused and the reason was printed\n"
+        "  2  the command line could not be read\n"
+    )
+
+    said = tree.described(["here"], HERE)
+
+    assert [one["name"] for one in said["arguments"]] == [
+        "--loud",
+        "--json",
+        "--no-color",
+    ]
+    assert said["exit_status"] == {
+        "0": "did what was asked",
+        "1": "the request was refused and the reason was printed",
+        "2": "the command line could not be read",
+    }
+    assert "the request was refused and the reason was printed" in set(HERE.texts())
+
+
 def test_rows_are_set_in_columns() -> None:
     assert tree.table([["a", "bbb", "c"], ["aaaa", "b", ""]]) == [
         "a     bbb  c",

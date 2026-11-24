@@ -125,6 +125,16 @@ Signals already ignored at startup stay ignored, such as SIGHUP under `nohup`. I
 
 Exhausting the budget is a normal exit. `hmz exec` prints `hmz exec: stopped -- <reason>` to stderr and exits 0.
 
+## Let an agent use the command line
+
+To teach your coding agents the `hmz` command line, install the hmz skill:
+
+```sh
+hmz skills add
+```
+
+It writes one skill, `hmz`, into the skills folder of each installed CLI. See [Teach an agent to use hmz](/user/skills#teach-an-agent-to-use-hmz).
+
 ## Good to know
 
 No option of `hmz exec` or `hmz chat` reads from an environment variable; pass everything on the command line. The coding agent's CLI must be installed and signed in on the machine; see [Coding agents](/user/agents).
