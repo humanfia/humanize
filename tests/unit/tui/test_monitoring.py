@@ -221,7 +221,7 @@ def test_a_diagram_is_a_box_per_agent_in_order() -> None:
     assert "builder · claude · opus · 1 turn" in plain[2]
     assert plain[-1].strip().startswith("┗")
     # The arrows say which way and how often, lit for the handover taken last.
-    assert "╱ ↓ 2 ╱ ↑ 1" in _plain(second[0])
+    assert "╱ ↓ 2 ╱ ↑ 1" in _plain(second[0])  # noqa: RUF001
     assert "$primary" in second[0]
     assert "○ Ajax17" in _plain(second[2])
     assert "idle 5s" in _plain(second[2])
@@ -241,6 +241,19 @@ def test_two_agents_never_handed_between_are_joined_by_a_dotted_spine() -> None:
     _, second = diagram([Drawn("a"), Drawn("b")], _shape(), 80)
 
     assert _plain(second[0]).strip() == "┇"
+
+
+def test_each_box_wears_its_lane_down_its_left_side_and_the_cursors_is_pink() -> None:
+    drawn = [Drawn(f"a{at}") for at in range(7)]
+
+    blocks = diagram(drawn, _shape(), 80, here="a1")
+
+    # Six lanes in the flow's order, and then the first again.
+    lanes = [next(line for line in block if "█" in line) for block in blocks]
+    assert [line.split("$hmz-lane-")[1][0] for line in lanes] == list("1234561")
+    # The frame under the cursor is the cursor's plane; every other is a quiet rule.
+    assert "[$block-cursor-background]┏" in blocks[1][-4]
+    assert "[$hmz-line-strong]┏" in blocks[0][0]
 
 
 def test_the_cursor_is_marked_beside_the_name_of_its_box() -> None:

@@ -423,6 +423,181 @@
    "wants": "the daemon could not be asked for Ai-chan's conversations: {why}",
    "where": "error line in a pane, one sentence ending with the reason after a colon",
    "text": "Ai-chan's conversations could not be loaded: {why}"
+  },
+  {
+   "wants": "what enter does while a row is being written in place: keeps what was written",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Keep"
+  },
+  {
+   "wants": "what esc does while a row is being written in place: puts the row back as it was",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Cancel"
+  },
+  {
+   "wants": "what enter does in the search box above a list: goes to the list of matches",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "To list"
+  },
+  {
+   "wants": "what esc does in the search box above a list: clears the search",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word `Clear`",
+   "text": "Clear"
+  },
+  {
+   "wants": "what enter does on a button that has no name: presses it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Press"
+  },
+  {
+   "wants": "what tab does from the buttons under a list: goes back to the list",
+   "where": "key hint at the foot of a sheet in the terminal interface: the page's own word `List`",
+   "text": "List"
+  },
+  {
+   "wants": "what enter does on a row whose value is written in place: starts changing it",
+   "where": "key hint at the foot of a sheet in the terminal interface, one word in sentence case",
+   "text": "Edit"
+  },
+  {
+   "wants": "names typing as the way a written row is edited: shown as the key `type` with the hint after it meaning `to edit`",
+   "where": "key hint at the foot of a sheet, shown after the word `type`: two words in sentence case",
+   "text": "To edit"
+  },
+  {
+   "wants": "what esc does on a list that is narrowed by a search: clears the search",
+   "where": "key hint at the foot of a sheet in the terminal interface, two words in sentence case",
+   "text": "Clear search"
+  },
+  {
+   "wants": "what esc does on the question asked when quitting while a flow runs: stays in the interface",
+   "where": "key hint at the foot of a question box, one word in sentence case",
+   "text": "Stay"
+  },
+  {
+   "wants": "what esc does on the first-start question about error reports: leaves it unanswered, to be asked again next time",
+   "where": "key hint at the foot of a question box, a few words in sentence case, no full stop",
+   "text": "Ask again next time"
+  },
+  {
+   "wants": "the menu holds changes that are not saved yet",
+   "where": "warning at the top right of a menu after a ● mark: the page's own word `Unsaved`",
+   "text": "Unsaved"
+  },
+  {
+   "wants": "what the Search button under a list does: narrows the list to what is typed",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "filter the list"
+  },
+  {
+   "wants": "placeholder of the search box above a list: type to filter the list",
+   "where": "placeholder of a text box, sentence case, no full stop",
+   "text": "Type to filter"
+  },
+  {
+   "wants": "stands for an agent the flow gave no name: agent {at} of {total}",
+   "where": "row label, lower case",
+   "text": "agent {at} of {total}"
+  },
+  {
+   "wants": "the agent's transcript is the one on the screen: it is being read",
+   "where": "one lower-case word after a middle dot on the status line",
+   "text": "reading"
+  },
+  {
+   "wants": "the agent has said something that has not been read yet",
+   "where": "one lower-case word after a middle dot on the status line: the page's `Unread` in lower case",
+   "text": "unread"
+  },
+  {
+   "wants": "what the Save button under a menu does: saves all the changes held",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "save changes"
+  },
+  {
+   "wants": "why the Save button under a menu cannot be pressed: nothing was changed yet",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "no changes yet"
+  },
+  {
+   "wants": "the row has no action to offer now",
+   "where": "empty-state line of a row's menu, lower-case start, no full stop",
+   "text": "no actions"
+  },
+  {
+   "wants": "question asked when leaving a menu that holds unsaved changes: save them?",
+   "where": "title of a small question box, as short as possible, ends with a question mark",
+   "text": "Save changes?"
+  },
+  {
+   "wants": "what the Save button of the question does: saves the changes and leaves the menu",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "save and close"
+  },
+  {
+   "wants": "button that throws the unsaved changes of a menu away",
+   "where": "button label, one word in sentence case",
+   "text": "Discard"
+  },
+  {
+   "wants": "what the Discard button of the question does: throws the changes away and leaves the menu",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "drop changes and close"
+  },
+  {
+   "wants": "statement shown when quitting the interface while a flow is running: a flow is running",
+   "where": "title of a small question box, one short sentence with a full stop",
+   "text": "A flow is running."
+  },
+  {
+   "wants": "detached, the flow keeps running; running `hmz` in this folder reattaches to it",
+   "where": "one sentence under the title of the question box, keep `hmz` in backticks",
+   "text": "Detached, the flow keeps running; run `hmz` in this folder to reattach."
+  },
+  {
+   "wants": "button that stops the running flow and exits the interface",
+   "where": "button label, starts with Stop, sentence case, no full stop",
+   "text": "Stop the flow and quit"
+  },
+  {
+   "wants": "what stopping the flow means: it stops for everybody reading it",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "stops for everyone reading it"
+  },
+  {
+   "wants": "button that lets go of the running flow, leaving it running, and exits the interface",
+   "where": "button label, starts with Detach, sentence case, no full stop",
+   "text": "Detach and quit"
+  },
+  {
+   "wants": "how to come back to a detached flow: run `hmz` in this folder to reattach",
+   "where": "quiet hint beside a button, lower-case start, no full stop, keep `hmz` in backticks",
+   "text": "run `hmz` in this folder to reattach"
+  },
+  {
+   "wants": "what the Cancel button does when quitting: keeps the interface open",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "stay here"
+  },
+  {
+   "wants": "question asked once on a first start: whether Humanize may report its own errors to its makers",
+   "where": "title of a small question box, ends with a question mark",
+   "text": "Send error reports to Humanize?"
+  },
+  {
+   "wants": "error reports help fix bugs. What is sent: {sent}. What is never sent: {kept}. This can be changed later in /settings",
+   "where": "two to four short sentences under the title of the question box; keep {sent} and {kept}, each a list ending its own sentence; write /settings without backticks",
+   "text": "Error reports help fix bugs. Sent: {sent}. Never sent: {kept}. Change this anytime in /settings."
+  },
+  {
+   "wants": "what answering Yes does: error reports are sent",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send error reports"
+  },
+  {
+   "wants": "what answering No does: nothing is sent",
+   "where": "quiet hint beside a button, lower-case start, no full stop",
+   "text": "send nothing"
   }
  ],
  "model": "gcp/google/gemini-4-argon"

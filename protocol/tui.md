@@ -1748,7 +1748,116 @@ This section is reserved for the grouping of `/settings` into App and Daemon pag
 
 ## 33. Monitor, Exomyth and sheets in humanfia
 
-This section is reserved for how the monitor, Exomyth and the sheets of Section 15 are drawn to Section 25.3. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+This section states how the menus and boxes of Section 15, the monitor of Section 20 and Exomyth of
+Section 21 are drawn to Section 25.3, the view of Ai-chan's conversations, and what the texts
+other sections quote literally are now. Where this section and an earlier one disagree about how
+something is drawn or what a text says, this section governs.
+
+### 33.1. Menus and boxes
+
+**33.1.1** The list of a menu MUST be drawn in a square frame ruled heavily, the menu's title in
+capitals in the frame's top rule. The frame and its title MUST be the colour of what has the keys
+while the list has them, and dim otherwise.
+
+**33.1.2** A box (Section 15.1.11) MUST be drawn in a square frame ruled heavily, in the colour of
+what has the keys, headed `QUESTION` in the frame's top rule. A dropdown MUST be drawn the same
+way, headed by its row's name in capitals.
+
+**33.1.3** The row under the cursor of a list that has the keys MUST be filled pink. A button MUST
+be a flat plane without a border: the button that has the keys in the colour of what has the keys;
+the button that answers a menu, and a button that removes, in pink whether or not it has the keys;
+any other dim. Section 15.1.9's green and red do not apply.
+
+**33.1.4** The box that asks before a chat or an Ai-chan conversation is deleted MUST have the
+button that keeps it first, so that `enter` alone deletes nothing.
+
+**33.1.5** The keys line of a menu, of a box and of Exomyth MUST draw each key in the colour of what
+can be followed, in bold, and what it does quietly, as the hint line of Section 25.2 does.
+
+**33.1.6** A menu, a box, a dropdown, the monitor and Exomyth MUST take every colour they draw from
+the theme in force, and MUST stay legible in the theme `terminal` and in a theme that defines none
+of humanfia's own colours.
+
+### 33.2. Monitor
+
+**33.2.1** The box of an agent (Section 20.2.3) MUST be drawn as a block ruled heavily with square
+corners, a plane down its left side in the agent's lane colour. Lane colours MUST be given out in
+the flow's order, six of them and then again from the first, as the web interface gives them out
+(Section 3.12 of [WEB]).
+
+**33.2.2** The frame of the box under the cursor MUST be pink, and every other frame dim.
+
+**33.2.3** A node that works MUST be named in cyan with its clock in cyan, and any other in the
+text colour. `unread` MUST be pink and `reading` cyan.
+
+**33.2.4** The handovers between two boxes MUST be drawn on a heavy spine, each direction cut off it
+by one diagonal: `┃ ╱ ↓ <n> ╱ ↑ <n>`, in cyan where the latest handover went that way and dim
+otherwise; between two agents never handed between the spine MUST be dotted.
+
+**33.2.5** An outworlder's node MUST be marked in pink while the flow waits on that role for an
+answer, and in cyan otherwise.
+
+### 33.3. Exomyth
+
+**33.3.1** Exomyth MUST colour a span by its category: a turn in the first lane colour, a tool call
+in the fourth, a message in the fifth, a session or a process in the third, a flow in the third
+ink, a model call in the mark's green, and anything else in the sixth lane colour.
+
+**33.3.2** The span under the cursor MUST be filled pink, its name in bold. No category is drawn in
+pink.
+
+**33.3.3** The lists of the Flame and Slices views MUST be framed as Section 33.1.1 frames a menu's
+list.
+
+### 33.4. Ai-chan's conversations
+
+**33.4.1** `f3` MUST be the key of the _Ai-chan_ view, which opens in the context and whose hint is
+`Ai-chan`.
+
+**33.4.2** The view MUST list `New conversation` and under it every Ai-chan conversation of the
+daemon (`aichan.list`): those pinned first, then by when each was last said in, the latest first.
+Each MUST show `Ai-chan#<n>`, its title, its scope, its preset, `typing…` while a turn of hers is
+open, a square where it is pinned and a dot where it is unread.
+
+**33.4.3** A conversation is _unread_ where it was marked so, or where it was said in after it was
+last read in this interface. Following a conversation MUST read it. What is pinned and what is
+unread MUST be kept by this interface alone and MUST NOT be sent to the daemon.
+
+**33.4.4** In the view: `enter` on a conversation MUST follow it as Section 7.19.2 states and give
+the keys to the editor; `enter` on `New conversation`, and `n`, MUST open `/ai`; `r` MUST ask for a
+title and rename the conversation by `aichan.rename`; `p` MUST pin it or let it go; `u` MUST mark it
+read or unread; `delete` MUST ask as Section 33.4.6 states and then forget it by `aichan.forget`.
+
+**33.4.5** The menu of a conversation in `/ai` (Section 7.19.5) MUST offer **Rename**, **Pin** or
+**Unpin**, **Mark as read** or **Mark as unread**, and **Delete**, each doing what its key of
+Section 33.4.4 does, and `/ai` MUST list and mark the conversations as Section 33.4.2 states.
+
+**33.4.6** Deleting a conversation MUST ask in a box `Delete this conversation?`, naming it, whose
+first button is **Cancel** and whose second is **Delete**.
+
+### 33.5. Texts
+
+**33.5.1** What a key does, on a keys line, MUST be said in the words of Section 25.5: `Open`,
+`Back`, `Close`, `Choose`, `Search`, `Actions`, `Menu` and so on. A sentence of this document that
+quotes such a word in lower case is to be read with the word as it is here.
+
+**33.5.2** The texts below, which other sections quote, MUST be as the right column has them.
+
+| Section | Was | Is |
+| ------- | --- | --- |
+| 7.12 | `/resume`'s menu: `rename`, `fork`, `archive`, `upload`, `delete`, `copy id` | **Rename**, **Fork**, **Archive**, **Upload**, **Delete**, **Copy ID** |
+| 7.12 | the title `Resume a chat` | `Resume chat` |
+| 7.12 | a box saying that the deletion is permanent | the box `Delete <title>?`, saying what the web interface says of deleting a chat, **Cancel** first and **Delete** second |
+| 7.19.1 | the entry **New** | **New conversation** |
+| 7.19.3 | the rows `scope`, `nous`, `preset` | `Scope`, `Nous`, `Permissions` |
+| 7.19.5 | **Forget** | **Delete**, with the rest of Section 33.4.5 |
+| 10 | the button `answer`, and `answer · <n> required left` | `Answer`, and `Answer · <n> required left` |
+| 10 | `this is needed`, `this needs a number`, `this needs a whole number` | `This needs an answer.`, `This needs a number.`, `This needs a whole number.` |
+| 15.1.3 | `● unsaved changes` | `● Unsaved` |
+| 15.3 | the box `Save?` offering **Save** and **Discard** | the box `Save changes?` offering **Save** and **Discard** |
+| 14 | the box `A flow is running.` offering `stop the flow and exit`, and `detach and exit` or `cancel` | the same box offering **Stop the flow and quit**, and **Detach and quit** or **Cancel** |
+| 19.13 | the box `Report errors to Humanize?` offering `yes` and `no` | the box `Send error reports to Humanize?` offering **Yes** and **No** |
+| 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
 
 ## 34. Security Considerations
 

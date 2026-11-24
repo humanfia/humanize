@@ -202,7 +202,7 @@ async def test_a_machine_with_no_hmz_is_asked_about_before_any_is_installed(
         # Asked over the page, with nothing installed meanwhile; esc is not now.
         asked = await on(pilot, Installs)
         assert asked.asked == question
-        await shows(pilot, question, "install", "not now")
+        await shows(pilot, question, "Install", "Not now")
         assert not host.installed()
         await pilot.press("escape")
         await on(pilot, Adjusts)

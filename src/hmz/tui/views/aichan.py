@@ -194,7 +194,9 @@ class Conversations(OptionList):
         if not title:
             return
         try:
-            await asyncio.to_thread(self._asks, "rename", id=int(one["id"]), title=title)
+            await asyncio.to_thread(
+                self._asks, "rename", id=int(one["id"]), title=title
+            )
         except _REFUSED as why:
             self._said = str(why)
             self._draws()

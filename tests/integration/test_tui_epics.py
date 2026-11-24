@@ -193,7 +193,7 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await opened(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "Every epic in this directory", "ctrl+t this machine")
+        await shows(pilot, "Every epic in this directory", "ctrl+t This machine")
         assert listed(app) == [here.path.name]
 
         await pilot.press("ctrl+t")

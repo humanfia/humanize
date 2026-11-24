@@ -79,7 +79,7 @@ def _rows(app: _Host) -> list[str]:
 
 async def _listed(app: _Host, pilot: Any) -> Conversations:
     listing = app.query_one(Conversations)
-    await app.workers.wait_for_complete()
+    await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
     await pilot.pause()
     listing.focus()
     return listing
@@ -150,7 +150,7 @@ async def test_enter_follows_a_conversation_and_reads_it_and_new_starts_one() ->
         assert (app.started, app.followed) == (1, [])
 
         await pilot.press("n")
-        assert app.started == 2  # noqa: PLR2004
+        assert app.started == 2
 
         await pilot.press("down", "enter")
         assert [one["slot"] for one in app.followed] == ["ai:3"]
@@ -186,7 +186,7 @@ async def test_r_renames_and_delete_asks_first() -> None:
         await pilot.pause()
         assert isinstance(app.screen, AiRenames)
         await pilot.press(*"again", "tab", "enter")
-        await app.workers.wait_for_complete()
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
         await pilot.pause()
         assert ("rename", {"id": 3, "title": "again"}) in daemon.asked
         assert "Ai-chan#3 · again" in _rows(app)[1]
@@ -202,7 +202,7 @@ async def test_r_renames_and_delete_asks_first() -> None:
         await pilot.press("delete")
         await pilot.pause()
         await pilot.press("right", "enter")
-        await app.workers.wait_for_complete()
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
         await pilot.pause()
         assert ("forget", {"id": 3}) in daemon.asked
         assert _rows(app)[-1] == "No conversations yet"

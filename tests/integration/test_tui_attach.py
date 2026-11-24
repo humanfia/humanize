@@ -117,7 +117,7 @@ async def test_leaving_an_attached_interface_detached_leaves_the_run_going(
         await shows(pilot, "still on it")
         await typed(pilot, "/exit")
         await on(pilot, Leaves)
-        await shows(pilot, "Detached, it keeps running")
+        await shows(pilot, "Detached, the flow keeps running")
 
         await pilot.click(f"#act-{DETACHES}")
 

@@ -128,7 +128,9 @@ async def test_a_chat_archived_leaves_resume_and_is_put_back_from_settings(
 
         await _does(pilot, first, "archive")
         await on(pilot, Resumes)
-        await wrapped(pilot, "Archived first; the Workspace page of /settings puts it back")
+        await wrapped(
+            pilot, "Archived first; the Workspace page of /settings puts it back"
+        )
         assert rows(app) == [second.name]
         assert _said(first).archived
         await pilot.press("escape")

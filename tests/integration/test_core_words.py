@@ -31,6 +31,12 @@ SAID_THROUGH_T = (
     "src/hmz/cli/commands",
     "src/hmz/tui/shell.py",
     "src/hmz/tui/views",
+    "src/hmz/tui/dropdown.py",
+    "src/hmz/tui/selecting.py",
+    "src/hmz/tui/chats.py",
+    "src/hmz/tui/complete.py",
+    "src/hmz/tui/asking.py",
+    "src/hmz/tui/epic.py",
 )
 
 

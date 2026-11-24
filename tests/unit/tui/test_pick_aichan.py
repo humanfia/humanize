@@ -65,7 +65,11 @@ def _said(number: int, updated: str) -> dict[str, Any]:
 def test_the_pinned_are_listed_first_then_the_latest_said_in() -> None:
     marks = AiMarks()
     marks.pinned.add(1)
-    old, mid, new = _said(1, "2026-01-01"), _said(2, "2026-01-02"), _said(3, "2026-01-03")
+    old, mid, new = (
+        _said(1, "2026-01-01"),
+        _said(2, "2026-01-02"),
+        _said(3, "2026-01-03"),
+    )
 
     sheet = AiChans([old, mid, new], marks)
 

@@ -44,7 +44,7 @@ from textual.widgets.option_list import Option
 from hmz.runtime.watching.monitor import thousands
 
 from . import humanfia
-from .pick import Crumbed, Key, bad
+from .pick import Crumbed, Key, bad, hinted
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1048,7 +1048,6 @@ def _style(app: App[Any], hue: str, how: str, *, chosen: bool) -> Style:
     key = (hue, how, chosen)
     held = styles.get(key)
     if held is None:
-
         inks = _inks(app)
 
         def colour(name: str) -> RichColor:
@@ -1990,7 +1989,7 @@ class Exomyth(ModalScreen[None]):
         self._paned()
         self.query_one("#keys", Label).update(
             "   ".join(
-                f"[b $primary]{escape(one.key)}[/] {escape(one.does)}"
+                f"[b $primary]{escape(one.key)}[/] {escape(hinted(one.does))}"
                 for one in self._keys()
             )
         )

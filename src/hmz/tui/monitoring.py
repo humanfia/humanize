@@ -25,6 +25,7 @@ import itertools
 import json
 import math
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
 from rich.markup import escape
@@ -63,7 +64,7 @@ from .pick import (
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Mapping, MutableSet, Sequence
+    from collections.abc import Callable, Collection, MutableSet, Sequence
 
     from pydantic import BaseModel
     from textual.app import App, ComposeResult
@@ -284,8 +285,6 @@ class Drawn(NamedTuple):
       reading: Whether its transcript is the one on the screen behind this sheet.
       unread: Whether it has said something since it was last looked at, which is the one
         thing on a box that says pressing enter on it is worth doing now.
-      asking: Whether it waits on the person for an answer, which is drawn as what is to be
-        pressed is.
       of: For a session, the agent it is one of, which is what it hangs under; "" for an
         agent.
       env: For a session, the key of the environment it works in, or "" where nothing said.
@@ -299,7 +298,6 @@ class Drawn(NamedTuple):
     unread: bool = False
     of: str = ""
     env: str = ""
-    asking: bool = False
 
 
 def _lane(at: int) -> str:
@@ -308,8 +306,8 @@ def _lane(at: int) -> str:
 
 
 def _inked(one: Drawn) -> str:
-    """What a node's name is drawn in: pink while it asks, cyan while it works, ink else."""
-    return "$accent" if one.asking else "$primary" if one.working else "$foreground"
+    """What a node's name is drawn in: cyan while it works, and the text's own otherwise."""
+    return "$primary" if one.working else "$foreground"
 
 
 class Placed(NamedTuple):
@@ -1712,7 +1710,7 @@ class Monitoring(Screen[str | None]):
         stop: Callable[[bool], None] = lambda _: None,
         timelined: Callable[[], bool] = lambda: False,
         exomyth: Callable[[], None] = lambda: None,
-        asking: Callable[[], Collection[str]] = frozenset,
+        asking: Callable[[], Collection[str]] | None = None,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
 
@@ -1745,10 +1743,11 @@ class Monitoring(Screen[str | None]):
             no timeline.
           exomyth: Opens it there, as the epic's own sheet in `/epics` does.
           asking: The outworlder roles the flow waits on for an answer now, whose nodes are
-            drawn as what waits on the person is.
+            drawn as what waits on the person is; None to read them off the questions the
+            interface this is drawn in holds.
         """
         super().__init__()
-        self._asking = asking
+        self._asking = self._asked_of if asking is None else asking
         self._monitoring = monitor
         self._boxing = drawn
         self._setup = setup
@@ -2099,6 +2098,21 @@ class Monitoring(Screen[str | None]):
             f"{_DOT}[$text-muted]{_DOT.join(said)}[/]",
             landing=bool(epic.get("run")),
         )
+
+    def _asked_of(self) -> set[str]:
+        """The roles asked something now, as the interface this is drawn in holds them."""
+        app = cast(
+            "object",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        held: object = getattr(app, "_pending", ())
+        if not isinstance(held, list | tuple):
+            return set()
+        return {
+            str(cast("Mapping[str, Any]", one).get("role") or "")
+            for one in cast("Sequence[object]", held)
+            if isinstance(one, Mapping)
+        }
 
     def _outworlders(self) -> list[_Row]:
         """A node per outworlder: the person, as each role of the run that is them.

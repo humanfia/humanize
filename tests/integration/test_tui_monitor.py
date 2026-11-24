@@ -117,7 +117,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
         await pilot.press("left")
         await on(pilot, Monitoring)
 
-        await shows(pilot, "1 turn · 1.2k tok", "1.0k", "200")
+        await shows(pilot, "1 turn · 1.2k to", "1.0k", "200")
 
 
 async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(

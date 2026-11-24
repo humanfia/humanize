@@ -118,7 +118,7 @@ async def test_a_change_discarded_on_the_way_out_is_not_written(
         await into_settings(pilot)
         await opens(pilot, "general")
         await picks(pilot, "details", "on")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
 
         await leaves(pilot, saving=False)
 
@@ -134,7 +134,7 @@ async def test_what_dollar_prefers_in_a_chat_is_saved_for_this_machine(
         await shows(pilot, "Chat prefers for $")
 
         await picks(pilot, "prefer", "flow")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
 
     assert kept(tmp_path)["chat"] == {"prefer": "flow"}
@@ -148,7 +148,7 @@ async def test_listing_harness_sessions_is_saved_for_this_machine(
         await shows(pilot, "Harness sessions", "to continue as chats")
 
         await picks(pilot, "harness_sessions", "on")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
 
     assert kept(tmp_path)["harness_sessions"] is True

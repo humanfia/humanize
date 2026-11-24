@@ -170,7 +170,7 @@ async def test_a_range_is_summed_and_weighed_in_the_flame_and_the_slices(
         await pilot.press(*["down"] * (at - (sliced.highlighted or 0)), "enter")
         await shows(pilot, "1 of 1 · Bash: pytest", "v drop")
         await pilot.press("escape")
-        await until(pilot, lambda: "Range" not in screen(app), "the range let go")
+        await until(pilot, lambda: "v Range" in screen(app), "the range let go")
         await pilot.press("shift+tab")
         await shows(pilot, "sorted by self↑")
         await pilot.press("escape")

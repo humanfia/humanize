@@ -85,7 +85,7 @@ from hmz.flows import Budget, Graceful
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 from hmz.runtime.watching.monitor import lasting, thousands
-from hmz.words import t
+from hmz.words import known, t
 
 from . import humanfia
 from .complete import paths
@@ -171,6 +171,7 @@ __all__ = [
     "chatting",
     "complete",
     "declared_of",
+    "hinted",
     "named_as",
     "nous_named",
     "opens_on",
@@ -197,7 +198,11 @@ def called(roles: Sequence[str], at: int) -> str:
     Returns:
       The role, which is what the flow calls it.
     """
-    return roles[at] if at < len(roles) else f"agent {at + 1} of {len(roles)}"
+    return (
+        roles[at]
+        if at < len(roles)
+        else t("agent {at} of {total}", at=at + 1, total=len(roles))
+    )
 
 
 #: How far in a line under a heading sits.
@@ -291,8 +296,8 @@ def _holds(held: Held) -> str:
         return ""
     said = f"{_WORKING if held.working else _IDLE} {held.many}"
     if held.reading:
-        return f"{said}{_DOT}reading"
-    return f"{said}{_DOT}unread" if held.unread else said
+        return f"{said}{_DOT}{t('reading')}"
+    return f"{said}{_DOT}{t('unread')}" if held.unread else said
 
 
 def reads(
@@ -595,7 +600,24 @@ def _capitals(said: str) -> Content:
     held = Content.from_markup(said)
     upper = held.plain.upper()
     # A letter whose capital is two letters would put what it is drawn in a letter out.
-    return Content(upper, held.spans if len(upper) == len(held.plain) else None)
+    return Content(upper, list(held.spans) if len(upper) == len(held.plain) else None)
+
+
+def hinted(does: str) -> str:
+    """What a key does, as the row of keys says it: in the words of :mod:`hmz.words`.
+
+    A sheet not yet written in those words says its keys in lower case -- `open`, `back`;
+    where the texts have the same word with a capital, as the page writes a button, that is
+    what is said, so that one row of keys reads as one.
+
+    Args:
+      does: What the sheet says the key does.
+
+    Returns:
+      The text for it, or what was said where there is none.
+    """
+    capital = does[:1].upper() + does[1:]
+    return t(capital) if known(capital) else does
 
 
 def _act(key: str) -> str:
@@ -752,7 +774,7 @@ class Sheet[T](ModalScreen[T | None]):
     #: What the line under the list says about the button with the focus, while that is what
     #: it says: what a sheet says there itself -- something wrong, something worth knowing --
     #: comes first.
-    _hinted = ""
+    hinted = ""
 
     def __init__(self) -> None:
         """Starts with nothing drawn: no buttons, no keys, and nowhere it was opened from."""
@@ -1025,7 +1047,7 @@ class Sheet[T](ModalScreen[T | None]):
         self._crumbed = trail
         self._titled()
         self.query_one("#pending", Label).update(
-            "● unsaved changes" if self._holding() else ""
+            f"● {t('Unsaved')}" if self._holding() else ""
         )
 
     def _titled(self) -> None:
@@ -1322,8 +1344,8 @@ class Sheet[T](ModalScreen[T | None]):
         """The button a list is searched from, as `/` searches it."""
         return Action(
             _ACT_SEARCH,
-            "search…",
-            "narrow the list by what is typed",
+            t("Search"),
+            t("filter the list"),
             self.action_search,
         )
 
@@ -1553,13 +1575,13 @@ class Sheet[T](ModalScreen[T | None]):
         """
         tuning = self.query_one("#tuning", Label)
         now = str(tuning.content)
-        mine = bool(self._hinted) and now == self._hinted
+        mine = bool(self.hinted) and now == self.hinted
         act = self._pointed()
         if act is not None and act.about and (mine or not now):
-            self._hinted = f"[$text-muted]{escape(act.about)}[/]"
-            tuning.update(self._hinted)
+            self.hinted = f"[$text-muted]{escape(act.about)}[/]"
+            tuning.update(self.hinted)
         elif mine:
-            self._hinted = ""
+            self.hinted = ""
             tuning.update("")
 
     def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
@@ -1580,27 +1602,31 @@ class Sheet[T](ModalScreen[T | None]):
                 # The one chord, which only a row being written that takes a list has, and
                 # the tab that finishes a path, which only a path being written has.
                 *(one for one in keys if one.key in (_CHORD, _FINISH)),
-                Key("enter", "keep"),
-                Key("esc", "undo"),
+                Key("enter", t("Keep")),
+                Key("esc", t("Cancel")),
             )
-        back = next((one for one in keys if one.key == "esc"), Key("esc", "back"))
+        back = next((one for one in keys if one.key == "esc"), Key("esc", t("Back")))
         focus = self.focused
         if isinstance(focus, Input):
-            return (Key("enter", "to list"), Key("esc", "clear"))
+            return (Key("enter", t("To list")), Key("esc", t("Clear")))
         if isinstance(focus, Button):
             act = self._pointed()
             return (
                 # What the button does, in its first word: `add`, `import`, `save`.
-                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
-                Key(_ACROSS, "move"),
-                *((Key("tab", "list"),) if self.query_one("#choices").display else ()),
+                Key("enter", act.label.split()[0].rstrip("…") if act else t("Press")),
+                Key(_ACROSS, t("Move")),
+                *(
+                    (Key("tab", t("List")),)
+                    if self.query_one("#choices").display
+                    else ()
+                ),
                 back,
             )
         under = self.under()
         said = (
-            "choose"
+            t("Choose")
             if under and self.drops(under)
-            else "change"
+            else t("Edit")
             if under and self.editable(under)
             else None
         )
@@ -1609,7 +1635,7 @@ class Sheet[T](ModalScreen[T | None]):
             # Typing is what writes it, so typing is what the row of keys says: enter begins
             # it as well, which is the same thing done the long way round.
             listed = [
-                Key("type", "to edit"),
+                Key("type", t("To edit")),
                 *(one for one in listed if one.key != "enter"),
             ]
         elif said:
@@ -1619,15 +1645,18 @@ class Sheet[T](ModalScreen[T | None]):
             ]
         if (
             under
-            and all(one.does != "menu" for one in listed)
+            and all(hinted(one.does) != t("Menu") for one in listed)
             and self.menu() is not None
         ):
-            listed.append(Key("m", "menu"))
+            listed.append(Key("m", t("Menu")))
         if self._searchable():
-            listed.append(Key("/", "search"))
+            listed.append(Key("/", t("Search")))
         if any(one.able() for one in self._acts):
-            listed.append(Key("tab", "actions"))
-        return (*listed, Key("esc", "clear search") if self._searching else back)
+            listed.append(Key("tab", t("Actions")))
+        return (
+            *listed,
+            Key("esc", t("Clear search")) if self._searching else back,
+        )
 
     def keys_line(self, keys: Sequence[Key]) -> str:
         """The keys with the key picked out from what it does, as a footer draws them.
@@ -1639,7 +1668,8 @@ class Sheet[T](ModalScreen[T | None]):
           The row, as markup.
         """
         return "   ".join(
-            f"[b $primary]{escape(one.key)}[/] {escape(one.does)}" for one in keys
+            f"[b $primary]{escape(one.key)}[/] {escape(hinted(one.does))}"
+            for one in keys
         )
 
     # -- Drawing -------------------------------------------------------------------------------
@@ -1655,7 +1685,7 @@ class Sheet[T](ModalScreen[T | None]):
                 yield Label(id="asked")
                 yield Label(id="pending")
             yield Label(id="about")
-            yield Input(placeholder="type to filter", id="seek")
+            yield Input(placeholder=t("Type to filter"), id="seek")
             yield Choices(id="choices")
             yield Label(id="tuning")
             with Horizontal(id="actions"):
@@ -1822,10 +1852,11 @@ class Sheet[T](ModalScreen[T | None]):
           The card, as markup.
         """
         width = self._width_of(self.query_one("#choices", OptionList))
-        said = f"{summary}  ● unsaved" if pending else summary
+        unsaved = f"● {t('Unsaved')}"
+        said = f"{summary}  {unsaved}" if pending else summary
         pad = " " * max(2, width - 5 - len(title) - len(said))
         right = _shade("$text-muted", summary, here=here) + (
-            f"  {_shade('$warning', '● unsaved', here=here)}" if pending else ""
+            f"  {_shade('$warning', unsaved, here=here)}" if pending else ""
         )
         return (
             f" {_shade('$primary', icon, here=here)}  "
@@ -1995,8 +2026,8 @@ class Drafts[T](Sheet[T]):
         """The button the whole menu is saved from, last on a menu that holds anything."""
         return Action(
             _ACT_SAVE,
-            "save",
-            "save all changes" if self._holding() else "nothing to save yet",
+            t("Save"),
+            t("save changes") if self._holding() else t("no changes yet"),
             self.applied,
             self._holding,
             "primary",
@@ -3864,7 +3895,7 @@ class Picks(Sheet[str]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
+        self._footed(Key("enter", t("Choose")), Key("esc", t("Back")))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -3898,7 +3929,7 @@ class Acts(Picks):
 
     def nothing(self) -> str:
         """That there is nothing to do with it, where there is not."""
-        return "" if self._offers else "nothing to do with this one now"
+        return "" if self._offers else t("no actions")
 
 
 def _hmz() -> Hmz:
@@ -4535,13 +4566,13 @@ class Popup(Picks):
     SEARCHES: ClassVar = False
 
     #: What esc is here, which is answering nothing: the third answer, said as what it does.
-    ESC: ClassVar[str] = "back"
+    ESC: ClassVar[str] = t("Back")
 
     #: The answer most often given, drawn as the one that answers a menu is, or "" for none.
     PRIMARY: ClassVar[str] = ""
 
     #: What the box is headed, in capitals, in the rule of its frame.
-    TITLE: ClassVar[str] = "Question"
+    HEADED: ClassVar[str] = t("Question")
 
     def _ask(self) -> None:
         """Says what is being asked, and takes back the line under it where there is none.
@@ -4558,7 +4589,7 @@ class Popup(Picks):
 
     def _titled(self) -> None:
         """Heads the box, in capitals, in the rule of its frame: it has no list to head."""
-        self.query_one("#sheet").border_title = t(self.TITLE).upper()
+        self.query_one("#sheet").border_title = t(self.HEADED).upper()
 
     def actions(self) -> list[Action]:
         """The answers, each a button that answers with it."""
@@ -4575,7 +4606,7 @@ class Popup(Picks):
 
     def _fill(self) -> None:
         """Puts the answers up, and says what esc is here."""
-        self._footed(Key("esc", self.ESC))
+        self._footed(Key("esc", t(self.ESC)))
 
     def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
         """Enter, which takes the answer with the focus, and esc, which takes none.
@@ -4637,15 +4668,15 @@ class Confirms(Popup):
     #: Five words for the whole question, keys and all: it arrives over a menu somebody has
     #: just spent a minute in, it asks the one thing that is left, and either answer is a
     #: word. Anything more is prose read at the moment nobody is reading.
-    asked = "Save?"
+    asked = t("Save changes?")
 
     PRIMARY: ClassVar = _KEEP
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two things there are to do about a menu holding changes."""
         return [
-            (_KEEP, "save", "save the changes and leave"),
-            (_DROP, "discard", "throw the changes away and leave"),
+            (_KEEP, t("Save"), t("save and close")),
+            (_DROP, t("Discard"), t("drop changes and close")),
         ]
 
 
@@ -4672,9 +4703,9 @@ class Leaves(Popup):
 
     CSS = _popup("Leaves")
 
-    asked = "A flow is running."
+    asked = t("A flow is running.")
 
-    ESC: ClassVar = "stay"
+    ESC: ClassVar = t("Stay")
 
     def __init__(self, *, held: bool) -> None:
         """Initializes the question.
@@ -4688,16 +4719,18 @@ class Leaves(Popup):
         # The one line worth a word: that the run outlives this interface is the whole of
         # what makes letting go of it an answer rather than a way of abandoning it.
         self.about = (
-            "Detached, it keeps running: run `hmz` here to reattach." if held else ""
+            t("Detached, the flow keeps running; run `hmz` in this folder to reattach.")
+            if held
+            else ""
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers, the second of which is whichever one is true here."""
         return [
-            (STOPS, "stop the flow and exit", "stop it for everybody reading it"),
-            (DETACHES, "detach and exit", "run `hmz` here to reattach")
+            (STOPS, t("Stop the flow and quit"), t("stops for everyone reading it")),
+            (DETACHES, t("Detach and quit"), t("run `hmz` in this folder to reattach"))
             if self._held
-            else (STAYS, "cancel", "keep the interface open"),
+            else (STAYS, t("Cancel"), t("stay here")),
         ]
 
 
@@ -4752,9 +4785,9 @@ class Reports(Popup):
 
     CSS = _popup("Reports")
 
-    asked = "Report errors to Humanize?"
+    asked = t("Send error reports to Humanize?")
 
-    ESC: ClassVar = "ask again next time"
+    ESC: ClassVar = t("Ask again next time")
 
     PRIMARY: ClassVar = _REPORTS
 
@@ -4764,9 +4797,11 @@ class Reports(Popup):
         sent, kept = "; ".join(SENT), "; ".join(KEPT)
         # What goes and what does not, where the question is asked rather than somewhere to
         # go and read: this is the whole of what anybody has to decide on, so it stays.
-        self.about = (
-            f"Send error reports to help fix bugs. Sent: {sent}. Never sent: "
-            f"{kept}. You can change this later in /settings."
+        self.about = t(
+            "Error reports help fix bugs. Sent: {sent}. Never sent: {kept}. "
+            "Change this anytime in /settings.",
+            sent=sent,
+            kept=kept,
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -4776,7 +4811,10 @@ class Reports(Popup):
         saying it again beside the answers would be the same list twice in a box that is read
         in a second.
         """
-        return [(_REPORTS, "yes", "send error reports"), (_QUIET, "no", "send nothing")]
+        return [
+            (_REPORTS, t("Yes"), t("send error reports")),
+            (_QUIET, t("No"), t("send nothing")),
+        ]
 
 
 #: The account an agent runs as when nobody has chosen one, which is always the first row it
