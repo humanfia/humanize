@@ -69,10 +69,10 @@ If a CLI cannot be continued, the button is hidden and a note explains why.
 ### Enable the session list
 
 1. Type `/settings general`.
-2. Select **Harness sessions**, press <kbd>enter</kbd>, and pick `on`.
+2. Select **Harness sessions**, press <kbd>enter</kbd>, and pick `On`.
 3. Select **Save**.
 
-![The Harness sessions row of /settings general, with on and off to pick from](/shots/user-harness-sessions-terminal-switch.svg)
+![The Harness sessions row of /settings general, with On and Off to pick from](/shots/user-harness-sessions-terminal-switch.svg)
 
 ### Resume a session
 

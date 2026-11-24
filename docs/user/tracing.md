@@ -37,7 +37,7 @@ On **New epic**, tick **Profile flow**, **Profile environment** or both, then st
 ### In the terminal {#profile-in-the-terminal}
 
 1. Type `/flow` followed by the flow's name.
-2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `on`. A switch that is off reads `traced only`.
+2. Select `profile flow` or `profile environment` and press <kbd>enter</kbd> twice to set it to `On`. A switch that is off reads `traced only`.
 3. Choose **Save**.
 
 ![The page of a flow in the terminal with both profiling rows on](/shots/user-tracing-terminal-switches.svg)
@@ -125,7 +125,7 @@ The **Slices** table below lists up to 200 span names with their Name, Category,
 
 ## Read a trace in the terminal {#in-the-terminal}
 
-Type `/epics`, press <kbd>enter</kbd> on an epic and choose `Exomyth`; the epic's `graph` page has an `Exomyth` button too. On the monitor of a running epic, press <kbd>ctrl+e</kbd> or click `Exomyth`; the trace refreshes every 3 seconds.
+Type `/epics`, press <kbd>enter</kbd> on an epic and choose `Exomyth`; the epic's `Graph` page has an `Exomyth` button too. On the monitor of a running epic, press <kbd>ctrl+e</kbd> or click `Exomyth`; the trace refreshes every 3 seconds.
 
 ![Exomyth in the terminal: the timeline with a tool call under the cursor and its pane open](/shots/user-tracing-terminal.svg)
 
@@ -179,7 +179,7 @@ Span ids hold for one layout of the timeline. While an epic runs, it is laid out
 
 You can export a trace as a Chrome JSON file to open in Perfetto or `chrome://tracing`.
 
-In the terminal, type `/epics`, press <kbd>enter</kbd> on an epic and choose `export epic`. Humanize writes the trace to `traces/export.trace.json` inside the epic and packs it into the archive. See [Export and import a run](/user/export).
+In the terminal, type `/epics`, press <kbd>enter</kbd> on an epic and choose `Export`. Humanize writes the trace to `traces/export.trace.json` inside the epic and packs it into the archive. See [Export and import a run](/user/export).
 
 In Python, gather the trace of the latest epic in the current folder:
 

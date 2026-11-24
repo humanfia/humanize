@@ -99,7 +99,7 @@ The interface keeps the last 2000 lines of up to 32 transcripts.
 
 The left side shows the current state: `Starting…`, the active agents and their elapsed time (in a chat, `Running…` then `Done`), `Waiting for you`, or, when idle, the agent (outside a chat, the flow that is set up) and the folder. Prefixes mark active modes: `afk` when agents may not ask you, `Details` when tool calls are visible, `btw` in btw mode, and `2 flow updates` when installed flows have newer releases. After you copy text, it shows `Copied` for two seconds.
 
-Two prefixes mark what the terminal follows. When you open an epic or chat on another daemon with `follow` from `/epics @<name>`, you see `@<daemon> · <folder>` and the transcript shows `Following <path> on <daemon>; esc comes back.` Press <kbd>esc</kbd> at the prompt to return to that daemon's list. A new Ai-chan conversation shows `Ai-chan · New · <scope>` until your first line; a conversation you follow shows `Ai-chan#<n> · <scope>`. See [History and search](/user/history) and [Ai-chan](/user/ai-chan).
+Two prefixes mark what the terminal follows. When you open an epic or chat on another daemon with `Follow` from `/epics @<name>`, you see `@<daemon> · <folder>` and the transcript shows `Following <path> on <daemon>; esc comes back.` Press <kbd>esc</kbd> at the prompt to return to that daemon's list. A new Ai-chan conversation shows `Ai-chan · New · <scope>` until your first line; a conversation you follow shows `Ai-chan#<n> · <scope>`. See [History and search](/user/history) and [Ai-chan](/user/ai-chan).
 
 The right side lists only the keys that work right now, such as `enter Send`, `shift+tab Next view`, `/ Commands`, `← Monitor` and what the next <kbd>ctrl+c</kbd> does. Every hint is a key and then what it does, in the web page's words. In a narrow terminal, hints drop from the left of the key list; the state on the left side is never cut.
 
@@ -122,7 +122,7 @@ The right side lists only the keys that work right now, such as `enter Send`, `s
 
 You can also click any row, button or breadcrumb across the top.
 
-- **Rows.** A value ending in `▸` opens a sheet. A value ending in `▾` drops a list of options with `✔` on the active one. A switch reads `● on ▾` or `○ off ▾`; its list opens on the opposite value, so pressing <kbd>enter</kbd> twice flips it.
+- **Rows.** A value ending in `▸` opens a sheet. A value ending in `▾` drops a list of options with `✔` on the active one. A switch reads `● On ▾` or `○ Off ▾`; its list opens on the opposite value, so pressing <kbd>enter</kbd> twice flips it.
 - **Forms.** Type on a form row to start editing it. Press <kbd>enter</kbd> to keep the value and move to the next unanswered row, or <kbd>esc</kbd> to revert it. On path rows, press <kbd>tab</kbd> to complete paths as in a shell.
 - **Buttons.** The primary action button sits last on the right in green. Destructive buttons are red.
 

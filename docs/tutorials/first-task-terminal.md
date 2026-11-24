@@ -132,7 +132,7 @@ The agent's changes stay in your project.
 ## 10. Read the result
 
 1. Type `/epics` and press <kbd>enter</kbd>. Every epic for this directory appears, newest first, with its flow, task, duration, and status.
-2. Press <kbd>enter</kbd> on the epic, then <kbd>enter</kbd> on `graph`.
+2. Press <kbd>enter</kbd> on the epic, then <kbd>enter</kbd> on `Graph`.
 3. Press <kbd>enter</kbd> on a session to read the task, each tool call and output, and the agent's response.
 
 ![The list of epics, with the stopped ralph_loop run](/shots/tutorials-first-task-terminal-epics.svg)

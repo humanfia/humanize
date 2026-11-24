@@ -229,12 +229,12 @@ If you leave a menu with unsaved changes, `Save changes?` opens with **Save** an
 | `/flow`, Flowverses | `open`, `fetch` or `fetch again`, `remove`, `copy URL` |
 | `/resume` in a chat | `Rename`, `Fork`, `Archive`, `Upload`, `Delete`, `Copy ID` |
 | `/ai` | `Rename`, `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, `Delete` |
-| `/settings daemons` | `connect`, `edit…`, `remove`, `copy name`, and on a daemon that is up `pair a device…` and `devices…`. `Local` has only the last two. |
-| `/epics` on another daemon | An epic: `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`. A chat: `follow`, `copy id`. |
+| `/settings daemons` | `Connect`, `Edit`, `Remove`, `Copy name`, and on a daemon that is up `Pair a device` and `Devices`. `Local` has only the last two. |
+| `/epics` on another daemon | An epic: `Follow`, `Export`, `Upload`, `Copy name`, `Copy task`, `Copy workspace`. A chat: `Follow`, `Copy ID`. |
 
-When an SSH machine has no hmz, a box asks `hmz is not installed on <name>. Install it?` over whatever is on screen, with `install` and `not now`. <kbd>esc</kbd> answers `not now`, which leaves the daemon `failed` with `hmz is not installed on <name>.` until you pick `connect` again. After `install`, that daemon is not asked about again while the interface runs and its routes stay the same.
+When an SSH machine has no hmz, a box asks `hmz is not installed on <name>. Install it?` over whatever is on screen, with `Install` and `Not now`. <kbd>esc</kbd> answers `Not now`, which leaves the daemon `failed` with `hmz is not installed on <name>.` until you pick `Connect` again. After `Install`, that daemon is not asked about again while the interface runs and its routes stay the same.
 
-<kbd>enter</kbd> or <kbd>m</kbd> on an epic of `/epics` opens its rows: `resume epic`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`. See [History and search](/user/history).
+<kbd>enter</kbd> or <kbd>m</kbd> on an epic of `/epics` opens its rows: `Resume epic`, `Graph`, `Export`, `Exomyth`, `Upload`, `Copy name`, `Copy task`, `Copy path`. See [History and search](/user/history).
 
 ### Epics list
 

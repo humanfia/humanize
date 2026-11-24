@@ -72,7 +72,7 @@ async def test_a_model_found_by_checking_again_takes_the_efforts_it_was_found_wi
         await on(pilot, Agent)
         await opens(pilot, "model")
         await on(pilot, Catalogue)
-        await shows(pilot, "has not reported any models")
+        await shows(pilot, "has listed no models yet")
         asked.append(True)
         await pilot.click("#act-again")
         await shows(pilot, MODEL)
@@ -117,17 +117,17 @@ async def test_checking_again_is_said_over_the_models_already_listed(
             # The models may be listed before this first check is done: it ends first.
             await until(
                 pilot,
-                lambda: "checking claude" not in screen(pilot.app),
+                lambda: "Asking claude" not in screen(pilot.app),
                 "the first check to end",
             )
 
             monkeypatch.setattr(hmz.coganchor.models, "ask", slow)
             catalogue.asked_again()
-            await shows(pilot, MODEL, "checking claude for models…")
+            await shows(pilot, MODEL, "Asking claude for models…")
             held.set()
             await until(
                 pilot,
-                lambda: "checking claude" not in screen(pilot.app),
+                lambda: "Asking claude" not in screen(pilot.app),
                 "the check to end",
             )
     finally:

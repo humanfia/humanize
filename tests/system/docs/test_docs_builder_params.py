@@ -258,7 +258,7 @@ async def test_the_terminal_asks_them_on_one_sheet(world: World) -> None:
         await pilot.press(*"Add discount codes", "enter")
         await _settled(pilot)
         for _ in range(4):
-            if "enter set" in screen(app):
+            if "enter Set" in screen(app):
                 break
             await pilot.press("tab")
             await _settled(pilot, 0.3)

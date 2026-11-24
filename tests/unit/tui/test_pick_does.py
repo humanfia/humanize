@@ -51,7 +51,7 @@ def _does(
             False,
             "",
             ["graph", "export", "exomyth", *_COPIES],
-            "ralph is not resumable, so this epic cannot be resumed",
+            "the flow ralph is not resumable, so this epic cannot be resumed",
         ),
         (
             True,
@@ -91,8 +91,8 @@ def test_does_offers_upload_where_there_is_a_target_and_says_how_backups_went() 
         *_COPIES,
     ]
     assert does.about.splitlines()[-2:] == [
-        "lab: backed up 2026-10-12 01:05",
-        "home: failed 2026-10-12 01:06: denied",
+        "lab: uploaded 2026-10-12 01:05",
+        "home: failed, denied 2026-10-12 01:06",
     ]
 
 

@@ -103,7 +103,7 @@ async def test_another_chat_is_told_with_no_epic_to_dot_and_this_one_never(
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await pilot.press("ctrl+t")
-        await shows(pilot, "no flow has been run on this machine yet")
+        await shows(pilot, "No epics yet.")
         assert "●" not in screen(app)
 
 
@@ -140,7 +140,7 @@ async def test_another_epic_is_told_and_dotted_until_opened(
             ]
             await onto(pilot, dotted)
             await pilot.press("enter")
-            await shows(pilot, "export epic")
+            await shows(pilot, "Export")
             await pilot.press("escape")
             await on(pilot, Epics)
             await until(pilot, lambda: "●" not in screen(app), "the dot gone")

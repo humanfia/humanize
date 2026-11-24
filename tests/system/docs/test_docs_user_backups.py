@@ -270,7 +270,7 @@ async def test_the_targets_in_the_terminal_interface(world: World) -> None:
         await pilot.pause(0.5)
         reel.tui(app, hold=2.4, keys="/settings backup")
         await opens(pilot, _LAB)
-        await shows(pilot, "On epic end", "new epics go here")
+        await shows(pilot, "On epic end", "new epics are backed up here")
         await pilot.pause(0.5)
         reel.tui(app, hold=3.5, keys="enter", poster=True)
         reel.save()

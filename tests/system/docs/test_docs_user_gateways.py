@@ -133,7 +133,7 @@ async def test_a_gateway_account_is_asked_for_in_the_terminal(world: World) -> N
     async with world.tui((100, 30)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings accounts")
-        await shows(pilot, "Add a custom CLI")
+        await shows(pilot, "Add CLI")
         await pilot.press("enter")
         await on(pilot, Signing)
         await picks(pilot, "way", "anthropic-gateway")
@@ -146,7 +146,7 @@ async def test_a_cli_that_speaks_acp_is_added_in_the_terminal(world: World) -> N
     async with world.tui((100, 30)) as (app, pilot):
         await shows(pilot, MODEL)
         await typed(pilot, "/settings accounts")
-        await shows(pilot, "Add a custom CLI")
+        await shows(pilot, "Add CLI")
         await pilot.pause(0.5)
         reel = shots.Reel(f"{_PAGE}-custom-cli")
         reel.tui(app, hold=1.4)

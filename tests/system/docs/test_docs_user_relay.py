@@ -336,7 +336,7 @@ async def test_the_terminal_reaches_it_through_the_relay(
             # Its menu's first line connects it.
             await onto(pilot, _DEVBOX)
             await pilot.press("enter")
-            await shows(pilot, "connect")
+            await shows(pilot, "Connect")
             await pilot.press("enter")
             await shows(pilot, f"relay:{_RELAY} · up")
             await pilot.pause(0.5)

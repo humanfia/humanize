@@ -57,14 +57,14 @@ Humanize Desktop saves the file to your Downloads folder and reveals it in Finde
 
 1. Type `/epics` and press <kbd>enter</kbd>.
 2. Select the epic and press <kbd>enter</kbd>.
-3. Choose `export epic`.
+3. Choose `Export`.
 4. Enter a file or directory path, or keep the default `~/Downloads/`. Press <kbd>enter</kbd> to confirm the path, then press <kbd>enter</kbd> on `Done`.
 
-![In hmz: /epics, an epic's menu with export epic chosen, the form that asks where the archive goes, and the line that says where it was written](/shots/user-export-terminal.svg)
+![In hmz: /epics, an epic's menu with Export chosen, the form that asks where the archive goes, and the line that says where it was written](/shots/user-export-terminal.svg)
 
 The terminal first gathers a fresh trace of the epic into the archive; **Export** in the app packs the traces the epic already has. The list shows the archive path, its size, and its trace contents. Exporting to an existing archive path overwrites the file. Humanize sets the file permissions to mode `0600` (readable only by you).
 
-To export an epic from a remote daemon, run `/epics @<daemon name>`, press <kbd>enter</kbd> on an epic that is not running, and choose `export`. The same form asks where the archive goes, and Humanize downloads it to that path on your local machine.
+To export an epic from a remote daemon, run `/epics @<daemon name>`, press <kbd>enter</kbd> on an epic that is not running, and choose `Export`. The same form asks where the archive goes, and Humanize downloads it to that path on your local machine.
 
 ## Import an epic
 

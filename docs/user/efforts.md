@@ -56,12 +56,12 @@ Once a chat has started, selecting an effort on the chip changes it for the chat
 
 Open the agent sheet for a flow role with `/flow`, the flow, and the role, or for the workspace chat agent with `/settings workspace` and **Chat agent**.
 
-1. Select the `effort` row and press <kbd>enter</kbd> to list the model's efforts.
+1. Select the `Effort` row and press <kbd>enter</kbd> to list the model's efforts.
 2. Press <kbd>↑</kbd> or <kbd>↓</kbd> to highlight an effort, press <kbd>enter</kbd> to pick it, and select **Save**.
 
 ![The agent sheet in the terminal: the effort row is opened, the model's efforts drop under it, and low is picked](/shots/user-efforts-terminal.svg)
 
-With no model chosen yet, pressing <kbd>enter</kbd> on the row answers `choose a model first; efforts belong to the model`. The model list shows each model's supported efforts beside its name. The form that adds a concrete nous on `/settings nous` has an `effort` row as well.
+With no model chosen yet, pressing <kbd>enter</kbd> on the row answers `pick a model first: the efforts are the model's`. The model list shows each model's supported efforts beside its name. The form that adds a concrete nous on `/settings nous` has an `Effort` row as well.
 
 In an active Claude Code or Codex chat, run `/effort` to change the effort for future turns:
 
@@ -98,7 +98,7 @@ Swarm mode changes the width of the turn, not the thinking depth: `max` and `swa
 
 ![The same effort at two widths: max runs a turn as one agent, swarmmax as a lead agent with subagents](/diagrams/user-efforts-1.svg)
 
-In the terminal, models that support swarming show a `swarm` row below `effort` on the agent sheet. Set it to `on` to run as a swarm, or `off` to run as one agent.
+In the terminal, models that support swarming show a `Swarm` row below `Effort` on the agent sheet. Set it to `On` to run as a swarm, or `Off` to run as one agent.
 
 ![The agent sheet for a Kimi Code model, with the swarm row opened on its on and off values](/shots/user-efforts-terminal-swarm.svg)
 

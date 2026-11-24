@@ -43,6 +43,6 @@ async def test_a_menu_says_its_keys(world: World) -> None:
         await shows(pilot, MODEL)
         await _settled(pilot)
         await pilot.press(*"/settings daemons", "enter")
-        await shows(pilot, "no other daemons yet")
+        await shows(pilot, "Only Local so far")
         await _settled(pilot)
         shots.tui(app, f"{_PAGE}-menu")

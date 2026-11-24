@@ -60,19 +60,19 @@ Click **More options** on a row, or right-click it, for more actions:
 
 ## In the terminal
 
-Type `/settings accounts`. Accounts appear under a heading for each CLI, with `as local` listed last in each group. Press <kbd>/</kbd> to search the list.
+Type `/settings accounts`. Accounts appear under a heading for each CLI, with `Local` listed last in each group. Press <kbd>/</kbd> to search the list.
 
-![The Accounts page of the terminal interface: under claude, the accounts personal and work with their method and variable, then as local](/shots/user-accounts-terminal.svg)
+![The Accounts page of the terminal interface: under claude, the accounts personal and work with their method and variable, then Local](/shots/user-accounts-terminal.svg)
 
 ### Add an account
 
-1. Press <kbd>tab</kbd> and choose **Add an account**.
-2. Set `cli` and `way` (the sign-in method), and type a `name`.
+1. Press <kbd>tab</kbd> and choose **Add account**.
+2. Set `CLI` and `Sign-in method`, and type a `Name`.
 3. Fill in the rows the method adds. Secrets appear as dots.
-4. Toggle each `also for` row to copy the account to other compatible CLIs. Installed CLIs start on, and a row warns `overwrites <cli>/<name>` when the copy would replace an account.
+4. Toggle each `Also for <cli>` row to copy the account to other compatible CLIs. Installed CLIs start on, and a row warns `overwrites <cli>/<name>` when the copy would replace an account.
 5. Choose **Done**. The line above **Done** previews the changes.
 
-![The Add an account form in the terminal: the list of ways is opened, key is picked, the name and the key are answered, and the line over Done says it adds claude/work](/shots/user-accounts-terminal-add.svg)
+![The New account form in the terminal: the list of ways is opened, key is picked, the name and the key are answered, and the line over Done says it adds claude/work](/shots/user-accounts-terminal-add.svg)
 
 The account is created immediately. If the method uses the CLI's own sign-in, that flow takes over the terminal until it finishes. Humanize then queries the CLI for the models available to the new account.
 
@@ -82,26 +82,26 @@ Press <kbd>enter</kbd> on an account to open its menu.
 
 | Item | What it does |
 | --- | --- |
-| `edit settings` | Prompts for the setup fields again. Leave a secret blank to keep its current value. The `also for` rows update the copies for other CLIs. |
-| `sign in again` | For an account made by the CLI's own sign-in: runs that sign-in immediately, taking over the terminal until it finishes. Other accounts have no command to run; edit their settings instead. |
-| **Remove** | Marks the account and its credentials for deletion. Choose **Cancel removal** to undo. |
+| `Edit` | Prompts for the setup fields again. Leave a secret blank to keep its current value. The `Also for <cli>` rows update the copies for other CLIs. |
+| `Sign in again` | For an account made by the CLI's own sign-in: runs that sign-in immediately, taking over the terminal until it finishes. Other accounts have no command to run; edit their settings instead. |
+| **Remove** | Marks the account and its credentials for deletion. Choose **Keep account** to undo. |
 
-![An account's menu in the terminal: edit settings and sign in again, then Remove, which marks the row as will be removed](/shots/user-accounts-terminal-menu.svg)
+![An account's menu in the terminal: Edit and Sign in again, then Remove, which marks the row as will be removed](/shots/user-accounts-terminal-menu.svg)
 
 Edits and removals take effect when you choose **Save**. Until then, the row displays `edited` or `will be removed`.
 
-Choose **Add a custom CLI** on the same page to register your own ACP-compatible CLI; see [Gateways, LiteLLM and custom CLIs](/user/gateways).
+Choose **Add CLI** on the same page to register your own ACP-compatible CLI; see [Gateways, LiteLLM and custom CLIs](/user/gateways).
 
 ### Pick an account for an agent
 
 1. Open the agent sheet from `/settings workspace` and **Chat agent**, or from a role in `/flow`.
-2. Set `cli` first, then press <kbd>enter</kbd> on the `account` row.
+2. Set `CLI` first, then press <kbd>enter</kbd> on the `Account` row.
 
-The **Select the account to run as** list opens. It starts with `as local`, followed by each account for that CLI, its sign-in method, and the variables it sets. If the CLI has no accounts, the list shows `<cli> has no saved accounts yet`.
+The **Pick an account** list opens. It starts with `Local`, followed by each account for that CLI, its sign-in method, and the variables it sets. If the CLI has no accounts, the list shows `No account yet.`.
 
-![The list Select the account to run as in the terminal: as local is ticked, then personal and work, with the buttons Add an account and Search](/shots/user-accounts-terminal-pick.svg)
+![The list Pick an account in the terminal: Local is ticked, then personal and work, with the buttons Add account and Search](/shots/user-accounts-terminal-pick.svg)
 
-To create an account from here, press <kbd>tab</kbd> and choose **Add an account**. The form is for that CLI, so it has no `cli` row, and it selects the new account for the agent as soon as you choose **Done**.
+To create an account from here, press <kbd>tab</kbd> and choose **Add account**. The form is for that CLI, so it has no `CLI` row, and it selects the new account for the agent as soon as you choose **Done**.
 
 ## From the command line
 

@@ -105,10 +105,10 @@ Creating or signing in to an account, saving or checking a runtime, and changing
 
 | Row | Values | What it does |
 | --- | --- | --- |
-| `Details` | `on`, `off` | Show every tool call and all thinking |
+| `Details` | `On`, `Off` | Show every tool call and all thinking |
 | `When $name is both` | `native`, `flow` | Choose what `$<name>` starts in a chat when a skill and a flow share the name. See [Skills](/user/skills). |
-| `Harness sessions` | `on`, `off` | List each coding agent's own sessions in `/resume` |
-| `Error reports` | `on`, `off` | Send error reports to Humanize. Reads `Not set` until you choose. |
+| `Harness sessions` | `On`, `Off` | List each coding agent's own sessions in `/resume` |
+| `Error reports` | `On`, `Off` | Send error reports to Humanize. Reads `Not set` until you choose. |
 | `What is sent` | | Show what reports include and what they never include |
 
 ### Workspace
@@ -122,7 +122,7 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 | `Flow` | Read-only: the flow last set up here. Change it with `/flow`. |
 | `Default agent` | The agent a new chat here talks to |
 | `Archived chats` | Opens the chats archived here; pick one to restore it |
-| `Forget` | Set to `on` and save to clear what this directory remembers for every flow |
+| `Forget` | Set to `On` and save to clear what this directory remembers for every flow |
 
 ## From the command line
 

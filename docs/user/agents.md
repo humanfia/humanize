@@ -93,20 +93,20 @@ To refresh all harnesses at once, open **Settings**, pick **Nous**, and click **
 
 ## In the terminal
 
-In `hmz`, configure an agent on a sheet with four rows: `cli`, `account`, `model` and `effort`. Open this sheet in one of two ways:
+In `hmz`, configure an agent on a sheet with four rows: `CLI`, `Account`, `Model` and `Effort`. Open this sheet in one of two ways:
 
 1. Type `/settings workspace` and press <kbd>enter</kbd> on **Chat agent** to set the default agent for new chats in the current directory.
 2. Type `/flow`, pick a flow, and press <kbd>enter</kbd> on a role.
 
 ![In the terminal, the chat agent's sheet is opened, a coding agent is picked from the list, then a model](/shots/user-agents-terminal.svg)
 
-Press <kbd>enter</kbd> on `cli` to list your installed coding agents and the number of models each reported.
+Press <kbd>enter</kbd> on `CLI` to list your installed coding agents and the number of models each reported.
 
 ![The terminal lists the coding agents installed, each with its number of models](/shots/user-agents-terminal-clis.svg)
 
-Press <kbd>enter</kbd> on `model` to list the models and their supported efforts. Press <kbd>/</kbd> to search the list, or press <kbd>tab</kbd> and select **Check again** to re-query the CLI.
+Press <kbd>enter</kbd> on `Model` to list the models and their supported efforts. Press <kbd>/</kbd> to search the list, or press <kbd>tab</kbd> and select **Refresh models** to re-query the CLI.
 
-![The terminal lists the models of claude with their efforts, and a Check again button](/shots/user-agents-terminal-models.svg)
+![The terminal lists the models of claude with their efforts, and a Refresh models button](/shots/user-agents-terminal-models.svg)
 
 The terminal displays raw IDs rather than product names.
 
@@ -146,6 +146,6 @@ On startup, the daemon queries in the background every account it has never quer
 
 - If no coding agent is installed, the terminal says `hmz: No coding agent is installed.`.
 - If no installed agent supports a flow role, the app shows **No harness installed here can fill it.**
-- If a CLI has reported no models yet, the terminal says so under its empty model list; select **Check again** to query it.
+- If a CLI has reported no models yet, the terminal says so under its empty model list; select **Refresh models** to query it.
 - When nothing is saved for a chat or a role, the terminal never selects `litellm` by itself, and selects `dsh` only when its key is set.
-- In the terminal, changing `cli` clears both `account` and `model`, and picking a model sets its highest effort unless the effort already set still applies.
+- In the terminal, changing `CLI` clears both `Account` and `Model`, and picking a model sets its highest effort unless the effort already set still applies.

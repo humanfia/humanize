@@ -256,7 +256,7 @@ async def _budgeted(pilot: Pilot[None]) -> None:
     await pilot.press("enter")
     await pilot.pause(0.3)
     await pilot.press("tab")
-    await shows(pilot, "enter set")
+    await shows(pilot, "enter Set")
     await pilot.press("enter")
     await on(pilot, Flows)
     await shows(pilot, "stops at 10m")

@@ -372,7 +372,7 @@ async def test_exomyth_in_the_terminal(world: World) -> None:
     async with world.tui((110, 32)) as (app, pilot):
         await shows(pilot, MODEL)
         await pilot.press(*"/epics", "enter")
-        await shows(pilot, "Every epic in this directory", "rlar")
+        await shows(pilot, "Every epic in this folder", "rlar")
         await pilot.press("enter")
         await shows(pilot, "the epic as a timeline of its sessions")
         await onto(pilot, "exomyth")
