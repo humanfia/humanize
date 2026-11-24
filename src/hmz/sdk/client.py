@@ -85,7 +85,7 @@ class Client(Session):
     _remotes: Remotes | None = None
 
     @classmethod
-    def named(cls, name: str) -> Client:
+    def named(cls, name: str, *, kind: Kind = "sdk") -> Client:
         """A session with another machine's daemon, by the name the registry keeps it under.
 
         Reached over its routes as :class:`hmz.runtime.doing.daemons.Remotes` reaches it,
@@ -95,6 +95,7 @@ class Client(Session):
 
         Args:
           name: What the daemon is written down as.
+          kind: What this client is: `sdk`, `cli`, `tui`.
 
         Raises:
           LookupError: If no daemon is written down by that name.
@@ -109,11 +110,11 @@ class Client(Session):
             Unreached,
         )
 
-        remotes = Daemons().remotes()
+        remotes = Daemons().remotes(kind=kind)
         try:
             while True:
                 try:
-                    held = remotes.client(name)
+                    made = remotes.client(name, cls)
                     break
                 except Unreached as why:
                     # Still on its way: closing now would stop what is bringing it up.
@@ -123,7 +124,6 @@ class Client(Session):
         except BaseException:
             remotes.close()
             raise
-        made = cls(held._session)  # noqa: SLF001 -- the one session, held as this class
         made._remotes = remotes
         return made
 

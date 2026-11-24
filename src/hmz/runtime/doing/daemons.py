@@ -505,7 +505,11 @@ class Daemons:
         return added
 
     def remotes(
-        self, version: str | None = None, *, install: bool | None = False
+        self,
+        version: str | None = None,
+        *,
+        install: bool | None = False,
+        kind: Kind = "sdk",
     ) -> Remotes:
         """Every daemon written down, each reached as it is first asked for, until closed.
 
@@ -515,8 +519,9 @@ class Daemons:
           install: What is done where no `hmz` is found there: `False` installs nothing,
             `True` installs unasked, and `None` has the daemon `asking` until
             :meth:`Remotes.answer` answers it.
+          kind: What whoever reaches them is, as each session's `session.hello` says it.
         """
-        return Remotes(version, install=install)
+        return Remotes(version, install=install, kind=kind)
 
 
 def _pins(name: str, daemon: str) -> None:
@@ -1017,9 +1022,11 @@ class _Remote:
         changed: threading.Condition,
         *,
         install: bool | None = False,
+        kind: Kind = "sdk",
     ) -> None:
         self.name = name
         self._version = version
+        self._kind: Kind = kind
         self._changed = changed
         #: Whether `hmz` is installed where none is found: None while nobody has said, which
         #: asks; a yes is kept for as long as this is and its routes are those the yes was
@@ -1172,7 +1179,9 @@ class _Remote:
 
         def handshake(pipe: Pipe) -> _Session:
             route, until = routed[id(pipe)]
-            return _Session(pipe, route, pinned, self.name, until=until)
+            return _Session(
+                pipe, route, pinned, self.name, kind=self._kind, until=until
+            )
 
         self._racing.set()
         try:
@@ -1467,13 +1476,20 @@ class Remotes:
       install: What is done where no `hmz` is found over `stdio:ssh`: `False` installs
         nothing, as nobody is there to ask; `True` installs unasked; `None` has the daemon
         `asking` until :meth:`answer` answers it.
+      kind: What whoever reaches them is: `sdk`, `cli`, `tui`, as `session.hello` says it
+        of every session these open.
     """
 
     def __init__(
-        self, version: str | None = None, *, install: bool | None = False
+        self,
+        version: str | None = None,
+        *,
+        install: bool | None = False,
+        kind: Kind = "sdk",
     ) -> None:
         self._version = version or _here_version()
         self._install = install
+        self._kind: Kind = kind
         self._changed = threading.Condition()
         self._held: dict[str, _Remote] = {}
         self._closed = False
@@ -1522,10 +1538,15 @@ class Remotes:
             held.answer(install)
         return self.state(name)
 
-    def client(self, name: str) -> Client:
+    def client[Made: Client](self, name: str, made: type[Made] = Client) -> Made:
         """The client of the session to a daemon, reached first where it was not.
 
         Never waited for where it is `asking`.
+
+        Args:
+          name: What the daemon is written down as.
+          made: The class the client is made as, for a caller whose clients do more than
+            this module's: the SDK's, which has the families.
 
         Raises:
           Unreached: If it cannot be reached, with its state.
@@ -1536,7 +1557,7 @@ class Remotes:
             session = held.session
         if session is None or session.peer.closed:
             raise Unreached(f"{name} is not reached yet.", held.seen())
-        return Client(session)
+        return made(session)
 
     def pair(
         self, name: str, code: str, *, device: str | None = None
@@ -1627,7 +1648,14 @@ class Remotes:
                     threading.Thread(target=gone.close, daemon=True).start()
                 raise LookupError("There is no daemon by that name.")
             held = self._held.setdefault(
-                name, _Remote(name, self._version, self._changed, install=self._install)
+                name,
+                _Remote(
+                    name,
+                    self._version,
+                    self._changed,
+                    install=self._install,
+                    kind=self._kind,
+                ),
             )
         held.starts(said, now=now)
         return held

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -11,6 +13,9 @@ import pytest
 import hmz.sdk
 from hmz.cli import main, tree
 from hmz.cli.tree import Arg, Call, Command, Example, Exit, Field
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _greets(call: Call) -> int | None:
@@ -188,11 +193,12 @@ def test_help_says_everything_a_command_declares(
         "    greeted  string  Back\n"
         "\n"
         "Exit codes:\n"
-        "  0  did what was asked\n"
-        "  1  the daemon refused the request and its reason was printed\n"
-        "  2  the command line could not be read\n"
-        "  3  the daemon could not be reached\n"
-        "  7  Cancel\n"
+        "  0    did what was asked\n"
+        "  1    the daemon refused the request and its reason was printed\n"
+        "  2    the command line could not be read\n"
+        "  3    the daemon could not be reached\n"
+        "  7    Cancel\n"
+        "  130  interrupted with ctrl+c\n"
         "\n"
         "Daemon calls:\n"
         "  devices.list\n"
@@ -303,12 +309,13 @@ def test_a_command_that_asks_no_daemon_takes_no_daemon(
     assert "--daemon" not in said
     assert said.endswith(
         "Exit codes:\n"
-        "  0  did what was asked\n"
-        "  1  the request was refused and the reason was printed\n"
-        "  2  the command line could not be read\n"
+        "  0    did what was asked\n"
+        "  1    the request was refused and the reason was printed\n"
+        "  2    the command line could not be read\n"
+        "  130  interrupted with ctrl+c\n"
     )
     described = tree.described(["here"], LOCAL)
-    assert list(described["exit_status"]) == ["0", "1", "2"]
+    assert list(described["exit_status"]) == ["0", "1", "2", "130"]
     assert "the request was refused and the reason was printed" in LOCAL.texts()
     assert [one["name"] for one in described["arguments"]] == [
         "--loud",
@@ -444,7 +451,7 @@ def test_another_machines_daemon_is_asked_by_the_name_it_is_kept_under(
     monkeypatch.setattr(hmz.sdk.Client, "named", named)
 
     assert tree.reach("gpu") is named.return_value
-    named.assert_called_once_with("gpu")
+    named.assert_called_once_with("gpu", kind="cli")
 
 
 def test_a_name_no_daemon_is_kept_under_is_refused(
@@ -543,9 +550,10 @@ def test_a_local_command_says_so_in_its_help_and_its_description() -> None:
         "  -h, --help  show this help and exit\n"
         "\n"
         "Exit codes:\n"
-        "  0  did what was asked\n"
-        "  1  the request was refused and the reason was printed\n"
-        "  2  the command line could not be read\n"
+        "  0    did what was asked\n"
+        "  1    the request was refused and the reason was printed\n"
+        "  2    the command line could not be read\n"
+        "  130  interrupted with ctrl+c\n"
     )
 
     said = tree.described(["here"], HERE)
@@ -559,6 +567,7 @@ def test_a_local_command_says_so_in_its_help_and_its_description() -> None:
         "0": "did what was asked",
         "1": "the request was refused and the reason was printed",
         "2": "the command line could not be read",
+        "130": "interrupted with ctrl+c",
     }
     assert "the request was refused and the reason was printed" in set(HERE.texts())
 
@@ -569,3 +578,162 @@ def test_rows_are_set_in_columns() -> None:
         "aaaa  b",
     ]
     assert tree.table([]) == []
+
+
+def _removes(call: Call) -> None:
+    if call.what == "unread":
+        raise tree.Unread("this is not JSON")
+    if call.what == "interrupted":
+        raise KeyboardInterrupt
+    if call.what == "went":
+        call.client.call("devices.list")
+    tree.sure(call, f"Remove {tree.workspace(call)}?")
+    call.answers({"removed": call.what}, ["gone"])
+
+
+REMOVE = Command(
+    "remove",
+    "Open",
+    args=(Arg(("what",), "Close"), tree.WORKSPACE, tree.YES),
+    run=_removes,
+)
+
+
+@pytest.fixture
+def removing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tree, "commands", lambda: {"remove": REMOVE})
+
+
+def _stdin(monkeypatch: pytest.MonkeyPatch, typed: str, *, terminal: bool) -> None:
+    asked = mock.Mock(isatty=lambda: terminal, readline=mock.Mock(return_value=typed))
+    monkeypatch.setattr("sys.stdin", asked)
+
+
+@pytest.mark.usefixtures("removing")
+def test_a_line_a_command_cannot_read_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert tree.runs(["remove", "unread"]) == tree.UNREAD
+    said = capsys.readouterr()
+    assert (said.out, said.err) == (
+        "",
+        "hmz remove: this is not JSON\nRun `hmz remove --help` for help.\n",
+    )
+
+    assert tree.runs(["remove", "unread", "--json"]) == tree.UNREAD
+    said = capsys.readouterr()
+    assert json.loads(said.out) == {
+        "error": {"code": 400, "message": "this is not JSON"}
+    }
+    assert said.err == ""
+
+
+@pytest.mark.usefixtures("removing")
+def test_an_interrupt_ends_any_command_with_130_and_no_more_said(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert tree.runs(["remove", "interrupted", "--json"]) == tree.INTERRUPTED == 130
+
+    said = capsys.readouterr()
+    assert (said.out, said.err) == ("", "")
+
+
+@pytest.mark.usefixtures("removing")
+@pytest.mark.parametrize(
+    ("ended", "status", "message"),
+    [
+        (True, tree.UNREACHED, "the daemon cannot be reached: the daemon went away"),
+        # Refused 503 by a daemon that is still there: what the call needs is not reached.
+        (False, tree.REFUSED, "the daemon went away"),
+    ],
+)
+def test_a_session_that_ended_under_a_call_is_a_daemon_not_reached(
+    ended: bool,  # noqa: FBT001 -- one case's value
+    status: int,
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = mock.Mock()
+    client.call.side_effect = hmz.sdk.Refused("the daemon went away", code=503)
+    client.wait.return_value = ended
+    monkeypatch.setattr(tree, "reach", mock.Mock(return_value=client))
+
+    assert tree.runs(["remove", "went", "--json"]) == status
+
+    assert json.loads(capsys.readouterr().out) == {
+        "error": {"code": 503, "message": message}
+    }
+    client.wait.assert_called_once_with(0)
+    client.close.assert_called_once_with()
+
+
+@pytest.mark.usefixtures("removing")
+def test_removing_asks_at_a_terminal_and_takes_only_a_yes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stdin(monkeypatch, "n\n", terminal=True)
+    assert tree.runs(["remove", "it", "-w", "/w"]) == tree.REFUSED
+    said = capsys.readouterr()
+    assert (said.out, said.err) == (
+        "",
+        "Remove /w? [y/N] hmz remove: Nothing was changed.\n",
+    )
+
+    _stdin(monkeypatch, "YES\n", terminal=True)
+    assert tree.runs(["remove", "it", "-w", "/w"]) == tree.DONE
+    said = capsys.readouterr()
+    assert (said.out, said.err) == ("gone\n", "Remove /w? [y/N] ")
+
+
+@pytest.mark.usefixtures("removing")
+def test_nobody_is_asked_without_a_terminal_or_under_json(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    nobody = "Nobody is at a terminal to ask; run it again with `-y`."
+    _stdin(monkeypatch, "y\n", terminal=False)
+    assert tree.runs(["remove", "it"]) == tree.REFUSED
+    assert capsys.readouterr().err == f"hmz remove: {nobody}\n"
+
+    _stdin(monkeypatch, "y\n", terminal=True)
+    assert tree.runs(["remove", "it", "--json"]) == tree.REFUSED
+    said = capsys.readouterr()
+    assert json.loads(said.out) == {"error": {"code": 0, "message": nobody}}
+    assert said.err == ""
+
+    _stdin(monkeypatch, "", terminal=False)
+    assert tree.runs(["remove", "it", "--yes", "--json"]) == tree.DONE
+    assert json.loads(capsys.readouterr().out) == {"removed": "it"}
+
+
+def test_a_command_that_asks_says_who_may_refuse_it() -> None:
+    said = tree.described(["remove"], REMOVE)["exit_status"]
+
+    assert said["1"] == "the daemon refused it, or you did not answer yes"
+    assert said["1"] in set(REMOVE.texts())
+    assert said["130"] == "interrupted with ctrl+c"
+
+
+def test_a_status_a_command_declares_is_said_in_its_own_words() -> None:
+    followed = dataclasses.replace(REMOVE, exits=(Exit(130, "Cancel"),))
+
+    assert tree.described(["remove"], followed)["exit_status"]["130"] == "Cancel"
+    assert "  130  Cancel\n" in tree.helps(["remove"], followed)
+    assert "interrupted with ctrl+c" not in tree.helps(["remove"], followed)
+
+
+def test_a_workspace_is_whole_and_read_from_where_the_line_was_typed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    here = os.getcwd()  # noqa: PTH109 -- as the helper names it
+
+    assert tree.whole("sub/../app") == f"{here}/app"
+    assert tree.whole("/abs/app") == "/abs/app"
+    # The daemon's own home, which this machine cannot expand for it.
+    assert tree.whole("~/app") == "~/app"
+
+    given = mock.Mock(workspace=None)
+    assert tree.workspace(Call(("x",), given)) == here
+    given.workspace = "app"
+    assert tree.workspace(Call(("x",), given)) == f"{here}/app"

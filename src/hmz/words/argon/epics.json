@@ -895,6 +895,172 @@
    "wants": "usage error of `hmz epic start` when the same role is written twice across `-a` (or `-e`) options: `{role}` is given twice. -- keep `{role}` in braces and backticks exactly",
    "where": "a line the command prints",
    "text": "`{role}` is given twice."
+  },
+  {
+   "wants": "summary of `hmz epic face QUESTION`: print the HTML page the flow made for a waiting question (its face)",
+   "where": "command summary in a --help listing",
+   "text": "print the HTML page the flow made for a waiting question"
+  },
+  {
+   "wants": "paragraph for `hmz epic face`: a flow can give a question a face, a page of HTML of its own that the web page shows in place of the plain question. This command prints that HTML for one waiting question, to save to a file and open in a browser. A question with no face is refused. Nothing in the HTML is run.",
+   "where": "paragraph of --help, a few sentences; may be up to 60 words",
+   "text": "A flow can give a question a face, a page of HTML of its own that the web page shows in place of the plain question. This command prints that HTML for one waiting question, to save to a file and open in a browser. A question with no face is refused. Nothing in the HTML is run."
+  },
+  {
+   "wants": "positional argument QUESTION of `hmz epic face`: the id of a waiting question, as `hmz epic status` prints it -- keep the backticks exactly",
+   "where": "description of an argument in --help, lower case, no full stop",
+   "text": "the id of a waiting question, as `hmz epic status` prints it"
+  },
+  {
+   "wants": "example `hmz epic face q3 > face.html`: save the face of question q3 to a file to open in a browser",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "save the face of question q3 to a file to open in a browser"
+  },
+  {
+   "wants": "example `hmz epic face q3 --json | jq -r .title`: print the title of the face of question q3",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "print the title of the face of question q3"
+  },
+  {
+   "wants": "what `hmz epic face` prints without --json: the HTML of the face, as the flow wrote it",
+   "where": "one sentence in the Output section of --help, with a full stop",
+   "text": "Prints the HTML of the face, as the flow wrote it."
+  },
+  {
+   "wants": "field `question`: the id of the question the face belongs to",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the id of the question the face belongs to"
+  },
+  {
+   "wants": "field `title`: the title of the face",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the title of the face"
+  },
+  {
+   "wants": "field `html`: the HTML of the face, as the flow wrote it",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the HTML of the face, as the flow wrote it"
+  },
+  {
+   "wants": "refusal of `hmz epic face`: Question {id} is not waiting. -- keep `{id}` in braces",
+   "where": "a line the command prints",
+   "text": "Question {id} is not waiting."
+  },
+  {
+   "wants": "refusal of `hmz epic face`: Question {id} has no face. -- keep `{id}` in braces",
+   "where": "a line the command prints",
+   "text": "Question {id} has no face."
+  },
+  {
+   "wants": "summary of `hmz epic quit`: close the epic's host from inside, as one of its frontends",
+   "where": "command summary in a --help listing",
+   "text": "close the epic's host from inside, as one of its frontends"
+  },
+  {
+   "wants": "paragraph for `hmz epic quit`: attaches to the host as a frontend and tells it to close. The host withdraws every waiting question, drops every line waiting to be said, stops every epic it runs, lets every frontend go and closes every side conversation; its process exits within 15 seconds. The epic's record is kept. `hmz hosts stop` does the same without attaching; `hmz epic stop` stops the epic and keeps the host. Keep the backticks exactly.",
+   "where": "paragraph of --help, a few sentences; may be up to 60 words (up to 80 words here)",
+   "text": "Attaches to the host as a frontend and tells it to close. The host withdraws every waiting question, drops every line waiting to be said, stops every epic it runs, lets every frontend go and closes every side question; its process exits within 15 seconds. The epic's record is kept. `hmz hosts stop` does the same without attaching; `hmz epic stop` stops the epic and keeps the host."
+  },
+  {
+   "wants": "example `hmz epic quit`: close the host of the epic of this folder",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "close the host of the epic of this folder"
+  },
+  {
+   "wants": "example `hmz epic quit -w ~/work/app --slot exec:1f2e`: close the host of one epic of another workspace",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "close the host of one epic of another workspace"
+  },
+  {
+   "wants": "what `hmz epic quit` prints without --json: one line once the host has taken the request",
+   "where": "one sentence in the Output section of --help, with a full stop",
+   "text": "Prints one line once the host has taken the request."
+  },
+  {
+   "wants": "summary of `hmz hosts open`: start the host of a workspace without attaching to it",
+   "where": "command summary in a --help listing",
+   "text": "start the host of a workspace without attaching to it"
+  },
+  {
+   "wants": "paragraph for `hmz hosts open`: starts the host of a workspace and slot where the daemon holds none, and attaches nothing to it; a host already held is answered as it is. `--slot exec:` or `--slot chat:` alone makes a new slot of that kind and prints the slot made. An epic is then started on it with `hmz epic start`. Keep the backticks exactly.",
+   "where": "paragraph of --help, a few sentences; may be up to 60 words",
+   "text": "Starts the host of a workspace and slot where the daemon holds none, and attaches nothing to it; a host already held is answered as it is. `--slot exec:` or `--slot chat:` alone makes a new slot of that kind and prints the slot made. An epic is then started on it with `hmz epic start`."
+  },
+  {
+   "wants": "example `hmz hosts open`: start the host of this directory",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "start the host of this folder"
+  },
+  {
+   "wants": "example `hmz hosts open --slot exec: --json | jq -r .slot`: make a new exec slot in this directory and print its name",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "make a new exec slot in this folder and print its name"
+  },
+  {
+   "wants": "what `hmz hosts open` prints without --json: one line with the host's process id, workspace and slot",
+   "where": "one sentence in the Output section of --help, with a full stop",
+   "text": "Prints one line with the host's process id, workspace and slot."
+  },
+  {
+   "wants": "field `kind` of the document of `hmz hosts open`: what the process is, always `host` -- keep the backticks",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "what the process is, always `host`"
+  },
+  {
+   "wants": "field `protocol` of the document of `hmz hosts open`: the version of the protocol the host speaks",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the version of the protocol the host speaks"
+  },
+  {
+   "wants": "option `--slot` of `hmz hosts open`: the slot to open, as `hmz hosts list` prints it; `exec:` or `chat:` alone for a new slot of that kind; when not given, the workspace's own host -- keep the backticks exactly",
+   "where": "description of an option in --help, lower case, no full stop",
+   "text": "the slot to open, as `hmz hosts list` prints it; `exec:` or `chat:` alone for a new slot of that kind; when not given, the workspace's own host"
+  },
+  {
+   "wants": "summary of `hmz hosts detach`: let every frontend of a host go, leaving its epic running",
+   "where": "command summary in a --help listing",
+   "text": "let every frontend of a host go, leaving its epic running"
+  },
+  {
+   "wants": "paragraph for `hmz hosts detach`: lets go every frontend attached to the host of a workspace and slot -- every web page, terminal interface and command following it -- and leaves its epic or chat running. Roles the frontends had claimed are released. A frontend may attach again.",
+   "where": "paragraph of --help, a few sentences; may be up to 60 words",
+   "text": "Lets go every frontend attached to the host of a workspace and slot -- every web page, terminal interface and command following it -- and leaves its epic or chat running. Roles the frontends had claimed are released. A frontend may attach again."
+  },
+  {
+   "wants": "example `hmz hosts detach`: let go every frontend of the host of this directory",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "let go every frontend of the host of this folder"
+  },
+  {
+   "wants": "example `hmz hosts detach --json | jq .let_go`: print how many frontends were let go",
+   "where": "what an example line does, beside the line in --help, lower case, no full stop",
+   "text": "print how many frontends were let go"
+  },
+  {
+   "wants": "what `hmz hosts detach` prints without --json: one line saying how many frontends were let go",
+   "where": "one sentence in the Output section of --help, with a full stop",
+   "text": "Prints one line saying how many frontends were let go."
+  },
+  {
+   "wants": "field `let_go`: how many frontends were let go",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "how many frontends were let go"
+  },
+  {
+   "wants": "field `workspace` of `hmz hosts detach`: the workspace of the host",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the workspace of the host"
+  },
+  {
+   "wants": "field `slot` of `hmz hosts detach` and `hmz hosts open`: the slot of the host",
+   "where": "what a field of the --json document holds, lower case, no full stop",
+   "text": "the slot of the host"
+  },
+  {
+   "wants": "message of `hmz hosts detach`: {n} frontends let go -- keep `{n}` in braces",
+   "where": "a line the command prints",
+   "one": "{n} frontend let go.",
+   "text": "{n} frontends let go."
   }
  ],
  "model": "gcp/google/gemini-4-argon"

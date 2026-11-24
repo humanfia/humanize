@@ -1250,9 +1250,8 @@ class Envs(Family):
             workspace, slot = self.host(chat)
         elif not start:
             self._call("hosts.status", workspace=workspace, slot=slot)
-        # A host speaks as soon as it is attached to, and a client keeps nothing said before
-        # it has a listener: so it is given its listener first, by a subscription to nothing.
-        self._heard("epic.event", "").close()
+        # Before the call: a host speaks as soon as it is attached to.
+        self._listens()
         said = self._call("epic.attach", workspace=workspace, slot=slot, replay=False)
         host = Attached(self._call, said, self._heard("epic.event", str(said["sub"])))
         if not host.live(wait):

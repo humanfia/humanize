@@ -28,10 +28,21 @@ import contextlib
 import json
 import signal
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.cli.tree import REFUSED, Arg, Command, Example, Exit, Field, table
+from hmz.cli.tree import (
+    REFUSED,
+    WORKSPACE,
+    YES,
+    Arg,
+    Command,
+    Example,
+    Exit,
+    Field,
+    sure,
+    table,
+    workspace,
+)
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -48,9 +59,6 @@ _TITLE = 60
 
 _PERMISSIONS = ("read-only", "workspace-write", "danger-full-access")
 _PREFERS = ("native", "flow")
-
-#: What a call is refused with where the session with the daemon has ended.
-_WENT = 503
 
 #: What `show` prints of a chat, a line apiece, in this order: each a field of its document.
 _SHOWN = (
@@ -101,13 +109,6 @@ def _leaving() -> Generator[list[int]]:
     finally:
         for one, before in was.items():
             signal.signal(one, signal.SIG_DFL if before is None else before)
-
-
-def _folder(given: str | None) -> str:
-    """A workspace as the daemon knows it by: the whole path, a `~` left for it to expand."""
-    if given and given.startswith("~"):
-        return given
-    return str(Path(given or ".").resolve())
 
 
 def _line(chat: Chat) -> list[str]:
@@ -259,19 +260,6 @@ def _ends(call: Call, started: Started, turn: Turn) -> None:
             call.client.chats.rest(started.chat)
 
 
-@contextlib.contextmanager
-def _reached() -> Generator[None]:
-    """Says a session that ended under a call as what it is: a daemon not reached."""
-    from hmz.sdk import Refused
-
-    try:
-        yield
-    except Refused as why:
-        if why.code != _WENT:
-            raise
-        raise ConnectionError(str(why)) from why
-
-
 def _start(call: Call) -> int | None:
     from hmz.sdk import Refused
 
@@ -280,16 +268,16 @@ def _start(call: Call) -> int | None:
     if call.no_folder and call.worktree:
         raise Refused(t("A worktree needs a folder"))
     code = None
-    with _leaving() as left, _reached():
+    with _leaving() as left:
         chats = call.client.chats
-        workspace = None if call.no_folder else _folder(call.workspace)
-        agent = call.agent or (chats.remembered(workspace) if workspace else "")
+        at = None if call.no_folder else workspace(call)
+        agent = call.agent or (chats.remembered(at) if at else "")
         if not agent:
             raise Refused(
                 t("No agent is remembered for this folder; name one with `-a`.")
             )
         started = chats.start(
-            workspace,
+            at,
             call.message,
             agent=agent,
             env=call.env,
@@ -319,7 +307,7 @@ def _say(call: Call) -> int | None:
     if not call.message.strip():
         raise Refused(t("The message is empty; a turn starts with something said."))
     code = None
-    with _leaving() as left, _reached():
+    with _leaving() as left:
         chats = call.client.chats
         if call.detach:
             held = chats.hold(call.chat)
@@ -339,7 +327,7 @@ def _say(call: Call) -> int | None:
 
 def _list(call: Call) -> None:
     listed = call.client.chats.list(
-        workspace=None if call.all else _folder(call.workspace),
+        workspace=None if call.all else workspace(call),
         archived=call.archived or None,
         q=call.search,
         offset=call.offset,
@@ -384,22 +372,14 @@ def _fork(call: Call) -> None:
 
 
 def _delete(call: Call) -> None:
-    from hmz.sdk import Refused
-
     chats = call.client.chats
-    if not call.yes:
-        # Never asked of anything but somebody at a terminal: a line read off a pipe is not
-        # a yes, and a program reading one document is not somebody to ask.
-        if call.json or not sys.stdin.isatty():
-            raise Refused(t("Nobody is at a terminal to ask; pass `--yes` to delete."))
+    if not call.yes and not call.json and sys.stdin.isatty():
+        # Read only where somebody is there to be shown it.
         named = "  ".join(_line(chats.get(call.chat)))
-        question, warning = (
-            t("Delete {name}?", name=named),
-            t("It cannot be brought back."),
-        )
-        print(f"{question} {warning} [y/N] ", end="", file=sys.stderr, flush=True)
-        if sys.stdin.readline().strip().lower() not in ("y", "yes"):
-            raise Refused(t("Chat {id} was not deleted.", id=call.chat))
+    else:
+        named = call.chat
+    question, warning = t("Delete {name}?", name=named), t("It cannot be brought back.")
+    sure(call, f"{question} {warning}")
     chats.delete(call.chat)
     call.answers({"deleted": call.chat})
 
@@ -490,7 +470,7 @@ def _session(one: HarnessSession) -> dict[str, Any]:
 
 def _harness_list(call: Call) -> None:
     found = call.client.chats.harness.list(
-        _folder(call.workspace), offset=call.offset, limit=call.limit
+        workspace(call), offset=call.offset, limit=call.limit
     )
     rows: list[list[str]] = []
     for one in found.sessions:
@@ -510,7 +490,7 @@ def _harness_list(call: Call) -> None:
 
 def _harness_show(call: Call) -> None:
     one = call.client.chats.harness.get(
-        _folder(call.workspace), call.harness, call.session, trace=call.trace or None
+        workspace(call), call.harness, call.session, trace=call.trace or None
     )
     said = _session(one)
     call.answers(said, [*table(_fields(said, _SESSION)), *_traced(one.trace)])
@@ -518,7 +498,7 @@ def _harness_show(call: Call) -> None:
 
 def _harness_adopt(call: Call) -> None:
     chat = call.client.chats.harness.adopt(
-        _folder(call.workspace), call.harness, call.session, agent=call.agent
+        workspace(call), call.harness, call.session, agent=call.agent
     )
     call.answers({"chat": chat}, [chat])
 
@@ -818,12 +798,7 @@ COMMANDS = (
                         "itself",
                         metavar="ENV",
                     ),
-                    Arg(
-                        ("-w", "--workspace"),
-                        "the folder the chat is of; when not given, the current "
-                        "directory",
-                        metavar="DIR",
-                    ),
+                    WORKSPACE,
                     Arg(
                         ("--no-folder",),
                         "start the chat in no folder; the daemon makes a directory "
@@ -1111,7 +1086,7 @@ COMMANDS = (
                 says="Asks before deleting unless `--yes` is given; without a "
                 "terminal on standard input it deletes nothing without "
                 "`--yes`. A deleted chat cannot be brought back.",
-                args=(_CHAT, Arg(("-y", "--yes"), "delete without asking")),
+                args=(_CHAT, YES),
                 examples=(
                     Example(
                         f"hmz chat delete {_ID}",

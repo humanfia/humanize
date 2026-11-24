@@ -9,7 +9,12 @@ others do not (Section 3 of cli.md).
 Every command here is a client of a daemon (:class:`hmz.sdk.Client`) and takes the same three
 options: `--json` for one JSON document instead of text, `--daemon` for a daemon other than
 this machine's, and `--no-color`. It answers with the same exit statuses: 0 done, 1 refused by
-the daemon, 2 a line that cannot be read, 3 a daemon that cannot be reached.
+the daemon, 2 a line that cannot be read, 3 a daemon that cannot be reached, 130 interrupted.
+
+What more than one command does the same way is here too, so that it is done one way: a line
+that parsed and still cannot be read (:class:`Unread`), the workspace a line names
+(:data:`WORKSPACE`, :func:`workspace`), and asking before something is removed (:data:`YES`,
+:func:`sure`).
 
 But for a command that is `local`, which asks no daemon: what it does is done on this machine,
 to this user's own files, so it takes no `--daemon`, and it is refused here or not at all.
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from functools import cache
@@ -33,9 +39,12 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DONE",
+    "INTERRUPTED",
     "REFUSED",
     "UNREACHED",
     "UNREAD",
+    "WORKSPACE",
+    "YES",
     "Arg",
     "Call",
     "Command",
@@ -43,20 +52,40 @@ __all__ = [
     "Exit",
     "Field",
     "Page",
+    "Unread",
+    "asks",
     "commands",
     "described",
     "helps",
     "named",
     "parser",
     "runs",
+    "sure",
     "table",
     "taken",
+    "whole",
+    "workspace",
 ]
 
 DONE: Final = 0
 REFUSED: Final = 1
 UNREAD: Final = 2
 UNREACHED: Final = 3
+INTERRUPTED: Final = 130
+
+#: The code a line that cannot be read is answered with under `--json`: a bad request.
+_BAD: Final = 400
+
+#: The code a daemon that cannot be reached is answered with, and a call whose session ended.
+_WENT: Final = 503
+
+
+class Unread(Exception):  # noqa: N818 -- named for what happened
+    """A line that parsed and still cannot be read, with what is wrong with it.
+
+    Raised by a command for what only it can tell of its line -- a value that is not JSON, two
+    options that cannot both be given -- and said as the parser says a usage error.
+    """
 
 
 @dataclass(frozen=True)
@@ -120,7 +149,10 @@ class Field:
 
 @dataclass(frozen=True)
 class Exit:
-    """One exit status a command ends with beyond the four every command has."""
+    """One exit status a command ends with beyond those every command has.
+
+    One whose `code` is a common one says what that status means of this command instead.
+    """
 
     code: int
     says: str
@@ -174,6 +206,8 @@ class Command:
             yield status.says
         if self.local:
             yield _LOCALLY.says
+        elif YES in self.args:
+            yield _ASKED.says
         for under in self.commands:
             yield from under.texts()
 
@@ -195,6 +229,24 @@ EXITS: Final = (
     Exit(REFUSED, "the daemon refused the request and its reason was printed"),
     Exit(UNREAD, "the command line could not be read"),
     Exit(UNREACHED, "the daemon could not be reached"),
+    Exit(INTERRUPTED, "interrupted with ctrl+c"),
+)
+
+#: The workspace a command is about, where it is about one: the folder it is typed in, unnamed.
+WORKSPACE: Final = Arg(
+    ("-w", "--workspace"),
+    "the workspace, a folder on the daemon's machine; the "
+    "current directory when not given",
+    metavar="DIR",
+)
+
+#: What a command that asks before it removes something takes to be told not to ask.
+YES: Final = Arg(("-y", "--yes"), "do it without asking first")
+
+#: What a command that asks ends with where it was refused: by the daemon, or by the answer.
+_ASKED: Final = Exit(
+    REFUSED,
+    "the daemon refused it, or you did not answer yes",
 )
 
 #: What a command that asks no daemon ends with where it will not do what was asked.
@@ -209,9 +261,19 @@ def _common(command: Command) -> tuple[Arg, ...]:
 
 
 def _statuses(command: Command) -> list[Exit]:
-    """The statuses a command ends with, in order: the common ones, then its own."""
-    common = (EXITS[0], _LOCALLY, EXITS[2]) if command.local else EXITS
-    return sorted((*common, *command.exits), key=lambda one: one.code)
+    """The statuses a command ends with, in order: the common ones, and its own.
+
+    A common one is said as the command says it, where the command has more to say of it.
+    """
+    common = {one.code: one for one in EXITS}
+    if command.local:
+        # Nobody is asked, so nobody is unreached, and whatever refuses is this machine.
+        del common[UNREACHED]
+        common[REFUSED] = _LOCALLY
+    elif YES in command.args:
+        common[REFUSED] = _ASKED
+    own = {one.code: one for one in command.exits}
+    return sorted((common | own).values(), key=lambda one: one.code)
 
 
 def taken(command: Command) -> tuple[Arg, ...]:
@@ -259,6 +321,10 @@ class Call:
             for line in lines:
                 print(line)
 
+    def went(self) -> bool:
+        """Whether a session was opened and has ended: the daemon went away under the command."""
+        return self._client is not None and self._client.wait(0) is True
+
     def close(self) -> None:
         """Lets go of the session, where one was opened."""
         if self._client is not None:
@@ -281,11 +347,67 @@ def reach(daemon: str) -> Client:
     if daemon in ("", "local"):
         return Client.local(kind="cli")
     try:
-        return Client.named(daemon)
+        return Client.named(daemon, kind="cli")
     except LookupError:
         raise Refused(
             t("No daemon is kept under the name {name}.", name=daemon), code=404
         ) from None
+
+
+def whole(path: str) -> str:
+    """A path of the daemon's machine as a daemon is told it: whole.
+
+    One written from here is taken from the directory the line was typed in, with no link
+    followed: which directory that names is the daemon's to say. One beginning `~` is left as
+    it is, for the daemon to expand on its own machine.
+    """
+    return path if path.startswith("~") else os.path.abspath(path)  # noqa: PTH100
+
+
+def workspace(call: Call) -> str:
+    """The workspace a line names with `--workspace`: where it was typed, where it names none."""
+    given: str | None = call.given.workspace
+    return os.getcwd() if given is None else whole(given)  # noqa: PTH109 -- as the shell names it
+
+
+def asks(call: Call, question: str) -> bool:
+    """Whether somebody said yes: on the line with `--yes`, or to the question at a terminal.
+
+    Never asked of anything but somebody at a terminal, nor under `--json`, whose standard
+    error stays empty: a line read off a pipe is not a yes, and a program reading one document
+    is not somebody to ask.
+
+    Args:
+      call: The command being run, which takes :data:`YES`.
+      question: What is asked, as the page asks it.
+
+    Raises:
+      hmz.sdk.Refused: If nobody can be asked.
+    """
+    from hmz.sdk import Refused
+
+    if call.given.yes:
+        return True
+    if call.json or not sys.stdin.isatty():
+        raise Refused(t("Nobody is at a terminal to ask; run it again with `-y`."))
+    print(f"{question} [y/N] ", end="", file=sys.stderr, flush=True)
+    return sys.stdin.readline().strip().lower() in ("y", "yes")
+
+
+def sure(call: Call, question: str) -> None:
+    """Asks before something is removed, and returns only where the answer is yes.
+
+    Args:
+      call: The command being run, which takes :data:`YES`.
+      question: What is asked, as the page asks it.
+
+    Raises:
+      hmz.sdk.Refused: If the answer is not yes, or nobody can be asked: nothing was changed.
+    """
+    from hmz.sdk import Refused
+
+    if not asks(call, question):
+        raise Refused(t("Nothing was changed."))
 
 
 def table(rows: Sequence[Sequence[str]]) -> list[str]:
@@ -648,6 +770,13 @@ def _parser(path: tuple[str, ...], command: Command, *, plain: bool = False) -> 
     return reads
 
 
+def _unreached(why: OSError) -> str:
+    """What is said of a daemon that could not be reached, as every command says it."""
+    from .output import unreached
+
+    return unreached(why).removeprefix("hmz: ")
+
+
 def _failed(call: Call | None, path: Sequence[str], code: int, message: str) -> None:
     """Says why a command was not done: a document under `--json`, a line without."""
     if call is not None and call.json:
@@ -720,9 +849,20 @@ def runs(argv: Sequence[str]) -> int:
         raise RuntimeError(f"{' '.join(path)} does nothing")
     try:
         return command.run(call) or DONE
+    except Unread as why:
+        helped = t("Run `{line}` for help.", line=f"{reads.prog} --help")
+        _failed(call, path, _BAD, str(why) if call.json else f"{why}\n{helped}")
+        return UNREAD
+    except KeyboardInterrupt:
+        # Whatever it was waiting on: nothing more is said, and what a daemon holds goes on.
+        return INTERRUPTED
     except Refused as why:
-        _failed(call, path, getattr(why, "code", 0) or 0, str(why))
-        return REFUSED
+        code: int = getattr(why, "code", 0) or 0
+        if code != _WENT or not call.went():
+            _failed(call, path, code, str(why))
+            return REFUSED
+        # A session that ended under a call is a daemon not reached, whatever was asked.
+        _failed(call, path, _WENT, _unreached(ConnectionError(str(why))))
     except TimeoutError as why:
         _failed(call, path, 504, str(why))
     except OSError as why:
@@ -730,9 +870,7 @@ def runs(argv: Sequence[str]) -> int:
             # A file of this machine's that would not be read or written: nobody was asked.
             _failed(call, path, 0, str(why))
             return REFUSED
-        from .output import unreached
-
-        _failed(call, path, 503, unreached(why).removeprefix("hmz: "))
+        _failed(call, path, _WENT, _unreached(why))
     finally:
         call.close()
     return UNREACHED

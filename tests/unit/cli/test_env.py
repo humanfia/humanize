@@ -265,21 +265,20 @@ def test_directories_are_made_and_paths_moved(
 def test_removing_asks_first_and_does_nothing_unanswered(
     env: mock.Mock, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    unsure = (
-        "Nothing was changed: this command asks before it acts, and with no terminal "
-        "or `--json` it needs `--yes`."
-    )
+    nobody = "Nobody is at a terminal to ask; run it again with `-y`."
     # Nobody to ask: standard input is no terminal.
-    assert main(["env", "rm", "build"]) == 4
-    assert capsys.readouterr().err == f"hmz env rm: {unsure}\n"
-    assert main(["env", "rm", "build", "--json"]) == 4
-    assert _json(capsys) == {"error": {"code": 400, "message": unsure}}
+    assert main(["env", "rm", "build"]) == 1
+    assert capsys.readouterr().err == f"hmz env rm: {nobody}\n"
+    assert main(["env", "rm", "build", "--json"]) == 1
+    assert _json(capsys) == {"error": {"code": 0, "message": nobody}}
     env.files.remove.assert_not_called()
 
     asked = mock.Mock(isatty=lambda: True, readline=mock.Mock(return_value="n\n"))
     monkeypatch.setattr(sys, "stdin", asked)
-    assert main(["env", "rm", "build"]) == 4
-    assert capsys.readouterr().err.startswith("Delete build? [y/N] ")
+    assert main(["env", "rm", "build"]) == 1
+    assert capsys.readouterr().err == (
+        "Delete build? [y/N] hmz env rm: Nothing was changed.\n"
+    )
     env.files.remove.assert_not_called()
 
     asked.readline.return_value = "Yes\n"
@@ -508,7 +507,7 @@ def test_discarding_asks_first(
 ) -> None:
     env.git.status.return_value = _status()
 
-    assert main(["env", "git", "discard", "b.py"]) == 4
+    assert main(["env", "git", "discard", "b.py"]) == 1
     capsys.readouterr()
     env.git.discard.assert_not_called()
 
@@ -520,7 +519,7 @@ def test_discarding_asks_first(
     assert said.out == "b.py\n"
 
     asked.readline.return_value = "\n"
-    assert main(["env", "git", "discard", "--all"]) == 4
+    assert main(["env", "git", "discard", "--all"]) == 1
     assert capsys.readouterr().err.startswith(
         "Discard the changes to 2 files? This cannot be undone. [y/N] "
     )
@@ -555,7 +554,7 @@ def test_what_is_staged_is_committed(
 def test_rewinding_asks_first_in_the_pages_words(
     env: mock.Mock, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert main(["env", "git", "rewind", "refs/s/a"]) == 4
+    assert main(["env", "git", "rewind", "refs/s/a"]) == 1
     capsys.readouterr()
 
     asked = mock.Mock(isatty=lambda: True, readline=mock.Mock(return_value="y\n"))

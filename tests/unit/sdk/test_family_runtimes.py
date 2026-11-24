@@ -205,11 +205,16 @@ def test_a_daemon_of_the_registry_is_reached_by_name_and_let_go_of_whole(
     session.said = {"daemon_id": "abc", "version": "1.2.3"}
     session.peer.closed = False
     session.peer.call.return_value = {"devices": []}
-    remotes.client.return_value = hmz.runtime.doing.daemons.Client(session)
+    remotes.client.return_value = Client(session)
 
-    client = Client.named("gpu")
+    client = Client.named("gpu", kind="cli")
 
-    remotes.client.assert_called_once_with("gpu")
+    # Reached as what it is, and handed out as the SDK's own client: nothing of the
+    # runtime's is reached into.
+    registry = hmz.runtime.doing.daemons.Daemons
+    registry.return_value.remotes.assert_called_once_with(kind="cli")  # pyright: ignore[reportFunctionMemberAccess]
+    remotes.client.assert_called_once_with("gpu", Client)
+    assert client is remotes.client.return_value
     assert (client.daemon_id, client.version) == ("abc", "1.2.3")
     assert client.devices.list() == []
     remotes.close.assert_not_called()
@@ -227,7 +232,7 @@ def test_a_daemon_on_its_way_up_is_waited_for(
     remotes.client.side_effect = [
         unreached("Installing hmz.", {"state": "installing"}),
         unreached("gpu is not reached yet.", {"state": "connecting"}),
-        hmz.runtime.doing.daemons.Client(session),
+        Client(session),
     ]
     monkeypatch.setattr("time.sleep", mock.Mock())
 

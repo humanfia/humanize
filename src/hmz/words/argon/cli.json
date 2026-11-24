@@ -134,6 +134,11 @@
    "wants": "error: the daemon cannot be reached: {why}",
    "where": "error line, lower case start, no full stop",
    "text": "the daemon cannot be reached: {why}"
+  },
+  {
+   "wants": "meaning of exit status 1 for a command that asks a yes/no question before it removes something: the daemon refused the request, or the question was not answered yes; either way the reason was printed",
+   "where": "one line in the Exit codes section of --help, lower case, no full stop",
+   "text": "the daemon refused it, or you did not answer yes"
   }
  ],
  "model": "gcp/google/gemini-4-argon"

@@ -10,14 +10,25 @@ from __future__ import annotations
 import contextlib
 import datetime
 import difflib
-import json
 import os
 import signal
 import sys
 import threading
 from typing import TYPE_CHECKING, Any, Final
 
-from hmz.cli.tree import UNREAD, Arg, Command, Example, Exit, Field, table
+from hmz.cli.tree import (
+    WORKSPACE,
+    YES,
+    Arg,
+    Command,
+    Example,
+    Exit,
+    Field,
+    Unread,
+    sure,
+    table,
+    workspace,
+)
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -36,8 +47,6 @@ if TYPE_CHECKING:
 
 __all__ = ["COMMANDS"]
 
-#: Asked and not answered yes: nothing was changed.
-UNSURE: Final = 4
 #: The command of `hmz env exec` ran, and did not end with status 0.
 FAILED: Final = 5
 
@@ -53,11 +62,7 @@ _GRACE: Final = 2.0
 # -- What a line names ---------------------------------------------------------------------------
 
 _AT = (
-    Arg(
-        ("-w", "--workspace"),
-        "the folder whose host is asked; when not given, the current directory",
-        metavar="DIR",
-    ),
+    WORKSPACE,
     Arg(
         ("--slot",),
         "which host of the folder to ask: `chat:<id>` for a chat or `exec:<id>` "
@@ -81,23 +86,12 @@ _ENV = (
         metavar="ENV",
     ),
 )
-_YES = Arg(("-y", "--yes"), "do it without asking first")
 _ALL = Arg(("-A", "--all"), "act on every changed path instead of naming paths")
-
-_UNSURE = Exit(UNSURE, "the question was not answered yes, so nothing was changed")
 
 
 def _calls(*methods: str) -> tuple[str, ...]:
     """The methods a command that attaches to its host calls, its own between them."""
     return ("chat.get", "hosts.status", "epic.attach", *methods, "epic.detach")
-
-
-def _workspace(call: Call) -> str:
-    """The workspace a line names, as an absolute path: where it is run, where it names none."""
-    given: str | None = call.workspace
-    if given is None:
-        return str(os.getcwd())  # noqa: PTH109 -- as the shell names it
-    return given if given.startswith("~") else os.path.abspath(given)  # noqa: PTH100
 
 
 @contextlib.contextmanager
@@ -107,7 +101,7 @@ def _host(call: Call) -> Generator[Attached]:
     if call.chat:
         host = envs.attached(chat=call.chat)
     else:
-        host = envs.attached(_workspace(call), slot=call.slot)
+        host = envs.attached(workspace(call), slot=call.slot)
     with host:
         yield host
 
@@ -121,45 +115,6 @@ def _env(call: Call) -> Generator[Environment]:
         if not host.envs(_GRACE):
             raise Refused(t("No environment is open here yet."), code=404)
         yield host.env(call.env)
-
-
-def _sure(call: Call, question: str) -> bool:
-    """Whether somebody said yes: on the line, or to the question at a terminal."""
-    if call.yes:
-        return True
-    if call.json or not sys.stdin.isatty():
-        return False
-    print(f"{question} [y/N] ", end="", file=sys.stderr, flush=True)
-    return sys.stdin.readline().strip().lower() in ("y", "yes")
-
-
-def _stops(call: Call, code: int, status: int, message: str) -> int:
-    """Says why nothing was done, as a refusal is said, and answers the status to end with."""
-    if call.json:
-        print(json.dumps({"error": {"code": code, "message": message}}))
-    else:
-        print(f"hmz {' '.join(call.path)}: {message}", file=sys.stderr)
-    return status
-
-
-def _unsure(call: Call) -> int:
-    return _stops(
-        call,
-        400,
-        UNSURE,
-        t(
-            "Nothing was changed: this command asks before it acts, and with no "
-            "terminal or `--json` it needs `--yes`."
-        ),
-    )
-
-
-def _misused(call: Call, message: str) -> int:
-    """A line that cannot be read, said as the parser says one."""
-    line = "hmz " + " ".join(call.path)
-    asks = t("Run `{line}` for help.", line=f"{line} --help")
-    print(f"{line}: {message}\n{asks}", file=sys.stderr)
-    return UNREAD
 
 
 def _notes(call: Call, text: str) -> None:
@@ -379,13 +334,11 @@ def _mv(call: Call) -> None:
     call.answers({"path": call.given.path, "to": call.to}, [t("Renamed")])
 
 
-def _rm(call: Call) -> int | None:
+def _rm(call: Call) -> None:
     with _env(call) as env:
-        if not _sure(call, t("Delete {name}?", name=call.given.path)):
-            return _unsure(call)
+        sure(call, t("Delete {name}?", name=call.given.path))
         env.files.remove(call.given.path)
     call.answers({"path": call.given.path}, [t("Deleted")])
-    return None
 
 
 # -- Commands, as the epic's flow runs them ------------------------------------------------------
@@ -396,16 +349,16 @@ def _exec(call: Call) -> int | None:
 
     envs = call.client.envs
     if call.chat:
-        workspace, slot = envs.host(call.chat)
+        at, slot = envs.host(call.chat)
     else:
-        workspace, slot = _workspace(call), call.slot
+        at, slot = workspace(call), call.slot
     role: str | None = call.env
     if role is None:
-        roles = envs.list(workspace, slot=slot)
+        roles = envs.list(at, slot=slot)
         if not roles:
             raise Refused(t("No environment is open here yet."), code=404)
         role = roles[0].name
-    ran = envs.exec(workspace, role, call.argv, slot=slot, seconds=call.seconds)
+    ran = envs.exec(at, role, call.argv, slot=slot, seconds=call.seconds)
     if call.json:
         call.answers({"code": ran.code, "stdout": ran.stdout, "stderr": ran.stderr})
     else:
@@ -569,15 +522,13 @@ def _moves(
     def run(call: Call) -> int | None:
         paths: list[str] = list(call.paths)
         if bool(paths) == bool(call.all):
-            return _misused(
-                call, t("name the paths to act on or pass `--all`, not both")
-            )
+            raise Unread(t("name the paths to act on or pass `--all`, not both"))
         with _env(call) as env:
             if call.all:
                 paths = [one.path for one in env.git.status().files if which(one)]
             if paths:
-                if asks is not None and not _sure(call, asks(paths)):
-                    return _unsure(call)
+                if asks is not None:
+                    sure(call, asks(paths))
                 does(env, paths)
         call.answers({"paths": paths}, paths)
         if not paths:
@@ -631,8 +582,7 @@ def _rewind(call: Call) -> int | None:
         ref=call.ref,
     )
     with _env(call) as env:
-        if not _sure(call, asked):
-            return _unsure(call)
+        sure(call, asked)
         env.git.rewind(call.ref)
     call.answers(
         {"ref": call.ref}, [t("Rewound the environment to {ref}.", ref=call.ref)]
@@ -1189,7 +1139,7 @@ _FILES = (
             "asks first; `--yes` skips the question, and is needed where nobody can "
             "be asked: with `--json`, or when standard input is not a terminal."
         ),
-        args=(_PATH, _YES, *_ENV),
+        args=(_PATH, YES, *_ENV),
         examples=(
             Example("hmz env rm build", "delete the folder `build` after asking"),
             Example(
@@ -1199,7 +1149,6 @@ _FILES = (
         ),
         prints="Prints the question on standard error, and then `Deleted`.",
         output=(Field("path", "string", "the path as given on the command line"),),
-        exits=(_UNSURE,),
         methods=_calls("env.remove"),
         see=("env mv", "env git discard"),
         run=_rm,
@@ -1438,7 +1387,7 @@ _GIT = Command(
                 "the question, and is needed where nobody can be asked: with "
                 "`--json`, or when standard input is not a terminal."
             ),
-            args=(_PATHS, _ALL, _YES, *_ENV),
+            args=(_PATHS, _ALL, YES, *_ENV),
             examples=(
                 Example(
                     "hmz env git discard src/app.py",
@@ -1451,7 +1400,6 @@ _GIT = Command(
             ),
             prints="The paths acted on, one per line.",
             output=_MOVED,
-            exits=(_UNSURE,),
             methods=_calls("env.git.status", "env.git.discard"),
             see=("env git status", "env git rewind"),
             run=_discard,
@@ -1542,7 +1490,7 @@ _GIT = Command(
                     "the snapshot to rewind to, a ref as `hmz env git "
                     "snapshots` prints it",
                 ),
-                _YES,
+                YES,
                 *_ENV,
             ),
             examples=(
@@ -1562,7 +1510,6 @@ _GIT = Command(
             output=(
                 Field("ref", "string", "the snapshot the environment was rewound to"),
             ),
-            exits=(_UNSURE,),
             methods=_calls("env.git.rewind"),
             see=("env git snapshots", "env git discard"),
             run=_rewind,
