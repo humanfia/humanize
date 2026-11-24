@@ -10,34 +10,33 @@ from __future__ import annotations
 import json
 import re
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 from hmz.cli.tree import (
     DONE,
+    INTERRUPTED,
     REFUSED,
-    UNREAD,
+    WORKSPACE,
     Arg,
     Command,
     Example,
     Exit,
     Field,
+    Unread,
     table,
+    workspace,
 )
 from hmz.words import t
 
 if TYPE_CHECKING:
     import queue
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from hmz.cli.output import Out, Shown
     from hmz.cli.tree import Call
     from hmz.sdk.families.epics import Attached
 
 __all__ = ["COMMANDS"]
-
-#: What a command interrupted while it follows an epic exits with.
-INTERRUPTED: Final = 130
 
 #: How an epic ends that did not do what it was started for.
 _FAILED: Final = ("failed", "crashed", "refused")
@@ -79,14 +78,6 @@ _STATUS: Final = (
 )
 
 
-def placed(call: Call) -> str:
-    """The workspace a line names, as the daemon knows one: a whole path, its links followed.
-
-    The directory the line was typed in where it names none.
-    """
-    return str(Path(call.workspace or Path.cwd()).expanduser().resolve())
-
-
 def _attaches(call: Call, *, replay: bool = False) -> Attached:
     """Attaches to the host a line names, as one more frontend of it.
 
@@ -94,7 +85,7 @@ def _attaches(call: Call, *, replay: bool = False) -> Attached:
       hmz.sdk.Refused: With code 404 where no host is held there: attaching would start one,
         which only starting an epic is a reason to do.
     """
-    where = placed(call)
+    where = workspace(call)
     call.client.hosts.status(where, call.slot)
     return call.client.epics.attach(where, slot=call.slot, replay=replay)
 
@@ -113,29 +104,6 @@ def _live(attached: Attached) -> list[dict[str, Any]]:
         if message.get("type") == "live":
             return told
     raise Refused(t("This host cannot be reached."), code=503)
-
-
-def _interruptible(run: Callable[[Call], int | None]) -> Callable[[Call], int | None]:
-    """A command that exits with 130 where it is interrupted, whatever it was waiting on."""
-
-    def runs(call: Call) -> int | None:
-        try:
-            return run(call)
-        except KeyboardInterrupt:
-            return INTERRUPTED
-
-    return runs
-
-
-def _unread(call: Call, message: str) -> int:
-    """Says a line could not be read, as the tree says it of one it could not parse."""
-    line = " ".join(["hmz", *call.path])
-    if call.json:
-        print(json.dumps({"error": {"code": 400, "message": message}}))
-    else:
-        print(f"{line}: {message}", file=sys.stderr)
-        print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-    return UNREAD
 
 
 def _roles(items: Sequence[str] | None) -> dict[str, str] | None:
@@ -165,9 +133,9 @@ def _start(call: Call) -> int | None:
         params = parse_params(call.params or [])
         budget = parse_budget(call.params or [])
     except ValueError as why:
-        return _unread(call, str(why))
+        raise Unread(str(why)) from why
     attached = call.client.epics.attach(
-        None if call.scratch else placed(call),
+        None if call.scratch else workspace(call),
         slot=call.slot,
         replay=False,
         scratch=call.scratch or None,
@@ -266,7 +234,7 @@ def _follows(
 
     Returns:
       Zero where the epic was done, was stopped or spent its budget, and where none was
-      going; one where it failed, or the host let go first; 130 where it was interrupted.
+      going; one where it failed, or the host let go first.
     """
     from hmz.cli.output import Out, Shown
     from hmz.sdk import Refused
@@ -282,55 +250,51 @@ def _follows(
                 out.record(**first[0])
             else:
                 out.aside(first[1])
-        try:
-            while before or not attached.over:
-                message = (
-                    before.pop(0) if before else attached.next(_TICK if roles else None)
-                )
-                if message is not None:
-                    kind = message.get("type")
-                    if call.json:
-                        out.record(**message)
-                    else:
-                        _shows(out, shown, message)
-                    if kind == "run":
-                        going = message.get("state") in ("running", "stopping")
-                    elif kind == "started":
-                        # Another epic, which numbers its questions from one again.
-                        answered.clear()
-                    elif kind == "pending":
-                        waiting = [
-                            str(one["question"])
-                            for one in message.get("pending") or ()
-                            if one.get("role") in roles
-                            and one["question"] not in answered
-                        ]
-                    elif kind == "live":
-                        live = True
-                        if not (going or awaited):
-                            if not call.json:
-                                out.aside(t("No epic is going here."))
-                            return DONE
-                    elif kind == "ended" and live:
-                        return REFUSED if message.get("how") in _FAILED else DONE
-                    elif kind == "gone":
-                        return REFUSED
-                while lines is not None and waiting and not lines.empty():
-                    # The oldest question, answered once, whatever a `pending` on its way says.
-                    question = waiting.pop(0)
-                    answered.add(question)
-                    try:
-                        attached.answer(question, lines.get(), wait=_ANSWERING)
-                    except (Refused, TimeoutError) as why:
+        while before or not attached.over:
+            message = (
+                before.pop(0) if before else attached.next(_TICK if roles else None)
+            )
+            if message is not None:
+                kind = message.get("type")
+                if call.json:
+                    out.record(**message)
+                else:
+                    _shows(out, shown, message)
+                if kind == "run":
+                    going = message.get("state") in ("running", "stopping")
+                elif kind == "started":
+                    # Another epic, which numbers its questions from one again.
+                    answered.clear()
+                elif kind == "pending":
+                    waiting = [
+                        str(one["question"])
+                        for one in message.get("pending") or ()
+                        if one.get("role") in roles and one["question"] not in answered
+                    ]
+                elif kind == "live":
+                    live = True
+                    if not (going or awaited):
                         if not call.json:
-                            out.aside(str(why))
-                        # Not taken: the next `pending` says whether it still waits.
-                        answered.discard(question)
-                        if getattr(why, "code", 0) == _MISFIT:
-                            # It does, and the next line typed is tried on it.
-                            waiting.insert(0, question)
-        except KeyboardInterrupt:
-            return INTERRUPTED
+                            out.aside(t("No epic is going here."))
+                        return DONE
+                elif kind == "ended" and live:
+                    return REFUSED if message.get("how") in _FAILED else DONE
+                elif kind == "gone":
+                    return REFUSED
+            while lines is not None and waiting and not lines.empty():
+                # The oldest question, answered once, whatever a `pending` on its way says.
+                question = waiting.pop(0)
+                answered.add(question)
+                try:
+                    attached.answer(question, lines.get(), wait=_ANSWERING)
+                except (Refused, TimeoutError) as why:
+                    if not call.json:
+                        out.aside(str(why))
+                    # Not taken: the next `pending` says whether it still waits.
+                    answered.discard(question)
+                    if getattr(why, "code", 0) == _MISFIT:
+                        # It does, and the next line typed is tried on it.
+                        waiting.insert(0, question)
     # The session ended with nothing said of why.
     return REFUSED
 
@@ -417,7 +381,7 @@ def _answer(call: Call) -> int | None:
         try:
             value = json.loads(call.value)
         except ValueError:
-            return _unread(call, t("`--value` takes JSON."))
+            raise Unread(t("`--value` takes JSON.")) from None
     with _attaches(call) as attached:
         question = call.question
         if not question:
@@ -454,7 +418,7 @@ def _stop(call: Call) -> None:
 
 def _board(call: Call) -> int | None:
     if call.remove and not call.key:
-        return _unread(call, t("`--remove` takes the key of a line."))
+        raise Unread(t("`--remove` takes the key of a line."))
     with _attaches(call) as attached:
         if call.key and (call.value or call.remove):
             attached.board(call.key, "" if call.remove else call.value)
@@ -486,6 +450,43 @@ def _board(call: Call) -> int | None:
     return None
 
 
+def _face(call: Call) -> None:
+    from hmz.sdk import Refused
+
+    with _attaches(call) as attached:
+        # What the host tells a frontend as it attaches says each question whole, its face
+        # with it; its status says only that the question waits.
+        waiting: list[dict[str, Any]] = []
+        for told in _live(attached):
+            if told.get("type") == "pending":
+                waiting = told.get("pending") or []
+        asked = next(
+            (one for one in waiting if str(one.get("question")) == call.question),
+            None,
+        )
+        if asked is None:
+            raise Refused(
+                t("Question {id} is not waiting.", id=call.question), code=404
+            )
+        if not asked.get("face"):
+            raise Refused(t("Question {id} has no face.", id=call.question), code=404)
+        face = attached.face(str(asked["face"]["hash"]))
+    if call.json:
+        call.answers(
+            {"question": call.question, "title": face.title, "html": face.html}
+        )
+    else:
+        # As the flow wrote it, to the last byte: it is a file to whoever saves it.
+        sys.stdout.write(face.html)
+
+
+def _quit(call: Call) -> None:
+    with _attaches(call) as attached:
+        attached.quit()
+        at, slot = attached.workspace, attached.slot
+    call.answers({"workspace": at, "slot": slot}, [t("Host closed.")])
+
+
 def _release(call: Call) -> None:
     with _attaches(call) as attached:
         # Taken first: a role is released only by the frontend that claims it.
@@ -504,7 +505,7 @@ def _afk(call: Call) -> None:
 
 
 def _status(call: Call) -> None:
-    status = call.client.hosts.status(placed(call), call.slot)
+    status = call.client.hosts.status(workspace(call), call.slot)
     pending: list[dict[str, Any]] = status.get("pending") or []
     call.answers(
         {key: status.get(key) for key in _STATUS},
@@ -528,12 +529,7 @@ def _status(call: Call) -> None:
 
 
 _HOST: Final = (
-    Arg(
-        ("-w", "--workspace"),
-        "the workspace of the epic, a directory of the daemon's machine, or the "
-        "current directory",
-        metavar="DIR",
-    ),
+    WORKSPACE,
     Arg(
         ("--slot",),
         "the slot of the host that holds the epic, as `hmz hosts list` prints it, or "
@@ -673,7 +669,7 @@ COMMANDS = (
                 exits=_FOLLOWED,
                 methods=("epic.attach", "epic.afk", "epic.start", "epic.detach"),
                 see=("epic attach", "epic answer", "epic stop", "hosts list"),
-                run=_interruptible(_start),
+                run=_start,
             ),
             Command(
                 "attach",
@@ -724,7 +720,7 @@ COMMANDS = (
                 exits=_FOLLOWED,
                 methods=("hosts.status", "epic.attach", "epic.detach"),
                 see=("epic status", "epic answer", "epic say"),
-                run=_interruptible(_attach),
+                run=_attach,
             ),
             Command(
                 "say",
@@ -807,6 +803,47 @@ COMMANDS = (
                 run=_answer,
             ),
             Command(
+                "face",
+                "print the HTML page the flow made for a waiting question",
+                says="A flow can give a question a face, a page of HTML of its own "
+                "that the web page shows in place of the plain question. This command "
+                "prints that HTML for one waiting question, to save to a file and "
+                "open in a browser. A question with no face is refused. Nothing in "
+                "the HTML is run.",
+                args=(
+                    Arg(
+                        ("question",),
+                        "the id of a waiting question, as `hmz epic status` prints it",
+                    ),
+                    *_HOST,
+                ),
+                examples=(
+                    Example(
+                        "hmz epic face q3 > face.html",
+                        "save the face of question q3 to a file to open in a browser",
+                    ),
+                    Example(
+                        "hmz epic face q3 --json | jq -r .title",
+                        "print the title of the face of question q3",
+                    ),
+                ),
+                prints="Prints the HTML of the face, as the flow wrote it.",
+                output=(
+                    Field(
+                        "question",
+                        "string",
+                        "the id of the question the face belongs to",
+                    ),
+                    Field("title", "string", "the title of the face"),
+                    Field(
+                        "html", "string", "the HTML of the face, as the flow wrote it"
+                    ),
+                ),
+                methods=("hosts.status", "epic.attach", "epic.face", "epic.detach"),
+                see=("epic status", "epic answer"),
+                run=_face,
+            ),
+            Command(
                 "stop",
                 "stop the epic",
                 says="Stops the epic: the turn under way is interrupted and the flow "
@@ -838,8 +875,36 @@ COMMANDS = (
                     "epic.force",
                     "epic.detach",
                 ),
-                see=("epic status", "hosts stop"),
+                see=("epic status", "epic quit", "hosts stop"),
                 run=_stop,
+            ),
+            Command(
+                "quit",
+                "close the epic's host from inside, as one of its frontends",
+                says="Attaches to the host as a frontend and tells it to close. The "
+                "host withdraws every waiting question, drops every line waiting to "
+                "be said, stops every epic it runs, lets every frontend go and closes "
+                "every side question; its process exits within 15 seconds. The epic's "
+                "record is kept. `hmz hosts stop` does the same without attaching; "
+                "`hmz epic stop` stops the epic and keeps the host.",
+                args=_HOST,
+                examples=(
+                    Example(
+                        "hmz epic quit", "close the host of the epic of this folder"
+                    ),
+                    Example(
+                        "hmz epic quit -w ~/work/app --slot exec:1f2e",
+                        "close the host of one epic of another workspace",
+                    ),
+                ),
+                prints="Prints one line once the host has taken the request.",
+                output=(
+                    Field("workspace", "string", "the workspace of the host closed"),
+                    Field("slot", "string", "the slot of the host closed"),
+                ),
+                methods=("hosts.status", "epic.attach", "epic.quit", "epic.detach"),
+                see=("epic stop", "hosts stop"),
+                run=_quit,
             ),
             Command(
                 "board",
@@ -941,7 +1006,7 @@ COMMANDS = (
                     "epic.detach",
                 ),
                 see=("epic attach", "epic release", "epic answer"),
-                run=_interruptible(_claim),
+                run=_claim,
             ),
             Command(
                 "release",

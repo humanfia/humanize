@@ -514,10 +514,8 @@ class Epics(Family):
             exec slot whose epic has ended.
           RuntimeError: If the client was given a listener of its own.
         """
-        from . import _hub  # pyright: ignore[reportPrivateUsage]
-
         # Before the call, so that what the host says while it is answered is kept.
-        _hub(self._client)
+        self._listens()
         said = self._call(
             "epic.attach",
             workspace=workspace,

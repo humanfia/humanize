@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.cli.tree import UNREAD, Arg, Command, Example, Field, table
+from hmz.cli.tree import Arg, Command, Example, Field, Unread, table, whole
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -41,35 +40,21 @@ _SWITCH = {"on": True, "true": True, "off": False, "false": False}
 _POLICIES = ("session", "interval", "end")
 
 
-class _Unread(Exception):  # noqa: N818 -- named for what happened
-    """A line that parsed and still cannot be read: said as a usage error is."""
-
-
-def _unread(call: Call, why: _Unread) -> int:
-    """Says what is wrong with the line as the tree says a usage error, and its status."""
-    line = " ".join(["hmz", *call.path])
-    print(f"{line}: {why}", file=sys.stderr)
-    print(t("Run `{line}` for help.", line=f"{line} --help"), file=sys.stderr)
-    return UNREAD
-
-
 def _at(said: str | None) -> str | None:
     """A workspace as the daemon takes one: whole, a relative one read from this directory."""
-    if said is None or said.startswith("~"):
-        return said
-    return str(Path(said).absolute())
+    return None if said is None else whole(said)
 
 
 def _read(said: str) -> Any:
     """A value written as JSON, `-` being JSON on standard input.
 
     Raises:
-      _Unread: If it is not JSON.
+      Unread: If it is not JSON.
     """
     try:
         return json.loads(sys.stdin.read() if said == "-" else said)
     except ValueError:
-        raise _Unread(t("This is not valid JSON.")) from None
+        raise Unread(t("This is not valid JSON.")) from None
 
 
 def _shown(value: object) -> str:
@@ -79,7 +64,7 @@ def _shown(value: object) -> str:
 
 def _get(call: Call) -> int | None:
     if call.key and call.key not in KEYS:
-        return _unread(call, _Unread(t("no setting named {name}", name=call.key)))
+        raise Unread(t("no setting named {name}", name=call.key))
     said = call.client.settings.get(_at(call.workspace)).said
     if call.key:
         call.answers({call.key: said.get(call.key)}, [_shown(said.get(call.key))])
@@ -122,21 +107,18 @@ def _listed(words: Sequence[str], *, objects: bool = False) -> list[Any]:
       objects: Whether a word beginning `{` is an item written as JSON.
 
     Raises:
-      _Unread: If a word written as JSON is not JSON, or the list whole is not a list.
+      Unread: If a word written as JSON is not JSON, or the list whole is not a list.
     """
     if len(words) == 1 and (words[0] == "-" or words[0].startswith("[")):
         whole: Any = _read(words[0])
         if not isinstance(whole, list):
-            raise _Unread(t("This is not valid JSON."))
+            raise Unread(t("This is not valid JSON."))
         return cast("list[Any]", whole)
     return [_read(one) if objects and one.startswith("{") else one for one in words]
 
 
 def _listen(call: Call) -> int | None:
-    try:
-        specs = _listed(call.spec)
-    except _Unread as why:
-        return _unread(call, why)
+    specs = _listed(call.spec)
     _saved(call, call.client.settings.set(listen=specs))
     return None
 
@@ -145,20 +127,20 @@ def _servers(words: Sequence[str]) -> list[dict[str, Any]]:
     """The STUN and TURN servers a line writes, a bare URL being a server of that URL.
 
     Raises:
-      _Unread: For JSON that is not JSON, and for a credential given on the line: a shell
+      Unread: For JSON that is not JSON, and for a credential given on the line: a shell
         wrote that one down, so only standard input brings one.
     """
     servers: list[dict[str, Any]] = []
     for one in _listed(words, objects=True):
         if not isinstance(one, str | dict):
-            raise _Unread(t("This is not valid JSON."))
+            raise Unread(t("This is not valid JSON."))
         servers.append(
             {"urls": one} if isinstance(one, str) else cast("dict[str, Any]", one)
         )
     if list(words) != ["-"] and any(
         isinstance(one.get("credential"), str) for one in servers
     ):
-        raise _Unread(
+        raise Unread(
             t(
                 "a credential is read from standard input only: give the "
                 "servers as JSON with `-`"
@@ -168,19 +150,13 @@ def _servers(words: Sequence[str]) -> list[dict[str, Any]]:
 
 
 def _ice_servers(call: Call) -> int | None:
-    try:
-        servers = _servers(call.server)
-    except _Unread as why:
-        return _unread(call, why)
+    servers = _servers(call.server)
     _saved(call, call.client.settings.set(ice_servers=servers))
     return None
 
 
 def _backup(call: Call) -> int | None:
-    try:
-        backup = _read(call.value)
-    except _Unread as why:
-        return _unread(call, why)
+    backup = _read(call.value)
     _saved(call, call.client.settings.set(backup=backup))
     return None
 
@@ -194,9 +170,7 @@ def _target(call: Call) -> int | None:
     was = next((one for one in targets if one["name"] == call.name), None)
     if call.remove:
         if was is None:
-            return _unread(
-                call, _Unread(t("no backup target named {name}", name=call.name))
-            )
+            raise Unread(t("no backup target named {name}", name=call.name))
         targets = [one for one in targets if one["name"] != call.name]
         defaults = [one for one in defaults if one != call.name]
     else:

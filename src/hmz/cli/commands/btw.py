@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.cli.tree import Arg, Command, Example, Field, table
+from hmz.cli.tree import WORKSPACE, Arg, Command, Example, Field, table, workspace
 from hmz.words import t
 
 if TYPE_CHECKING:
@@ -15,12 +14,6 @@ if TYPE_CHECKING:
 
 __all__ = ["COMMANDS"]
 
-_WORKSPACE = Arg(
-    ("-w", "--workspace"),
-    "the workspace the epic or chat is in, as an absolute path; when not given, the "
-    "folder the command is run in",
-    metavar="PATH",
-)
 _EPIC = Arg(
     ("--epic",),
     "the epic the side questions are about, by its name; when not given, the epic in "
@@ -37,15 +30,6 @@ _ANSWERED = (
     Field("said[].question", "string", "one question that was asked"),
     Field("said[].answer", "string", "the answer to that question"),
 )
-
-
-def _workspace(call: Call) -> str:
-    """The workspace a line names, or the directory it was typed in."""
-    given: str | None = call.workspace
-    if given is None:
-        return str(Path.cwd())
-    # `~` is the daemon's to expand, on its own machine.
-    return given if given.startswith("~") else str(Path(given).absolute())
 
 
 def _about(call: Call) -> tuple[str | None, str | None]:
@@ -72,7 +56,7 @@ def _ask(call: Call) -> None:
     to: str | None = call.to
     if to is None and call.aside is not None:
         # A side conversation goes on with the session its first question named.
-        asides = call.client.btw.list(_workspace(call), epic=epic, chat=chat)
+        asides = call.client.btw.list(workspace(call), epic=epic, chat=chat)
         to = next((one.to for one in asides if one.aside == call.aside), None)
     if to is None:
         # A chat is one conversation, asked about as that: the last it opened.
@@ -83,7 +67,7 @@ def _ask(call: Call) -> None:
             raise Refused(t("This chat has said nothing to ask about yet."))
         to = sessions[-1].key
     answer = call.client.btw.ask(
-        _workspace(call), call.question, to=to, aside=call.aside, epic=epic, chat=chat
+        workspace(call), call.question, to=to, aside=call.aside, epic=epic, chat=chat
     )
     call.answers(
         {
@@ -123,7 +107,7 @@ def _sessions(call: Call) -> None:
 
 def _list(call: Call) -> None:
     epic, chat = _about(call)
-    asides = call.client.btw.list(_workspace(call), epic=epic, chat=chat)
+    asides = call.client.btw.list(workspace(call), epic=epic, chat=chat)
     call.answers(
         {
             "asides": [
@@ -146,7 +130,7 @@ def _show(call: Call) -> None:
     from hmz.sdk import Refused
 
     epic, chat = _about(call)
-    asides = call.client.btw.list(_workspace(call), epic=epic, chat=chat)
+    asides = call.client.btw.list(workspace(call), epic=epic, chat=chat)
     found = next((one for one in asides if one.aside == call.aside), None)
     if found is None:
         raise Refused(t("There is no side conversation {name}.", name=call.aside))
@@ -170,7 +154,7 @@ def _leave(call: Call) -> None:
     aside: str | None = call.aside or None
     if (aside is None) != bool(call.all):
         raise Refused(t("Name one side conversation or give `--all`."))
-    call.client.btw.leave(_workspace(call), aside)
+    call.client.btw.leave(workspace(call), aside)
     document: dict[str, Any] = {"aside": aside}
     call.answers(document, [t("Closed.")])
 
@@ -206,7 +190,7 @@ COMMANDS = (
                         "a new side conversation is opened",
                         metavar="NAME",
                     ),
-                    _WORKSPACE,
+                    WORKSPACE,
                     _EPIC,
                     _CHAT,
                 ),
@@ -297,7 +281,7 @@ COMMANDS = (
             Command(
                 "list",
                 "list the side conversations open about an epic or chat",
-                args=(_WORKSPACE, _EPIC, _CHAT),
+                args=(WORKSPACE, _EPIC, _CHAT),
                 examples=(
                     Example(
                         "hmz btw list",
@@ -347,7 +331,7 @@ COMMANDS = (
                         ("aside",),
                         "the name of the side conversation, as `hmz btw list` prints it",
                     ),
-                    _WORKSPACE,
+                    WORKSPACE,
                     _EPIC,
                     _CHAT,
                 ),
@@ -391,7 +375,7 @@ COMMANDS = (
                         default="",
                     ),
                     Arg(("--all",), "close every side conversation of the workspace"),
-                    _WORKSPACE,
+                    WORKSPACE,
                 ),
                 examples=(
                     Example(

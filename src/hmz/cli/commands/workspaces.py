@@ -6,18 +6,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz.cli.tree import Arg, Command, Example, Field, table
+from hmz.cli.tree import Arg, Command, Example, Field, table, whole
 from hmz.words import t
 
 if TYPE_CHECKING:
     from hmz.cli.tree import Call
 
 __all__ = ["COMMANDS"]
-
-
-def _at(said: str) -> str:
-    """A folder as the daemon is told it: whole, one written from here taken from here."""
-    return said if said.startswith(("/", "~")) else str(Path(said).absolute())
 
 
 def _list(call: Call) -> None:
@@ -45,19 +40,19 @@ def _list(call: Call) -> None:
 
 
 def _add(call: Call) -> None:
-    known = call.client.workspaces.add(_at(call.folder), str(Path.cwd()))
+    known = call.client.workspaces.add(whole(call.folder), str(Path.cwd()))
     call.answers(known.answer, [known.kept])
 
 
 def _forget(call: Call) -> None:
-    known = call.client.workspaces.forget(_at(call.folder), str(Path.cwd()))
+    known = call.client.workspaces.forget(whole(call.folder), str(Path.cwd()))
     call.answers(known.answer, [t("Forgotten")])
 
 
 def _browse(call: Call) -> None:
     # A directory of a runtime's machine is that machine's to read, as it was written.
     found = call.client.paths.list(
-        call.directory if call.env else _at(call.directory),
+        call.directory if call.env else whole(call.directory),
         files=call.files or None,
         hidden=call.hidden or None,
         env=call.env,

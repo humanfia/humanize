@@ -525,7 +525,6 @@ class Chats(_Attached):
         "chat.unarchive",
         "chat.backup",
         "chat.delete",
-        *Harness.METHODS,
     )
 
     @property

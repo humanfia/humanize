@@ -165,7 +165,7 @@ def test_forgetting_asks_first_and_takes_only_a_yes(
     said = capsys.readouterr()
     assert said.err == (
         "Delete conversation 3 (hello) with Ai-chan? It cannot be brought back. [y/N] "
-        "hmz ai forget: The conversation was not deleted.\n"
+        "hmz ai forget: Nothing was changed.\n"
     )
     assert said.out == ""
     ai.forget.assert_not_called()
@@ -184,7 +184,7 @@ def test_forgetting_asks_nobody_who_is_not_there(
 
     assert main(["ai", "forget", "3"]) == 1
     assert capsys.readouterr().err == (
-        "hmz ai forget: Nobody can be asked here; give `--yes` to delete.\n"
+        "hmz ai forget: Nobody is at a terminal to ask; run it again with `-y`.\n"
     )
 
     # Nor under `--json`, which says nothing on standard error.
@@ -193,7 +193,7 @@ def test_forgetting_asks_nobody_who_is_not_there(
     said = capsys.readouterr()
     assert said.err == ""
     assert json.loads(said.out)["error"]["message"] == (
-        "Nobody can be asked here; give `--yes` to delete."
+        "Nobody is at a terminal to ask; run it again with `-y`."
     )
     ai.forget.assert_not_called()
 

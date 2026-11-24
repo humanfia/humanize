@@ -464,3 +464,73 @@ def test_a_refusal_is_said_in_the_hosts_words(
 
     assert capsys.readouterr().err == "hmz epic say: no flow is running to say it to\n"
     attached.__exit__.assert_called_once()
+
+
+def test_the_face_of_a_waiting_question_is_printed_as_the_flow_wrote_it(
+    attached: mock.MagicMock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _told(
+        attached,
+        {"type": "welcome"},
+        {
+            "type": "pending",
+            "pending": [
+                {"question": "q1", "face": None},
+                {"question": "q3", "face": {"hash": "abc", "title": "Review"}},
+            ],
+        },
+        {"type": "live", "seq": 4},
+    )
+    attached.face.return_value = mock.Mock(html="<p>pick</p>", title="Review")
+
+    assert main(["epic", "face", "q3"]) == 0
+    # To the last byte, with no line feed of this command's added.
+    assert capsys.readouterr().out == "<p>pick</p>"
+    attached.face.assert_called_once_with("abc")
+
+    assert main(["epic", "face", "q3", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "question": "q3",
+        "title": "Review",
+        "html": "<p>pick</p>",
+    }
+
+
+@pytest.mark.parametrize(
+    ("question", "why"),
+    [("q1", "Question q1 has no face."), ("q9", "Question q9 is not waiting.")],
+)
+def test_a_question_with_no_face_to_print_is_refused(
+    question: str,
+    why: str,
+    attached: mock.MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _told(
+        attached,
+        {"type": "pending", "pending": [{"question": "q1", "face": None}]},
+        {"type": "live", "seq": 4},
+    )
+
+    assert main(["epic", "face", question, "--json"]) == 1
+
+    assert json.loads(capsys.readouterr().out) == {
+        "error": {"code": 404, "message": why}
+    }
+    attached.face.assert_not_called()
+
+
+def test_quitting_closes_the_host_the_frontend_is_attached_to(
+    client: mock.MagicMock,
+    attached: mock.MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    attached.workspace, attached.slot = "/w", "exec:ab"
+
+    assert main(["epic", "quit", "-w", "/w", "--slot", "exec:ab"]) == 0
+    assert capsys.readouterr().out == "Host closed.\n"
+    client.hosts.status.assert_called_once_with("/w", "exec:ab")
+    attached.quit.assert_called_once_with()
+
+    assert main(["epic", "quit", "-w", "/w", "--slot", "exec:ab", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"workspace": "/w", "slot": "exec:ab"}

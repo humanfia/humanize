@@ -174,6 +174,8 @@ def test_a_pairing_code_is_claimed_and_its_daemon_kept(
     assert main(["daemons", "pair", "lab", "hmz-pair:abc", "--json"]) == 0
     assert json.loads(capsys.readouterr().out) == remotes.pair.return_value
     remotes.pair.assert_called_once_with("lab", "hmz-pair:abc", device=None)
+    # The session the code is claimed over says what is claiming it.
+    registry.remotes.assert_called_once_with(kind="cli")
     remotes.close.assert_called_once_with()
 
     monkeypatch.setattr("sys.stdin", io.StringIO("hmz-pair:xyz\n"))

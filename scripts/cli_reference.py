@@ -21,6 +21,7 @@ from typing import Any
 
 from hmz.cli import tree
 from hmz.cli.commands import help as top
+from hmz.words import t
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / "docs/reference/cli.md"
@@ -118,12 +119,18 @@ def _leaf(said: dict[str, Any]) -> list[str]:
 
 
 def _extra(said: dict[str, Any]) -> list[str]:
-    """The statuses a command ends with beyond those every command does."""
-    common = {str(one.code) for one in tree.EXITS}
+    """The statuses a command ends with beyond those every command does.
+
+    One of every command's that this command says more of is its own too: what a refusal is
+    where it asks first, what an interrupt leaves going where it follows something.
+    """
+    common = {str(one.code): t(one.says) for one in tree.EXITS}
+    # Said once for every command that asks no daemon, where the page says what one is.
+    local = t(tree.LOCALLY.says)
     extra = [
         (f"`{code}`", _sentence(means))
         for code, means in said["exit_status"].items()
-        if code not in common
+        if means not in (common.get(code), local)
     ]
     return _table(("Status", "Meaning"), extra) if extra else []
 

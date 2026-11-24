@@ -272,7 +272,7 @@ a WebRTC carrier.
 Out of scope:
 
 - The files the identity and the paired devices are kept in: Section 4.14 of [FILES].
-- The commands that pair and revoke: Section 13 of [CLI].
+- The commands that pair and revoke: Section 17 of [CLI].
 - The methods `pair.*` and `devices.*`: Section 4.14 of [DAEMON].
 
 ### 4.2. Terminology
@@ -347,7 +347,7 @@ answered, and MUST NOT pin one learned over an untrusted carrier alone.
 ### 4.5. Pairing
 
 **4.5.1** A daemon MUST make a pairing code when `pair.create` is called on a paired session
-(Section 4.14.2 of [DAEMON]), which `hmz daemon pair` does over the socket (Section 13 of [CLI]).
+(Section 4.14.2 of [DAEMON]), which `hmz devices pair` does over the socket (Section 17 of [CLI]).
 
 **4.5.2** A pairing code MUST be the text `hmz-pair:` followed by the base64url of the UTF-8 JSON
 object `{"v": 1, "id": <daemon id>, "routes": [<route>, ...], "token": <token>, "expires": <Unix

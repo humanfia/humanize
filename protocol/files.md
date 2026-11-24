@@ -217,8 +217,9 @@ MUST keep its mode.
 **3.3.3.6** Every write MUST set the key `spelling` to `2`.
 
 **3.3.3.7** Where a write of `enable_sentry`, `details`, `ai_chan`, `every_epic`, `chat`,
-`harness_sessions`, `backup` or a workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
-itself for as long as it runs and MUST NOT report an error.
+`harness_sessions`, `tui`, `backup` or a workspace entry fails, or the file is unreadable, the
+process MUST keep the change in effect for itself for as long as it runs and MUST NOT report an
+error.
 
 **3.3.3.8** Where a write of `nous`, `clis`, `daemons`, `notifications`, `listen`,
 `ice_servers`, `easytier` or a runtime fails, or the file is unreadable, hmz MUST refuse the change
@@ -396,6 +397,26 @@ whose own is not overridden (Section 8.9.10 of [CORE]); an absent value or any o
 of a workspace, the harness sessions of that workspace (Section 8.11 of [CORE]).
 
 **3.4.14.2** Any value of `harness_sessions` other than `true` MUST be read as `false`.
+
+#### 3.4.15. `tui`
+
+**3.4.15.1** `tui` MUST be a table holding what the terminal interface keeps of its own (Section
+32.5 of [TUI]): how it is drawn and the language its texts are said in. It is this machine's user's
+and no daemon's: `settings.get` and `settings.set` (Section 4.18 of [DAEMON]) do not carry it.
+
+**3.4.15.2** `tui.theme` MUST be the key of the theme preset the interface is drawn in (Section 32.2
+of [TUI]); an absent value, or one that is the key of no preset, MUST be read as `humanize`.
+
+**3.4.15.3** `tui.appearance` MUST be `auto`, `light`, `dark` or `terminal`: which side of the
+preset is drawn, the terminal's own colours for `terminal`; an absent value or any other MUST be
+read as `auto`.
+
+**3.4.15.4** `tui.language` MUST be `en`, `zh-Hans` or `zh-Hant`, the language the interface's
+texts are said in, or `""` for the language of the system (Section 32.3.2 of [TUI]); an absent
+value or any other MUST be read as `""`.
+
+**3.4.15.5** A write of one of the three MUST leave the other keys of `tui` as they are (Section
+3.3.2.4), those this section does not define included.
 
 ### 3.5. `workspaces`
 

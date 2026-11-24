@@ -160,7 +160,7 @@ def test_the_files_of_an_environment_are_browsed_written_and_removed(
     assert _said(capsys, "search", "HELLO", "--case")["matches"] == []
 
     # Nobody is there to say yes, so nothing is removed until the line says it.
-    assert cli.main(["env", "rm", "docs"]) == 4
+    assert cli.main(["env", "rm", "docs"]) == 1
     capsys.readouterr()
     assert (workspace / "docs").is_dir()
     assert _said(capsys, "rm", "docs", "--yes") == {"path": "docs"}
@@ -208,7 +208,7 @@ def test_changes_are_staged_committed_and_rewound(
     assert _said(capsys, "git", "diff", "--staged")["files"] == []
 
     # Thrown away only once the line says yes.
-    assert cli.main(["env", "git", "discard", "new.txt"]) == 4
+    assert cli.main(["env", "git", "discard", "new.txt"]) == 1
     capsys.readouterr()
     assert _said(capsys, "git", "discard", "new.txt", "--yes") == {"paths": ["new.txt"]}
     assert not (workspace / "new.txt").exists()
@@ -226,7 +226,7 @@ def test_changes_are_staged_committed_and_rewound(
     assert _said(capsys, "git", "snapshots") == {
         "snapshots": ["refs/hmz/snapshots/before"]
     }
-    assert cli.main(["env", "git", "rewind", "refs/hmz/snapshots/before"]) == 4
+    assert cli.main(["env", "git", "rewind", "refs/hmz/snapshots/before"]) == 1
     capsys.readouterr()
     assert (workspace / "README.md").read_text() == "hello again\n"
     assert _said(capsys, "git", "rewind", "refs/hmz/snapshots/before", "-y") == {
