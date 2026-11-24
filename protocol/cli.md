@@ -247,8 +247,9 @@ internal  internal commands used by Humanize; do not run directly
 
 and the summary of a declared command MUST be the one its declaration states.
 
-**3.3.4** The help of a declared command MUST be what Section 16 states, and Section 3.3.2 MUST hold
-of each text in it.
+**3.3.4** The help of a declared command MUST be what Section 16 states. Section 3.3.2 MUST hold of
+each text in it other than what the command does and what it prints, each of which MUST be at most
+one hundred words long: help is to be enough to use a command by.
 
 ## 4. Output conventions
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -31,11 +32,18 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: The most words any one text of a help may have (Section 3.3.2 of cli.md).
+#: The most words a summary, an argument, an example, a field or a status may be said in
+#: (Section 3.3.2 of cli.md), and the most a command's own account of itself and of what it
+#: prints may run to (Section 3.3.4): help has to be enough to use a command by, and a
+#: sentence is not always enough.
 WORDS = 30
+ACCOUNT = 100
 
 #: What ends the part of an example line that `hmz` reads: the shell takes it from there.
 SHELL = frozenset("|&;<>()")
+
+#: One `$(...)` of an example line with none inside it: the innermost first.
+_SUBSTITUTED = re.compile(r"\$\(([^()]*)\)")
 
 
 @pytest.fixture(autouse=True)
@@ -70,16 +78,28 @@ def _own(command: Command) -> list[str]:
     return list(dataclasses.replace(command, commands=()).texts())
 
 
-def _typed(line: str) -> list[str]:
-    """The words of an example line that `hmz` is given, up to where the shell takes over."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    words: list[str] = []
-    for word in lexer:
-        if word and set(word) <= SHELL:
-            break
-        words.append(word)
-    return words
+def _typed(line: str) -> list[list[str]]:
+    """Each `hmz` line an example runs: a pipeline is cut where the shell takes over.
+
+    An example may feed `hmz` from another program, `hmz` into one, or one `hmz` into
+    another's line with `$(...)`; what is held to the command's parser is every part of it
+    that begins with `hmz`, with `1` standing where a substitution would write its answer.
+    """
+    lines = [line]
+    while (found := _SUBSTITUTED.search(lines[0])) is not None:
+        lines.append(found[1])
+        lines[0] = lines[0][: found.start()] + "1" + lines[0][found.end() :]
+    parts: list[list[str]] = []
+    for one in lines:
+        lexer = shlex.shlex(one, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        parts.append([])
+        for word in lexer:
+            if word and set(word) <= SHELL:
+                parts.append([])
+            else:
+                parts[-1].append(word)
+    return [part for part in parts if part[:1] == ["hmz"]]
 
 
 def test_there_are_commands_to_ask_this_of() -> None:
@@ -100,7 +120,12 @@ def test_a_summary_reads_in_a_listing(name: str) -> None:
 def test_every_text_is_at_most_thirty_words(name: str) -> None:
     _, command = EVERY[name]
 
-    long = [text for text in _own(command) if len(text.split()) > WORDS]
+    accounts = {command.says, command.prints}
+    long = [
+        text
+        for text in _own(command)
+        if len(text.split()) > (ACCOUNT if text in accounts else WORDS)
+    ]
 
     assert not long
 
@@ -111,14 +136,19 @@ def test_an_example_is_a_line_its_own_parser_takes(name: str) -> None:
 
     assert command.examples, "a command has at least one example"
     for example in command.examples:
-        assert example.line.startswith("hmz "), example.line
-        words = _typed(example.line)
-        named, found, rest = tree.named(words[1:])
-        assert named == path, f"{example.line!r} is an example of another command"
-        try:
-            tree.parser(named, found).parse_args(rest)
-        except SystemExit:
-            pytest.fail(f"{example.line!r} is not a line `hmz {name}` takes")
+        own = 0
+        for words in _typed(example.line):
+            named, found, rest = tree.named(words[1:])
+            own += named == path
+            if found.passes is not None:
+                continue  # a command that reads its own line, as `hmz exec` does
+            try:
+                tree.parser(named, found).parse_args(rest)
+            except SystemExit:
+                pytest.fail(
+                    f"{example.line!r} is not a line `hmz {' '.join(named)}` takes"
+                )
+        assert own, f"{example.line!r} is an example of another command"
 
 
 @pytest.mark.parametrize("name", LEAVES)

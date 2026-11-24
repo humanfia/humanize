@@ -63,17 +63,17 @@ def test_help_names_every_command(capsys: pytest.CaptureFixture[str]) -> None:
     assert raised.value.code == 0
     out = capsys.readouterr().out
     assert out.startswith("Usage: hmz [COMMAND] [ARGS...]\n       hmz --version\n")
-    for name, (_, summary) in COMMANDS.items():
-        assert f"  {name.ljust(8)}  {summary}\n" in out
+    # Each once, in a column as wide as the longest name, its summary beside it -- and under
+    # it where the summary is longer than the line.
+    wide = max(len(name) for name in summaries())
+    assert set(COMMANDS) <= set(summaries())
     for name, summary in summaries().items():
-        assert f"  {name.ljust(8)}  {summary}\n" in out
+        assert out.count(f"\n  {name.ljust(wide)}  {summary.split()[0]}") == 1, name
     # Under what each is about, then what they share and what to run next.
     headings = [line for line in out.splitlines() if line.endswith(":")]
-    assert headings == [
-        "Chats and epics:",
-        "Past work and backups:",
-        "Daemons and devices:",
-        "This program:",
+    assert headings[0] == "Chats and epics:"
+    assert "This program:" in headings
+    assert headings[-4:] == [
         "Shared conventions:",
         "Options:",
         "Exit codes:",

@@ -15,9 +15,12 @@ from hmz import cli
 from hmz.cli import tree
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from types import ModuleType
 
     import pytest
+
+    from hmz.cli.tree import Command
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -48,10 +51,19 @@ def test_every_command_is_listed_and_every_declared_one_has_a_section() -> None:
     for name in cli.summaries():
         assert f"| `{name}` |" in listing, name
     section = script.section()
+
+    def leaves(path: tuple[str, ...], command: Command) -> Iterator[str]:
+        if not command.commands:
+            yield " ".join(path)
+        for one in command.commands:
+            yield from leaves((*path, one.name), one)
+
     for name, command in tree.commands().items():
         assert f"## hmz {name}\n" in section
-        for one in command.commands:
-            assert f"### hmz {name} {one.name}\n" in section
+        # A command under a group, however deep, has a section of its own.
+        for leaf in leaves((name,), command):
+            if command.commands:
+                assert f"### hmz {leaf}\n" in section, leaf
     # What a table would take for a column, or a page for a tag, is written so it is not.
     assert "`string\\|null`" in section
 

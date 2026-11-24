@@ -214,23 +214,6 @@ def _statuses(command: Command) -> list[Exit]:
     return sorted((*common, *command.exits), key=lambda one: one.code)
 
 
-#: What a command that asks no daemon ends with where it will not do what was asked.
-_LOCALLY: Final = Exit(REFUSED, "the request was refused and the reason was printed")
-
-
-def _common(command: Command) -> tuple[Arg, ...]:
-    """What a command takes after its own: every common option a daemon is not asked by."""
-    if not command.local:
-        return COMMON
-    return tuple(arg for arg in COMMON if arg.name != "daemon")
-
-
-def _statuses(command: Command) -> list[Exit]:
-    """The statuses a command ends with, in order: the common ones, then its own."""
-    common = (EXITS[0], _LOCALLY, EXITS[2]) if command.local else EXITS
-    return sorted((*common, *command.exits), key=lambda one: one.code)
-
-
 def taken(command: Command) -> tuple[Arg, ...]:
     """Everything a command takes: its own, then what every command does."""
     return (*command.args, *_common(command))
