@@ -172,7 +172,9 @@ class Hints(Static):
     """The line of keys: every key that does something where the keys are, and what it does."""
 
     DEFAULT_CSS = """
-    Hints { display: none; height: 1; padding: 0 2; color: $text-muted; }
+    /* As many lines as its keys take, so that none is cut off on a narrow terminal. */
+    Hints { display: none; height: auto; max-height: 3; padding: 0 2;
+            color: $text-muted; }
     Hints.hinting { display: block; }
     """
 
@@ -200,6 +202,8 @@ class Shell:
     def __init__(self, app: App[None]) -> None:
         """Holds the interface the zones are part of."""
         self._app = app
+        #: The page each view that is one last opened, which its key closes while it is up.
+        self._pages: dict[str, Widget] = {}
 
     def zone(self, where: Where) -> Zone:
         """One of the two zones."""
@@ -229,6 +233,7 @@ class Shell:
 
             if not isinstance(made, Screen):
                 raise TypeError(f"the page {name!r} is not a screen")
+            self._pages[name] = made
             await self._app.push_screen(cast("Screen[None]", made))
         else:
             await self.zone(view.zone).shows(view, made, keys=keys)
@@ -246,10 +251,15 @@ class Shell:
 
         The same key is the way in and the way out, so that there is one thing to remember:
         pressed from elsewhere it goes to the view, opening it if it is not open, and pressed
-        from inside it closes it.
+        from inside it closes it -- a page as well as a zone's.
         """
         view = views()[name]
-        if view.zone == "page" or self.zone(view.zone).view is not view:
+        if view.zone == "page" and self._app.screen is self._pages.get(name):
+            self._app.pop_screen()
+        elif view.zone != "page" and not self._app.query(f"#{view.zone}"):
+            # A sheet or a page is over the log: the zones are under it, and the key is its.
+            return
+        elif view.zone == "page" or self.zone(view.zone).view is not view:
             await self.opens(name)
         elif self.held() is view:
             await self.closes(view.zone)
@@ -272,7 +282,8 @@ class Shell:
 
     def hints(self) -> None:
         """Draws the hint line: the keys of what has the keys, then each view's own."""
-        line = self._app.query(Hints)
+        # The log's own, whatever page is over it: a page says its keys for itself.
+        line = self._app.screen_stack[0].query(Hints) if self._app.screen_stack else ()
         if not line:
             return
         held = self.held()

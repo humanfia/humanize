@@ -61,6 +61,8 @@ Type `/` to see the commands that work in the current view and state. If you run
 | <kbd>ctrl+c</kbd> | Takes back the nearest thing. See the next table. |
 | <kbd>ctrl+q</kbd> | Same as `/exit`. |
 | <kbd>f1</kbd> | Opens Keys beside the log. Pressed from elsewhere it goes to Keys; pressed inside Keys it closes it. |
+| <kbd>ctrl+b</kbd> | Opens the navigator to the left of the log. Pressed from elsewhere it goes to it; pressed inside it closes it. |
+| <kbd>ctrl+k</kbd> | Opens Search over the screen, and closes it. |
 | <kbd>esc</kbd> | In a pane beside the log, gives the keys back to the prompt and leaves the pane open. |
 
 The bottom line of the screen lists the keys that work where you are, then the key of each pane.
@@ -104,6 +106,58 @@ Use these keys on the log screen while an epic runs. They do nothing in a chat.
 | <kbd>shift+tab</kbd> | Next view: each session with an open turn, then each outworlder. |
 | <kbd>tab</kbd> | Previous view, while the offer list is closed. |
 | <kbd>←</kbd> on an empty prompt | Opens the monitor. |
+
+### Navigator
+
+The navigator lists every chat, epic and harness session of this machine's daemon. It is open from the start on a terminal at least 110 columns wide. `Waiting for you` is always the first group, then `Pinned`, then the rest by folder, by date, or as one list.
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move along the list. |
+| <kbd>enter</kbd> | On a chat: puts it on the log, as `/resume` does. On an epic: attaches the log to it while a host of this folder runs it, otherwise opens the epic's sheet from `/epics`. On a heading: folds or unfolds the group. |
+| <kbd>n</kbd> | New chat. |
+| <kbd>N</kbd> | New epic. |
+| <kbd>p</kbd> | Pin or unpin the row. |
+| <kbd>u</kbd> | Mark the row unread or read. |
+| <kbd>.</kbd> | Open the menu of the row or folder. |
+| <kbd>g</kbd> | Next grouping: `Folder`, `Date`, `None`. |
+| <kbd>esc</kbd> | Back to the prompt. The navigator stays open. |
+
+| Row | Menu |
+| --- | --- |
+| Chat | `Open`, `Pin`, `Mark as unread`, `Rename`, `Fork`, `Copy ID`, `Upload`, `Archive`, `Delete` |
+| Epic | `Open`, `Pin`, `Mark as unread`, `Copy task`, `Copy name`, `Upload`, `Stop` while a host runs it |
+| Harness session | `Open`, `Pin`, `Mark as unread`, `Copy session ID` |
+| Folder | `New chat here`, `New epic here`, `Search here`, `Copy path`, `Collapse`, `Forget` for an empty folder |
+
+`Delete` and `Forget` ask first. `Resume`, `Export`, `Exomyth` and `Copy path` of an epic are on the sheet that `Open` goes to. A chat of another folder is listed but not opened: run `hmz` in that folder.
+
+| Mark | Meaning |
+| --- | --- |
+| Pink `■` | Waits on you: a chat awaiting input, an epic asking or waiting. |
+| Cyan `■` | Running or stopping. |
+| Green `■` | An epic that is done. |
+| Red `■` | Failed, refused or crashed. |
+| Cyan `●` | Unread. |
+| `▸` beside the mark | Pinned. |
+| Cyan title | The chat or epic on the log. |
+
+While the keys are in the navigator, rows keep their places: changes are drawn where each row stands, and the order settles when you leave. Pins, unread marks, the grouping and folded groups are kept in `navigator.json` in Humanize's state directory.
+
+### Search
+
+| Key | Action |
+| --- | --- |
+| Typing | Narrows the list, 0.2 seconds after the last key. |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move along what was found. |
+| <kbd>enter</kbd> | Close Search and open the row, as the navigator opens it. |
+| <kbd>tab</kbd> / <kbd>shift+tab</kbd> | Next or previous tab: `All`, `Chats`, `Epics`. |
+| <kbd>f2</kbd> | Next value of `How it went`. Applies to epics. |
+| <kbd>f3</kbd> | Next folder. |
+| <kbd>f4</kbd> | Next flow. Applies to epics. |
+| <kbd>f5</kbd> | Clear the text and the filters. |
+| <kbd>pgdn</kbd> / <kbd>pgup</kbd> | Older or newer page of 50 rows. |
+| <kbd>esc</kbd> or <kbd>ctrl+k</kbd> | Close Search. |
 
 ### Monitor
 

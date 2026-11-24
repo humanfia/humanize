@@ -1642,6 +1642,23 @@ states where its row's context holds.
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 | 24.1.72 | app | the key of a view | Section 25.1.4 |
+| 24.1.73 | app | `ctrl+b` | the navigator (Section 27.1) |
+| 24.1.74 | app | `ctrl+k` | Search (Section 27.5) |
+| 24.1.75 | navigator | `↑`, `↓` | move along the list |
+| 24.1.76 | navigator, a chat, an epic or a session | `enter` | open it (Section 27.3) |
+| 24.1.77 | navigator, a heading | `enter` | fold or unfold the group |
+| 24.1.78 | navigator | `n`, `N` | a new chat, a new epic (Section 27.4.1) |
+| 24.1.79 | navigator, a row | `p` | pin or unpin |
+| 24.1.80 | navigator, a row | `u` | mark unread or read |
+| 24.1.81 | navigator, a row or a folder | `.` | its menu (Sections 27.4.3 and 27.4.4) |
+| 24.1.82 | navigator | `g` | the next grouping (Section 27.2.3) |
+| 24.1.83 | Search | `↑`, `↓` | move along what was found, round the ends |
+| 24.1.84 | Search | `enter` | open the one moved to (Section 27.3) |
+| 24.1.85 | Search | `tab`, `shift+tab` | next or previous tab |
+| 24.1.86 | Search | `f2`, `f3`, `f4` | next of how it went, of the folders, of the flows |
+| 24.1.87 | Search | `f5` | clear what was typed and the filters |
+| 24.1.88 | Search | `pgdn`, `pgup` | an older page, a newer page |
+| 24.1.89 | Search | `esc` | close Search |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
@@ -1724,7 +1741,148 @@ with `Back`, the keys in cyan.
 
 ## 27. Navigator and Search
 
-This section is reserved for the navigator's view of every workspace's chats, epics and harness sessions, and the Search page. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 27.1. The navigator
+
+**27.1.1** `ctrl+b` MUST be the key of the _navigator_ view, which opens in the navigator zone,
+whose title is `Sidebar` and whose hint is `Sidebar`.
+
+**27.1.2** The navigator MUST be open as the interface opens where the terminal is at least 110
+columns wide, and closed otherwise.
+
+**27.1.3** The navigator MUST list what the sidebar of the web interface lists (Section 3.5 of
+[WEB]) of this machine's daemon: every chat `chat.list` answers, every epic `runs.list` answers,
+and, where `settings.get` answers `harness_sessions` true, the sessions `chat.harness.list` answers
+of each folder not folded, after that folder's chats and epics. It MUST give every workspace
+`workspaces.list` answers a heading, and MUST read nothing off the files of a chat or an epic.
+
+**27.1.4** The navigator MUST read the list again when the interface hears a notice of an epic or
+a chat, and otherwise every 5 seconds, and MUST ask the daemon off the thread that draws.
+
+### 27.2. Groups, marks and order
+
+**27.2.1** The first group MUST be `Waiting for you`, holding every chat that is asking and every
+epic that is asking or waiting, and MUST be left out where there is none. Its heading, the marks of
+its rows and the words that say how they stand MUST be the only pink the navigator draws.
+
+**27.2.2** After it MUST come `Pinned`, holding the rows pinned that do not wait, left out where
+there is none; then the rest, as Section 27.2.3 groups it. Within a group, rows MUST stand newest
+first by when each was last heard of, an epic that is going standing as heard of now.
+
+**27.2.3** The rest MUST be grouped by `Folder`, by `Date` or as `None`, `g` stepping through them
+in that order. By folder: one group a workspace, named by the last part of its path, those an epic
+is going in first, then by their latest row, and the rows of no folder last under `No folder`; a
+folder whose directory is gone MUST say `missing`, and one that is gone and holds nothing MUST NOT
+be listed. By date: `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, `Older`. As none: one
+group, `All`. Grouped other than by folder, the folders MUST stand last as a group `Folders`, each
+with how many rows it has.
+
+**27.2.4** A group MUST show at most 20 rows and then a row `Show {n} more`, on which `enter` shows
+them all.
+
+**27.2.5** A row MUST show a mark, its title on one line, and at its end how it stands in the word
+the web interface's list says it in (`Running`, `Asking`, `Waiting`, `Stopping`; of a chat
+`Running`, `Awaiting input`; of a harness session `Read-only`) or, of one at rest, how long ago it
+was heard of in the web interface's texts (`just now`, `{n}m ago`, `{n}h ago`, else the month and
+day). The mark MUST be pink where it waits on the person, cyan where it is going, the colour of
+success where an epic is done, the colour of failure where it failed, was refused or crashed, and
+dim otherwise.
+
+**27.2.6** A row marked unread MUST show `●` in cyan beside its mark, and a row pinned `▸`. The row
+on the log MUST have its title in cyan. A folded group that holds an unread row MUST show `●` in
+its heading. The row under the cursor MUST be a cyan plane while the keys are in the navigator.
+
+**27.2.7** While the keys are in the navigator, a list read again MUST be drawn without moving any
+row already listed: a row that changed is redrawn where it stands, a row that left is taken out,
+and a new row is put in after the row it would follow. The order of Sections 27.2.1 to 27.2.3 MUST
+be restored when the keys leave, and at once after a change the person made with a key of the
+navigator, the cursor staying on the row it was on.
+
+**27.2.8** What is pinned, what is unread, the grouping and which groups are folded MUST be kept
+in `navigator.json` of the state directory, MUST be read as the navigator opens, and MUST NOT be
+asked of or told to a daemon. A notice of a chat or an epic that is not on the log MUST mark it
+unread, and opening a row MUST mark it read.
+
+### 27.3. Opening a row
+
+**27.3.1** Opening a chat of the workspace the interface is of MUST do what choosing it on
+`/resume` in a chat does, and MUST then give the keys to the editor.
+
+**27.3.2** Opening an epic that a host of the workspace the interface is of goes with MUST attach
+the log to that host. Opening any other epic of this machine MUST open the sheet `/epics` opens on
+entering it, wherever it ran; `esc` on that sheet with nothing said MUST return to where the epic
+was opened from.
+
+**27.3.3** Opening a harness session of the workspace the interface is of whose harness carries a
+copy on MUST adopt it (`chat.harness.adopt`) and open the chat made; one that does not MUST say
+`Read-only. A session of {harness} cannot be continued in a chat.`
+
+**27.3.4** Opening a chat or a harness session of another workspace MUST open nothing and MUST
+say, in the transcript, that it is in that folder and that `hmz` run there opens it; one of no
+folder MUST say that it has none and that the web interface opens it.
+
+**27.3.5** Opening the chat already on the log MUST change nothing but where the keys are. A chat
+the list says no host holds MUST be opened by asking the hosts which holds it, not by taking the
+list's word.
+
+### 27.4. The navigator's keys
+
+**27.4.1** `n` MUST open the view `newchat` where there is one and otherwise do what `/chat` does;
+`N` MUST open the view `newepic` where there is one and otherwise do what `/flow` does.
+
+**27.4.2** `enter` on a heading MUST fold or unfold its group.
+
+**27.4.3** `.` on a row MUST open its menu, in the web interface's words: `Open`; `Pin` or `Unpin`;
+`Mark as read` or `Mark as unread`; of a chat `Rename`, `Fork` (a chat of this workspace), `Copy
+ID`, `Upload`, `Archive` and `Delete`; of an epic `Copy task`, `Copy name`, `Upload` and, where a
+host goes with it, `Stop`; of a harness session `Copy session ID`. `Rename`, `Fork`, `Archive` and
+`Delete` MUST ask the daemon what the same row of `/resume` asks it, `Delete` asking the person
+first; `Upload` MUST ask `chat.backup` or `runs.backup`; `Stop` MUST ask the epic's host to stop
+it.
+
+**27.4.4** `.` on a folder MUST open its menu: `New chat here` and `New epic here` (the workspace
+the interface is of only), `Search here`, `Copy path`, `Collapse` or `Expand`, and, for a folder
+in which `workspaces.list` counts no chat and no epic and says nothing is going, and of which no
+row is listed, `Forget`, which MUST ask first, naming the folder, and then ask `workspaces.forget`.
+
+**27.4.5** What a menu's action came to MUST be said in one line under the list, a refusal in the
+colour of failure.
+
+### 27.5. Search
+
+**27.5.1** `ctrl+k` MUST be the key of the _Search_ view, a page whose title and hint are
+`Search`. It MUST open over whatever has the keys, the editor included, and the same key MUST
+close it.
+
+**27.5.2** Search MUST show, top to bottom: one field; the tabs `All`, `Chats` and `Epics`, the
+chosen one in cyan; the filters `How it went`, `Folder` and `Flow` with what each is set to; a
+heading, `Recents` where nothing narrows the list and `Results` otherwise; what was found, a line
+apiece as Section 27.2.5 draws a row, with its folder and its flow before how it stands; which rows
+are shown of how many; and its keys. The keys MUST stay in the field.
+
+**27.5.3** Search MUST ask this machine's daemon as Section 3.10 of [WEB] states: on `Chats`,
+`chat.list`; on `Epics`, or on `All` with how it went or a flow chosen, `runs.list`; otherwise
+both, read from their first row and cut to the page as one list, newest first. Each call MUST carry
+what was typed as `q`, the folder as `workspace`, and of `runs.list` how it went as `status` and
+the flow as `flow`; a page is 50 rows. Where both are asked, Search MUST NOT turn to a page that
+ends past the 200th row.
+
+**27.5.4** What is typed MUST narrow the list once nothing has been typed for 0.2 seconds, asked
+off the thread that draws; an answer to what is no longer chosen MUST be dropped.
+
+**27.5.5** `tab` and `shift+tab` MUST change the tab, stopping at either end; choosing `Chats` MUST
+clear how it went and the flow, and choosing either of those on `Chats` MUST change the tab to
+`Epics`. `f2`, `f3` and `f4` MUST step how it went (`All`, `Running`, `Done`, `Failed`, `Stopped`,
+`Unfinished`), the folder and the flow, each coming back to all after its last. `f5` MUST clear
+what was typed and the filters and keep the tab.
+
+**27.5.6** `enter` MUST close Search and open the row moved to as Section 27.3 states; `esc` MUST
+close it.
+
+**27.5.7** Where nothing was found, Search MUST say so in the web interface's texts: `Nothing is
+like that.` with what clearing does where something was typed or filtered for, and otherwise that
+there is none yet of the tab's kind.
+
+**27.5.8** `Search here` (Section 27.4.4) MUST open Search with that folder chosen.
 
 ## 28. New chat and the chat's chips
 

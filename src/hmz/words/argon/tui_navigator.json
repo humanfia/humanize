@@ -1,0 +1,25 @@
+{
+ "entries": [
+  {
+   "wants": "message shown when a person presses enter on a chat or harness session listed in the terminal interface's sidebar that belongs to another folder than the one this terminal interface was started in, which it cannot open: say it is in the folder {name} and that running `hmz` in that folder opens it",
+   "where": "one line in the transcript of the terminal interface, one or two short sentences with full stops; keep {name} and `hmz` exactly",
+   "text": "This is in the folder {name}. Run `hmz` in that folder to open it."
+  },
+  {
+   "wants": "question asked before a folder is forgotten from the sidebar's list of folders: forget the folder {name}?",
+   "where": "heading of a small confirmation box in the terminal interface, a short question ending in a question mark; keep {name}",
+   "text": "Forget the folder {name}?"
+  },
+  {
+   "wants": "line under that question saying what forgetting a folder does: the folder leaves this list and what it was set up with is forgotten; nothing in the directory itself is removed",
+   "where": "one or two short sentences with full stops under the question of a confirmation box",
+   "text": "The folder leaves this list and what it was set up with is forgotten. Nothing in the folder itself is removed."
+  },
+  {
+   "wants": "message shown when a person presses enter in the terminal interface's sidebar on a chat that was started in no folder, which the terminal interface cannot open because it carries on only the chats of the folder it was started in: say the chat is in no folder and that the web page opens it",
+   "where": "one line in the transcript of the terminal interface, one or two short sentences with full stops",
+   "text": "This chat has no folder. Open it in the browser."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}
