@@ -326,7 +326,10 @@ def test_the_same_is_asked_through_the_sdk(workspace: Path) -> None:
             assert git.diff("README.md", staged=True).old == b"hello\n"
             head = git.commit("docs: more")
             assert [one.hash for one in git.log(limit=1)] == [head]
-            assert git.status().files == ()
+            # Nothing left to commit but what running the flow compiled, where Python writes it.
+            assert [
+                one.path for one in git.status().files if "__pycache__" not in one.path
+            ] == []
             assert git.snapshots() == ["refs/hmz/snapshots/before"]
             git.rewind("refs/hmz/snapshots/before")
             assert (workspace / "README.md").read_text() == "hello\n"
