@@ -52,7 +52,7 @@ Chats started in `hmz` use `workspace-write`. You cannot change the preset in th
 
 ### From the command line
 
-`hmz chat` has no permission flag. New chats start at `workspace-write`. Run `hmz chat --resume CHAT` to continue a chat with its existing permission.
+New chats start at `workspace-write`. Pass `--permission read-only`, `workspace-write` or `danger-full-access` to `hmz chat start` to start with another. Run `hmz chat set CHAT --permission PERMISSION` to change a chat's permission from its next turn. `hmz chat say CHAT` continues a chat with its existing permission.
 
 ## Read a flow's permissions
 

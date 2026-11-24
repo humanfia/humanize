@@ -1,11 +1,11 @@
 ---
 title: The command line
-description: Run a flow or one chat turn from a script with hmz exec and hmz chat, capture the answer, read the events as JSON, and act on the exit status.
+description: Run a flow or a chat from a script with hmz exec and hmz chat, capture the answer, read the events as JSON, and act on the exit status.
 ---
 
 # The command line
 
-Run flows and chats from scripts, cron, and CI with two non-interactive commands. `hmz exec` runs a flow to completion as a new epic. `hmz chat` sends one message to an agent and prints the answer. Both run in the current directory, start the daemon if needed, and never wait for you at a prompt during a run or a turn.
+Run flows and chats from scripts, cron, and CI with two non-interactive commands. `hmz exec` runs a flow to completion as a new epic. `hmz chat start` and `hmz chat say` send one message to an agent and print the answer. Both run in the current directory, start the daemon if needed, and never wait for you at a prompt during a run or a turn.
 
 ![A terminal: hmz exec runs the goal flow, the agent runs the tests, answers, and the turn's tokens and time are printed](/shots/user-command-line-exec.svg)
 
@@ -36,24 +36,47 @@ Invalid commands fail before any agent starts, printing the reason on one line t
 ## Ask one question
 
 ```sh
-hmz chat -a claude/claude-haiku-4-5 "What does charge() do with an empty cart?"
+hmz chat start -a claude/claude-haiku-4-5 "What does charge() do with an empty cart?"
 ```
 
-`hmz chat` runs one chat turn and exits. It takes no flow, budget, or `--json`. It prints `hmz chat: chat <id>` as the first line on stderr so you can continue the chat later.
+`hmz chat start` starts a chat, runs one turn and exits. It takes no flow or budget. It prints `Chat <id>` as the first line on stderr so you can continue the chat later.
 
 ![A terminal: hmz chat prints the chat's id, then the agent's answer, its tokens and its time](/shots/user-command-line-chat.svg)
 
-| Option | What it does |
-| --- | --- |
-| `-a CLI[@ACCOUNT]/MODEL[:EFFORT]` | The agent. If omitted, a new chat uses the directory's saved agent, or fails if none is saved. |
-| `--resume CHAT` | Send the message as the next turn of an existing chat. It keeps its agent unless you pass `-a`. |
-| `--worktree` | Start the chat in a new git worktree of this directory. Cannot combine with `--resume`. |
-| `-e BACKEND[@RUNTIME][/DIRECTORY]` | Where the agent works. With `--resume`, moves the chat there. |
-| `--list`, `--list --archived` | List this directory's chats, newest first: id, state, title. |
-| `--rename CHAT TITLE`, `--fork CHAT`, `--archive CHAT`, `--unarchive CHAT`, `--delete CHAT` | Manage a chat without taking a turn. See [Organise chats](/user/manage-chats). |
-| `--yes` | Skip confirmation with `--delete`. Required in scripts: without a terminal, `--delete` alone deletes nothing and exits 1. |
+Send the next message with `hmz chat say`:
 
-![A terminal: hmz chat --list prints one line with the chat's id, the state ready and its title](/shots/user-command-line-chat-list.svg)
+```sh
+hmz chat say 20261121T034814.744Z-299560 "And how is it tested?"
+```
+
+In a script, read the id and the answer from one JSON document:
+
+```sh
+id=$(hmz chat start --json -a claude/claude-haiku-4-5 "What does charge() do?" | jq -r .chat)
+hmz chat say --json "$id" "And how is it tested?" | jq -r .answer
+```
+
+| Command | What it does |
+| --- | --- |
+| `hmz chat start [-a AGENT] MESSAGE` | Start a chat and print the answer. Without `-a`, uses the directory's saved agent, or fails if none is saved. |
+| `hmz chat say CHAT MESSAGE` | Send the next message to a chat and print the answer. |
+| `hmz chat list` | List this directory's chats, newest first: id, state, title. |
+| `hmz chat show CHAT` | Print one chat. `--json` gives its `state` for a script to poll. |
+| `hmz chat stop CHAT` | Stop the turn a chat is taking. |
+| `hmz chat rename`, `fork`, `archive`, `unarchive`, `delete` | Manage a chat without taking a turn. See [Organise chats](/user/manage-chats). |
+
+| Option of `start` and `say` | What it does |
+| --- | --- |
+| `--json` | Print one JSON document with `chat`, `answer` and `notes` instead of text. |
+| `--events` | Print each record of the turn as one JSON object per line, then that document. |
+| `--detach` | Return as soon as the message is sent, and print the chat's id. |
+| `--worktree` (`start`) | Start the chat in a new git worktree of this directory. |
+| `-e BACKEND[@RUNTIME][/DIRECTORY]` (`start`) | Where the agent works. Move a chat later with `hmz chat move`. |
+| `--permission` (`start`) | What the agent may change: `read-only`, `workspace-write` or `danger-full-access`. |
+
+Run `hmz chat COMMAND --help` for every argument, example, JSON field and exit status of one command.
+
+![A terminal: hmz chat list prints one line with the chat's id, its state and its title](/shots/user-command-line-chat-list.svg)
 
 ## Capture the answer
 
@@ -99,7 +122,7 @@ A redirected stderr is plain. Set `FORCE_COLOR=1` for CI logs that render colour
 
 `hmz exec` marks you as away for the entire run. If the flow asks a question, Humanize answers immediately with an empty response or the form's defaults, and the run continues. See [Answer a flow's questions](/user/questions).
 
-`hmz chat` runs one turn, keeps the chat, and exits. Pass `--resume` to continue it.
+`hmz chat start` and `hmz chat say` run one turn, keep the chat, and exit. Run `hmz chat say` to continue it.
 
 ## Start an epic and come back to it
 
@@ -137,8 +160,9 @@ Signals already ignored at startup stay ignored, such as SIGHUP under `nohup`. I
 | Status | `hmz exec` | `hmz chat` |
 | --- | --- | --- |
 | 0 | The flow returned, or its budget ran out. | The turn finished. |
-| 1 | The flow failed, or the daemon was unreachable. | The turn failed, the daemon was unreachable, or a delete was not confirmed. |
-| 2 | The command was refused before starting. | The command or chat was refused. |
+| 1 | The flow failed, or the daemon was unreachable. | The turn failed, the daemon refused the request, or a delete was not confirmed. |
+| 2 | The command was refused before starting. | The command line could not be read. |
+| 3 | | The daemon was unreachable. |
 | 128 + N | Signal N stopped it. | Signal N ended it. |
 
 Exhausting the budget is a normal exit. `hmz exec` prints `hmz exec: stopped -- <reason>` to stderr and exits 0.
@@ -159,4 +183,4 @@ No option of `hmz exec` or `hmz chat` reads from an environment variable; pass e
 
 After the epic ends, `hmz exec` waits up to 60 seconds for backups to finish, then leaves a slow one and says so on stderr. Pass `--backup none` to skip them. A cost limit cannot stop a model with no listed price; `hmz exec` warns on stderr and continues.
 
-`hmz chat` rejects messages that match Humanize's `/` commands or a `$` flow name; run flows with `hmz exec`. The agent's own `/`, `$`, `!` and `@` lines work as in any chat; see [Commands, skills and files in a chat](/user/chat-input). For all flags, see the [CLI reference](/reference/cli). For a complete example, see [Run a flow every night in CI](/tutorials/nightly-in-ci).
+`hmz chat say` rejects messages that match Humanize's `/` commands or a `$` flow name; run flows with `hmz exec`. The agent's own `/`, `$`, `!` and `@` lines work as in any chat; see [Commands, skills and files in a chat](/user/chat-input). For all flags, see the [CLI reference](/reference/cli). For a complete example, see [Run a flow every night in CI](/tutorials/nightly-in-ci).

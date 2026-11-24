@@ -65,6 +65,14 @@ class Family:
         given = {name: value for name, value in params.items() if value is not None}
         return self._client.call(method, given, idem=idem, seconds=wait)
 
+    def _listens(self) -> None:
+        """Has the client hear what a subscription about to be opened will be told.
+
+        For before the call that opens one: a daemon may speak before that call has
+        returned, and what a client is told while it has no listener is told to nobody.
+        """
+        _hub(self._client)
+
     def _heard(self, method: str, sub: str) -> Subscription:
         """What one subscription is told from here on, and what it was told before this."""
         return Subscription(self._client, method, sub)

@@ -2,12 +2,13 @@
 
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
-    hmz chat -a claude/MODEL:high "what does this repository do?"
+    hmz chat start -a claude/MODEL:high "what does this repository do?"
 
-A few commands anybody types -- running a flow, saying one message to an agent, serving the web
-interface, and moving Humanize itself to its newest release -- and everything else Humanize
-keeps is walked at the prompt: a listing with a noun in it for every store would be a second
-interface to learn, and the one with the sheets in it is the interface.
+A few commands anybody types -- running a flow, serving the web interface, and moving Humanize
+itself to its newest release -- and everything else Humanize keeps is walked at the prompt, or
+asked of the daemon by a declared command (`hmz.cli.commands`): a listing with a noun in it for
+every store would be a second interface to learn, and the one with the sheets in it is the
+interface.
 
 The other command in the listing is `hmz internal`, which is the six lines Humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
@@ -20,7 +21,7 @@ A command imports what it needs when it is the one asked for, and no earlier: `h
 not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `chat.py`, `web.py`, `update.py`, and
+one of them costs nothing for the others -- which is what `web.py`, `update.py`, and
 `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
 The other three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process
 becomes. `exec` has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`,
@@ -444,20 +445,6 @@ def _hook(argv: list[str]) -> int:
     return hook(argv)
 
 
-def _chat(argv: list[str]) -> int:
-    """Says one message to an agent in this directory, and prints what it answered.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero once the turn is done; one where it failed or the daemon could not be reached.
-    """
-    from .chat import chat
-
-    return chat(argv)
-
-
 def _web(argv: list[str]) -> int:
     """Serves this directory's runs to a browser on this machine, until interrupted.
 
@@ -692,7 +679,7 @@ INTERNAL = {
 }
 
 #: Each command, as what carries it out and the line a listing shows it as. Six are for
-#: anybody: running a flow in a directory, saying one message to an agent there, serving the
+#: anybody: running a flow in a directory, serving the
 #: web interface, running, reaching and installing this machine's daemon, serving a relay daemons
 #: and devices meet through, and moving Humanize itself to its newest release -- everything
 #: else Humanize keeps is walked at the prompt rather than typed, or asked of the daemon by a
@@ -703,7 +690,6 @@ INTERNAL = {
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
-    "chat": (_chat, "say one message to an agent in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
     "daemon": (_daemon, "run, reach and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),

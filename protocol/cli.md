@@ -78,9 +78,11 @@ It is normative. It is cited by the tag [CLI].
   - [14.3. Exit](#143-exit)
 - [15. `hmz chat`](#15-hmz-chat)
   - [15.1. Synopsis](#151-synopsis)
-  - [15.2. Output](#152-output)
-  - [15.3. Exit](#153-exit)
+  - [15.2. A turn: `start` and `say`](#152-a-turn-start-and-say)
+  - [15.3. Exit of `start` and `say`](#153-exit-of-start-and-say)
   - [15.4. The chats written down](#154-the-chats-written-down)
+  - [15.5. A chat where it is held](#155-a-chat-where-it-is-held)
+  - [15.6. Harness sessions](#156-harness-sessions)
 - [16. Declared commands](#16-declared-commands)
 - [17. `hmz devices`](#17-hmz-devices)
   - [17.1. Synopsis](#171-synopsis)
@@ -228,7 +230,6 @@ epilog MUST each be at most thirty words long.
 
 ```text
 exec      run an agent flow in this directory
-chat      say one message to an agent in this directory
 web       open this machine's epics in a browser on it
 daemon    run, reach and install this machine's daemon
 relay     relay daemons and the devices that reach them
@@ -314,8 +315,8 @@ or after it has ended, as Section 7.15.5 specifies.
 `coganchor internal cred` MUST exit with the statuses Section 5.2.2 to Section 5.2.6 assign to the
 `hmz internal` command each stands for (Section 11.2.12), in the same cases.
 
-**5.2.10** `hmz chat` MUST exit with status 128 plus the signal number where a signal ended it, as
-Section 15.3.5 specifies.
+**5.2.10** `hmz chat start` and `hmz chat say` MUST exit with status 128 plus the signal number
+where a signal ended them, as Section 15.3.5 specifies.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -1297,121 +1298,202 @@ machine, and MUST NOT start or reach a daemon.
 ### 15.1. Synopsis
 
 ```text
-hmz chat [-a <agent>] [-e <env>] [--resume <chat> | --worktree] [--] <message>
-hmz chat --list [--archived]
-hmz chat --rename <chat> <title>
-hmz chat --fork <chat>
-hmz chat --archive <chat>
-hmz chat --unarchive <chat>
-hmz chat --delete <chat> [--yes]
+hmz chat start [-a <agent>] [-e <env>] [-w <dir> | --no-folder] [--worktree]
+               [--permission <permission>] [--prefer native|flow] [--remember]
+               [--detach] [--events] [--] <message>
+hmz chat say <chat> [--detach] [--events] [--] <message>
+hmz chat list [-w <dir> | --all] [--archived] [-q <text>] [--limit <n>] [--offset <n>]
+hmz chat show <chat> [--trace]
+hmz chat rename <chat> <title>
+hmz chat fork <chat>
+hmz chat archive <chat>
+hmz chat unarchive <chat>
+hmz chat delete <chat> [-y]
+hmz chat stop <chat>
+hmz chat set <chat> [--permission <permission>] [--prefer native|flow]
+hmz chat move <chat> <env>
+hmz chat agent <chat> <agent>
+hmz chat commands <chat>
+hmz chat backup <chat> [--to <target>]...
+hmz chat harness list [-w <dir>] [--limit <n>] [--offset <n>]
+hmz chat harness show <harness> <session> [-w <dir>] [--trace]
+hmz chat harness adopt <harness> <session> [-w <dir>] [-a <agent>]
 ```
 
-**15.1.1** `hmz chat` MUST take one turn of a chat (Section 8 of [CORE]) in the current directory as
-its workspace, with nobody at a prompt: it MUST start the chat on a new chat slot of that workspace
-on this machine's daemon (`chat.start` with `slot` `chat:`, Section 4.25 of [DAEMON]), starting the
-daemon where none runs, follow its messages (`epic.attach`) until the turn is done, and then end the
-chat with an empty next message (Section 8.4.8 of [CORE]).
+**15.1.1** `hmz chat` MUST be a group of declared commands (Section 16) with the summary `start chats
+with an agent, send messages, and manage them`, holding the commands of this synopsis in this order,
+`harness` being a group of three under it. `hmz chat` MUST NOT read or write a chat's files: each
+command MUST do what it does by the methods of Section 4.25 of [DAEMON] this section names for it,
+through `Client.chats` (Section 4.24 of [PYTHON]).
 
-**15.1.2** `-a` and `--agent` MUST be the same option, MUST take one agent written as the text of an
-`-a` item of Section 7.4 after `<role>=`, and, where given more than once, the last occurrence MUST
-be the one used.
+**15.1.2** `<chat>` MUST be a chat's id, which is the name of its directory (Section 8.2.12 of
+[CORE]) and what `chat.list` answers as `id`; `hmz chat` MUST NOT name a chat an epic.
 
-**15.1.3** Without `-a`, `hmz chat` MUST use the chat agent the workspace remembers (Section 3.5.1.9
-of [FILES]), and MUST refuse where none is remembered, saying to give one with `-a`.
+**15.1.3** `<agent>` MUST be one agent written as the text of an `-a` item of Section 7.4 after
+`<role>=`, `<env>` one env written as the text of an `-e` item of Section 7.5 after `<role>=`, and
+`<permission>` one of `read-only`, `workspace-write` and `danger-full-access`.
 
-**15.1.4** `--resume <chat>` MUST carry on the chat of that id in this workspace (Section 8.7 of
-[CORE]; `chat.start` with `resume` the id, Section 4.25 of [DAEMON]), with `<message>` as its next
-turn and with its own agent unless `-a` is given. `<chat>` MUST be the id of a chat, which is the
-name of its directory; `hmz chat` MUST NOT name a chat an epic, and MUST NOT carry on an epic.
+**15.1.4** `-w` and `--workspace` MUST be the same option and MUST name the workspace a command is
+about; without it the workspace MUST be the current directory, with every link followed. A `<dir>`
+that begins with `~` MUST be given to the daemon as written.
 
-**15.1.5** Without an option of Section 15.4, `<message>` MUST be exactly one positional argument
-and MUST NOT be empty; a message that begins with `-` MUST be given after `--`.
+**15.1.5** `<message>` MUST be exactly one positional argument; a message that begins with `-` MUST
+be given after `--`.
 
-**15.1.6** `<message>` MUST be served as Section 8.9 of [CORE] states, except that a `$` line that
-names a flow and a name Section 8.9.7 of [CORE] keeps MUST be refused, naming it.
+**15.1.6** Where a command takes a chat no host holds and its method takes a workspace and a slot
+(`chat.say`, `chat.stop`, `chat.set`, `chat.commands`), it MUST first carry the chat on
+with nothing said (`chat.start` with `resume` the id and an empty `task`, Section 4.25.1.9 of
+[DAEMON]) and MUST ask the host that then holds it.
 
-**15.1.7** `hmz chat` MUST NOT change the remembered setup of any workspace.
+### 15.2. A turn: `start` and `say`
 
-**15.1.8** `--worktree` MUST start the chat with its assistant working in a new git worktree of the
-workspace (`chat.start` with `worktree` true, Section 4.25 of [DAEMON]). `--worktree` together with
-`--resume` MUST be refused before anything is asked of the daemon: a chat carried on works where it
-worked. Where the workspace is no git repository, the refusal of `chat.start` MUST be written as
-Section 15.3.2 states.
+**15.2.1** `hmz chat start` MUST start a chat (Section 8 of [CORE]) on a new chat slot of the
+workspace (`chat.start` with `slot` `chat:`), `<message>` being its first message, with `-a` as
+`agent`, `-e` as `env`, `--permission` as `permission`, `--prefer` as `prefer`, `--worktree` as
+`worktree` `true` and `--remember` as `remember` `true`, each where it is given.
 
-**15.1.9** `-e` and `--env` MUST be the same option, MUST take one env written as the text of an
-`-e` item of Section 7.5 after `<role>=`, and MUST start the chat with its assistant working there
-(`chat.start` with `env`, Section 4.25.1.10 of [DAEMON]); with `--resume`, the chat MUST be carried
-on there, which moves it (Section 8.3.16 of [CORE]). A refusal of `chat.start` MUST be written as
-Section 15.3.2 states.
+**15.2.2** Without `-a`, `hmz chat start` MUST use the chat agent the workspace remembers
+(`settings.get`, Section 3.5.1.9 of [FILES]), and MUST refuse where none is remembered, and with
+`--no-folder`, saying to name one with `-a`. Without `--remember` it MUST NOT change the remembered
+setup of any workspace.
 
-### 15.2. Output
+**15.2.3** With `--no-folder`, `hmz chat start` MUST start the chat in a folderless workspace made
+for it alone (`epic.attach` with `scratch` `true` and `slot` `chat:`, Section 4.7.1.3 of [DAEMON],
+then `chat.start` on the workspace and slot it answers), and MUST let that host go as a frontend
+once the chat is started. `--no-folder` with `--worktree` MUST be refused before anything is asked
+of the daemon.
 
-**15.2.1** `hmz chat` MUST draw the turn on standard error and write its answer to standard output
-as Section 7.12.1 to Section 7.12.5 state for `hmz exec`.
+**15.2.4** `hmz chat say` MUST say `<message>` to the chat as its next line (`chat.say`) on the host
+that holds it (Section 15.1.6). A `<message>` of white space alone MUST be refused before anything is
+asked of the daemon.
 
-**15.2.2** Once `chat.start` is answered, `hmz chat` MUST write `hmz chat: chat <id>` to standard
-error, `<id>` being the id of the chat started or carried on, which `--resume` and the options of
-Section 15.4 take.
+**15.2.5** Unless `--detach` is given, `start` and `say` MUST then follow the chat's host as one
+more frontend (`epic.attach`) until the turn is done, the chat has ended or its host has gone, and
+MUST then let the host go (`epic.detach`). The turn is done once the line has been taken -- a turn
+opened or answered after it, or the chat asked for its next line -- and the chat is between turns.
+`say` MUST attach before it says the line, with `replay` `false`, and MUST NOT take for the turn
+anything the host said before it said that the line was taken (an `answered` record, a `said`
+record of that text, the line among `given` of the `waiting` snapshot, or an `unheld` record of it).
 
-### 15.3. Exit
+**15.2.6** Once the turn is done, a command that started the chat's host -- `start`, and `say` to a
+chat no host held -- MUST end the chat there with an empty next message (Section 8.4.8 of [CORE])
+and MUST wait, for at most ten seconds, until no host holds the chat. `say` to a chat a host held
+already MUST leave that host as it is.
 
-**15.3.1** `hmz chat` MUST exit with status 0 once the turn is done.
+**15.2.7** Without `--json` and `--events`, `start` and `say` MUST draw the turn on standard error
+and write its answer to standard output as Section 7.12.1 to Section 7.12.5 state for `hmz exec`;
+what a `!` command the chat ran printed MUST be written to standard output, and what the chat says
+beside an answer -- why it refused a line, that its conversation is a new one -- to standard error.
+`start` MUST first write `Chat <id>` to standard error once `chat.start` is answered.
 
-**15.3.2** Every refusal before the chat starts MUST be written to standard error as `hmz chat:
-error: <reason>` and MUST exit with status 2; a refusal of `chat.start` MUST be written so, its
-message as `<reason>`.
+**15.2.8** With `--json`, `start` and `say` MUST write the one document `{"chat", "workspace",
+"slot", "answer", "notes", "detached"}`: the chat's id, its workspace, the slot of the host that held
+it, what the last `result` of the turn said (`""` for none), what the chat said beside an answer, and
+whether `--detach` was given.
 
-**15.3.3** Where the turn fails, `hmz chat` MUST write what the harness said to standard error and
-exit with status 1 (Section 8.4.9 of [CORE]).
+**15.2.9** With `--events`, `start` and `say` MUST write each history record of the turn (Section
+4.9.2 of [DAEMON]) to standard output as it arrives, one JSON object a line, then the document of
+Section 15.2.8 as the last line, and MUST otherwise behave as with `--json`; this is the one
+exception to Section 16.7.
 
-**15.3.4** Where the daemon cannot be reached or started, `hmz chat` MUST write and exit as Section
-7.1.9 states for `hmz exec`.
+**15.2.10** With `--detach`, `start` and `say` MUST return once the line is said, attaching to no
+host and ending none; without `--json` they MUST write the chat's id to standard output.
 
-**15.3.5** On `SIGINT`, `SIGTERM` or `SIGHUP`, `hmz chat` MUST leave the chat to its host (Section
-8.8.6 of [CORE]) and exit with status 128 plus the number of the signal.
+### 15.3. Exit of `start` and `say`
+
+**15.3.1** `start` and `say` MUST exit with status 0 once the turn is done, or the chat ended without
+failing.
+
+**15.3.2** Where the turn failed -- a `failed` event, an ending of `failed` or `crashed`, or a host
+that went -- they MUST exit with status 1 and MUST write what the harness said, else why the chat
+ended: as Section 16.8 states without `--json`, and with it as the document `{"error": {"code": 0,
+"message"}, "chat", "workspace", "slot"}` (Section 8.4.9 of [CORE]).
+
+**15.3.3** What the daemon refuses MUST be written and exit as Section 16 states; where the session
+with the daemon ends while the turn is followed, or under a call of theirs (the error 503 of
+Section 4.21.7 of [PYTHON]), they MUST exit with status 3 as Section 16 states for a daemon that
+cannot be reached.
+
+**15.3.4** `start` and `say` MUST NOT stop a turn: `hmz chat stop` does.
+
+**15.3.5** On `SIGINT`, `SIGTERM` or `SIGHUP`, `start` and `say` MUST leave the chat to its host
+(Section 8.8.6 of [CORE]), ending no host, and exit with status 128 plus the number of the signal;
+a signal ignored when the command started MUST stay ignored.
 
 ### 15.4. The chats written down
 
-**15.4.1** `--list`, `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete` MUST be
-mutually exclusive and MUST take no turn of a chat; each together with `-a`, `-e`, `--resume` or
-`--worktree`, a positional argument with any of them but `--rename`, `--archived` without `--list`
-and `--yes` without `--delete` MUST each be a usage error.
+**15.4.1** `hmz chat list` MUST call `chat.list` with the workspace -- with none under `--all` --
+`--archived` as `archived` `true`, `-q` as `q`, `--limit` and `--offset`, and MUST write one line
+per chat, in the daemon's order: its id, its `state` (Section 4.25.5.3 of [DAEMON]) and its title
+with white space runs collapsed and cut to 60 characters, in columns. Its document MUST be
+`chat.list`'s result.
 
-**15.4.2** Each MUST be asked of this machine's daemon by the method of Section 4.25 of [DAEMON]
-named for it, starting the daemon where none runs, `<chat>` being a chat's id; `hmz chat` MUST NOT
-read or write a chat's files for any of them.
+**15.4.2** `hmz chat show <chat>` MUST call `chat.get`, with `trace` `true` under `--trace`, and MUST
+write one line per field that says something, its name and its value: `id`, `title`, `state`,
+`agent`, `model`, `permission`, `env`, `workdir`, `workspace`, `began`, `updated`, `archived`,
+`slot`, `prefer`, `forked`, `adopted` and `task`; then, under `--trace`, for each session of the
+trace an empty line, a line naming it and the name of each of its actions, indented. Its document
+MUST be `chat.get`'s result.
 
-**15.4.3** `hmz chat --list` MUST write to standard output one line per chat of the current
-workspace that is not archived (`chat.list` with `workspace`), newest first: its id, how it stands
-and its title with white space runs collapsed and cut to 60 characters, separated by two spaces.
-How it stands MUST be its state (Section 4.25.5.3 of [DAEMON]) where that is `turn`, `asking` or
-`failed`, and `ready` otherwise, `going` and `resting` alike (Section 8.5.3 of [CORE]). With `--archived` it MUST write the archived chats alone.
+**15.4.3** `rename`, `archive`, `unarchive` and `agent` MUST call the method of their name
+(`chat.rename` with `title`, `chat.agent` with `agent`) and MUST write the chat's line as Section
+15.4.1 states it, as the chat then stands; the document of each MUST be the chat row answered.
 
-**15.4.4** `hmz chat --rename <chat> <title>` MUST give the chat that title (`chat.rename`),
-`<title>` being the one positional argument and saying something, else a usage error; `--archive
-<chat>` MUST archive the chat (`chat.archive`) and `--unarchive <chat>` MUST put it back
-(`chat.unarchive`). Each MUST write the chat's line as Section 15.4.3 states it, as the chat then
-stands.
+**15.4.4** `hmz chat fork <chat>` MUST call `chat.fork` and write the id of the new chat; its
+document MUST be `{"chat": <id>}`.
 
-**15.4.5** `hmz chat --fork <chat>` MUST fork the chat (`chat.fork`) and write the id of the new
-chat to standard output.
+**15.4.5** `hmz chat delete <chat>` MUST delete the chat (`chat.delete`), write nothing to standard
+output without `--json`, and the document `{"deleted": <id>}` with it. Without `-y` or `--yes` it
+MUST first ask on standard error, naming the chat by its line of Section 15.4.1 (`chat.get`) and
+saying that it cannot be brought back, and MUST delete only where `y` or `yes` is then read from
+standard input, compared without regard to case; where standard input is not a terminal, and under
+`--json`, it MUST read nothing and refuse, saying to pass `--yes`. A chat not deleted for want of a
+yes MUST be said and MUST exit with status 1.
 
-**15.4.6** `hmz chat --delete <chat>` MUST delete the chat (`chat.delete`) and write nothing to
-standard output. Without `--yes` it MUST first ask on standard error, naming the chat by its line of
-Section 15.4.3 (`chat.get`) and saying that it cannot be brought back, and MUST delete only where
-`y` or `yes` is then read from standard input, compared without regard to case; where standard
-input is not a terminal it MUST read nothing and say to give `--yes`. A chat not deleted for want of
-a yes MUST be said on standard error and MUST exit with status 1.
+**15.4.6** `hmz chat backup <chat>` MUST call `chat.backup`, with each `--to` as `to` where any is
+given, and MUST write each target the backup was queued for, a line apiece; its document MUST be
+`{"queued": [<target>]}`.
 
-**15.4.7** Each MUST exit with status 0 once done; what the daemon refuses MUST be written and exit
-as Section 15.3.2 states, and a daemon that cannot be reached or started as Section 15.3.4 states.
+### 15.5. A chat where it is held
+
+**15.5.1** `hmz chat stop <chat>` MUST call `chat.stop` and write `Stopped`; its document MUST be
+`{"stopped": <id>}`.
+
+**15.5.2** `hmz chat set <chat>` MUST call `chat.set` with `--permission` as `permission` and
+`--prefer` as `prefer`, each where it is given, then `chat.commands`, and MUST write the chat's
+`permission`, `prefer` and `prefer_from` as they then are, a line apiece; its document MUST be
+`{"chat", "permission", "prefer", "prefer_from"}`.
+
+**15.5.3** `hmz chat move <chat> <env>` MUST call `chat.move` on the host that holds the chat and
+write the env it answers; where no host holds the chat it MUST instead carry the chat on in that
+env with nothing said (`chat.start` with `resume`, `env` and an empty `task`, Section 4.25.1.10 of
+[DAEMON]) and write the chat's `env` as `chat.get` then answers it. Its document MUST be `{"chat",
+"env"}`.
+
+**15.5.4** `hmz chat commands <chat>` MUST call `chat.commands` and write one line per entry: its
+sigil and name, its `source` and its `about`, in columns; its document MUST be `chat.commands`'s
+result.
+
+### 15.6. Harness sessions
+
+**15.6.1** `hmz chat harness list` MUST call `chat.harness.list` with the workspace, `--limit` and
+`--offset`, and MUST write one line per session: its harness, its id, when it was last written and
+its title, collapsed and cut as a chat's is, in columns. Its document MUST be `chat.harness.list`'s
+result.
+
+**15.6.2** `hmz chat harness show <harness> <session>` MUST call `chat.harness.get`, with `trace`
+`true` under `--trace`, and MUST write the session's row a field a line, then its trace as Section
+15.4.2 states; its document MUST be the method's result.
+
+**15.6.3** `hmz chat harness adopt <harness> <session>` MUST call `chat.harness.adopt`, with `-a` as
+`agent` where it is given, and write the id of the new chat; its document MUST be `{"chat": <id>}`.
 
 ## 16. Declared commands
 
 **16.1** A _declared command_ is a command written as one declaration: its name, its summary, what it
 takes, example lines, what it prints, the fields of its JSON document, its exit statuses and the
-methods of [OPENRPC] it calls. Section 10 and Section 17 onwards specify the declared commands;
-`exec`, `web`, `daemon`, `relay`, `update` and `internal` are not declared commands.
+methods of [OPENRPC] it calls. Section 10, Section 15 and Section 17 onwards specify the declared
+commands; `exec`, `web`, `daemon`, `relay`, `update` and `internal` are not declared commands.
 
 **16.2** A declared command MUST reach a daemon only as a client of it, through the `Client` of
 Section 4.21 of [PYTHON] with `kind` `cli`, and MUST NOT read or write what a daemon keeps by any

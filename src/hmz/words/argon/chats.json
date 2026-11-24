@@ -1,0 +1,865 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz chat`: start chats with an agent, send them messages, and manage them",
+   "where": "command summary in a --help listing",
+   "text": "start chats with an agent, send messages, and manage them"
+  },
+  {
+   "wants": "paragraph for `hmz chat`: a chat is one conversation with one agent in a folder, kept by the daemon under an id; `hmz chat start` begins one and `hmz chat say` sends the next message, each printing the agent's answer; the other commands take the chat's id. Keep the backticks.",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "A chat is one conversation with one agent in a folder, kept by the daemon under an id. `hmz chat start` and `hmz chat say` each print the agent's answer."
+  },
+  {
+   "wants": "summary of `hmz chat start MESSAGE`: start a chat with a first message and print the agent's answer",
+   "where": "command summary in a --help listing",
+   "text": "start a chat and print the agent's answer"
+  },
+  {
+   "wants": "paragraph for `hmz chat start`: starts a chat in the current folder, sends MESSAGE as its first message and waits until the agent has answered; a failed turn exits with status 1; a signal leaves the chat going in the daemon. Keep MESSAGE in capitals.",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "Starts a chat in the current folder, sends MESSAGE and waits for the answer. A failed turn exits with status 1; a signal leaves the chat going in the daemon."
+  },
+  {
+   "wants": "the MESSAGE argument of `hmz chat start`: the chat's first message; put `--` before a message that starts with a dash; keep the backticks",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the chat's first message; put `--` before a message that starts with a dash"
+  },
+  {
+   "wants": "the -a/--agent AGENT option of `hmz chat start`: the agent to talk to, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]; when not given, the agent remembered for the folder. Keep HARNESS[@ACCOUNT]/MODEL[:EFFORT] exactly.",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "the agent to talk to, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]; when not given, the agent remembered for the folder"
+  },
+  {
+   "wants": "the -e/--env ENV option of `hmz chat start`: the environment the agent works in, written BACKEND[@RUNTIME][/DIRECTORY]; when not given, the folder itself. Keep BACKEND[@RUNTIME][/DIRECTORY] exactly.",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "the environment the agent works in, written BACKEND[@RUNTIME][/DIRECTORY]; when not given, the folder itself"
+  },
+  {
+   "wants": "the -w/--workspace DIR option of `hmz chat start`: the folder the chat is of; when not given, the current directory",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "the folder the chat is of; when not given, the current directory"
+  },
+  {
+   "wants": "the --no-folder switch of `hmz chat start`: start the chat in no folder; the daemon makes a directory for this chat alone",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "start the chat in no folder; the daemon makes a directory for this chat alone"
+  },
+  {
+   "wants": "the --permission option of `hmz chat start` (read-only, workspace-write, danger-full-access): what the agent may change; `workspace-write` when not given; keep the backticks",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "what the agent may change; `workspace-write` when not given"
+  },
+  {
+   "wants": "the --prefer option (native, flow): which one a `$name` line runs when both a skill of the harness (`native`) and a flow (`flow`) have that name; keep the backticks",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "which one a `$name` line runs when both a skill of the harness (`native`) and a flow (`flow`) have that name"
+  },
+  {
+   "wants": "the --remember switch of `hmz chat start`: remember the agent for this folder, so that the next chat started here without `-a` uses it; keep the backticks",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "remember the agent for this folder, so that the next chat started here without `-a` uses it"
+  },
+  {
+   "wants": "the --detach switch of `hmz chat start` and `hmz chat say`: return as soon as the message is sent, without waiting for the answer; read the answer later with `hmz chat show`; keep the backticks",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "return as soon as the message is sent, without waiting for the answer; read the answer later with `hmz chat show`"
+  },
+  {
+   "wants": "the --events switch of `hmz chat start` and `hmz chat say`: print each record of the turn as one JSON object per line while it happens, and the final JSON document as the last line",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "print each record of the turn as one JSON object per line while it happens, and the final JSON document as the last line"
+  },
+  {
+   "wants": "what `hmz chat start` and `hmz chat say` print as text: the agent's answer on standard output; the chat's id and the turn as it goes on standard error",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints the agent's answer on standard output, and the chat's id and the turn as it goes on standard error."
+  },
+  {
+   "wants": "JSON field chat: the chat's id, which the other `hmz chat` commands take; also present beside `error` when the turn failed; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's id, which the other `hmz chat` commands take; also present beside `error` when the turn failed"
+  },
+  {
+   "wants": "JSON field workspace: the folder the chat is of, as an absolute path",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the folder the chat is of, as an absolute path"
+  },
+  {
+   "wants": "JSON field slot: the slot of the host that holds the chat",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the slot of the host that holds the chat"
+  },
+  {
+   "wants": "JSON field answer: what the agent answered; empty with `--detach`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the agent answered; empty with `--detach`"
+  },
+  {
+   "wants": "JSON field notes: what the chat said beside the answer, such as why it refused the message",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the chat said beside the answer, such as why it refused the message"
+  },
+  {
+   "wants": "JSON field detached: whether the command returned without waiting for the answer",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the command returned without waiting for the answer"
+  },
+  {
+   "wants": "exit status 129: a hangup (SIGHUP) ended the command; the chat goes on in the daemon",
+   "where": "meaning of one exit status in the Exit codes section of --help, lower case start, no full stop",
+   "text": "a hangup (SIGHUP) ended the command; the chat goes on in the daemon"
+  },
+  {
+   "wants": "exit status 130: an interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon",
+   "where": "meaning of one exit status in the Exit codes section of --help, lower case start, no full stop",
+   "text": "an interrupt (ctrl+c, SIGINT) ended the command; the chat goes on in the daemon"
+  },
+  {
+   "wants": "exit status 143: a termination signal (SIGTERM) ended the command; the chat goes on in the daemon",
+   "where": "meaning of one exit status in the Exit codes section of --help, lower case start, no full stop",
+   "text": "a termination signal (SIGTERM) ended the command; the chat goes on in the daemon"
+  },
+  {
+   "wants": "example: start a chat in this folder and print the agent's answer",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "start a chat in this folder and print the agent's answer"
+  },
+  {
+   "wants": "example: start a chat from a script and keep its id for `hmz chat say`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "start a chat from a script and keep its id for `hmz chat say`"
+  },
+  {
+   "wants": "example: start a chat in a new git worktree of the folder, with an agent that may only read",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "start a chat in a new git worktree of the folder, with an agent that may only read"
+  },
+  {
+   "wants": "example: start a chat without waiting, and print its id",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "start a chat without waiting, and print its id"
+  },
+  {
+   "wants": "summary of `hmz chat say CHAT MESSAGE`: send the next message to a chat and print the agent's answer",
+   "where": "command summary in a --help listing",
+   "text": "send the next message to a chat and print the answer"
+  },
+  {
+   "wants": "paragraph for `hmz chat say`: sends MESSAGE as the chat's next turn and waits until the agent has answered; a chat that is resting is carried on first; a failed turn exits with status 1. Keep MESSAGE in capitals.",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "Sends MESSAGE as the chat's next turn and waits until the agent has answered. A chat that is resting is carried on first; a failed turn exits with status 1."
+  },
+  {
+   "wants": "the CHAT argument of every `hmz chat` command: the chat's id, as `hmz chat list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the chat's id, as `hmz chat list` prints it"
+  },
+  {
+   "wants": "the MESSAGE argument of `hmz chat say`: the next message; put `--` before a message that starts with a dash; keep the backticks",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the next message; put `--` before a message that starts with a dash"
+  },
+  {
+   "wants": "example: send a message from a script and read the answer out of the JSON document with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "send a message from a script and read the answer out of the JSON document with jq"
+  },
+  {
+   "wants": "example: follow the turn as JSON lines, one record per line",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "follow the turn as JSON lines, one record per line"
+  },
+  {
+   "wants": "refusal of `hmz chat say` with an empty message: the message is empty, a turn starts with something said",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "The message is empty; a turn starts with something said."
+  },
+  {
+   "wants": "refusal of `hmz chat start` with no `-a` where the folder remembers no agent: no agent is remembered for this folder; name one with `-a`. Keep the backticks.",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "No agent is remembered for this folder; name one with `-a`."
+  },
+  {
+   "wants": "line printed on standard error once a chat has started, giving its id so it can be passed to `hmz chat say`: Chat {id}. Keep {id}, no full stop.",
+   "where": "one line on standard error, a label and the id, no full stop",
+   "text": "Chat {id}"
+  },
+  {
+   "wants": "what `hmz chat start` says when the turn ended without the harness saying why: the turn failed",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "The turn failed."
+  },
+  {
+   "wants": "summary of `hmz chat list`: list the chats of this folder, newest first",
+   "where": "command summary in a --help listing",
+   "text": "list the chats of this folder, newest first"
+  },
+  {
+   "wants": "the -w/--workspace DIR option of `hmz chat list`: the folder whose chats are listed; when not given, the current directory",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "the folder whose chats are listed; by default, the current directory"
+  },
+  {
+   "wants": "the --all switch of `hmz chat list`: list the chats of every folder",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "list the chats of every folder"
+  },
+  {
+   "wants": "the --archived switch of `hmz chat list`: list the archived chats instead of the others",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "list the archived chats instead of the others"
+  },
+  {
+   "wants": "the -q/--search TEXT option of `hmz chat list`: only the chats whose title, first message or id contains this text",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "only the chats whose title, first message or id contains this text"
+  },
+  {
+   "wants": "the --limit N option of a listing: how many to list at most, up to 200",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "how many to list at most, up to 200"
+  },
+  {
+   "wants": "the --offset N option of a listing: how many of the newest to skip",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "how many of the newest to skip"
+  },
+  {
+   "wants": "what `hmz chat list` prints as text: one line per chat: id, state, title",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "One line per chat: id, state, title."
+  },
+  {
+   "wants": "what `hmz chat rename`, `archive`, `unarchive` and `agent` print as text: the chat's line, as `hmz chat list` prints it; keep the backticks",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "The chat's line, as `hmz chat list` prints it."
+  },
+  {
+   "wants": "JSON field chats: the chats, newest first",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chats, newest first"
+  },
+  {
+   "wants": "JSON field total: how many there are in all, beyond this page too",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many there are in all, beyond this page too"
+  },
+  {
+   "wants": "JSON field offset: how many were skipped",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many were skipped"
+  },
+  {
+   "wants": "JSON field limit: how many were listed at most",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many were listed at most"
+  },
+  {
+   "wants": "JSON field id: the chat's id",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's id"
+  },
+  {
+   "wants": "JSON field title: the chat's title",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's title"
+  },
+  {
+   "wants": "JSON field folderless: whether the chat is of no folder",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the chat is of no folder"
+  },
+  {
+   "wants": "JSON field workdir: the directory the agent works in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the directory the agent works in"
+  },
+  {
+   "wants": "JSON field env: the environment the agent works in, written BACKEND[@RUNTIME][/DIRECTORY]. Keep BACKEND[@RUNTIME][/DIRECTORY] exactly.",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the environment the agent works in, written BACKEND[@RUNTIME][/DIRECTORY]"
+  },
+  {
+   "wants": "JSON field agent: the chat's agent, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]. Keep HARNESS[@ACCOUNT]/MODEL[:EFFORT] exactly.",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's agent, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]"
+  },
+  {
+   "wants": "JSON field model: the model the agent runs",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the model the agent runs"
+  },
+  {
+   "wants": "JSON field began: when the chat started, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when the chat started, ISO 8601"
+  },
+  {
+   "wants": "JSON field updated: when the chat was last written, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when the chat was last written, ISO 8601"
+  },
+  {
+   "wants": "JSON field state: `turn` while the agent works, `asking` while it waits for an answer, `going` while a host holds the chat between turns, `failed`, or `resting`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`turn` while the agent works, `asking` while it waits for an answer, `going` while a host holds the chat between turns, `failed`, or `resting`"
+  },
+  {
+   "wants": "JSON field slot: the slot of the host that holds the chat, empty when none does",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the slot of the host that holds the chat, empty when none does"
+  },
+  {
+   "wants": "JSON field asking: the questions the agent asked and waits on",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the questions the agent asked and waits on"
+  },
+  {
+   "wants": "JSON field permission: what the agent may change: `read-only`, `workspace-write` or `danger-full-access`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the agent may change: `read-only`, `workspace-write` or `danger-full-access`"
+  },
+  {
+   "wants": "JSON field archived: whether the chat is archived",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the chat is archived"
+  },
+  {
+   "wants": "JSON field spent: what the chat has used: tokens, and cost where priced",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the chat has used: tokens, and cost where priced"
+  },
+  {
+   "wants": "example: list the chats of this folder",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the chats of this folder"
+  },
+  {
+   "wants": "example: print the ids of the chats of every folder whose turn is open, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the ids of the chats of every folder whose turn is open, with jq"
+  },
+  {
+   "wants": "example: find archived chats by a word in their title",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "find archived chats by a word in their title"
+  },
+  {
+   "wants": "summary of `hmz chat show CHAT`: print one chat: its state, agent and folder, and what was said in it",
+   "where": "command summary in a --help listing",
+   "text": "print one chat, its state and what was said"
+  },
+  {
+   "wants": "the --trace switch of `hmz chat show`: also print what was said and done in the chat, read from its logs",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "also print what was said and done in the chat, read from its logs"
+  },
+  {
+   "wants": "what `hmz chat show` prints as text: one line per field, name then value; with `--trace`, what each session said and did after them; keep the backticks",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "One line per field, name then value; with `--trace`, what each harness session said and did after them."
+  },
+  {
+   "wants": "JSON field at: the directory the chat is written down in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the directory the chat is written down in"
+  },
+  {
+   "wants": "JSON field task: the chat's first message, whole",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the chat's first message, whole"
+  },
+  {
+   "wants": "JSON field prefer: what the chat set a `$name` to run, `native` or `flow`, empty when it follows the settings; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the chat set a `$name` to run, `native` or `flow`, empty when it follows the settings"
+  },
+  {
+   "wants": "JSON field forked: the id of the chat this one was forked from, empty for none",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the id of the chat this one was forked from, empty for none"
+  },
+  {
+   "wants": "JSON field adopted: the harness session this chat continues, as HARNESS:ID, empty for none. Keep HARNESS:ID exactly.",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness session this chat continues, as HARNESS:ID, empty for none"
+  },
+  {
+   "wants": "JSON field agents: the agents of the chat",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the agents of the chat"
+  },
+  {
+   "wants": "JSON field sessions: the sessions the chat opened with its harness",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness sessions the chat opened"
+  },
+  {
+   "wants": "JSON field earlier: how many of its sessions were opened before the chat was last carried on",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how many of its harness sessions were opened before the chat was last carried on"
+  },
+  {
+   "wants": "JSON field backup: the backup targets the chat was started with",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the backup targets the chat was started with"
+  },
+  {
+   "wants": "JSON field backed: how each backup of the chat went, by target",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how each backup of the chat went, by target"
+  },
+  {
+   "wants": "JSON field trace: with `--trace`, what each session said and did, read from its logs; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "with `--trace`, what each harness session said and did, read from its logs"
+  },
+  {
+   "wants": "example: print one chat",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print one chat"
+  },
+  {
+   "wants": "example: wait for a detached chat's turn to finish by reading its state with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "wait for a detached chat's turn to finish by reading its state with jq"
+  },
+  {
+   "wants": "summary of `hmz chat rename CHAT TITLE`: change a chat's title",
+   "where": "command summary in a --help listing",
+   "text": "change a chat's title"
+  },
+  {
+   "wants": "the TITLE argument of `hmz chat rename`: the new title, at most 240 characters",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the new title, at most 240 characters"
+  },
+  {
+   "wants": "example: give a chat a title",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "give a chat a title"
+  },
+  {
+   "wants": "summary of `hmz chat fork CHAT`: make a new chat that goes on from a copy of this chat's conversation so far",
+   "where": "command summary in a --help listing",
+   "text": "make a new chat that goes on from this one's turns"
+  },
+  {
+   "wants": "what `hmz chat fork` and `hmz chat harness adopt` print as text: the new chat's id",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints the new chat's id."
+  },
+  {
+   "wants": "JSON field chat: the new chat's id",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the new chat's id"
+  },
+  {
+   "wants": "example: fork a chat and print the new chat's id",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "fork a chat and print the new chat's id"
+  },
+  {
+   "wants": "example: fork a chat and send the fork a message",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "fork a chat and send the fork a message"
+  },
+  {
+   "wants": "summary of `hmz chat archive CHAT`: archive a chat, which hides it from the list",
+   "where": "command summary in a --help listing",
+   "text": "archive a chat, hiding it from the list"
+  },
+  {
+   "wants": "example: archive a chat",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "archive a chat"
+  },
+  {
+   "wants": "summary of `hmz chat unarchive CHAT`: put an archived chat back in the list",
+   "where": "command summary in a --help listing",
+   "text": "put an archived chat back in the list"
+  },
+  {
+   "wants": "summary of `hmz chat delete CHAT`: delete a chat and the sessions it kept, for good",
+   "where": "command summary in a --help listing",
+   "text": "permanently delete a chat and its harness sessions"
+  },
+  {
+   "wants": "paragraph for `hmz chat delete`: asks before deleting unless `--yes` is given; where standard input is not a terminal it deletes nothing without `--yes`; a deleted chat cannot be brought back. Keep the backticks.",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "Asks before deleting unless `--yes` is given; without a terminal on standard input it deletes nothing without `--yes`. A deleted chat cannot be brought back."
+  },
+  {
+   "wants": "the -y/--yes switch of `hmz chat delete`: delete without asking",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "delete without asking"
+  },
+  {
+   "wants": "what `hmz chat delete` prints as text: nothing on standard output; the question on standard error",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints nothing on standard output, and asks the question on standard error."
+  },
+  {
+   "wants": "JSON field deleted: the id of the chat that was deleted",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the id of the chat that was deleted"
+  },
+  {
+   "wants": "example: delete a chat after confirming at the terminal",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "delete a chat after confirming at the terminal"
+  },
+  {
+   "wants": "example: delete a chat from a script, without being asked",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "delete a chat from a script without being asked"
+  },
+  {
+   "wants": "refusal of `hmz chat delete` without `--yes` when standard input is not a terminal: nobody is at a terminal to ask; pass `--yes` to delete. Keep the backticks.",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Nobody is at a terminal to ask; pass `--yes` to delete."
+  },
+  {
+   "wants": "what `hmz chat delete` says when the person answered no: chat {id} was not deleted. Keep {id}.",
+   "where": "one line on standard error, sentence with full stop",
+   "text": "Chat {id} was not deleted."
+  },
+  {
+   "wants": "second sentence of the question `hmz chat delete` asks at the terminal, after `Delete {name}?`: it cannot be brought back",
+   "where": "one sentence with full stop, shown before [y/N]",
+   "text": "It cannot be brought back."
+  },
+  {
+   "wants": "summary of `hmz chat stop CHAT`: stop a chat's open turn, leaving the chat between turns",
+   "where": "command summary in a --help listing",
+   "text": "stop a chat's open turn, leaving it between turns"
+  },
+  {
+   "wants": "what `hmz chat stop` prints as text: `Stopped`; keep the backticks",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints `Stopped`."
+  },
+  {
+   "wants": "JSON field stopped: the id of the chat whose turn was stopped",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the id of the chat whose turn was stopped"
+  },
+  {
+   "wants": "example: stop the turn a chat is taking",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "stop the turn a chat is taking"
+  },
+  {
+   "wants": "summary of `hmz chat set CHAT`: set a chat's permission, or what a `$name` line runs in it; keep the backticks",
+   "where": "command summary in a --help listing",
+   "text": "set a chat's permission or what `$name` runs in it"
+  },
+  {
+   "wants": "paragraph for `hmz chat set`: sets either or both; a permission holds from the chat's next turn; a chat that is resting is carried on first, with nothing said",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "Sets either or both. A permission holds from the chat's next turn; a resting chat is carried on first, with nothing said."
+  },
+  {
+   "wants": "the --permission option of `hmz chat set` (read-only, workspace-write, danger-full-access): what the agent may change, from the next turn",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "what the agent may change, from the next turn"
+  },
+  {
+   "wants": "what `hmz chat set` prints as text: the chat's permission and preference as they then are, a line each",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints the chat's permission and preference as they then are, one per line."
+  },
+  {
+   "wants": "JSON field prefer: what a `$name` both a skill and a flow answer to runs: `native` or `flow`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what a `$name` both a skill and a flow answer to runs: `native` or `flow`"
+  },
+  {
+   "wants": "JSON field prefer_from: `chat` where the chat sets it itself, `settings` where it follows the settings; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`chat` where the chat sets it itself, `settings` where it follows the settings"
+  },
+  {
+   "wants": "JSON field permission: what the agent may change, or null for an Ai-chan conversation",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what the agent may change, or null for an Ai-chan chat"
+  },
+  {
+   "wants": "example: let a chat's agent only read from its next turn",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "let a chat's agent only read from its next turn"
+  },
+  {
+   "wants": "example: have `$name` lines of a chat run flows rather than the harness's skills; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "have `$name` lines of a chat run flows rather than the harness's skills"
+  },
+  {
+   "wants": "summary of `hmz chat move CHAT ENV`: move a chat to another environment, between turns",
+   "where": "command summary in a --help listing",
+   "text": "move a chat to another environment between turns"
+  },
+  {
+   "wants": "the ENV argument of `hmz chat move`: the environment to move to, written BACKEND[@RUNTIME][/DIRECTORY]. Keep BACKEND[@RUNTIME][/DIRECTORY] exactly.",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the environment to move to, written BACKEND[@RUNTIME][/DIRECTORY]"
+  },
+  {
+   "wants": "what `hmz chat move` prints as text: the environment the chat works in from then on",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints the environment the chat works in from then on."
+  },
+  {
+   "wants": "JSON field env: the environment the chat works in from then on",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the environment the chat works in from then on"
+  },
+  {
+   "wants": "example: move a chat to a directory on a runtime reached over ssh",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "move a chat to a folder on a runtime reached over ssh"
+  },
+  {
+   "wants": "example: move a chat back to a folder of this machine",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "move a chat back to a folder of this machine"
+  },
+  {
+   "wants": "summary of `hmz chat agent CHAT AGENT`: carry a chat on with another model or effort of its harness and account",
+   "where": "command summary in a --help listing",
+   "text": "carry a chat on with another model or effort"
+  },
+  {
+   "wants": "the AGENT argument of `hmz chat agent`: the agent to go on with, written HARNESS[@ACCOUNT]/MODEL[:EFFORT], of the chat's own harness and account. Keep HARNESS[@ACCOUNT]/MODEL[:EFFORT] exactly.",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the agent to go on with, written HARNESS[@ACCOUNT]/MODEL[:EFFORT], of the chat's own harness and account"
+  },
+  {
+   "wants": "example: carry a chat on with another model at high effort",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "carry a chat on with another model at high effort"
+  },
+  {
+   "wants": "summary of `hmz chat commands CHAT`: list what a chat's lines can start with: the harness's commands and skills, hmz's commands, and flows",
+   "where": "command summary in a --help listing",
+   "text": "list what a chat's lines can start with"
+  },
+  {
+   "wants": "what `hmz chat commands` prints as text: one line per entry: sigil and name, where it comes from, what it does",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints one line per entry: sigil and name, where it comes from, and what it does."
+  },
+  {
+   "wants": "JSON field entries: what a line can start with",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what a line can start with"
+  },
+  {
+   "wants": "JSON field entries[].sigil: `/`, `$`, `!` or `@`; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`/`, `$`, `!` or `@`"
+  },
+  {
+   "wants": "JSON field entries[].name: the name after the sigil",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the name after the sigil"
+  },
+  {
+   "wants": "JSON field entries[].about: what it does",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "what it does"
+  },
+  {
+   "wants": "JSON field entries[].how: how hmz serves an entry of the harness: `pass`, `call`, `emulate` or `refuse`; empty for the others; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "how hmz serves an entry of the harness: `pass`, `call`, `emulate` or `refuse`; empty for the others"
+  },
+  {
+   "wants": "JSON field entries[].source: `native` for the harness's own, `hmz` for a command of hmz, `flow` for a flow; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "`native` for the harness's own, `hmz` for a command of hmz, `flow` for a flow"
+  },
+  {
+   "wants": "JSON field listed: whether the list is everything the harness lists, which it is once the chat has taken a turn",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether the list is everything the harness lists, which it is once the chat has taken a turn"
+  },
+  {
+   "wants": "example: print the names of the flows a chat can start, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the names of the flows a chat can start, with jq"
+  },
+  {
+   "wants": "summary of `hmz chat backup CHAT`: back a chat up to its backup targets, or to those named",
+   "where": "command summary in a --help listing",
+   "text": "back a chat up to its backup targets, or those named"
+  },
+  {
+   "wants": "the --to TARGET option of `hmz chat backup`: a backup target to back up to; when not given, the targets the chat was started with",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "a backup target to back up to; when not given, the targets the chat was started with"
+  },
+  {
+   "wants": "what `hmz chat backup` prints as text: the targets the backup was queued for, a line each; it does not wait for the backup",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints the targets the backup was queued for, a line each; it does not wait for the backup."
+  },
+  {
+   "wants": "JSON field queued: the targets the backup was queued for",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the targets the backup was queued for"
+  },
+  {
+   "wants": "example: back a chat up to its targets",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "back a chat up to its targets"
+  },
+  {
+   "wants": "example: back a chat up to the target named `lab`; keep the backticks",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "back a chat up to the target named `lab`"
+  },
+  {
+   "wants": "summary of `hmz chat harness`: read the sessions a harness ran on its own, and continue one in a chat",
+   "where": "command summary in a --help listing",
+   "text": "read harness sessions and continue one in a chat"
+  },
+  {
+   "wants": "paragraph for `hmz chat harness`: a harness session is a conversation a harness such as Claude Code or Codex had on its own in a folder, outside hmz; these commands list them, read one, and continue one in a new chat",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "A harness session is a conversation a harness such as Claude Code or Codex had on its own in a folder, outside hmz. These commands list, read, and continue them."
+  },
+  {
+   "wants": "summary of `hmz chat harness list`: list the harness sessions of this folder, last written first",
+   "where": "command summary in a --help listing",
+   "text": "list the harness sessions of this folder, last written first"
+  },
+  {
+   "wants": "the -w/--workspace DIR option of `hmz chat harness`: the folder the sessions worked in; when not given, the current directory",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "the folder the harness sessions worked in; when not given, the current folder"
+  },
+  {
+   "wants": "what `hmz chat harness list` prints as text: one line per session: harness, id, when it was last written, title",
+   "where": "sentence in the Output section of --help, at most 30 words",
+   "text": "Prints one line per harness session: harness, id, when it was last written, and title."
+  },
+  {
+   "wants": "JSON field sessions: the harness sessions, last written first",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness sessions, last written first"
+  },
+  {
+   "wants": "JSON field id: the id the harness gave the session",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the id the harness gave the session"
+  },
+  {
+   "wants": "JSON field harness: the harness that ran it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the harness that ran it"
+  },
+  {
+   "wants": "JSON field title: the first line the user said in it",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the first line the person said in it"
+  },
+  {
+   "wants": "JSON field workspace: the folder it worked in",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the folder it worked in"
+  },
+  {
+   "wants": "JSON field model: the model it last ran on, empty where its log gives none",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "the model it last ran on, empty where its log gives none"
+  },
+  {
+   "wants": "JSON field began: when it started, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when it started, in ISO 8601"
+  },
+  {
+   "wants": "JSON field updated: when its log was last written, ISO 8601",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "when its log was last written, in ISO 8601"
+  },
+  {
+   "wants": "JSON field continuable: whether `hmz chat harness adopt` can continue it in a chat; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "whether `hmz chat harness adopt` can continue it in a chat"
+  },
+  {
+   "wants": "JSON field trace: with `--trace`, what was said and done in the session; keep the backticks",
+   "where": "description of one field of a JSON document, lower case start, no full stop",
+   "text": "with `--trace`, what was said and done in the harness session"
+  },
+  {
+   "wants": "example: list the harness sessions of this folder",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "list the harness sessions of this folder"
+  },
+  {
+   "wants": "example: print the ids of the sessions that can be continued, with jq",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print the ids of the harness sessions that can be continued, with jq"
+  },
+  {
+   "wants": "summary of `hmz chat harness show HARNESS SESSION`: print one harness session, and what was said in it",
+   "where": "command summary in a --help listing",
+   "text": "print one harness session, and what was said in it"
+  },
+  {
+   "wants": "the HARNESS argument: the harness that ran the session, as `hmz chat harness list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the harness that ran the session, as `hmz chat harness list` prints it"
+  },
+  {
+   "wants": "the SESSION argument: the session's id, as `hmz chat harness list` prints it; keep the backticks",
+   "where": "argument description, lower case start, no full stop, at most 30 words",
+   "text": "the harness session's id, as `hmz chat harness list` prints it"
+  },
+  {
+   "wants": "the --trace switch of `hmz chat harness show`: also print what was said and done in the session, read from its logs",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "also print what was said and done in the harness session, read from its logs"
+  },
+  {
+   "wants": "example: print one session of Claude Code",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "print one harness session of Claude Code"
+  },
+  {
+   "wants": "example: read what was said in a session as JSON",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "read what was said in a harness session as JSON"
+  },
+  {
+   "wants": "summary of `hmz chat harness adopt HARNESS SESSION`: continue a harness session in a new chat, from a copy of it",
+   "where": "command summary in a --help listing",
+   "text": "continue a harness session in a new chat"
+  },
+  {
+   "wants": "paragraph for `hmz chat harness adopt`: copies the session into a new chat of the folder and prints the chat's id; the harness session stays as it is; send the chat a message with `hmz chat say`. Keep the backticks.",
+   "where": "paragraph of --help, one or two sentences, at most 30 words",
+   "text": "Copies the harness session into a new chat of the folder and prints the chat's id; the session stays as it is. Send a message with `hmz chat say`."
+  },
+  {
+   "wants": "the -a/--agent AGENT option of `hmz chat harness adopt`: an agent of the same harness to continue with, written HARNESS[@ACCOUNT]/MODEL[:EFFORT]; when not given, the session's own model. Keep HARNESS[@ACCOUNT]/MODEL[:EFFORT] exactly.",
+   "where": "option description, lower case start, no full stop, at most 30 words",
+   "text": "an agent of the same harness to continue with, as HARNESS[@ACCOUNT]/MODEL[:EFFORT]; by default, the session's own model"
+  },
+  {
+   "wants": "example: continue a session of Claude Code in a new chat",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "continue a harness session of Claude Code in a new chat"
+  },
+  {
+   "wants": "example: continue a session of Codex with another model, and send the new chat a message",
+   "where": "what an example command does, lower case start, no full stop",
+   "text": "continue a harness session of Codex with another model, and send the new chat a message"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

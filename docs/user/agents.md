@@ -112,17 +112,17 @@ The terminal displays raw IDs rather than product names.
 
 ## From the command line
 
-Pass `-a` to `hmz exec` once per role, or join multiple roles with commas. Pass `-a` to `hmz chat` with no role.
+Pass `-a` to `hmz exec` once per role, or join multiple roles with commas. Pass `-a` to `hmz chat start` with no role.
 
 ```sh
 hmz exec -f goal -a worker=claude/claude-haiku-4-5:low -p budget.output_tokens=20000 "Add a discount code to checkout"
 hmz exec -f rlar -a actor=claude/claude-opus-4-1:high,reviewer=codex@work/gpt-5 -p budget.cost=5 "Add a discount code to checkout"
-hmz chat -a claude/claude-haiku-4-5 "Where is checkout handled?"
+hmz chat start -a claude/claude-haiku-4-5 "Where is checkout handled?"
 ```
 
 ![hmz exec runs the goal flow with its worker role on claude/claude-haiku-4-5:low](/shots/user-agents-exec.svg)
 
-If you omit `-a`, `hmz chat` uses the agent saved for the current directory.
+If you omit `-a`, `hmz chat start` uses the agent saved for the current directory.
 
 An invalid spec stops the command before anything runs and prints the part to fix: an unknown CLI, a missing model, an `@` with no account name, a duplicate role, a role the flow does not declare or fills by itself, a required role left out, or an agent that lacks a capability the role requires.
 

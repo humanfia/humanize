@@ -124,7 +124,7 @@ Select **Save** on the Nous page to apply your changes.
 Pass a concrete or virtual nous wherever a command accepts an agent:
 
 ```sh
-hmz chat -a careful "Add a discount code to checkout"
+hmz chat start -a careful "Add a discount code to checkout"
 hmz exec -f rlar -a actor=careful,reviewer=claude/claude-haiku-4-5 -p budget.cost=5 "Add a discount code to checkout"
 ```
 
