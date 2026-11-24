@@ -324,14 +324,16 @@ Humanize creates only the following files on remote machines running an environm
 
 | Path | Holds | Removed |
 | --- | --- | --- |
-| `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | As [Environment state](#environment-state), for environments on that machine. | As there |
-| `$HOME/.cache/humanize/coganchor-<digest16>` | The `coganchor` binary for that machine. Mode `0700`. `/tmp/humanize/coganchor-<digest16>` in a container. | By a later install, once unused for 14 days |
-| `$HOME/.cache/humanize-mirrors/<sha16>/` | A CLI's mirror of the workspace, when the CLI runs on another machine than the environment. `/tmp/humanize-mirrors/<sha16>/` in a container. | Never |
+| `${XDG_STATE_HOME:-$HOME/.local/state}/humanize/envs/` | As [Environment state](#environment-state), for environments on that machine. A relative `XDG_STATE_HOME` is ignored. | As there |
+| `${XDG_CACHE_HOME:-$HOME/.cache}/humanize/coganchor-<digest16>` | The `coganchor` binary for that machine. Mode `0700`. `/tmp/humanize/coganchor-<digest16>` in a container. | By a later install, once unused for 14 days |
+| `${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors/<sha16>/` | A CLI's mirror of the workspace, when the CLI runs on another machine than the environment. `/tmp/humanize-mirrors/<sha16>/` in a container. | Never |
 | `/tmp/humanize-slurm-<job id>.out` | Output of a Slurm job reached over TCP, on its node. | Never |
 | A `mktemp -d` directory | An account's credential files for one turn of a CLI running there. Mode `0700`, files `0600`. | When the turn ends |
 | `<file>.humanize-<pid>-<n>.tmp` beside a file | A file being written, before it is renamed into place. | On rename |
 | The directories of a CLI process, in that machine's temporary directory | As [Other temporary files](#other-temporary-files). | As there, except `hmz-fence-<random>/`, which is never removed |
 | `shadows/` in that machine's state directory | The records of the mirrors on that machine, as [The state directory](#the-state-directory). | Never |
+
+Each variable is read from the environment Humanize's commands run with on that machine. On a Slurm node that environment has only `HOME` and `USER`. When Humanize first reaches an SSH host, and when a Slurm job starts, it moves the `envs/` an earlier version kept on that machine into the state directory above: the one in `$HUMANIZE_HOME` or `~/.hmz`, else the one in `~/.humanize`. It moves nothing if the state directory already has `envs/` or is on another filesystem. After moving, it removes the old directory if that leaves it empty and runs `git worktree repair` in each worktree it moved.
 
 Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-<hex8>`, or `<name_prefix>-<role>-<hex8>` if the runtime sets `name_prefix`. Each has the labels `humanize=<uid>`, `humanize.provider`, `humanize.role`, `humanize.host`, and `humanize.pid`, and is removed when the environment closes. See [Environments and runtimes](/reference/environments).
 
