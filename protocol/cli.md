@@ -99,6 +99,13 @@ It is normative. It is cited by the tag [CLI].
   - [19.4. Export and import](#194-export-and-import)
   - [19.5. Usage](#195-usage)
 - [20. `hmz env`](#20-hmz-env)
+  - [20.1. Synopsis](#201-synopsis)
+  - [20.2. Reaching an environment](#202-reaching-an-environment)
+  - [20.3. Environments and files](#203-environments-and-files)
+  - [20.4. `hmz env exec`](#204-hmz-env-exec)
+  - [20.5. `hmz env git`](#205-hmz-env-git)
+  - [20.6. `hmz env term`](#206-hmz-env-term)
+  - [20.7. Asking first](#207-asking-first)
 - [21. `hmz flows`, `hmz flowverses` and `hmz workspaces`](#21-hmz-flows-hmz-flowverses-and-hmz-workspaces)
   - [21.1. Synopsis](#211-synopsis)
   - [21.2. `hmz flows`](#212-hmz-flows)
@@ -1756,7 +1763,226 @@ those figures of `whole`.
 
 ## 20. `hmz env`
 
-This section is reserved for `hmz env`, the declared commands of `env.*` and `hosts.env.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 20.1. Synopsis
+
+```text
+hmz env list
+hmz env ls [<path>]
+hmz env stat <path>
+hmz env cat <path> [--offset <n>] [--length <n>]
+hmz env find [<name>] [--limit <n>]
+hmz env search <query> [--regex] [--case] [--glob <glob>] [--limit <n>]
+hmz env write <path> [--from <file>] [--if-match <etag>]
+hmz env mkdir <path>
+hmz env mv <path> <to>
+hmz env rm <path> [-y]
+hmz env exec [--seconds <n>] [--env <role>] -- <argv>...
+hmz env git status
+hmz env git diff [<path>...] [--staged]
+hmz env git log [--limit <n>]
+hmz env git stage (<path>... | -A)
+hmz env git unstage (<path>... | -A)
+hmz env git discard (<path>... | -A) [-y]
+hmz env git commit -m <text> [--amend] [-a]
+hmz env git snapshots
+hmz env git rewind <ref> [-y]
+hmz env term open [--term <id>] [--cols <n>] [--rows <n>]
+hmz env term list
+hmz env term close <term>
+```
+
+**20.1.1** `hmz env` MUST be a group of declared commands (Section 16) with the summary `work in the
+environments of a chat or an epic: their files, git and terminals`; `hmz env git` and `hmz env term`
+MUST be groups under it.
+
+**20.1.2** Every command of `hmz env` MUST take `-w`/`--workspace <dir>`, `--slot <slot>` and `--chat
+<id>`, which name a host: the host of `--slot` in the workspace `--workspace`, the working directory
+where `--workspace` is absent and the workspace's own host where `--slot` is absent; or, with
+`--chat`, the host `chat.get` says that chat is going on, whatever `--workspace` and `--slot` say. A
+`--workspace` that is relative MUST be read against the working directory, and one that begins with
+`~` MUST be sent as written.
+
+**20.1.3** Every command of `hmz env` but `list` and `exec` MUST take `--env <env>`, and MUST work in
+the environment of the host's `envs` snapshot (Section 4.24.2 of [DAEMON]) whose `id` is `<env>`,
+else whose `chain` is, else whose `role` is; where `--env` is absent, in the first environment that
+is available and open, else the first. It MUST fail as a refusal does (16.7, 16.8), with status 1,
+with `There is no environment <env>.` where none is so named, and with the web interface's text for
+a host that has no environment where the snapshot is empty.
+
+### 20.2. Reaching an environment
+
+**20.2.1** A command of `hmz env` other than `exec` MUST reach its host as one frontend of it: it
+MUST attach with `epic.attach`, `replay` `false`, make its calls to the environment (Section 4.24 of
+[DAEMON]) on that subscription, and leave with `epic.detach` before it exits.
+
+**20.2.2** Such a command MUST NOT start a host: where no host holds the workspace and slot it MUST
+fail with the refusal of `hosts.status` (Section 4.6.1.1 of [DAEMON]), and for a chat no host holds
+with `This chat has folded away.`
+
+**20.2.3** A command that finds the `envs` snapshot empty once the host is live MUST wait up to two
+seconds for the host to send one that is not, before it reads the snapshot as empty.
+
+### 20.3. Environments and files
+
+**20.3.1** `hmz env list` MUST write one line per environment of the snapshot, in its order: its
+`id`, `chain`, `backend`, `workdir`, its `caps` joined by commas, and the web interface's word for
+closed where it is not open or for unavailable where it is not available. Its JSON document MUST be
+`{"workspace", "slot", "envs": [...]}`, `workspace` and `slot` as `epic.attach` answered them and
+each of `envs` the fields of Section 4.24.2.2 of [DAEMON].
+
+**20.3.2** `hmz env ls [<path>]` MUST call `env.list`, `<path>` being `.` where absent, and write one
+line per entry in the order answered: `d` for a directory, `-` for a file, `l` for a link and `?`
+otherwise; its size; when it last changed, in local time; and its name, followed by `/` for a
+directory and by ` -> <target>` for a link. Its JSON document MUST be `{"path": <path>, "entries":
+[{"name", "kind", "size", "mtime", "target"}]}`, `target` being `null` for what is not a link.
+
+**20.3.3** `hmz env stat <path>` MUST call `env.stat` and write that entry as `ls` writes one, with
+its absolute path for its name. Its JSON document MUST be `{"path", "name", "kind", "size", "mtime",
+"target"}`, `path` being the absolute path answered.
+
+**20.3.4** `hmz env cat <path>` MUST write the bytes of the file to standard output and nothing
+else. With neither `--offset` nor `--length` it MUST write the whole file, read with as many calls
+of `env.read` as its length takes, and MUST read it again from its start where its `etag` changed
+between two of them; with either, it MUST make one call of `env.read` with them. Its JSON document
+MUST be `{"path", "text", "size", "mtime", "etag", "eof"}`, `text` being what was read as UTF-8 with
+U+FFFD for each byte that is not, and the rest as `env.read` answered them.
+
+**20.3.5** `hmz env find [<name>]` MUST call `env.find` with `--limit` as `limit`, and MUST write the
+paths answered that contain `<name>`, compared without regard to case, one a line; every path where
+`<name>` is absent. Its JSON document MUST be `{"paths": [...], "truncated": <truncated>}`.
+
+**20.3.6** `hmz env search <query>` MUST call `env.search` with `--regex` as `regex`, `--case` as
+`case`, `--glob` as `glob` and `--limit` as `limit`, each sent only where given, and MUST write one
+line per match, `<path>:<line>:<column>:<text>`. Its JSON document MUST be `{"matches": [{"path",
+"line", "column", "text"}], "truncated": <truncated>}`.
+
+**20.3.7** `hmz env write <path>` MUST call `env.write` with, as `data`, every byte of the file
+`--from` names on the machine it is run on, or of standard input where `--from` is absent, and with
+`--if-match` as `if_match` where it is given, the empty value included. Its JSON document MUST be
+`{"path", "etag", "size", "mtime"}`, the last three as `env.write` answered them.
+
+**20.3.8** `hmz env mkdir <path>` MUST call `env.mkdir`, and `hmz env mv <path> <to>` MUST call
+`env.rename`. Their JSON documents MUST be `{"path": <path>}` and `{"path": <path>, "to": <to>}`.
+
+**20.3.9** `hmz env rm <path>` MUST ask (Section 20.7) with the web interface's question for
+deleting `<path>`, and where the answer is yes MUST call `env.remove`. Its JSON document MUST be
+`{"path": <path>}`.
+
+**20.3.10** Each of `find`, `search`, `git status`, `git diff`, `git log`, `git snapshots`, `git
+stage`, `git unstage`, `git discard` and `term list` that has nothing to write, and `list` of a host
+with no environment, MUST, without `--json`, write to standard error the web interface's text for
+that list being empty; `find` and `search` MUST instead write there that there are more results
+than shown where `truncated` was answered `true`.
+
+### 20.4. `hmz env exec`
+
+**20.4.1** `hmz env exec -- <argv>...` MUST call `hosts.env.exec` (Section 4.23.5 of [DAEMON]) with
+`<argv>` as `argv`, `--seconds` as `seconds` where given, and as `env` the role `--env` names, or
+where it is absent the `name` of the first env `hosts.env.list` answers. It MUST NOT attach to the
+host; the workspace and slot of the host `--chat` names MUST be those `chat.get` answers.
+
+**20.4.2** It MUST write the `stdout` answered to standard output and the `stderr` answered to
+standard error, and nothing else. Its JSON document MUST be `{"code", "stdout", "stderr"}` as
+answered.
+
+**20.4.3** It MUST exit with status 0 where `code` is `0`, and with status 5 otherwise, `null`
+included, with `--json` as without.
+
+### 20.5. `hmz env git`
+
+**20.5.1** `hmz env git status` MUST call `env.git.status` and write: the branch, or where there is
+none the web interface's text for a detached commit with the first seven characters of `head`, or
+its text for no commit yet where there is no `head`; then the web interface's text for how far the
+branch is ahead of and behind its upstream, or for no upstream; then one line per file, its `index`
+and `worktree` characters and its path, `<orig> -> <path>` where it has `orig`. Its JSON document
+MUST be the result of `env.git.status`.
+
+**20.5.2** `hmz env git diff [<path>...]` MUST call `env.git.diff` for each `<path>`, with `staged`
+`true` where `--staged` is given; where no `<path>` is given, for each file of `env.git.status`
+whose `worktree` is not `.`, or with `--staged` whose `index` is neither `.` nor `?`. For each file
+it MUST write a unified diff of `old` and `new` read as UTF-8, headed `--- a/<path>` and `+++
+b/<path>` with `/dev/null` for a side that is `null`, and for a file answered `binary` the web
+interface's line for a binary file in its place. Its JSON document MUST be `{"staged": <boolean>,
+"files": [{"path", "binary", "diff"}]}`, `diff` being that unified diff, `""` for a binary file. A line of either side MUST end at a line feed and nowhere
+else.
+
+**20.5.3** `hmz env git log` MUST call `env.git.log` with `--limit` as `limit` and write one line
+per commit: the first seven characters of its `hash`, its `date`, its `author` and its `subject`.
+Its JSON document MUST be `{"commits": [{"hash", "parents", "author", "date", "subject"}]}`.
+
+**20.5.4** `hmz env git stage`, `unstage` and `discard` MUST each take either paths or `-A`/`--all`,
+and a line with both or with neither MUST be a usage error (16.9, 16.10). With `--all` the paths MUST
+be those of `env.git.status`: for `stage` and `discard` each file whose `worktree` is not `.`, and for
+`unstage` each whose `index` is neither `.` nor `?`. Each MUST call its method, `env.git.stage`,
+`env.git.unstage` or `env.git.discard`, with those paths, and MUST NOT call it with none; `unstage`
+MUST add to them the `orig` of each that `env.git.status` answers one for, so that a rename is
+unstaged whole. Each MUST write the paths, one a line, and its JSON document MUST be `{"paths":
+[...]}`.
+
+**20.5.5** `hmz env git discard` MUST ask (Section 20.7), once it knows its paths and before it calls
+`env.git.discard`, with the web interface's question for discarding the changes to one file, naming
+it, or to several, counting them.
+
+**20.5.6** `hmz env git commit -m <text>` MUST call `env.git.commit` with `<text>` as `message` and,
+where `--amend` is given, `amend` `true`; with `-a`/`--all` it MUST first call `env.git.stage` with
+the paths `stage --all` would stage, where there are any. It MUST write the `head` answered, and its
+JSON document MUST be `{"head": <head>}`.
+
+**20.5.7** `hmz env git snapshots` MUST call `env.git.snapshots` and write the refs answered, one a
+line. Its JSON document MUST be `{"snapshots": [...]}`.
+
+**20.5.8** `hmz env git rewind <ref>` MUST ask (Section 20.7) with the web interface's question for
+rewinding to `<ref>`, and where the answer is yes MUST call `env.git.rewind`. Its JSON document MUST
+be `{"ref": <ref>}`.
+
+### 20.6. `hmz env term`
+
+**20.6.1** `hmz env term open` MUST call `env.term.open` with `--cols` and `--rows`, each where
+absent the size of the terminal it is run in, or 80 and 24 where it is run in none, and with `--term`
+as `term` where given.
+
+**20.6.2** Without `--json` it MUST then write the `replay` answered and every `data` of the
+terminal's `term` messages to standard output as they arrive, MUST type what it reads from standard
+input into the terminal with `env.term.input`, and MUST acknowledge what it wrote with
+`env.term.ack` (Section 4.24.4.5 of [DAEMON]) at least once for every 65536 bytes, until the
+terminal's `term_exit`. It MUST then write to standard error the web interface's text for a terminal
+that exited with that status, and exit with status 0. It MUST NOT call `env.term.close`. Where
+typing into the terminal is refused it MUST stop viewing it and fail with that refusal.
+
+**20.6.3** Where standard input is a terminal it MUST be put in raw mode for as long, and put back
+as it was after; the terminal MUST be resized with `env.term.resize` whenever the terminal it is run
+in changes size; and `~` followed by `.`, typed first after a carriage return or a line feed or first
+of all, MUST NOT be typed into the terminal and MUST leave it running: the command MUST then stop
+viewing it, write to standard error that it still runs and the line that comes back to it, and exit
+with status 0. A `~` so placed and followed by `~` MUST be typed once, and one followed by anything
+else MUST be typed with what follows it.
+
+**20.6.4** Where standard input is not a terminal, every byte of it MUST be typed as it is, and its
+end MUST NOT end the command, which goes on writing until the terminal's `term_exit`.
+
+**20.6.5** With `--json` it MUST NOT view the terminal further: its JSON document MUST be `{"term",
+"shell", "replay"}`, `term` and `shell` as answered and `replay` what was answered read as UTF-8,
+and the terminal MUST be left running.
+
+**20.6.6** `hmz env term list` MUST call `env.term.list` and write one line per terminal: its id, its
+title, its size as `<cols>x<rows>`, and the web interface's text for exited where it is not alive.
+Its JSON document MUST be `{"terms": [{"term", "env", "title", "cols", "rows", "alive"}]}`.
+
+**20.6.7** `hmz env term close <term>` MUST call `env.term.close`. Its JSON document MUST be
+`{"term": <term>}`.
+
+### 20.7. Asking first
+
+**20.7.1** A command that asks MUST take `-y`/`--yes`, and with it MUST NOT ask and MUST go on as
+though answered yes.
+
+**20.7.2** Without `--yes`, and where `--json` is absent and standard input is a terminal, it MUST
+write its question and ` [y/N] ` to standard error and read one line of standard input; `y` or `yes`,
+in either case, is yes and anything else is not.
+
+**20.7.3** Where the answer is not yes, or nobody can be asked -- `--json` is given or standard input
+is not a terminal -- the command MUST change nothing, MUST say so as a refusal is said (16.7, 16.8),
+`code` being `400`, and MUST exit with status 4.
 
 ## 21. `hmz flows`, `hmz flowverses` and `hmz workspaces`
 
