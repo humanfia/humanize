@@ -42,11 +42,15 @@ __all__ = [
     "Example",
     "Exit",
     "Field",
+    "Page",
     "commands",
     "described",
     "helps",
+    "named",
+    "parser",
     "runs",
     "table",
+    "taken",
 ]
 
 DONE: Final = 0
@@ -210,6 +214,28 @@ def _statuses(command: Command) -> list[Exit]:
     return sorted((*common, *command.exits), key=lambda one: one.code)
 
 
+#: What a command that asks no daemon ends with where it will not do what was asked.
+_LOCALLY: Final = Exit(REFUSED, "the request was refused and the reason was printed")
+
+
+def _common(command: Command) -> tuple[Arg, ...]:
+    """What a command takes after its own: every common option a daemon is not asked by."""
+    if not command.local:
+        return COMMON
+    return tuple(arg for arg in COMMON if arg.name != "daemon")
+
+
+def _statuses(command: Command) -> list[Exit]:
+    """The statuses a command ends with, in order: the common ones, then its own."""
+    common = (EXITS[0], _LOCALLY, EXITS[2]) if command.local else EXITS
+    return sorted((*common, *command.exits), key=lambda one: one.code)
+
+
+def taken(command: Command) -> tuple[Arg, ...]:
+    """Everything a command takes: its own, then what every command does."""
+    return (*command.args, *_common(command))
+
+
 @dataclass
 class Call:
     """One command being run: what it was given, and how it asks and answers."""
@@ -354,70 +380,181 @@ def _said(arg: Arg) -> str:
     return said
 
 
-def _listed(pairs: Sequence[tuple[str, str]]) -> list[str]:
-    width = max((len(left) for left, _ in pairs), default=0)
-    return [f"  {left.ljust(width)}  {right}".rstrip() for left, right in pairs]
+#: The width a help is written to where nobody says: no terminal is reading it.
+WIDTH: Final = 80
+
+#: The widest a help is written however wide the terminal: a line longer is hard to read.
+_WIDEST: Final = 100
+
+#: The narrowest, under which wrapping leaves a word a line.
+_NARROWEST: Final = 40
+
+#: The narrowest the right of two columns is left; a name on the left that would leave it
+#: less has what it is on the next line.
+_RIGHT: Final = 30
 
 
-def helps(path: Sequence[str], command: Command) -> str:
+class Page:
+    """A help being written: paragraphs wrapped, columns aligned, headings marked.
+
+    Every help of `hmz` is set by one of these, so that they read as one: text is wrapped to
+    the terminal, or to eighty columns where none is reading; the right of two columns wraps
+    under itself; and a heading is bold where escapes may be written (Section 4.2 of cli.md)
+    and `--no-color` was not given. A line to type is never wrapped: it is there to be copied.
+    """
+
+    def __init__(self, *, width: int | None = None, colour: bool | None = None) -> None:
+        """Starts one.
+
+        Args:
+          width: How many columns to write to; None for the terminal's, or eighty.
+          colour: Whether to write escapes; None for what standard output allows.
+        """
+        from .output import colours, terminal
+
+        if width is None:
+            import shutil
+
+            width = shutil.get_terminal_size().columns if terminal() else WIDTH
+            width = min(width, _WIDEST)
+        self.width = max(width, _NARROWEST)
+        self.colour = colours() if colour is None else colour
+        self._lines: list[str] = []
+
+    def line(self, text: str = "") -> None:
+        """Adds one line as it is."""
+        self._lines.append(text)
+
+    def says(self, text: str, indent: int = 0) -> None:
+        """Adds a paragraph, wrapped, each line so far in."""
+        self._lines.extend(self.wrapped(text, indent))
+
+    def heading(self, title: str) -> None:
+        """Adds an empty line and the heading of what follows."""
+        marked = f"\x1b[1m{title}\x1b[0m" if self.colour else title
+        self._lines.extend(["", f"{marked}:"])
+
+    def section(self, title: str, lines: Sequence[str]) -> None:
+        """Adds lines under a heading, or nothing where there are none."""
+        if lines:
+            self.heading(title)
+            self._lines.extend(lines)
+
+    def wrapped(self, text: str, indent: int = 0) -> list[str]:
+        """A paragraph as lines no wider than the page, each so far in."""
+        import textwrap
+
+        pad = " " * indent
+        return textwrap.wrap(
+            text,
+            self.width,
+            initial_indent=pad,
+            subsequent_indent=pad,
+            break_long_words=False,
+            break_on_hyphens=False,
+        ) or [""]
+
+    def listed(self, pairs: Sequence[tuple[str, str]], indent: int = 2) -> list[str]:
+        """Two columns: names as wide as the widest, and what each is wrapped beside it."""
+        pad = " " * indent
+        widest = self.width - indent - 2 - _RIGHT
+        column = max((len(left) for left, _ in pairs if len(left) <= widest), default=0)
+        lines: list[str] = []
+        for left, right in pairs:
+            said = self.wrapped(right, indent + column + 2) if right else []
+            if len(left) > column:
+                lines.append(f"{pad}{left}".rstrip())
+            elif said:
+                said[0] = f"{pad}{left.ljust(column)}  {said[0].lstrip()}"
+            else:
+                lines.append(f"{pad}{left}".rstrip())
+            lines.extend(said)
+        return lines
+
+    def text(self) -> str:
+        """Everything added, as it is printed."""
+        return "\n".join(self._lines) + "\n"
+
+
+def helps(
+    path: Sequence[str],
+    command: Command,
+    *,
+    width: int | None = None,
+    colour: bool | None = None,
+) -> str:
     """Everything `--help` says of a command: enough to use it without reading anything else.
 
     The same sections in the same order for every command, the empty ones left out: the line
     it takes, what it does, the commands under it, what it takes by place and by name, lines
     to type, what it prints and the fields of its `--json`, the statuses it ends with, and
     what to read beside it.
+
+    Args:
+      path: The command, as the words after `hmz`.
+      command: Its declaration.
+      width: How many columns to write to; None for the terminal's, or eighty.
+      colour: Whether to mark headings with escapes; None for what standard output allows.
     """
-    out = [
-        f"{t('Usage')}: {_usage(path, command)}",
-        "",
-        t(command.says or command.summary),
-    ]
-
-    def section(title: str, lines: Sequence[str]) -> None:
-        if lines:
-            out.extend(["", f"{t(title)}:", *lines])
-
-    section(
-        "Commands", _listed([(one.name, t(one.summary)) for one in command.commands])
+    page = Page(width=width, colour=colour)
+    page.line(f"{t('Usage')}: {_usage(path, command)}")
+    page.line()
+    page.says(t(command.says or command.summary))
+    page.section(
+        t("Commands"),
+        page.listed([(one.name, t(one.summary)) for one in command.commands]),
     )
     if command.commands:
         run = " ".join(["hmz", *path, "COMMAND", "--help"])
-        out.extend(
-            ["", t("Run `{line}` to read everything about one command.", line=run)]
-        )
-        return "\n".join(out) + "\n"
+        page.line()
+        page.says(t("Run `{line}` to read everything about one command.", line=run))
+        return page.text()
     if command.passes is not None:
-        return "\n".join(out) + "\n"
-    placed = [arg for arg in command.args if arg.positional]
-    named = [arg for arg in (*command.args, *_common(command)) if not arg.positional]
-    section("Arguments", _listed([(_flags(arg), _said(arg)) for arg in placed]))
-    section(
-        "Options",
-        _listed(
+        return page.text()
+    every = taken(command)
+    placed = [arg for arg in every if arg.positional]
+    by_name = [arg for arg in every if not arg.positional]
+    page.section(
+        t("Arguments"), page.listed([(_flags(arg), _said(arg)) for arg in placed])
+    )
+    page.section(
+        t("Options"),
+        page.listed(
             [
-                *((_flags(arg), _said(arg)) for arg in named),
+                *((_flags(arg), _said(arg)) for arg in by_name),
                 ("-h, --help", t("show this help and exit")),
             ]
         ),
     )
     examples: list[str] = []
     for example in command.examples:
-        examples.extend([f"  {example.line}", f"      {t(example.says)}"])
-    section("Examples", examples)
-    output = [f"  {t(command.prints)}"] if command.prints else []
+        examples.extend([f"  {example.line}", *page.wrapped(t(example.says), 6)])
+    page.section(t("Examples"), examples)
+    output = page.wrapped(t(command.prints), 2) if command.prints else []
     if command.output:
-        output.append(f"  {t('With `--json`, prints one object with these fields:')}")
-        fields = [[one.name, one.kind, t(one.says)] for one in command.output]
-        output.extend(f"    {line}" for line in table(fields))
-    section("Output", output)
-    section(
-        "Exit codes",
-        _listed([(str(one.code), t(one.says)) for one in _statuses(command)]),
+        output.extend(
+            page.wrapped(t("With `--json`, prints one object with these fields:"), 2)
+        )
+        names = max(len(one.name) for one in command.output)
+        kinds = max(len(one.kind) for one in command.output)
+        output.extend(
+            page.listed(
+                [
+                    (f"{one.name.ljust(names)}  {one.kind.ljust(kinds)}", t(one.says))
+                    for one in command.output
+                ],
+                4,
+            )
+        )
+    page.section(t("Output"), output)
+    page.section(
+        t("Exit codes"),
+        page.listed([(str(one.code), t(one.says)) for one in _statuses(command)]),
     )
     if command.methods:
-        section("Daemon calls", [f"  {', '.join(command.methods)}"])
-    section("See also", [f"  hmz {one} --help" for one in command.see])
-    return "\n".join(out) + "\n"
+        page.section(t("Daemon calls"), page.wrapped(", ".join(command.methods), 2))
+    page.section(t("See also"), [f"  hmz {one} --help" for one in command.see])
+    return page.text()
 
 
 def described(path: Sequence[str], command: Command) -> dict[str, Any]:
@@ -448,7 +585,7 @@ def described(path: Sequence[str], command: Command) -> dict[str, Any]:
             "choices": list(arg.choices),
             "default": arg.default,
         }
-        for arg in (*command.args, *_common(command))
+        for arg in taken(command)
     ]
     said["examples"] = [
         {"line": one.line, "does": t(one.says)} for one in command.examples
@@ -502,17 +639,30 @@ def _adds(parser: argparse.ArgumentParser, arg: Arg) -> None:
     )
 
 
-def _parser(path: tuple[str, ...], command: Command) -> _Parser:
-    parser = _Parser(prog=" ".join(["hmz", *path]), add_help=False, allow_abbrev=False)
-    parser.said = lambda: helps(path, command)
-    parser.add_argument("-h", "--help", action="help")
+def parser(
+    path: Sequence[str], command: Command, *, plain: bool = False
+) -> argparse.ArgumentParser:
+    """What reads the line of one command, and answers `--help` with :func:`helps`.
+
+    Args:
+      path: The command, as the words after `hmz`.
+      command: Its declaration.
+      plain: Whether its help is written without escapes whatever is reading it.
+    """
+    return _parser(tuple(path), command, plain=plain)
+
+
+def _parser(path: tuple[str, ...], command: Command, *, plain: bool = False) -> _Parser:
+    reads = _Parser(prog=" ".join(["hmz", *path]), add_help=False, allow_abbrev=False)
+    reads.said = lambda: helps(path, command, colour=False if plain else None)
+    reads.add_argument("-h", "--help", action="help")
     if command.commands:
         # Nothing but `--help`: `runs` walks the groups itself.
-        parser.add_argument("_rest", nargs="*")
-        return parser
-    for arg in (*command.args, *_common(command)):
-        _adds(parser, arg)
-    return parser
+        reads.add_argument("_rest", nargs="*")
+        return reads
+    for arg in taken(command):
+        _adds(reads, arg)
+    return reads
 
 
 def _failed(call: Call | None, path: Sequence[str], code: int, message: str) -> None:
@@ -527,6 +677,33 @@ def _failed(call: Call | None, path: Sequence[str], code: int, message: str) -> 
         print(f"{' '.join(['hmz', *path])}: {message}", file=sys.stderr)
 
 
+def named(words: Sequence[str]) -> tuple[tuple[str, ...], Command, list[str]]:
+    """The command a line names, and the words left for it.
+
+    Down the groups by name, so that a group's help is its own and a command's is its own. It
+    stops at a group where the next word names nothing under it, which is then the first of
+    the words left.
+
+    Args:
+      words: The words after `hmz`, the first naming one of :func:`commands`.
+
+    Returns:
+      The words that named it, its declaration, and the rest of the line.
+
+    Raises:
+      KeyError: If the first word names none of :func:`commands`.
+    """
+    command = commands()[words[0]]
+    path: tuple[str, ...] = (words[0],)
+    rest = list(words[1:])
+    while command.commands and rest and not rest[0].startswith("-"):
+        under = {one.name: one for one in command.commands}
+        if rest[0] not in under:
+            break
+        command, path, rest = under[rest[0]], (*path, rest[0]), rest[1:]
+    return path, command, rest
+
+
 def runs(argv: Sequence[str]) -> int:
     """Runs the command a line names, which begins with the name of one of :func:`commands`.
 
@@ -538,29 +715,24 @@ def runs(argv: Sequence[str]) -> int:
     """
     from hmz.sdk import Refused
 
-    command = commands()[argv[0]]
-    path: tuple[str, ...] = (argv[0],)
-    rest = list(argv[1:])
-    if command.passes is not None:
-        return command.passes(rest)
-    # Down the groups by name, so that a group's help is its own and a command's is its own.
-    while command.commands and rest and not rest[0].startswith("-"):
-        under = {one.name: one for one in command.commands}
-        if rest[0] not in under:
-            _parser(path, command).error(t("no command named {name}", name=rest[0]))
-        command, path, rest = under[rest[0]], (*path, rest[0]), rest[1:]
-    parser = _parser(path, command)
+    passes = commands()[argv[0]].passes
+    if passes is not None:
+        return passes(list(argv[1:]))
+    path, command, rest = named(argv)
+    plain = "--no-color" in rest
+    reads = _parser(path, command, plain=plain)
     if command.commands:
         # A group named with nothing under it is asking what there is.
         if not rest:
-            print(helps(path, command), end="")
+            print(helps(path, command, colour=False if plain else None), end="")
             return DONE
-        parser.parse_args(rest)
-        parser.error(t("needs a command name"))
-    given = parser.parse_args(rest)
-    call = Call(
-        path, given, json=given.json, daemon=getattr(given, "daemon", None) or ""
-    )
+        if not rest[0].startswith("-"):
+            reads.error(t("no command named {name}", name=rest[0]))
+        reads.parse_args(rest)
+        reads.error(t("needs a command name"))
+    given = reads.parse_args(rest)
+    daemon = getattr(given, "daemon", None) or ""
+    call = Call(path, given, json=given.json, daemon=daemon)
     if command.run is None:
         raise RuntimeError(f"{' '.join(path)} does nothing")
     try:

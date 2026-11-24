@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from hmz.sdk import Run
     from hmz.tui import Humanize
 
-__all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens"]
+__all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens", "summaries"]
 
 #: How long a second interrupt waits for the daemon to say it forced the epic.
 _FORCING = 5.0
@@ -538,26 +538,51 @@ def _internal(argv: list[str]) -> int:
     return INTERNAL[argv[0]][0](argv[1:])
 
 
-def _line() -> ArgumentParser:
+def _line(*, plain: bool = False) -> ArgumentParser:
     """The line `hmz` itself takes, which is how the interface is opened.
 
     It takes nothing at all: which flow runs and what drives it are chosen at the prompt,
     and whether the run is held apart from this terminal is read off the terminal rather than
     asked for -- a run nobody can walk away from is not a thing to want. What is left is a
-    parser that names the program and refuses anything else, built here rather than where it
-    is parsed because the help asks it what `hmz` takes.
+    parser that names the program and refuses anything else. Its help is not argparse's flat
+    listing but the page `hmz help` writes (:func:`hmz.cli.commands.help.top`): the commands
+    under what they are about, what they share, and what to run next.
+
+    Args:
+      plain: Whether that page is written without escapes whatever is reading it.
 
     Returns:
       The parser, without the commands: whoever wants those adds them.
     """
     import argparse
 
-    return argparse.ArgumentParser(
-        prog="hmz",
-        description="Orchestrate, execute, and observe agent flows. Running without a "
-        "command opens the terminal interface where this directory left off.",
-        epilog="Run `hmz COMMAND --help` for more information on a command.",
-    )
+    class Line(argparse.ArgumentParser):
+        def format_help(self) -> str:
+            from .commands.help import top
+
+            return top(colour=False if plain else None)
+
+    return Line(prog="hmz")
+
+
+def summaries() -> dict[str, str]:
+    """Every command there is, with the line a listing shows it as.
+
+    Those that read their own line (:data:`COMMANDS`) and then those written as declarations
+    (:mod:`hmz.cli.tree`), which is the order a line is routed in: a name in both is the
+    first's.
+
+    Returns:
+      Each command's summary by its name.
+    """
+    from hmz.words import t
+
+    from . import tree
+
+    found = {name: summary for name, (_, summary) in COMMANDS.items()}
+    for name, command in tree.commands().items():
+        found.setdefault(name, t(command.summary))
+    return found
 
 
 def _tui() -> int:
@@ -733,14 +758,10 @@ def main(argv: list[str] | None = None) -> int:
         # person types would be describing a different program from the one that runs. It
         # knows the commands by name and not by what they take -- each one answers
         # `hmz COMMAND --help` itself.
-        parser = _line()
+        parser = _line(plain="--no-color" in arguments)
         commands = parser.add_subparsers(metavar="COMMAND", required=True)
-        for name, (_, summary) in COMMANDS.items():
-            commands.add_parser(name, help=summary, add_help=False)
-        from hmz.words import t
-
-        for name, command in tree.commands().items():
-            commands.add_parser(name, help=t(command.summary), add_help=False)
+        for name in summaries():
+            commands.add_parser(name, add_help=False)
         parser.parse_args(arguments)
 
     return COMMANDS[arguments[0]][0](arguments[1:])

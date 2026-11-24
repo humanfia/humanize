@@ -21,28 +21,30 @@ python -m hmz ...
 | --- | --- |
 | `hmz` | Opens the terminal interface in the current directory. Takes no flags. See [The terminal interface](/user/terminal). |
 | `hmz --version` | Prints `hmz <version>` and exits 0. Works only as the whole command line. |
-| `hmz --help`, `hmz -h` | Lists the commands. |
+| `hmz --help`, `hmz -h` | Prints what `hmz` is, every command under what it is about, the options and exit statuses commands share, and what to run next. The same page as `hmz help`. |
 | `hmz COMMAND --help` | Prints the help of one command. |
+| `hmz help --json` | Prints every command as one JSON document. See [hmz help](#hmz-help). |
 
-| Command | What it does |
-| --- | --- |
-| `exec` | Run an agent flow in this directory. |
-| `chat` | Say one message to an agent in this directory. |
-| `web` | Open this machine's epics in a browser on it. |
-| `daemon` | Run, reach, pair and install this machine's daemon. |
-| `relay` | Relay daemons and the devices that reach them. |
-| `update` | Update hmz to its newest release. |
-| `backup` | Back epics up to git repositories, or download them. |
-| `internal` | Commands Humanize spawns for itself. Do not run them directly. |
-| `devices` | List and revoke the devices paired with this daemon. |
-| `skills` | Install, list and remove the hmz skill for using the CLI. |
-| `settings` | Read and write the settings this daemon keeps. |
-| `accounts` | List, add and remove the accounts agents run as. |
-| `nous` | List, scan and write nous: models, tries and fallbacks. |
+<!-- command list: written by scripts/cli_reference.py from the commands there are; do not edit by hand -->
 
-There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
+| About | Command | What it does |
+| --- | --- | --- |
+| Chats and epics | `chat` | Say one message to an agent in this directory. |
+|  | `exec` | Run an agent flow in this directory. |
+| Past work and backups | `backup` | Back epics up to git repositories, or download them. |
+| Daemons and devices | `daemon` | Run, reach, pair and install this machine's daemon. |
+|  | `devices` | List and revoke the devices paired with this daemon. |
+|  | `relay` | Relay daemons and the devices that reach them. |
+|  | `web` | Open this machine's epics in a browser on it. |
+| This program | `help` | Show the help of hmz or of one command. |
+|  | `update` | Update hmz to its newest release. |
+|  | `internal` | Internal commands used by Humanize; do not run directly. |
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update`, `backup` and `skills` do not.
+<!-- command list: end -->
+
+`hmz help completions bash`, `zsh` or `fish` prints a completion script for that shell; see [hmz help](#hmz-help). Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
+
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update`, `backup` and `help` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -367,7 +369,7 @@ See [Back up to git](/user/backups).
 
 ## Declared commands {#declared-commands}
 
-`hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help. [`hmz skills`](#hmz-skills) is declared the same way but asks no daemon.
+`hmz devices` and `hmz help` are commands written as one declaration. Every such command prints the same kind of help and takes the same options. All but `hmz help` are clients of the daemon; a command that asks no daemon takes no `--daemon`, exits 1 when it refuses, and never exits 3.
 
 | Option | What it does |
 | --- | --- |
@@ -378,6 +380,8 @@ See [Back up to git](/user/backups).
 
 A group named alone, such as `hmz devices`, lists its commands.
 
+Help wraps to the terminal's width, up to 100 columns, and to 80 columns when standard output is not a terminal. Headings are bold where [colour](#output-streams) is allowed and `--no-color` is absent.
+
 | Status | Meaning |
 | --- | --- |
 | `0` | The command did what was asked. |
@@ -387,168 +391,162 @@ A group named alone, such as `hmz devices`, lists its commands.
 
 On failure, the command writes `hmz <command>: <message>` to standard error. With `--json` it prints `{"error": {"code": <code>, "message": <message>}}` on standard output instead; `code` is the daemon's error code, `503` if the daemon is unreachable, or `504` if it did not answer in time.
 
+The sections from here to `hmz internal` are written from the declarations by `scripts/cli_reference.py`.
+
+<!-- declared commands: written by scripts/cli_reference.py from src/hmz/cli/commands; do not edit by hand -->
+
 ## hmz devices
+
+A paired device is a phone, browser or other machine let in to this daemon by claiming a pairing code. These commands list them and revoke one.
 
 ```text
 hmz devices list
 hmz devices revoke NAME
-hmz devices pair [--route ROUTE]... [--seconds N]
+hmz devices pair [options]
 ```
 
-| Command | Text output | `--json` |
-| --- | --- | --- |
-| `list` | One line per device: name, fingerprint, when it was paired, when it was last seen. | `{"devices": [{"name", "fingerprint", "added", "seen"}]}`; `seen` is `null` for a device never seen. |
-| `revoke NAME` | How many sessions were closed. | `{"dropped": <n>}` |
-| `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
+### hmz devices list
 
-`--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
-
-## hmz skills
+List the paired devices.
 
 ```text
-hmz skills add [--for HARNESS]... [--dir PATH]
-hmz skills list [--for HARNESS]... [--dir PATH]
-hmz skills remove [--for HARNESS]... [--dir PATH] [-y]
-hmz skills show
+hmz devices list
 ```
 
-Install the hmz skill: a folder `hmz` holding a `SKILL.md` that tells a coding agent how to use the `hmz` command line. The skill is written from the commands' own declarations, so it lists the commands of the hmz that wrote it. See [Skills](/user/skills#teach-an-agent-to-use-hmz).
-
-These commands ask no daemon and start none. They take `--json` and `--no-color` but not `--daemon`, and exit `0`, `1` when refused, or `2` on a usage error; under `--json` the error's `code` is `0`.
-
-| Command | Text output | `--json` |
-| --- | --- | --- |
-| `add` | One line per skill written: the harness and the path of its `SKILL.md`. | `{"version", "written": [{"harness", "path", "changed"}]}`; `changed` is `false` where the files already held the same text. |
-| `list` | One line per harness: its name, its user-level skills folder, and `Current`, `Older`, `Not installed` or `Not written by hmz`. | `{"version", "harnesses": [{"harness", "installed", "directory", "path", "state", "version"}]}`; `state` is `current`, `older`, `absent` or `foreign`. |
-| `remove` | One line per skill removed. | `{"removed": [{"harness", "path"}]}` |
-| `show` | The `SKILL.md` that `add` would write. Writes nothing. | `{"name", "version", "files": [{"name", "text"}]}` |
-
-| Option | What it does |
+| Example | What it does |
 | --- | --- |
-| `--for HARNESS` | Names one harness, by any name `-a` takes, installed or not. Repeatable. |
-| `--dir PATH` | Names a skills folder by its path; the skill is the folder `hmz` inside it. `harness` is `null` in JSON for it, and for a folder harnesses share. |
-| `-y`, `--yes` | `remove` only: removes without asking. Required when standard input is not a terminal, and with `--json`. |
+| `hmz devices list` | List the paired devices. |
+| `hmz devices list --json \| jq -r '.devices[].name'` | List the paired devices as JSON and print their names with jq. |
 
-Without `--for` or `--dir`, `add` writes for every harness installed on this machine and is refused where none is; `list` shows every harness that has a skills folder, then any other folder a harness reads that holds a skill named `hmz`; `remove` removes the skill from all of those.
+One line per device: name, fingerprint, when it was paired, when it was last seen.
 
-- A harness's folder is the first user-level folder in its row of the table in [Skills](/user/skills#find-your-skills). `dsh` and `litellm` have none to name with `--for`; for `dsh`, pass `--dir ~/.dsh/skills`.
-- `add` replaces a skill it wrote before. It refuses, writing nothing anywhere, when a folder holds a skill named `hmz` that it did not write.
-- `remove` deletes `SKILL.md` and `reference.md`, then the `hmz` folder if nothing else is in it. It never removes a skill hmz did not write: it refuses one in a folder you named, and skips it otherwise.
-- `current` means the skill's front matter records this hmz's version; `older` means any other version. Run `hmz skills add` again after `hmz update`.
-- A skill that would pass 500 lines keeps one line per top-level command in `SKILL.md` and lists every command in `reference.md` beside it.
-## hmz settings {#hmz-settings}
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `devices` | `list` | The paired devices. |
+| `devices[].name` | `string` | The name the device was paired as. |
+| `devices[].fingerprint` | `string` | Fingerprint of the device's certificate. |
+| `devices[].added` | `string` | When it was paired, ISO 8601. |
+| `devices[].seen` | `string\|null` | When it last opened a session, ISO 8601, or null if never. |
+
+Daemon methods: `devices.list`.
+
+### hmz devices revoke
+
+Revoke one paired device and close its open sessions.
 
 ```text
-hmz settings get [KEY] [-w PATH]
-hmz settings set details|reports|harness_sessions on|off
-hmz settings set chat AGENT [-w PATH]
-hmz settings set prefer native|flow
-hmz settings set listen [SPEC]...
-hmz settings set ice_servers [SERVER]...
-hmz settings set backup JSON
-hmz settings set backup.target NAME [--url URL] [--branch BRANCH] [--policy POLICY]... [--every N] [--default | --no-default] [--remove]
-hmz settings set backup.defaults [NAME]...
-hmz settings forget -w PATH
+hmz devices revoke NAME
 ```
 
-`get` prints one line per setting: its name and its value, text as it is and anything else as JSON. With `KEY` it prints that value alone. With `--json` it prints the settings as one object, or `{KEY: value}`.
-
-| Key | Type | What it holds |
-| --- | --- | --- |
-| `workspace` | string | The workspace the answer is of: the home folder unless `-w` names one. |
-| `flow`, `flows` | string, list | The flow the workspace was last set up to run, and every flow set up there. |
-| `chat` | string | The chat agent remembered for the workspace, or empty. |
-| `prefer` | string | What `$NAME` in a chat means where it names both a native skill and a flow: `native` or `flow`. |
-| `ai_chan` | string | The nous the last Ai-chan conversation was made with, or empty. |
-| `details` | boolean | Whether tool calls and thinking are shown. |
-| `harness_sessions` | boolean | Whether harness sessions are listed with a folder's chats. |
-| `reports` | boolean or `null` | Whether Humanize reports its own failures; `null` if never answered. |
-| `backup` | object | `targets` (each `name`, `url` without credentials, `branch`, `policies`, `every`) and `defaults`. |
-| `listen` | list | The listener specs the daemon opens. |
-| `ice_servers` | list | The STUN and TURN servers; a `credential` is shown as `true`, never as its value. |
-
-Each `set` command writes one setting, prints `Saved.`, and with `--json` prints every setting as it is afterwards. `-w PATH` names a workspace on the daemon's machine; a relative path is read from the current directory.
-
-| Command | Value |
+| Argument or option | What it is |
 | --- | --- |
-| `details`, `reports`, `harness_sessions` | `on` or `off` (`true` and `false` are also accepted). |
-| `chat AGENT` | An agent as `-a` spells one, remembered for the workspace of `-w`, or for the home folder. |
-| `prefer` | `native` or `flow`, for every chat of the machine. |
-| `listen` | Every listener spec, replacing those written; none closes every listener. One JSON list is also accepted. Listeners open and close at once. |
-| `ice_servers` | Every server, replacing those written: a URL such as `stun:host:3478`, a JSON object of `urls`, `username` and `credential`, one JSON list, or `-` to read the list from standard input. `"credential": true` keeps the credential already written. A credential itself is taken from standard input only. |
-| `backup JSON` | The whole `{targets, defaults}` object; `-` reads it from standard input. A target whose `url` is the one `get` printed keeps the URL written, credentials included. |
-| `backup.target NAME` | Adds the target, or changes the one of that name, keeping what is not given. `--policy` takes `session`, `interval`, `end` or `manual` and may be repeated; `--every` is the minutes between backups under `interval`; `--default` and `--no-default` change whether new epics go to it; `--remove` removes it. A new target needs `--url` and starts on the branch `main`, backed up by hand only. |
-| `backup.defaults` | The targets a new epic goes to; none means no target by default. |
+| `NAME` | The name the device was paired as, as `hmz devices list` prints it. |
 
-`forget -w PATH` forgets what the workspace was set up with and prints `Forgotten.` or `Nothing to forget.`; with `--json`, the settings with `forgot`.
+| Example | What it does |
+| --- | --- |
+| `hmz devices revoke phone` | Revoke the device paired as `phone`. |
 
-A value that is not valid JSON where JSON is expected, and a `KEY` that is not a setting, are usage errors (exit status `2`). A value the daemon refuses exits `1` and writes nothing. See [Settings](/user/settings).
+How many sessions were closed.
 
-## hmz accounts {#hmz-accounts}
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `dropped` | `integer` | How many of the device's open sessions were closed. |
+
+Daemon methods: `devices.revoke`.
+
+### hmz devices pair
+
+Prints a one-time pairing code. Enter it on the device (in Settings > Daemons, or the desktop app) before it expires.
 
 ```text
-hmz accounts list
-hmz accounts ways [CLI]
-hmz accounts add CLI NAME --way WAY [--set NAME=VALUE]... [--env NAME[=VAR]]... [--stdin NAME]
-hmz accounts correct CLI NAME [--set NAME=VALUE]... [--env NAME[=VAR]]... [--stdin NAME]
-hmz accounts remove CLI NAME
-hmz accounts models CLI [NAME]
-hmz accounts copy CLI NAME INTO
+hmz devices pair [options]
 ```
 
-| Command | Text output | `--json` |
-| --- | --- | --- |
-| `list` | One line per account: CLI, name (`Local` for the machine's own sign-in), sign-in method, the variables it sets, how many models it runs. | `{"gateway", "accounts": [{"cli", "name", "way", "sets", "made", "models", "asked", "serves"}]}` |
-| `ways [CLI]` | One line per sign-in method: CLI, method, what it is; under it, one indented line per answer it asks for. | `{"gateway", "backends": [{"cli", "wants", "ways": [{"name", "about", "group", "terminal", "asks": [{"env", "about", "secret", "fixed"}]}]}]}` |
-| `add` | `Made CLI@NAME.` | As `list`. |
-| `correct` | `Saved.` | As `list`. |
-| `remove` | `Removed` | As `list`. |
-| `models CLI [NAME]` | One model per line, or `No models listed`. Without `NAME`, asks as the machine's own sign-in. | `{"cli", "name", "models", "asked"}` |
-| `copy CLI NAME INTO` | `Copied to INTO` | As `list`. |
-
-`add` and `correct` take the answers to a sign-in method, each named by the variable `ways` lists for it.
-
-| Option | Where the answer comes from |
+| Argument or option | What it is |
 | --- | --- |
-| `--set NAME=VALUE` | The command line. Refused for an answer `ways` marks `secret`. |
-| `--env NAME` | The environment variable `NAME` of the command's own process. `--env NAME=VAR` reads `VAR` instead. |
-| `--stdin NAME` | Standard input, without its trailing line feed. |
+| `--route ROUTE` | A route the code carries to reach this daemon, or those it listens on. May be given more than once. |
+| `--seconds N` | How long the code can be claimed for, in seconds. |
 
-No command prints the value of an answer: an account is listed by the names of the variables it sets. A `--set` that names a credential, a `--set` without `=`, an `--env` naming an unset variable, and an empty answer from `--env` or `--stdin` are usage errors (exit status `2`), and nothing is made. A sign-in method whose `terminal` is `true` runs the CLI's own sign-in and can only be used from `/settings accounts` in the terminal interface. `correct` keeps every answer it is not given. See [Accounts](/user/accounts).
+| Example | What it does |
+| --- | --- |
+| `hmz devices pair --seconds 600` | Make a pairing code that can be claimed for ten minutes. |
 
-## hmz nous {#hmz-nous}
+The code alone on standard output, and when it expires on standard error.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `code` | `string` | The pairing code. |
+| `expires` | `integer` | When the code stops being claimable, seconds since the Unix epoch. |
+
+Daemon methods: `pair.create`.
+
+## hmz help
+
+Prints the help of hmz, or of the command named. Prints every command at once as text or JSON, and shell completion scripts.
 
 ```text
-hmz nous list [--concrete]
-hmz nous scan
-hmz nous set NAME [--tries N] [--policy POLICY] [--timeout SECONDS] [--graph GRAPH]... [--then GRAPH]... [--no-then]
-hmz nous rename NAME TO
-hmz nous clear NAME
+hmz help [COMMAND...] [options]
 ```
 
-| Command | Text output |
+| Argument or option | What it is |
 | --- | --- |
-| `list` | One line per nous written: name, `Virtual` or `Concrete`, tries and policy, limit, graph, and where a turn goes once its tries are spent. A graph that is a chain is printed as its nous separated by commas, any other as JSON. |
-| `list --concrete` | Every concrete nous the harnesses run, one per line. |
-| `scan` | How many concrete nous were found, on standard output; one line per harness that would not answer, on standard error. A harness that does not answer does not fail the command. |
-| `set` | `Saved.` |
-| `rename NAME TO` | `Renamed` |
-| `clear NAME` | `Removed` |
+| `COMMAND` | The command to read about, as its words after `hmz`; or `completions` and a shell. |
+| `--all` | Print the full help of every command, one after another. |
 
-With `--json`, every command prints `{"nous", "policies", "default", "strategies", "faults", "concrete", "scanning"}`; `scan` adds `failed`, each `{"cli", "account", "why"}`. Each entry of `nous` has `name`, `virtual`, `tries`, `policy`, `timeout`, `graph` and `then`; a graph is `null` or `{"start", "nodes"}`, each node `id`, `use` or `balance` with `among` and `spread`, and `on`.
+Asks no daemon, and takes no `--daemon`.
 
-`set` writes one nous and keeps what it is not given. A name with no `/` is a virtual nous and needs `--graph`.
-
-| Option | What it sets |
+| Example | What it does |
 | --- | --- |
-| `--tries N` | How many more goes a turn that fails there is given. |
-| `--policy POLICY` | The wait between tries: one of the `policies` of `hmz nous list --json`. |
-| `--timeout SECONDS` | The limit of a turn; `0` for none. |
-| `--graph GRAPH` | What a virtual nous stands for: a nous, or one JSON graph. Repeated, the nous are tried in turn. |
-| `--then GRAPH` | Where a turn goes once its tries are spent, in the same forms. |
-| `--no-then` | Sends a turn nowhere once its tries are spent. |
+| `hmz help` | Show the commands of hmz, grouped by what they are about. |
+| `hmz help devices revoke` | Show everything about `hmz devices revoke`. |
+| `hmz help --all` | Print the full help of every command. |
+| `hmz help --json` | Print every command as one JSON document, for an agent to load. |
+| `hmz help --json devices` | Print `hmz devices` and the commands under it as one JSON document. |
+| `hmz help completions bash > ~/.local/share/bash-completion/completions/hmz` | Write the bash completion script to where bash loads completions from. |
+| `hmz help completions zsh > ~/.zfunc/_hmz` | Write the zsh completion script to a directory of zsh's `fpath`. |
+| `hmz help completions fish > ~/.config/fish/completions/hmz.fish` | Write the fish completion script to where fish loads completions from. |
 
-A graph that is not valid JSON is a usage error (exit status `2`). The daemon refuses (exit status `1`) an unknown policy, a graph that comes round to itself, and clearing a nous another nous names. See [Nous](/user/nous).
+Prints the help text, or the completion script.
+
+| `--json` field | Type | What it holds |
+| --- | --- | --- |
+| `version` | `string` | The version of hmz. |
+| `usage` | `string` | The line hmz itself takes. |
+| `description` | `string` | What hmz is, in a sentence or two. |
+| `conventions` | `object` | What commands share unless their own help says otherwise. |
+| `conventions.options` | `list` | The options commands share, each as an entry of `commands[].arguments`. |
+| `conventions.exit_status` | `object` | What each shared exit code means, by code. |
+| `conventions.json` | `string` | What a command prints with `--json`, when it does what was asked and when it fails. |
+| `groups` | `list` | The commands grouped by what they are about, in the order `hmz --help` lists them. |
+| `groups[].title` | `string` | The heading of the group. |
+| `groups[].commands` | `list` | The names of the commands in the group. |
+| `commands` | `list` | Every command, or only the one named, each holding the commands under it. |
+| `commands[].command` | `string` | The command as it is typed, starting with `hmz`. |
+| `commands[].summary` | `string` | What the command does, in a line. |
+| `commands[].description` | `string` | What the command does, in a paragraph. |
+| `commands[].usage` | `string` | The line the command takes. |
+| `commands[].help` | `string` | The line that prints the command's own help, for a command not described further here. |
+| `commands[].commands` | `list` | The commands under a group, each shaped like this one. |
+| `commands[].arguments` | `list` | What the command takes, positional arguments and options. |
+| `commands[].arguments[].name` | `string` | The argument or option as its help shows it. |
+| `commands[].arguments[].flags` | `list` | The spellings of an option, or the name of a positional argument. |
+| `commands[].arguments[].description` | `string` | What the argument or option is. |
+| `commands[].arguments[].positional` | `boolean` | Whether it is given by position rather than by name. |
+| `commands[].arguments[].required` | `boolean` | Whether it must be given. |
+| `commands[].arguments[].repeatable` | `boolean` | Whether it may be given more than once. |
+| `commands[].arguments[].takes_value` | `boolean` | Whether an option is followed by a value. |
+| `commands[].arguments[].choices` | `list` | The only values it takes, or an empty list for any. |
+| `commands[].arguments[].default` | `any` | Its value when it is not given, or null. |
+| `commands[].examples` | `list` | Command lines to type, each with its `line` and what it `does`. |
+| `commands[].prints` | `string` | What the command prints without `--json`. |
+| `commands[].json` | `list` | The fields of the command's `--json` document, each with `field`, `type` and `description`. |
+| `commands[].exit_status` | `object` | What each exit code of the command means, by code. |
+| `commands[].daemon_methods` | `list` | The daemon methods the command calls. |
+| `commands[].see_also` | `list` | Other commands worth reading beside it. |
+| `shell` | `string` | With `completions`, the shell the script is for. |
+| `script` | `string` | With `completions`, the completion script. |
+
+<!-- declared commands: end -->
 
 ## hmz internal
 

@@ -130,6 +130,12 @@ It is normative. It is cited by the tag [CLI].
   - [25.2. The skill](#252-the-skill)
   - [25.3. Behaviour](#253-behaviour)
 - [26. `hmz help`](#26-hmz-help)
+  - [26.1. Synopsis](#261-synopsis)
+  - [26.2. The help of `hmz`](#262-the-help-of-hmz)
+  - [26.3. The help of a command](#263-the-help-of-a-command)
+  - [26.4. `--json`](#264---json)
+  - [26.5. Completion scripts](#265-completion-scripts)
+  - [26.6. How a help is set](#266-how-a-help-is-set)
 - [27. Security Considerations](#27-security-considerations)
 - [28. References](#28-references)
   - [28.1. Normative References](#281-normative-references)
@@ -226,7 +232,9 @@ exiting with status 0.
 **3.3.2** In every help text, the help of an option, the summary of a command, a description and an
 epilog MUST each be at most thirty words long.
 
-**3.3.3** The summaries `hmz --help` writes MUST be, in this order:
+**3.3.3** `hmz --help` MUST write the help of `hmz` that Section 26.2 specifies, which lists every
+command with its summary under the group Section 26.2.2 places it in. The summaries of the commands
+that are not declared commands (Section 16) MUST be:
 
 ```text
 exec      run an agent flow in this directory
@@ -237,7 +245,7 @@ update    update hmz to its newest release
 internal  internal commands used by Humanize; do not run directly
 ```
 
-followed by each declared command (Section 16) with its summary, in the order of their names.
+and the summary of a declared command MUST be the one its declaration states.
 
 **3.3.4** The help of a declared command MUST be what Section 16 states, and Section 3.3.2 MUST hold
 of each text in it.
@@ -2836,7 +2844,118 @@ section states.
 
 ## 26. `hmz help`
 
-This section is reserved for `hmz help`, which writes the declarations of every declared command for a person or as JSON. It states no requirement yet: the change that adds it writes this section, and no other, in the same change.
+### 26.1. Synopsis
+
+```text
+hmz help [--all] [<command>...]
+hmz help --json [<command>...]
+hmz help completions bash|zsh|fish
+```
+
+**26.1.1** `hmz help` MUST be a declared command (Section 16) with the summary `show the help of hmz
+or of one command`.
+
+**26.1.2** `hmz help` MUST NOT ask a daemon anything, and MUST NOT start one. Section 16.6
+notwithstanding, it MUST NOT take `--daemon`, and its help MUST NOT state it; Section 16.9
+notwithstanding, it MUST NOT exit with status 3.
+
+### 26.2. The help of `hmz`
+
+**26.2.1** The help of `hmz`, which `hmz --help`, `hmz -h` and `hmz help` write, MUST consist of
+these parts, in this order: the lines `hmz` takes, `hmz [COMMAND] [ARGS...]` and `hmz --version`;
+what `hmz` is, and that `hmz` with no command opens the terminal interface; every command with its
+summary, under the groups of 26.2.2; what commands share, being `--json`, `--daemon <name>`,
+`--no-color` and `-h, --help` with what each does, the exit statuses of Section 16.9 with what each
+means, and that under `--json` a command writes one JSON document, whose `error` holds a `code` and a
+`message` where it failed; and what to run next, being `hmz COMMAND --help`, `hmz help --json`, `hmz
+help --all` and `hmz help completions SHELL`.
+
+**26.2.2** The groups MUST be these, in this order, each holding these commands in this order:
+
+| Group | Commands |
+| --- | --- |
+| `Chats and epics` | `chat`, `exec`, `epic`, `hosts` |
+| `Past work and backups` | `runs`, `backup` |
+| `Environments` | `env` |
+| `Setting things up` | `flows`, `flowverses`, `workspaces`, `settings`, `accounts`, `nous`, `runtimes`, `easytier` |
+| `Daemons and devices` | `daemon`, `daemons`, `devices`, `relay`, `web` |
+| `Notices and questions` | `notices`, `ai`, `btw` |
+| `This program` | `skills`, `help`, `update`, `internal` |
+
+**26.2.3** The help of `hmz` MUST list every command there is when it is written, declared or not,
+exactly once, and MUST list no other. A group none of whose commands there is MUST be left out. A
+command no group names MUST be listed under a last group, `Other commands`, those that are not
+declared commands first.
+
+### 26.3. The help of a command
+
+**26.3.1** `hmz help <command>...`, `<command>...` being the words of a declared command after
+`hmz` or the name alone of a command that is not one, MUST write to standard output what `hmz
+<command>... --help` writes, and MUST exit with the status that exits with.
+
+**26.3.2** Where `<command>...` names no command, `hmz help` MUST answer with a usage error (Section
+16.10) that names the first word that named nothing. A word after the name of a command that is not
+a declared command names nothing, and `hmz help` MUST NOT hand that command any word but `--help`.
+
+**26.3.3** `hmz help --all` MUST write the help of `hmz` and then the help of every command, in the
+order the help of `hmz` lists them, a group of declared commands before the commands under it, in
+the order it declares them. `hmz help --all <command>...` MUST write the help of that command and
+then of every command under it. Each help after the first MUST be preceded by an empty line, a line
+of hyphens and an empty line.
+
+### 26.4. `--json`
+
+**26.4.1** The JSON document of `hmz help` MUST hold: `version`, the installed version of hmz;
+`usage`, the line `hmz` takes; `description`, what `hmz` is; `conventions`, an object holding
+`options`, the options of Section 16.6 each as an entry of `arguments` (26.4.2), `exit_status`, the
+statuses of Section 16.9 each with what it means, keyed by the status written in decimal, and
+`json`, what a command writes under `--json`; `groups`, a list of `{"title", "commands"}` being the
+groups the help of `hmz` writes and the names of the commands under each, in its order; and
+`commands`, every command in that order.
+
+**26.4.2** A declared command in `commands` MUST be an object holding `command`, its words beginning
+with `hmz`; `summary`; `description`; and `usage`. A group MUST hold besides `commands`, the commands
+under it, each such an object. Any other declared command MUST hold besides: `arguments`, a list of
+`{"name", "flags", "description", "positional", "required", "repeatable", "takes_value", "choices",
+"default"}`, its own before those of Section 16.6; `examples`, a list of `{"line", "does"}`; `prints`;
+`json`, a list of `{"field", "type", "description"}`; `exit_status`, as in 26.4.1; `daemon_methods`,
+the methods of [OPENRPC] it calls; and `see_also`. Everything in it MUST be what the help of that
+command states.
+
+**26.4.3** A command that is not a declared command MUST be in `commands` as `{"command", "summary",
+"help"}`, `help` being the line that writes its help.
+
+**26.4.4** `hmz help --json <command>...` MUST write the same document with `commands` holding that
+command alone.
+
+### 26.5. Completion scripts
+
+**26.5.1** `hmz help completions <shell>`, `<shell>` being `bash`, `zsh` or `fish`, MUST write to
+standard output a script that, read by that shell, completes the command line of `hmz`. Its JSON
+document MUST be `{"shell": <shell>, "script": <the script>}`. Where `<shell>` is absent, is any
+other word, or is followed by another word, `hmz help` MUST answer with a usage error.
+
+**26.5.2** The script MUST be written from the commands there are when it is asked for, and MUST
+offer: after `hmz`, the name of every command; after a group of declared commands, the commands under
+it; where the word being written begins with `-`, the options the declared command being written
+takes, and `-h`, `--help` and `--version` after `hmz` alone; after an option that takes only some
+values, those values; and for an argument that takes only some values, those values. After `hmz
+help` it MUST offer what it offers after `hmz`, one word further in, and `completions` followed by
+the three shells.
+
+**26.5.3** The word after an option that takes a value MUST NOT be read as the name of a command.
+
+**26.5.4** The script MUST NOT run `hmz` while a line is being completed.
+
+### 26.6. How a help is set
+
+**26.6.1** The help of `hmz` and the help of a declared command MUST be written no wider than the
+terminal where standard output is a terminal, no wider than 100 columns and no narrower than 40;
+and 80 columns wide where it is not. A text longer MUST be continued on the next line, under where it began. A
+usage line and the line of an example MUST NOT be broken.
+
+**26.6.2** Such a help MAY write its headings in bold, and MUST write no other escape. It MUST write
+none where Section 4.2.1 says no for standard output, and none where `--no-color` is given.
 
 ## 27. Security Considerations
 

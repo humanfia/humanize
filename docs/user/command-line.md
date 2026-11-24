@@ -177,6 +177,42 @@ hmz skills add
 
 It writes one skill, `hmz`, into the skills folder of each installed CLI. See [Teach an agent to use hmz](/user/skills#teach-an-agent-to-use-hmz).
 
+## Find a command
+
+`hmz --help` fits what `hmz` can do on one page: every command under what it is about, the options and exit statuses commands share, and what to run next. `hmz help` prints the same page.
+
+```bash
+hmz --help                  # every command, grouped
+hmz devices pair --help     # everything about one command
+hmz help devices pair       # the same
+hmz help --all              # every command's help, one after another
+```
+
+The help of a command is enough to use it: its arguments and options, lines to type, what it prints, each field of its `--json`, and its exit statuses.
+
+An agent can load the whole command line in one call. `hmz help --json` prints one JSON document with the version, the shared conventions, and every command with its arguments, examples, JSON fields and exit statuses. `hmz help --json devices` prints the same document for one command.
+
+```bash
+hmz help --json | jq -r '.commands[].command'
+```
+
+## Complete commands with Tab
+
+`hmz help completions` prints a completion script for bash, zsh or fish. The script completes commands, subcommands, options and the values an option takes. Write it where your shell loads completions from, then start a new shell.
+
+```bash
+# bash, with bash-completion installed
+hmz help completions bash > ~/.local/share/bash-completion/completions/hmz
+
+# zsh, with ~/.zfunc in fpath before compinit runs
+hmz help completions zsh > ~/.zfunc/_hmz
+
+# fish
+hmz help completions fish > ~/.config/fish/completions/hmz.fish
+```
+
+To try it in the current shell only, run `eval "$(hmz help completions bash)"` in bash or `source <(hmz help completions zsh)` in zsh. Write the script again after `hmz update`, since new commands change it.
+
 ## Good to know
 
 No option of `hmz exec` or `hmz chat` reads from an environment variable; pass everything on the command line. The coding agent's CLI must be installed and signed in on the machine; see [Coding agents](/user/agents).

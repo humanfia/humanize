@@ -1,0 +1,335 @@
+{
+ "entries": [
+  {
+   "wants": "one sentence saying what hmz is: it runs AI coding agents on your own machines, as chats, and as epics that run flows; with a full stop",
+   "where": "first line under the usage of `hmz --help`",
+   "text": "Runs AI coding agents on your own machines, as chats, and as epics that run flows."
+  },
+  {
+   "wants": "sentence: `hmz` with no command opens the terminal interface in this directory; keep `hmz` in backticks",
+   "where": "second line of `hmz --help`, a sentence with a full stop",
+   "text": "With no command, `hmz` opens the terminal interface in this folder."
+  },
+  {
+   "wants": "heading over the commands for talking to agents and running flows: chat, exec, epic, hosts",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Chats and epics"
+  },
+  {
+   "wants": "heading over the commands for looking back at what was run: runs, backup",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Past work and backups"
+  },
+  {
+   "wants": "heading over the commands that set things up: flows, flowverses, workspaces, settings, accounts, nous, runtimes, easytier",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Setting things up"
+  },
+  {
+   "wants": "heading over the commands about machines: this machine's daemon, other daemons, paired devices, the relay, the web page",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Daemons and devices"
+  },
+  {
+   "wants": "heading over the commands for notices, Ai-chan and side questions",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Notices and questions"
+  },
+  {
+   "wants": "heading over the commands about the hmz program itself: skills, help, update, internal",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "This program"
+  },
+  {
+   "wants": "heading over commands that belong to no other group",
+   "where": "heading of a group of commands in `hmz --help`, sentence case as the page writes headings, two to five words, no colon",
+   "text": "Other commands"
+  },
+  {
+   "wants": "heading over the options and exit codes commands share",
+   "where": "heading in `hmz --help`, sentence case, one to three words, no colon",
+   "text": "Shared conventions"
+  },
+  {
+   "wants": "sentence: commands share these options and exit codes unless their own help says otherwise",
+   "where": "sentence with a full stop, under that heading",
+   "text": "Commands share these options and exit codes unless their own help says otherwise."
+  },
+  {
+   "wants": "sentence: with `--json`, a command prints exactly one JSON document on standard output; keep `--json` in backticks",
+   "where": "sentence with a full stop, in the conventions of `hmz --help`",
+   "text": "With `--json`, a command prints one JSON document on standard output."
+  },
+  {
+   "wants": "sentence: with `--json`, a command that fails prints one object whose `error` field holds a `code` and a `message`; keep the three backticked words",
+   "where": "sentence with a full stop, in the conventions of `hmz --help`",
+   "text": "With `--json`, a command that fails prints one object whose `error` field holds a `code` and a `message`."
+  },
+  {
+   "wants": "sentence telling the reader to run `{line}` to read every command as one JSON document; keep `{line}` in backticks",
+   "where": "end of `hmz --help`, a sentence with a full stop",
+   "text": "Run `{line}` to read every command as one JSON document."
+  },
+  {
+   "wants": "sentence telling the reader to run `{line}` to read the full help of every command at once; keep `{line}` in backticks",
+   "where": "end of `hmz --help`, a sentence with a full stop",
+   "text": "Run `{line}` to read the full help of every command at once."
+  },
+  {
+   "wants": "sentence telling the reader to run `{line}` to print a shell completion script; keep `{line}` in backticks",
+   "where": "end of `hmz --help`, a sentence with a full stop",
+   "text": "Run `{line}` to print a shell completion script."
+  },
+  {
+   "wants": "summary of `hmz help`: show the help of hmz or of one command",
+   "where": "command summary in a --help listing",
+   "text": "show the help of hmz or of one command"
+  },
+  {
+   "wants": "paragraph for `hmz help`, two short sentences of at most 25 words in all: prints the help of hmz, or of the command named. Can also print every command at once, as text or as JSON, and shell completion scripts",
+   "where": "paragraph of --help, at most 25 words in all",
+   "text": "Prints the help of hmz, or of the command named. Prints every command at once as text or JSON, and shell completion scripts."
+  },
+  {
+   "wants": "the COMMAND... argument of `hmz help`: the command to read about, as its words after `hmz`; or `completions` and a shell; keep the backticks",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "the command to read about, as its words after `hmz`; or `completions` and a shell"
+  },
+  {
+   "wants": "the --all option of `hmz help`: print the full help of every command, one after another",
+   "where": "argument or option description in --help, lower case start, no full stop",
+   "text": "print the full help of every command, one after another"
+  },
+  {
+   "wants": "example `hmz help`: show the commands of hmz, grouped by what they are about",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "show the commands of hmz, grouped by what they are about"
+  },
+  {
+   "wants": "example `hmz help devices revoke`: show everything about `hmz devices revoke`; keep the backticks",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "show everything about `hmz devices revoke`"
+  },
+  {
+   "wants": "example `hmz help --all`: print the full help of every command",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "print the full help of every command"
+  },
+  {
+   "wants": "example `hmz help --json`: print every command as one JSON document, for an agent to load",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "print every command as one JSON document, for an agent to load"
+  },
+  {
+   "wants": "example `hmz help --json devices`: print `hmz devices` and the commands under it as one JSON document; keep the backticks",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "print `hmz devices` and the commands under it as one JSON document"
+  },
+  {
+   "wants": "example `hmz help completions bash > FILE`: write the bash completion script to where bash loads completions from",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "write the bash completion script to where bash loads completions from"
+  },
+  {
+   "wants": "example `hmz help completions zsh > FILE`: write the zsh completion script to a directory of zsh's `fpath`; keep `fpath` in backticks",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "write the zsh completion script to a directory of zsh's `fpath`"
+  },
+  {
+   "wants": "example `hmz help completions fish > FILE`: write the fish completion script to where fish loads completions from",
+   "where": "what an example command line does, under the line in --help, lower case start, no full stop",
+   "text": "write the fish completion script to where fish loads completions from"
+  },
+  {
+   "wants": "what `hmz help` prints without --json: the help text, or the completion script; a sentence",
+   "where": "sentence with a full stop, in the Output section of --help",
+   "text": "Prints the help text, or the completion script."
+  },
+  {
+   "wants": "usage error: `completions` needs the name of a shell, one of {shells}; keep `completions` in backticks and {shells}",
+   "where": "error line after 'hmz help: ', lower case start, no full stop",
+   "text": "`completions` needs the name of a shell, one of {shells}"
+  },
+  {
+   "wants": "field `version`: the version of hmz",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the version of hmz"
+  },
+  {
+   "wants": "field `usage`: the line hmz itself takes",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the line hmz itself takes"
+  },
+  {
+   "wants": "field `description`: what hmz is, in a sentence or two",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what hmz is, in a sentence or two"
+  },
+  {
+   "wants": "field `conventions`: what commands share unless their own help says otherwise",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what commands share unless their own help says otherwise"
+  },
+  {
+   "wants": "field `conventions.options`: the options commands share, each as an entry of `commands[].arguments`; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the options commands share, each as an entry of `commands[].arguments`"
+  },
+  {
+   "wants": "field `conventions.exit_status`: what each shared exit code means, by code",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what each shared exit code means, by code"
+  },
+  {
+   "wants": "field `conventions.json`: what a command prints with `--json`, when it does what was asked and when it fails; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what a command prints with `--json`, when it does what was asked and when it fails"
+  },
+  {
+   "wants": "field `groups`: the commands grouped by what they are about, in the order `hmz --help` lists them; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the commands grouped by what they are about, in the order `hmz --help` lists them"
+  },
+  {
+   "wants": "field `groups[].title`: the heading of the group",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the heading of the group"
+  },
+  {
+   "wants": "field `groups[].commands`: the names of the commands in the group",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the names of the commands in the group"
+  },
+  {
+   "wants": "field `commands`: every command, or only the one named, each holding the commands under it",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "every command, or only the one named, each holding the commands under it"
+  },
+  {
+   "wants": "field `commands[].command`: the command as it is typed, starting with `hmz`; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the command as it is typed, starting with `hmz`"
+  },
+  {
+   "wants": "field `commands[].summary`: what the command does, in a line",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what the command does, in a line"
+  },
+  {
+   "wants": "field `commands[].description`: what the command does, in a paragraph",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what the command does, in a paragraph"
+  },
+  {
+   "wants": "field `commands[].usage`: the line the command takes",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the line the command takes"
+  },
+  {
+   "wants": "field `commands[].help`: the line that prints the command's own help, for a command not described further here",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the line that prints the command's own help, for a command not described further here"
+  },
+  {
+   "wants": "field `commands[].commands`: the commands under a group, each shaped like this one",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the commands under a group, each shaped like this one"
+  },
+  {
+   "wants": "field `commands[].arguments`: what the command takes, positional arguments and options",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what the command takes, positional arguments and options"
+  },
+  {
+   "wants": "field `commands[].arguments[].name`: the argument or option as its help shows it",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the argument or option as its help shows it"
+  },
+  {
+   "wants": "field `commands[].arguments[].flags`: the spellings of an option, or the name of a positional argument",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the spellings of an option, or the name of a positional argument"
+  },
+  {
+   "wants": "field `commands[].arguments[].description`: what the argument or option is",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what the argument or option is"
+  },
+  {
+   "wants": "field `commands[].arguments[].positional`: whether it is given by position rather than by name",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "whether it is given by position rather than by name"
+  },
+  {
+   "wants": "field `commands[].arguments[].required`: whether it must be given",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "whether it must be given"
+  },
+  {
+   "wants": "field `commands[].arguments[].repeatable`: whether it may be given more than once",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "whether it may be given more than once"
+  },
+  {
+   "wants": "field `commands[].arguments[].takes_value`: whether an option is followed by a value",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "whether an option is followed by a value"
+  },
+  {
+   "wants": "field `commands[].arguments[].choices`: the only values it takes, or an empty list for any",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the only values it takes, or an empty list for any"
+  },
+  {
+   "wants": "field `commands[].arguments[].default`: its value when it is not given, or null",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "its value when it is not given, or null"
+  },
+  {
+   "wants": "field `commands[].examples`: command lines to type, each with its `line` and what it `does`; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "command lines to type, each with its `line` and what it `does`"
+  },
+  {
+   "wants": "field `commands[].prints`: what the command prints without `--json`; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what the command prints without `--json`"
+  },
+  {
+   "wants": "field `commands[].json`: the fields of the command's `--json` document, each with `field`, `type` and `description`; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the fields of the command's `--json` document, each with `field`, `type` and `description`"
+  },
+  {
+   "wants": "field `commands[].exit_status`: what each exit code of the command means, by code",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "what each exit code of the command means, by code"
+  },
+  {
+   "wants": "field `commands[].daemon_methods`: the daemon methods the command calls",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "the daemon methods the command calls"
+  },
+  {
+   "wants": "field `commands[].see_also`: other commands worth reading beside it",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "other commands worth reading beside it"
+  },
+  {
+   "wants": "field `shell`: with `completions`, the shell the script is for; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "with `completions`, the shell the script is for"
+  },
+  {
+   "wants": "field `script`: with `completions`, the completion script; keep the backticks",
+   "where": "description of one field of a JSON document, in --help, lower case start, no full stop",
+   "text": "with `completions`, the completion script"
+  },
+  {
+   "wants": "meaning of exit status 1 for a command that asks no daemon: the request was refused and the reason was printed",
+   "where": "meaning of an exit status in --help, lower case start, no full stop",
+   "text": "the request was refused and the reason was printed"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}
