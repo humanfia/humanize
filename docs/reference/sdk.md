@@ -488,7 +488,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | `runtimes`, `easytier` | `runtimes.*`, `easytier.*` |
 | `btw`, `aichan`, `notices` | `btw.*`, `aichan.*`, `notices.*` |
 
-Every family has `METHODS`, the daemon methods it calls. Only `devices` has calls so far; the others are being added.
+Every family has `METHODS`, the daemon methods it calls.
 
 #### devices {#client-devices}
 
@@ -554,6 +554,385 @@ with Client.local() as client:
     for account in client.accounts.list().accounts:
         print(account.cli, account.name or "Local", account.sets)
 ```
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### runs {#client-runs}
+
+Recorded epics. An epic is a `dict` as the daemon answered it.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(*, workspace=None, status=None, flow=None, query=None, offset=None, limit=None)` | `Listing` | A page of the epics written down, newest first. A `Listing` has `runs`, `total`, `offset`, `limit`, `counts` and `flows`. |
+| `get(name)` | `dict` | One epic, whole. Raises `Refused` with `code` 404 for a name no epic has. |
+| `trace(name)` | list of `dict` | What each session said and did: `key`, `agent` and `actions`. |
+| `timeline(name)` | `dict` | The epic's Exomyth timeline. |
+| `span(name, ident, layout=None)` | `dict` | One span of the timeline. Without `layout`, the timeline is laid out first. |
+| `bundle(name)` | `Bundle` | Has the daemon pack the epic. A `Bundle` has `handle`, `filename`, `size` and `type`; read the handle with `files.download`. |
+| `export(name, to=None)` | `Exported` | Writes the epic to a `.hmzepic` file here: `to`, or `<name>.hmzepic` in the directory `to` or the current one. An `Exported` has `path`, `filename` and `size`. |
+| `backup(name, *, to=None, wait=0, idem=None)` | `dict` | Backs the epic up now. Returns each queued target with `{}`, or, where `wait` is not `0`, with how it went: `at`, `ok`, `error`, `why`. `wait=None` waits as long as it takes; otherwise raises `TimeoutError` after `wait` seconds. |
+| `import_(path, *, idem=None)` | `Imported` | Sends a `.hmzepic` file of this machine and imports it. An `Imported` has `name`, `workspace`, `resumable` and `why`. |
+| `imported(*, handle=None, path=None, idem=None)` | `Imported` | Imports an archive the daemon already has: a write handle, or an absolute path on its machine. |
+| `usage(*, days=None, workspace=None)` | `dict` | What chats and epics spent: `days_back`, `days`, `flows`, `ended`, `whole`. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    for run in client.runs.list(status="failed", limit=10).runs:
+        print(run["name"], run["task"])
+        client.runs.export(run["name"], "failed/")
+```
+
+#### backups {#client-backups}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `targets()` | list of `Target` | The backup targets in settings. A `Target` has `name`, `url`, `branch`, `policies`, `every` and `default`. |
+| `epics(target)` | list of `Stored` | The epics and chats a target holds, newest first. A `Stored` has `key`, `machine`, `workspace`, `epic`, `flow`, `task`, `began`, `ended`, `how`, `head`, `chat` and `here`. |
+| `pull(target, key, *, idem=None)` | `str` | Downloads one onto the daemon's machine and returns its name. |
+
+#### files {#client-files}
+
+File handles carry a file over the session in chunks of at most `CHUNK` (1 MiB).
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `upload(path, *, name=None)` | `str` | Sends a file of this machine and returns a write handle holding it. |
+| `download(handle, to)` | `int` | Reads the whole file of a read handle into `to`, ends the handle, and returns the bytes written. |
+| `create(name, size)` | `str` | Makes a write handle. |
+| `write(handle, offset, data)` | `int` | Appends a chunk and returns the size written so far. |
+| `read(handle, offset, length=CHUNK)` | `Chunk` | Reads a chunk. A `Chunk` has `data` and `eof`. |
+| `close(handle)` | `None` | Ends a handle. |
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### runtimes {#client-runtimes}
+
+The runtimes a daemon has saved. This family asks a daemon; [`Hmz().runtimes`](#runtimes) reads this machine's files instead.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Listed` | Every runtime. A `Listed` has `local` (the daemon's own machine), `runtimes` (a tuple of `Runtime`) and `blanks` (every field of each backend with its default). A `Runtime` has `backend`, `name`, `made` and `fields`. |
+| `set(backend, name, fields=None, *, replace=False, idem=None)` | `Listed` | Saves a runtime. A name already saved is refused unless `replace` is true, which overwrites it with `fields`. |
+| `remove(backend, name, *, idem=None)` | `Listed` | Removes a runtime. |
+| `check(backend, name, *, wait=None)` | `Checked` | Reaches the runtime and reports what it has. A `Checked` has `reached`, `why`, `cpus`, `memory`, `gpus`, `short` and `said`, the whole answer. |
+| `hosts()` | tuple of `Host` | The hosts of the SSH config on the daemon's machine. A `Host` has `alias`, `host`, `user`, `port`, `saved` and `said`. |
+| `import_(names, *, update=False, idem=None)` | `Listed` | Saves an SSH runtime for each named host. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    client.runtimes.set("ssh", "gpu-box", {"host": "10.0.0.7", "user": "me"})
+    print(client.runtimes.check("ssh", "gpu-box").reached)
+```
+
+#### easytier {#client-easytier}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | tuple of `Network` | The EasyTier entries. A `Network` has `name`, `nodes` and `secret`, which is whether a secret is saved, never the secret. |
+| `set(name, nodes, *, secret=None, idem=None)` | tuple of `Network` | Saves an entry. `secret=None` keeps the saved secret. |
+| `remove(name, *, idem=None)` | tuple of `Network` | Removes an entry the daemon does not listen on. |
+| `nodes()` | tuple of `Node` | The shared nodes on offer. A `Node` has `url`, `name`, `version`, `up` and `uptime`; the last two are `None` if unknown. |
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### flows {#client-flows}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace=None)` | `Offered` | The flows on offer in a workspace. `flows` holds a `Flow` (`whose`, `name`, `about`) for each, `flow` the flow last set up there, `running` the flows running now. Without a workspace, project flows are left out. |
+| `get(name, workspace=None)` | `Declared` | What a flow declares: `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each an `AgentRole`), `envs` (each an `EnvRole`), `params` (a JSON schema) and `remembered` (the workspace's last set-up). |
+| `backends()` | `Backends` | `clis` maps each installed harness to its `Account`s (`name`, `models`, `asked`), `installable` maps each harness that can be installed to its `Model`s (`name`, `efforts`), and `envs` lists the environment backends. |
+| `check(workspace, flow, *, agents=None, envs=None, params=None, budget=None, profile_flow=None, profile_environment=None, resume=None, backup=None)` | `Checked` | Checks an epic as `hmz exec` does, without starting it. Returns `flow`, `ref`, `declared`, `names` (the agent for each role), `budget`, `backup` and `unreadable`. |
+| `setup(workspace, flow, *, agents=None, envs=None, params=None, budget=None, profile_flow=None, profile_environment=None, backup=None, idem=None)` | `Declared` | Saves what the workspace runs the flow with. Needs an agent for every required role and at least one budget limit. |
+| `fork(workspace, flow, *, idem=None)` | `Forked` | Copies a flow into the workspace. Returns `said` and `at`, the path of the copy. |
+
+`agents` and `envs` map a role to the text `-a` and `-e` take after `ROLE=`. `budget` is a mapping such as `{"cost": 5}`.
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    flow = client.flows.get("ralph_loop", "/home/me/app")
+    print([role.name for role in flow.agents if role.required and not role.auto])
+    client.flows.check(
+        "/home/me/app",
+        "ralph_loop",
+        agents={"coder": "claude/claude-opus-5:high"},
+        budget={"cost": 5},
+    )
+```
+
+These are not the file-based `Flows` and `Flowverses` that `hmz.sdk` exports. Those read this machine's files in your process; the families ask the daemon.
+
+#### flowverses {#client-flowverses}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | `Kept` | `verses` (each a `Verse`: `name`, `url`, `fetched`, `fixed`, `edited`, `installed`), `installed` (each an `Installed`: `flow`, `verse`, `listed`, `version`, `repo`, `ref`) and `updates` (each an `Update`: `flow`, `was`, `to`). |
+| `get(name)` | `Index` | One flowverse: `flows` holds a `Listed` (`listed`, `flow`, `installed`, `releases`) for each flow, each `Release` having `version`, `description`, `prerelease`, `license`, `repo` and `dependencies`. `skipped` holds what the index could not read. |
+| `add(url, name=None, *, idem=None)` | `Kept` | Adds a flowverse by `owner/repo` or a git URL. |
+| `fetch(name, *, idem=None)` | `Kept` | Fetches the index again. |
+| `remove(name, *, idem=None)` | `Kept` | Removes a flowverse and every flow installed from it. |
+| `install(flow, version=None, *, idem=None)` | `Kept` | Installs the newest release or the one named. Updates or switches a flow already installed. |
+| `uninstall(flow, *, idem=None)` | `Kept` | Uninstalls a flow. |
+
+A change returns the flowverses as they are after it, with `said`, what was done in the daemon's words. `install`, `uninstall` and `remove` raise `Refused` with code `409` while an epic is running.
+
+#### workspaces {#client-workspaces}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(here=None)` | `Known` | Every workspace. `workspaces` holds a `Workspace` (`path`, `name`, `epics`, `chats`, `last`, `running`, `here`, `there`) for each; `here` is listed first. |
+| `add(workspace, here=None, *, idem=None)` | `Known` | Adds a folder of the daemon's machine as a workspace. `kept` is its absolute path. |
+| `forget(workspace, here=None, *, idem=None)` | `Known` | Forgets what the workspace was set up with. |
+
+#### paths {#client-paths}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(at=None, *, files=None, hidden=None, env=None)` | `Directory` | Lists one directory of the daemon's machine, or of a runtime's machine with `env`. Returns `at`, `whole`, `up`, `entries` (each an `Entry`: `name`, `dir`) and `more`, how many were left out past 500. |
+| `complete(typed)` | list of `str` | The folders a partly typed path could become, at most 50. |
+
+Every result that has `answer` keeps the daemon's whole answer there as a `dict`.
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### btw {#client-btw}
+
+Side questions, as `btw.*` serves them.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace, *, epic=None, chat=None)` | list of `Aside` | The side conversations open about an epic or a chat, in the order opened. An `Aside` has `aside`, `to`, `question` (the one being answered, `""` for none) and `said`, a tuple of `Answer`. |
+| `sessions(*, epic=None, chat=None)` | list of `Session` | The sessions of one epic or one chat, oldest first. A `Session` has `key` (`<agent>/<n>`, what `ask` takes as `to`), `agent` and `harness`. Raises `ValueError` unless exactly one is named. |
+| `ask(workspace, question, *, to, aside=None, epic=None, chat=None, wait=None)` | `Answer` | Asks a side question and waits for its answer. An `Answer` has `aside`, `to`, `question` and `answer`. With `aside=None` a new side conversation is opened and named. |
+| `leave(workspace, aside=None)` | `None` | Closes one side conversation, or every one of the workspace. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    session = client.btw.sessions(chat="20261117T100000-ab12cd")[-1]
+    first = client.btw.ask("/home/me/project", "What changed?", to=session.key,
+                           chat="20261117T100000-ab12cd")
+    print(first.answer)
+    client.btw.leave("/home/me/project", first.aside)
+```
+
+#### aichan {#client-aichan}
+
+Conversations with Ai-chan. `create`, `list`, `rename` and `forget` are `aichan.*`; `say`, `heard` and `stop` attach to the conversation's host and drive it with `epic.*`, detaching afterwards.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `create(task, *, scope="daemon", workspace=None, epic=None, nous=None, preset=None, idem=None)` | `Made` | Starts a conversation. A `Made` has `id`, `workspace` and `slot`. |
+| `list()` | list of `Conversation` | Every conversation, newest first. A `Conversation` has `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `slot`, `state`, `created`, `latest` and `updated`. |
+| `get(id)` | `Conversation` | One conversation. Raises `Refused` with `code` 404 if there is none. |
+| `rename(id, title, *, idem=None)` | `None` | Changes its title. |
+| `forget(id, *, idem=None)` | `None` | Deletes it for good and closes its host. |
+| `say(id, text, *, hear=True, wait=None)` | `Reply` or `None` | Answers what she waits on, or says the line into her open turn, then waits for what she says. A `Reply` has `text` and `mode` (`listen` when her turn is over). Returns `None` with `hear=False`. |
+| `heard(id, *, wait=None)` | `Reply` | Waits while her turn is open and returns what she waits on you with. |
+| `stop(id)` | `None` | Stops her open turn. Raises `Refused` if she is not answering. |
+
+`say` and `heard` carry on a conversation that was folded away. Both raise `TimeoutError` if `wait` seconds pass first, and `Refused` with `code` 409 if the conversation is over because it failed or crashed.
+
+```python
+with Client.local() as client:
+    made = client.aichan.create("Which epics failed today?", nous="claude/claude-sonnet-4-5")
+    print(client.aichan.heard(made.id, wait=600).text)
+    print(client.aichan.say(made.id, "And yesterday?", wait=600).text)
+```
+
+#### notices {#client-notices}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(after=None)` | list of `Notice` | The notices kept after one, oldest first, the latest 200. A `Notice` has `id`, `kind`, `workspace`, `slot`, `epic`, `chat`, `flow`, `task`, `role`, `text` and `at`. |
+| `last()` | `int` | The number of the newest notice, `0` if there is none. |
+| `kept(after=None)` | `(list of Notice, int)` | Both of the above from one call. |
+| `follow(after=None)` | iterator of `Notice` | Each notice as it is made. Subscribes again by itself if the daemon ends the subscription for falling behind, and unsubscribes when closed. Raises `ConnectionError` once the session has ended. |
+| `subscribe(after=None)` | `Subscription` | The raw subscription: each item is `{"sub", "notice"}`, or `{"sub", "gone"}` once if the session fell too far behind. |
+| `unsubscribe(subscription)` | `None` | Ends a subscription, given as the `Subscription` or its `sub`. |
+
+`hmz.sdk.families.notices.KINDS` lists the kinds: `done`, `failed`, `stopped`, `asked` and `listening`.
+
+```python
+with Client.local() as client:
+    for notice in client.notices.follow(after=client.notices.last()):
+        if notice.kind == "asked":
+            print(notice.epic, notice.text)
+```
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### epics {#client-epics}
+
+`client.epics.attach(...)` attaches to a host as one frontend and returns an `Attached`: the calls of that epic subscription, and the messages the host sends it.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `attach(workspace=None, *, slot=None, replay=None, since=None, figures=None, scratch=None)` | `Attached` | Attaches to the host of a workspace and slot, starting the host if the slot has none. `slot="exec:"` makes a new exec slot; `scratch=True` a folderless workspace; `replay=False` skips the history. |
+| `of(sub)` | `Frontend` | The calls of a subscription opened by `Client.call`, for a client that listens through `heard`. |
+
+An `Attached` has `sub`, `client` (this frontend's id), `workspace`, `slot`, `events` (the `Subscription`) and `over`. Iterate it for each [message](/reference/events) as a `dict`; the iteration ends after `gone` or when the session ends. `next(seconds)` returns one message or `None`. It is a context manager: leaving the block detaches the frontend and leaves the epic running.
+
+| Call | Returns | What it does |
+| --- | --- | --- |
+| `start(flow, task=None, *, agents, envs, params, budget, profile_flow, profile_environment, resume, backup, remember)` | `Started` | Starts an epic on the host. `Started` has `run`, `slot` and `workspace`. |
+| `say(text, *, to=None)` | `None` | Says a line to the epic. |
+| `answer(question, text=None, *, value=None)` | `None` | Answers a waiting question in words, or with a value of its schema. An answer that does not fit raises `Refused` with code 400 and `data["errors"]`. |
+| `stop()` / `force()` | `None` / `int` | Stops the epic; `force` also closes sessions in a turn and returns how many. |
+| `afk(on, role=None)` | `None` | Sets a role, or every role, away or back. |
+| `claim(role, *, take=None)` / `release(role)` | `None` | Claims a role for this frontend, or releases it. |
+| `board(key, value=None)` | `None` | Writes a line of the board; no value removes it. |
+| `face(digest)` | `Face` | Reads a face by its hash: `html` and `title`. |
+| `aside(...)` / `unaside(side)` | `dict` / `None` | Opens or asks a side conversation, and closes one. |
+| `status()` | `dict` | The host's status. |
+| `detach()` / `quit()` | `None` | Lets this frontend go; closes the host. |
+
+Every write also takes `idem`, and every call `wait`, the seconds to wait for the answer.
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client, client.epics.attach("/work/app", slot="exec:") as epic:
+    epic.start("goal", "fix the failing test", budget={"cost": 2})
+    for said in epic:
+        if said["type"] == "asked":
+            epic.answer(said["question"], "yes")
+        if said["type"] == "ended":
+            break
+```
+
+#### hosts {#client-hosts}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list()` | list of `Host` | Every host the daemon holds: `pid`, `workspace`, `started`, `slot`. |
+| `running()` | list of `Running` | Every host whose epic or chat is running or stopping: `workspace`, `slot`, `state`, `run`, `kind`, `flow`, `epic`, `chat`, `task`, `asking`, `turn`. |
+| `open(workspace, slot=None)` | `dict` | Starts the host of a workspace and slot without attaching. |
+| `status(workspace, slot=None)` | `dict` | One host's status. Raises `Refused` with code 404 if no host is held there. |
+| `detach(workspace, slot=None)` | `int` | Lets every frontend of a host go and returns how many. |
+| `stop(workspace, slot=None, *, idem=None)` | `None` | Closes a host, stopping what it runs. |
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### envs {#client-envs}
+
+`client.envs` reaches a host's environments in two ways. The first five members reach the envs of the epic going on a host by role, without attaching, as the epic's flow would. `workspace` is the host's folder; `slot` defaults to the folder's own host.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(workspace, *, slot=None)` | list of `Role` | The envs of the epic, one per role: `name`, `kind`, `workdir`, `can`. |
+| `read(workspace, env, path, *, slot=None, offset=None, length=None)` | `Text` | Reads a file as text: `text`, `size`, `eof`. |
+| `write(workspace, env, path, text, *, slot=None, idem=None)` | `int` | Writes the whole file and returns the bytes written. |
+| `exec(workspace, env, argv, *, slot=None, seconds=None, idem=None, wait=None)` | `Ran` | Runs a command in the env's workdir: `code` (`None` if stopped at `seconds`), `stdout`, `stderr`. |
+| `grep(workspace, env, pattern, *, slot=None, path=None, limit=None)` | `Grepped` | Searches files for a POSIX extended regular expression: `matches` (`path`, `line`, `text`) and `more`. |
+| `host(chat)` | `(workspace, slot)` | The host a chat is going on, to pass to the members above. Refused if no host holds the chat. |
+| `attached(workspace=None, *, slot=None, chat=None, start=False, wait=30.0)` | `Attached` | Attaches to the host as a frontend. Pass `chat` instead of `workspace` and `slot` to name a chat's host. |
+
+`attached` does what the app's environment tabs do. It refuses a host that is not held unless `start=True`, because a host just started has no environment. Use the result as a context manager; leaving the block detaches and leaves every terminal running.
+
+| `Attached` member | Returns | What it does |
+| --- | --- | --- |
+| `envs(wait=0)` | list of `Env` | The host's environments as it last listed them. `wait` waits that many seconds for a first one. |
+| `env(name=None)` | `Environment` | One environment, by id, chain or role. Default: the first that is available and open. |
+| `sub`, `workspace`, `slot`, `gone` | | The subscription, the host, and why the host let go, once it has. |
+| `close()` | | Detaches. |
+
+An `Environment` has `env` (its `Env`), `id`, and three groups.
+
+| Group | Members |
+| --- | --- |
+| `files` | `list(path=".")`, `stat(path)`, `read(path, *, offset=None, length=None)`, `find(*, limit=None)`, `search(query, *, regex=None, case=None, glob=None, limit=None)`, `write(path, data, *, if_match=None, idem=None)`, `mkdir(path)`, `rename(path, to)`, `remove(path)` |
+| `git` | `status()`, `diff(path, *, staged=None)`, `log(*, limit=None)`, `stage(paths)`, `unstage(paths)`, `discard(paths)`, `commit(message, *, amend=None)`, `snapshots()`, `rewind(ref)` |
+| `terminals` | `open(*, cols=80, rows=24, term=None)`, `list()`, `close(term)` |
+
+`files.read(path)` returns the whole file as a `Read` (`data`, `size`, `mtime`, `etag`, `eof`). Pass its `etag` as `if_match` to `files.write` to write only if the file is unchanged; `if_match=""` writes only if the file does not exist. Bytes are `bytes` throughout; `write` also takes `str`.
+
+`terminals.open` returns a `Terminal`: `write(data)`, `resize(cols, rows)`, `read(seconds=None)`, `leave()` to stop reading and leave it running, `close()` to end it, and `id`, `shell`, `replay` and `status`. Iterate it for what it prints; iteration ends when the shell exits, and `status` is then its exit status. Reading acknowledges output to the host, so an unread terminal pauses instead of filling memory. As a context manager, it closes the terminal on exit if it still runs.
+
+```python
+import sys
+
+from hmz.sdk import Client
+
+with Client.local() as client, client.envs.attached("/path/to/project") as host:
+    env = host.env()
+    read = env.files.read("README.md")
+    env.files.write("README.md", read.data + b"more\n", if_match=read.etag)
+    env.git.stage(["README.md"])
+    env.git.commit("docs: say more")
+    with env.terminals.open(cols=120, rows=40) as terminal:
+        terminal.write("make test; exit\n")
+        for printed in terminal:
+            sys.stdout.buffer.write(printed)
+```
+
+A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
+
+#### chats {#client-chats}
+
+A chat is named two ways. What is done to a chat as it is written down takes its id. What is done to it while a host holds it takes its workspace and slot; `hold(chat)` gives those.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `start(workspace, task, *, agent=None, resume=None, prefer=None, permission=None, worktree=None, env=None, remember=None, slot="chat:", idem=None)` | `Started` | Starts a chat, or carries one on with `resume`. `workspace=None` starts it in no folder. A `Started` has `chat`, `workspace` and `slot`. |
+| `follow(workspace, slot, *, replay=True, line=None)` | `Turn` | Attaches to the chat's host to hear its turn. |
+| `ask(chat, text, *, idem=None)` | `Turn` | Says a line to a chat by id and follows the turn that answers it. |
+| `hold(chat)` | `Held` | The `workspace` and `slot` of the host holding the chat. A resting chat is carried on first, with nothing said. |
+| `say(workspace, slot, text, *, idem=None)` | `None` | Says the next line. An empty line ends the chat on that host. |
+| `rest(chat, *, seconds=10.0)` | `bool` | Ends the chat on its host and waits until no host holds it. |
+| `stop(workspace, slot, *, idem=None)` | `None` | Stops the open turn. |
+| `set(workspace, slot, *, prefer=None, permission=None, idem=None)` | `None` | Sets the permission, from the next turn, or what a `$name` runs. |
+| `move(workspace, slot, env, *, idem=None)` | `str` | Moves the chat to another environment between turns. Returns where it then works. |
+| `commands(workspace, slot)` | `Catalogue` | What a line can start with: `entries` (each `sigil`, `name`, `about`, `how`, `source`), `prefer`, `prefer_from`, `permission`, `listed`. |
+| `list(*, workspace=None, archived=None, q=None, offset=None, limit=None)` | `Listed` | A page of chats, newest first: `chats`, `total`, `offset`, `limit`. |
+| `get(chat, *, trace=None)` | `Chat` | One chat. With `trace=True`, `said["trace"]` holds what was said in it. |
+| `rename(chat, title)`, `agent(chat, agent)`, `archive(chat)`, `unarchive(chat)` | `Chat` | Changes the chat and returns it as it then is. Each takes `idem`. |
+| `fork(chat, *, idem=None)` | `str` | The id of a new chat that goes on from a copy of this one. |
+| `backup(chat, *, to=None, idem=None)` | list of `str` | Queues a backup and returns its targets. |
+| `delete(chat, *, idem=None)` | `None` | Deletes the chat for good. |
+| `remembered(workspace)` | `str` | The agent remembered for the folder, or `""`. |
+| `harness.list(workspace, *, offset=None, limit=None)` | `Sessions` | The harness sessions of a folder: `sessions`, `total`, `offset`, `limit`. |
+| `harness.get(workspace, harness, session, *, trace=None)` | `HarnessSession` | One harness session: `id`, `harness`, `title`, `workspace`, `model`, `began`, `updated`, `continuable`, `trace`. |
+| `harness.adopt(workspace, harness, session, *, agent=None, idem=None)` | `str` | The id of a new chat that continues the session. |
+
+A `Chat` has `id`, `title`, `workspace`, `folderless`, `workdir`, `env`, `agent`, `model`, `began`, `updated`, `state`, `slot`, `asking`, `permission`, `archived`, and `said`, the daemon's whole answer.
+
+A `Turn` is the turn as the chat's host tells it. Iterating it yields each message the host sends and ends when the chat is between turns again, has ended, or its host has gone. It raises `ConnectionError` if the session with the daemon ends first.
+
+| `Turn` member | What it holds |
+| --- | --- |
+| `answer` | What the turn answered, or `None`. |
+| `failed` | What the harness said if the turn failed, or `""`. |
+| `notes` | What the chat said beside the answer, such as why it refused the line. |
+| `ended` | `(how, why)` if the chat ended or its host went, or `None`. |
+| `done` | Whether the turn was taken and the chat is between turns. |
+| `wait()` | Hears the turn out and returns `answer`. |
+| `close()` | Detaches from the host. The chat goes on. A `with` block calls it. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    chats = client.chats
+    started = chats.start("/home/me/shop", "What does charge() do?", agent="claude/claude-haiku-4-5")
+    with chats.follow(started.workspace, started.slot) as turn:
+        for message in turn:
+            if message.get("type") == "event" and message.get("kind") == "text":
+                print(message["text"])
+    with chats.ask(started.chat, "And how is it tested?") as turn:
+        print(turn.wait())
+    chats.rest(started.chat)
+```
+
+- Pass `replay=False` to `follow` when the host held the chat before the line you are about to say, and pass that line as `line`; `ask` does both.
+- A host that `start` or `hold` started stands by between turns and folds on its own. Call `rest` to end it at once.
 
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 
