@@ -284,10 +284,7 @@ def _service(*, install: bool) -> int:
         )
         text = _plist(_hmz())
     elif sys.platform.startswith("linux"):
-        # A relative XDG_CONFIG_HOME is to be ignored (the XDG Base Directory Specification).
-        moved = Path(os.environ.get("XDG_CONFIG_HOME", ""))
-        config = moved if moved.is_absolute() else Path.home() / ".config"
-        at = config / "systemd" / "user" / UNIT
+        at = _configured() / "systemd" / "user" / UNIT
         # Where every hmz before this one wrote it, whatever XDG_CONFIG_HOME named.
         released = Path.home() / ".config" / "systemd" / "user" / UNIT
         stale = (
@@ -335,6 +332,33 @@ def _service(*, install: bool) -> int:
         )
     print(f"hmz daemon: {'installed' if install else 'uninstalled'} {at}")
     return 0
+
+
+def _configured() -> Path:
+    """Where the user's systemd manager looks for its configuration.
+
+    Its own `XDG_CONFIG_HOME`, not this shell's, which a shell's startup files may set and the
+    manager never see; `~/.config` where the manager cannot be asked, names none, or names a
+    relative one, which the XDG Base Directory Specification says to ignore.
+    """
+    import subprocess
+    from pathlib import Path
+
+    try:
+        ran = subprocess.run(
+            ["systemctl", "--user", "show-environment"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        ran = None
+    if ran is not None and not ran.returncode:
+        for line in ran.stdout.splitlines():
+            name, _, value = line.partition("=")
+            if name == "XDG_CONFIG_HOME" and Path(value).is_absolute():
+                return Path(value)
+    return Path.home() / ".config"
 
 
 def _hmz() -> Path:

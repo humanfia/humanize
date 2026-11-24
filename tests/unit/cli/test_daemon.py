@@ -218,11 +218,38 @@ def test_serve_says_each_route_it_listens_on(
     assert capsys.readouterr().out == "hmz daemon: listening on tcp://127.0.0.1:4100\n"
 
 
+class _Systemd:
+    """`subprocess.run` as systemctl and launchctl answer it.
+
+    `environment` is what the user's systemd manager shows (`None` where it cannot be asked),
+    `failed` what every other command fails with, if anything.
+    """
+
+    def __init__(self) -> None:
+        self.environment: str | None = ""
+        self.failed = ""
+        self.calls: list[list[str]] = []
+
+    def __call__(self, step: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        self.calls.append(step)
+        if step[-1] == "show-environment":
+            if self.environment is None:
+                return subprocess.CompletedProcess(step, 1, "", "Failed to connect\n")
+            return subprocess.CompletedProcess(step, 0, self.environment, "")
+        return subprocess.CompletedProcess(
+            step, int(bool(self.failed)), "", self.failed
+        )
+
+    def ran(self) -> list[list[str]]:
+        """What ran but asking the manager its environment."""
+        return [step for step in self.calls if step[-1] != "show-environment"]
+
+
 @pytest.fixture
-def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Systemd:
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    ran = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+    ran = _Systemd()
     monkeypatch.setattr(subprocess, "run", ran)
     return ran
 
@@ -235,7 +262,7 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     ],
 )
 def test_install_writes_the_service_and_uninstall_removes_it(
-    home: mock.Mock,
+    home: _Systemd,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -249,7 +276,7 @@ def test_install_writes_the_service_and_uninstall_removes_it(
     written = (tmp_path / at).read_text()
     assert "daemon" in written
     assert "serve" in written
-    assert home.call_args_list[-1].args[0][0] == command
+    assert home.ran()[-1][0] == command
     assert capsys.readouterr().out == f"hmz daemon: installed {tmp_path / at}\n"
 
     assert daemon(["uninstall"]) == 0
@@ -258,34 +285,47 @@ def test_install_writes_the_service_and_uninstall_removes_it(
     assert daemon(["uninstall"]) == 1
 
 
-def test_the_unit_goes_under_an_absolute_xdg_config_home(
-    home: mock.Mock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_the_unit_goes_under_the_xdg_config_home_systemd_has(
+    home: _Systemd, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    # The shell's own is not where systemd looks.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "shell"))
+    home.environment = f"HOME={tmp_path}\nXDG_CONFIG_HOME={tmp_path / 'cfg'}\n"
 
     assert daemon(["install"]) == 0
     assert (tmp_path / "cfg/systemd/user/hmz-daemon.service").exists()
     assert not (tmp_path / ".config").exists()
+    assert not (tmp_path / "shell").exists()
 
 
-def test_a_relative_xdg_config_home_is_ignored(
-    home: mock.Mock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "environment",
+    [None, "HOME=/home/u\n", "XDG_CONFIG_HOME=cfg\n"],
+    ids=["unasked", "unset", "relative"],
+)
+def test_the_unit_goes_under_dot_config_where_systemd_has_no_absolute_xdg_config_home(
+    home: _Systemd,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    environment: str | None,
 ) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("XDG_CONFIG_HOME", "cfg")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "shell"))
+    home.environment = environment
 
     assert daemon(["install"]) == 0
     assert (tmp_path / ".config/systemd/user/hmz-daemon.service").exists()
     assert not (tmp_path / "cfg").exists()
+    assert not (tmp_path / "shell").exists()
 
 
 @pytest.fixture
-def released(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def released(home: _Systemd, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A unit a released hmz wrote under `~/.config`, enabled, with XDG_CONFIG_HOME elsewhere."""
     monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    home.environment = f"XDG_CONFIG_HOME={tmp_path / 'cfg'}\n"
     unit = tmp_path / ".config/systemd/user/hmz-daemon.service"
     (unit.parent / "default.target.wants").mkdir(parents=True)
     unit.write_text("[Unit]\n")
@@ -294,7 +334,7 @@ def released(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_install_replaces_the_unit_a_released_hmz_left(
-    home: mock.Mock, tmp_path: Path, released: Path
+    home: _Systemd, tmp_path: Path, released: Path
 ) -> None:
     assert daemon(["install"]) == 0
     assert (tmp_path / "cfg/systemd/user/hmz-daemon.service").exists()
@@ -302,7 +342,7 @@ def test_install_replaces_the_unit_a_released_hmz_left(
     assert not (
         released.parent / "default.target.wants/hmz-daemon.service"
     ).is_symlink()
-    assert [call.args[0][2] for call in home.call_args_list] == [
+    assert [step[2] for step in home.ran()] == [
         "daemon-reload",
         "enable",
         "daemon-reload",
@@ -310,13 +350,13 @@ def test_install_replaces_the_unit_a_released_hmz_left(
 
 
 def test_uninstall_removes_the_unit_a_released_hmz_left(
-    home: mock.Mock,
+    home: _Systemd,
     released: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert daemon(["uninstall"]) == 0
     assert not released.exists()
-    assert home.call_args_list[0].args[0][2:] == [
+    assert home.ran()[0][2:] == [
         "disable",
         "--now",
         "hmz-daemon.service",
@@ -326,9 +366,9 @@ def test_uninstall_removes_the_unit_a_released_hmz_left(
 
 
 def test_a_released_unit_is_kept_while_the_install_fails(
-    home: mock.Mock, released: Path, capsys: pytest.CaptureFixture[str]
+    home: _Systemd, released: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    home.return_value = subprocess.CompletedProcess([], 1, "", "Failed to connect\n")
+    home.failed = "Failed to connect\n"
 
     assert daemon(["install"]) == 1
     assert released.exists()
@@ -336,7 +376,7 @@ def test_a_released_unit_is_kept_while_the_install_fails(
 
 
 def test_install_runs_on_macos_and_linux_alone(
-    home: mock.Mock, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    home: _Systemd, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(sys, "platform", "win32")
 
@@ -344,14 +384,14 @@ def test_install_runs_on_macos_and_linux_alone(
     assert capsys.readouterr().err == (
         "hmz: hmz daemon install runs on macOS and Linux alone\n"
     )
-    home.assert_not_called()
+    assert not home.calls
 
 
 def test_a_service_that_will_not_start_is_said_so(
-    home: mock.Mock, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    home: _Systemd, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
-    home.return_value = subprocess.CompletedProcess([], 1, "", "Failed to connect\n")
+    home.failed = "Failed to connect\n"
 
     assert daemon(["install"]) == 1
     assert capsys.readouterr().err == "hmz: Failed to connect\n"

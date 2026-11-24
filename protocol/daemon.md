@@ -486,7 +486,8 @@ serving its socket and its other listeners.
 macOS the launchd agent `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist`, loaded with
 `launchctl bootstrap gui/<uid>`; on Linux the systemd user unit
 `<config>/systemd/user/hmz-daemon.service`, enabled with `systemctl --user enable --now`,
-`<config>` being `XDG_CONFIG_HOME` where it is an absolute path and `~/.config` otherwise. `hmz
+`<config>` being the `XDG_CONFIG_HOME` that `systemctl --user show-environment` shows where it
+is an absolute path, and `~/.config` otherwise or where that command fails. `hmz
 daemon uninstall` MUST stop, disable and remove it. Where `<config>` is not `~/.config`, a
 `~/.config/systemd/user/hmz-daemon.service` an earlier hmz wrote MUST be removed once `hmz daemon
 install` or `hmz daemon uninstall` succeeds, and `hmz daemon uninstall` MUST take that unit, where
