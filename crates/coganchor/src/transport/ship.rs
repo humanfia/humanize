@@ -265,8 +265,9 @@ pub fn digest(path: &Path) -> io::Result<String> {
 /// with `sha256sum` or `shasum` where that machine has one), so a stream cut short or a file
 /// somebody else left under the name is never what runs. A binary already there that checks
 /// out is only touched, so the sweep counts it as used, and its input left unread -- with
-/// `touch -c`, which sets the time by name, where a plain `touch` opens the file for writing
-/// and Linux refuses to run a file anybody has open so (`Text file busy`); otherwise
+/// `touch -c -h`, which sets the time by name, where a plain `touch`, and uutils' with `-c`
+/// alone, opens the file for writing and Linux refuses to run a file anybody has open so
+/// (`Text file busy`); otherwise
 /// it is written under a name of its own, `<file>.humanize-<pid>-1.tmp` (protocol/files.md
 /// 9.3.4: a fleet coming up installs on one machine by the hundred), and moved into place, so
 /// whoever runs it finds the whole binary or none. Then every `coganchor-*` nothing has
@@ -292,7 +293,7 @@ pub fn installing(cache: &str, digest: &str, size: u64, owned: bool) -> String {
            [ \"$(wc -c < \"$1\" | tr -d ' ')\" = {size} ] && summed \"$1\"; }}; "
     );
     script += &format!(
-        "if whole \"$f\" && [ -x \"$f\" ] && touch -c \"$f\"; then :; else \
+        "if whole \"$f\" && [ -x \"$f\" ] && touch -c -h \"$f\"; then :; else \
            t=\"$f.humanize-$$-1.tmp\"; \
            cat > \"$t\" && whole \"$t\" && chmod 700 \"$t\" && mv -f \"$t\" \"$f\" || \
            {{ rm -f \"$t\"; \

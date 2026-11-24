@@ -365,7 +365,7 @@ def test_directories_owned_are_checked_and_closed_before_the_settings() -> None:
         script.index('[ -O "/tmp/c-7" ]')
         < script.index('[ -O "/tmp/m-7" ]')
         < script.index("HUMANIZE_SHADOW=")
-        < script.index("touch -c")
+        < script.index("touch -c -h")
     )
 
 
@@ -640,7 +640,7 @@ def test_coganchor_is_shipped_once_per_machine_named_by_its_digest(
     assert line[:4] == ["docker", "exec", "-i", "shipped-once"]
     assert line[-5:] == ["coganchor", "anchor", "--stdio", "--export", "/w"]
     assert f'exec "{CONTAINER_CACHE}/{name}" "$@"' in line[-6]
-    assert f'touch -c "{CONTAINER_CACHE}/{name}"' in line[-6]
+    assert f'touch -c -h "{CONTAINER_CACHE}/{name}"' in line[-6]
 
     road.hmz(["internal", "anchor", "serve", "--stdio"])
     assert len(ran.asked) == 2
@@ -788,7 +788,7 @@ def test_coganchor_line_touches_and_runs_the_program() -> None:
 
     assert line[:2] == ["/bin/sh", "-c"]
     assert line[3:] == ["coganchor", "anchor", "--stdio"]
-    assert line[2].index('A="/b"') < line[2].index('touch -c "$HOME/c/coganchor-x"')
+    assert line[2].index('A="/b"') < line[2].index('touch -c -h "$HOME/c/coganchor-x"')
     assert line[2].endswith('exec "$HOME/c/coganchor-x" "$@"')
 
 

@@ -533,7 +533,7 @@ class Slurm(MachineBase):
         serving = ["anchor", "--listen", "0.0.0.0:0", "--export", config.workspace]
         return (
             f"{secret}{REMOTE_STATE}{awaiting(REMOTE_CACHE)}; "
-            f'touch -c "$p"; exec "$p" {shlex.join(serving)} --export {_DERIVED}'
+            f'touch -c -h "$p"; exec "$p" {shlex.join(serving)} --export {_DERIVED}'
         )
 
     def _labelled(self) -> str:

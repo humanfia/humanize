@@ -180,7 +180,7 @@ def coganchor_command(
     Returns:
       The argv to run over there.
     """
-    script = f'touch -c "{program}" 2>/dev/null; exec "{program}" "$@"'
+    script = f'touch -c -h "{program}" 2>/dev/null; exec "{program}" "$@"'
     return ["/bin/sh", "-c", _prefaced(script, setting, owned), "coganchor", *args]
 
 
@@ -219,9 +219,11 @@ def _prefaced(
 #: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
 #: Humanize on it is sure to have. A build already there under its name is touched and left:
 #: it is named by its digest, and rewriting it would be rewriting a program a live session may
-#: be running. Touched with `-c`, which sets its time by its name: a plain `touch` opens it
-#: for writing to do that, and for as long as it is open Linux refuses to run it (`Text file
-#: busy`) -- to a session which found it there a moment earlier. One that is not is read off
+#: be running. Touched with `-c -h`, which sets its time by its name: a plain `touch` opens
+#: it for writing to do that, and so does a `-c` alone in uutils' (Ubuntu's since 25.10), and
+#: for as long as it is open Linux refuses to run it (`Text file busy`) -- to a session which
+#: found it there a moment earlier. `-h` is the times of the name itself, which every `touch`
+#: from GNU's to BusyBox's and a Mac's sets without opening anything. One that is not is read off
 #: the input into `<path>.<pid>` -- two sessions shipping to one machine at once being the
 #: ordinary case -- checked to be as long as what
 #: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
@@ -231,7 +233,7 @@ def _prefaced(
 #: side's directory, the build's name there and its length in bytes.
 _SHIPPING = (
     'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
-    'if [ -f "$p" ]; then touch -c "$p"; else '
+    'if [ -f "$p" ]; then touch -c -h "$p"; else '
     't="$p.$$"; '
     'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
     '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '
