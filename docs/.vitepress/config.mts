@@ -294,7 +294,7 @@ const wayTo = (to: string) => (/^https?:\/\//.test(to) ? to : `${BASE}${to}`)
 export default defineConfig({
   base: BASE,
   title: 'Humanize',
-  description: 'Orchestrate, execute, and observe agent flows',
+  description: 'Infrastructure that schedules many different nous across many environments, under one budget, until one large task is done',
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,

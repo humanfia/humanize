@@ -18,8 +18,9 @@
 // stop, so it is not there. Before the script runs, and without it, the screen shows the first
 // scene, chosen by the theme's class and the window's width alone.
 //
-// The tabs are one row over the screen, and the screen is a window lit from behind, in the
-// middle of the page.
+// The tabs are one hairline row over the screen, the scene that is on inked in, and the screen
+// is a plate in the middle of the page with a hard green edge under it: humanfia.ai's manner,
+// as the rest of the page is drawn.
 import { useData, withBase } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { SCENES, WORDS } from './copy'
@@ -418,20 +419,15 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-/* ---- the tabs: one pill, and the scene that is on is a pill in it ------------------------ */
+/* ---- the tabs: one hairline row, and the scene that is on is inked in -------------------- */
 
 .st-tabs {
   display: flex;
-  gap: 2px;
   max-width: 100%;
-  padding: 4px;
   overflow-x: auto;
   scrollbar-width: none;
   border: 1px solid var(--hm-rule);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--hm-sheet) 72%, transparent);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--hm-shade) 6%, transparent);
+  background: var(--hm-bg);
 }
 .st-tabs::-webkit-scrollbar {
   display: none;
@@ -440,37 +436,42 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   flex: none;
-  height: 34px;
-  padding: 0 16px;
+  height: 42px;
+  padding: 0 18px;
   overflow: hidden;
-  border-radius: 999px;
-  font-size: 14px;
+  font-family: var(--hm-mono);
+  font-size: 12.5px;
   line-height: 1;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--hm-fg-3);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--hm-fg-2);
   transition:
     color 0.2s,
     background-color 0.2s;
 }
+.st-tabs button + button {
+  border-left: 1px solid var(--hm-rule);
+}
 .st-tabs button:hover {
   color: var(--hm-fg);
+  background: var(--hm-sheet);
 }
 .st-tabs button[aria-selected='true'] {
-  color: var(--hm-fg);
-  background: color-mix(in srgb, var(--hm-fg) 8%, transparent);
+  color: var(--hm-bg);
+  background: var(--hm-fg);
 }
 .st-tabs button:focus-visible {
-  outline-offset: -2px;
+  outline-offset: -4px;
+  outline-color: var(--hm-cyan);
 }
-/* While the scenes follow one another, the pill of the one that is on fills in the time its
-   reel runs; when the reader picked it, holds the scenes or is away, it is plain. */
+/* While the scenes follow one another, a green rule under the one that is on is drawn in the
+   time its reel runs; when the reader picked it, holds the scenes or is away, there is none. */
 .st-tabs button::before {
   content: '';
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--hm-cyan) 22%, transparent), color-mix(in srgb, var(--hm-pink) 26%, transparent));
+  inset: auto 0 0;
+  height: 4px;
+  background: var(--hm-green);
   clip-path: inset(0 100% 0 0);
 }
 .st-tabs.timed button[aria-selected='true']::before {
@@ -493,9 +494,9 @@ onBeforeUnmount(() => {
 
 /* ---- the screen ------------------------------------------------------------------------ */
 
-/* A window with a hairline edge and a soft shadow, lit from behind in the page's two colours.
-   It is as wide as the page allows and no taller than the window it is read in. The block is
-   the link itself, so the ring of its focus is not cut off. */
+/* A plate with an edge of ink, lifted off the page by a hard green offset: the print's, not a
+   blur. It is as wide as the page allows and no taller than the window it is read in. The block
+   is the link itself, so the ring of its focus is not cut off. */
 .st-screen {
   position: relative;
   isolation: isolate;
@@ -503,46 +504,16 @@ onBeforeUnmount(() => {
   margin: min(28px, 3svh) 0 40px;
   aspect-ratio: var(--desk);
 }
-.st-screen::before {
-  content: '';
-  position: absolute;
-  inset: -4% -3% -7%;
-  z-index: -1;
-  background:
-    radial-gradient(48% 62% at 22% 46%, var(--hm-cyan), transparent 72%),
-    radial-gradient(48% 62% at 78% 58%, var(--hm-pink), transparent 72%);
-  filter: blur(64px);
-  opacity: var(--hm-glow);
-  animation: st-breathe 9s ease-in-out infinite alternate;
-}
-.st-screen.paused::before {
-  animation-play-state: paused;
-}
-@keyframes st-breathe {
-  to {
-    opacity: calc(var(--hm-glow) * 0.62);
-    transform: scale(1.03);
-  }
-}
 .st-link {
   position: absolute;
   inset: 0;
   display: block;
   overflow: hidden;
-  border-radius: 14px;
-  background: var(--hm-house);
+  border-radius: var(--hm-radius);
+  background: var(--hm-sheet);
   box-shadow:
-    0 0 0 1px var(--hm-edge),
-    0 2px 4px color-mix(in srgb, var(--hm-shade) 6%, transparent),
-    0 24px 48px -16px color-mix(in srgb, var(--hm-shade) 28%, transparent),
-    0 64px 96px -48px color-mix(in srgb, var(--hm-shade) 30%, transparent);
-}
-/* On the dark page a black shadow shows nothing: the window is lifted by light instead. */
-:global(.dark .st-link) {
-  box-shadow:
-    0 0 0 1px var(--hm-edge),
-    inset 0 1px 0 color-mix(in srgb, var(--hm-paper) 10%, transparent),
-    0 40px 120px -40px color-mix(in srgb, var(--hm-cyan) 35%, transparent);
+    0 0 0 1px var(--hm-fg),
+    12px 12px 0 0 var(--hm-green);
 }
 /* A terminal's reel is a terminal's window drawn whole, edge and all: it is the window, and
    the block around it is not drawn. */
@@ -550,9 +521,6 @@ onBeforeUnmount(() => {
   overflow: visible;
   background: none;
   box-shadow: none;
-}
-.st-link.term .st-reel {
-  filter: drop-shadow(0 24px 32px color-mix(in srgb, var(--hm-shade) 26%, transparent));
 }
 .st-link:focus-visible {
   outline-offset: 4px;
@@ -597,17 +565,18 @@ onBeforeUnmount(() => {
 /* The one control, under the screen's corner: a small word. */
 .st-hold {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 16px);
   right: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 28px;
   padding: 0 8px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--hm-radius);
+  font-family: var(--hm-mono);
+  font-size: 12px;
   line-height: 1;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--hm-fg-2);
   transition:
     color 0.2s,
@@ -627,9 +596,9 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .st-tabs button {
-    height: 32px;
-    padding: 0 10px;
-    font-size: 13px;
+    height: 40px;
+    padding: 0 11px;
+    font-size: 12px;
   }
   .st-screen {
     width: min(100%, 392px, max(240px, (100svh - var(--vp-nav-height, 64px) - 120px) * var(--phone-n, 0.7538)));
@@ -637,7 +606,9 @@ onBeforeUnmount(() => {
     aspect-ratio: var(--phone);
   }
   .st-link {
-    border-radius: 18px;
+    box-shadow:
+      0 0 0 1px var(--hm-fg),
+      8px 8px 0 0 var(--hm-green);
   }
   .st-reel,
   .st-reel.windowed,
@@ -655,23 +626,22 @@ onBeforeUnmount(() => {
     padding: 0 12px;
   }
 }
-/* The narrowest phones: the six tabs share the pill's width, so none is cut off. */
+/* The narrowest phones: the six tabs share the row's width, so none is cut off. */
 @media (max-width: 420px) {
   .st-tabs {
     width: 100%;
-    gap: 0;
   }
   .st-tabs button {
     flex: 1 0 auto;
-    padding: 0 4px;
-    font-size: 12.5px;
+    padding: 0 3px;
+    font-size: 11px;
+    letter-spacing: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .st-reel {
     transition: none;
   }
-  .st-screen::before,
   .st-tabs.timed button[aria-selected='true']::before {
     animation: none;
   }

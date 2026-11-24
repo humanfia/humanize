@@ -5,7 +5,7 @@ description: Find the page for any feature of Humanize Desktop, the browser page
 
 # User Guide
 
-Use this guide to run Humanize in Humanize Desktop, the browser page, the terminal or the command line. Each page covers one feature across every interface that supports it. If you are new to Humanize, start with a [tutorial](/tutorials/); to write flows in Python, read the [Builder Guide](/builder/).
+Humanize is infrastructure: it schedules the nous a flow asks for, gives each agent an environment to work in, and holds the run to a budget. Use this guide to run Humanize in Humanize Desktop, the browser page, the terminal or the command line. Each page covers one feature across every interface that supports it. If you are new to Humanize, start with a [tutorial](/tutorials/); to write flows in Python, read the [Builder Guide](/builder/).
 
 ![Humanize Desktop, the browser page, the terminal interface and the command line all talk to one daemon, which runs the coding agents](/diagrams/user-index-1.svg)
 
