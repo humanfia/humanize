@@ -96,6 +96,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 ## Good to know
 
 - If Humanize cannot enforce a permission, the session fails to open with `HarnessSandboxed`. An agent never runs with wider access than its permission allows.
+- Humanize reads Claude Code's managed settings before starting it. If they forbid `bypassPermissions`, the agent starts at `acceptEdits`. If they allow only managed hooks, Humanize registers its tool-call hook over the CLI's stream instead. If they would drop a flow's callbacks (`disableSideloadFlags`, `managed-mcp.json`) or an unconfined agent's `allowed_tools` (`allowManagedPermissionRulesOnly`), the turn fails before the CLI starts, naming the setting and its file.
 - When an agent reports a refused write, the permission is working. Start the chat in the folder you want changed, or select a wider preset.
 - Under **Edit this folder**, the agent can also write to `/tmp`, `/var/tmp` and `$TMPDIR`.
 - Under any preset, every agent can write to its own settings, sign-in and session files.

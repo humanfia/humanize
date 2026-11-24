@@ -28,6 +28,7 @@ from hmz.coganchor.agents import (
     Moment,
     Occasion,
     Unrecoverable,
+    Unserved,
     Verdict,
 )
 from hmz.coganchor.fence import Fence
@@ -56,13 +57,21 @@ def result(text, error=False, output=3):
          "modelUsage": {model: {"inputTokens": 5, "outputTokens": output}}})
 
 
+registered = []
+
+
 def gated(tool, called):
     table = json.loads(flags["--settings"]).get("hooks", {}).get("PreToolUse", [])
+    asked = json.dumps({"hook_event_name": "PreToolUse", "session_id": session,
+                        "tool_name": tool, "tool_input": called})
+    if registered:
+        out({"type": "control_request", "request_id": "h1", "request": {
+            "subtype": "hook_callback", "callback_id": registered[0],
+            "input": json.loads(asked)}})
+        return json.dumps(json.loads(sys.stdin.readline())["response"]["response"])
     if not table:
         return "ungated"
     command = table[0]["hooks"][0]["command"]
-    asked = json.dumps({"hook_event_name": "PreToolUse", "session_id": session,
-                        "tool_name": tool, "tool_input": called})
     ran = subprocess.run(command, shell=True, input=asked, capture_output=True, text=True)
     return ran.stdout.strip() or "{}"
 
@@ -72,6 +81,9 @@ for line in sys.stdin:
     if held.get("type") == "control_request":
         request = held["request"]
         note(json.dumps(request))
+        if request["subtype"] == "initialize":
+            for one in request.get("hooks", {}).get("PreToolUse", []):
+                registered.extend(one["hookCallbackIds"])
         if request["subtype"] == "set_model":
             model = request["model"]
             out({"type": "control_response", "response": {
@@ -469,6 +481,67 @@ def test_a_pre_tool_use_hook_is_served_to_claude_s_own_hook_table(
         "internal",
         "hook",
     ]
+
+
+@pytest.fixture
+def managed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """This machine's `managed-settings.json`, in a folder of the test's."""
+    folder = tmp_path / "managed"
+    folder.mkdir()
+    monkeypatch.setattr("hmz.coganchor.agents.claude.MANAGED", (folder,))
+    return folder / "managed-settings.json"
+
+
+def test_bypass_the_managed_settings_forbid_is_never_launched(
+    claude: Standins, fenced: ClaudeCodeAgentConfig, managed: Path
+) -> None:
+    managed.write_text(
+        json.dumps({"permissions": {"disableBypassPermissionsMode": "disable"}})
+    )
+    agent = ClaudeCodeAgent(fenced)
+
+    events = list(agent.new().stream("first"))
+    agent.new()("second")
+
+    notices = [one.text for one in events if one.kind == "notice"]
+    assert len(notices) == 1
+    assert str(managed) in notices[0]
+    launched = claude.calls("claude")
+    assert {one.flag("--permission-mode") for one in launched} == {"acceptEdits"}
+    assert not any("set_permission_mode" in one for one in claude.said("claude"))
+
+
+def test_a_pre_tool_use_hook_the_managed_settings_keep_off_a_table_still_refuses(
+    claude: Standins, managed: Path
+) -> None:
+    managed.write_text(json.dumps({"allowManagedHooksOnly": True}))
+    agent = ClaudeCodeAgent(CONFIG)
+    seen: list[str] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion.about)
+        return Verdict(refused=True, because="never that")
+
+    agent.hooks.on(Moment.PRE_TOOL_USE, refuse, tool="Bash")
+
+    answered = json.loads(agent.new()("gate"))
+
+    assert answered["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert seen == ["rm -rf /"]
+    settings = json.loads(claude.calls()[0].flag("--settings") or "{}")
+    assert "hooks" not in settings
+
+
+def test_allow_rules_the_managed_settings_drop_are_refused_before_claude_starts(
+    claude: Standins, managed: Path
+) -> None:
+    managed.write_text(json.dumps({"allowManagedPermissionRulesOnly": True}))
+    agent = ClaudeCodeAgent(dataclasses.replace(CONFIG, allowed_tools=("Read",)))
+
+    with pytest.raises(Unserved, match="allowManagedPermissionRulesOnly"):
+        agent.new()("hello")
+
+    assert claude.calls("claude") == []
 
 
 def test_a_word_put_in_mid_turn_reaches_the_running_turn(claude: Standins) -> None:
