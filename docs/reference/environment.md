@@ -39,7 +39,7 @@ An empty value counts as unset unless the table says otherwise. Switch values ar
 | `HUMANIZE_EASYTIER` | path to an `easytier-core` binary | EasyTier `2.6.4`, downloaded into the home on first use | The EasyTier binary used to reach or serve a daemon over EasyTier. Ignores paths that are not files. |
 | `HUMANIZE_EASYTIER_NODES` | URL of an Uptime Kuma server | `https://easytier.gd.nkbpal.cn` | Source for the list of shared community EasyTier nodes. |
 | `HUMANIZE_COGANCHOR` | path to a `coganchor` binary | the build shipped in the package | The `coganchor` run on this machine. Other machines still get the packaged builds. Ignores paths that are not files. |
-| `HUMANIZE_SHADOWS` | a path, `~` allowed | `~/.cache/humanize/shadows` | Directory for records of local mirrors of remote workspaces. |
+| `HUMANIZE_SHADOWS` | a path, `~` allowed | `$XDG_STATE_HOME/humanize/shadows`, else `~/.local/state/humanize/shadows` | Directory for records of local mirrors of remote workspaces. |
 | `HUMANIZE_RENDEZVOUS` | a host or address | this machine's outward-facing address | The address the two halves of a remote turn dial to meet. Also the default of `hmz internal anchor --broker`. |
 | `HUMANIZE_RENDEZVOUS_PORT` | an integer | `0`, any free port | The port of that meeting point. Listens on every interface. An empty or non-numeric value is an error. |
 

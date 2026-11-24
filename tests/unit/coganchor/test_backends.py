@@ -210,6 +210,78 @@ def test_directory_read_from_a_turns_own_environment(home: Path) -> None:
     assert profile.directory({}) == home / ".x"
 
 
+def test_litellm_keeps_its_conversations_in_the_state_home(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    litellm = backends.named("litellm")
+    assert litellm is not None
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    assert litellm.directory() == home / ".local/state/humanize/litellm"
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / "st"))
+    assert litellm.directory() == home / "st/humanize/litellm"
+    # A relative one is no XDG directory at all.
+    monkeypatch.setenv("XDG_STATE_HOME", "st")
+    assert litellm.directory() == home / ".local/state/humanize/litellm"
+
+
+def test_a_home_kept_elsewhere_before_is_moved_once(home: Path) -> None:
+    old = home / ".cache/humanize"
+    (old / "litellm/sessions").mkdir(parents=True)
+    (old / "litellm/sessions/a.jsonl").write_text("{}\n", encoding="utf-8")
+    (old / "displaced/box").mkdir(parents=True)
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=(
+            (".cache/humanize/litellm", "litellm"),
+            (".cache/humanize/displaced", "displaced"),
+        ),
+    )
+
+    at = profile.directory()
+
+    assert (at / "sessions/a.jsonl").read_text(encoding="utf-8") == "{}\n"
+    assert (home / "state/displaced/box").is_dir()
+    assert not (old / "litellm").exists()
+    assert not (old / "displaced").exists()
+
+
+def test_a_home_kept_elsewhere_before_is_moved_to_this_users_own(
+    home: Path, tmp_path: Path
+) -> None:
+    (home / ".cache/humanize/litellm/sessions").mkdir(parents=True)
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=((".cache/humanize/litellm", "litellm"),),
+    )
+
+    at = profile.directory({"HOME": str(tmp_path / "turn")})
+
+    assert at == tmp_path / "turn/state/litellm"
+    assert (home / "state/litellm/sessions").is_dir()
+    assert not (tmp_path / "turn").exists()
+
+
+def test_a_home_kept_elsewhere_before_is_never_merged(home: Path) -> None:
+    old = home / ".cache/humanize/litellm/sessions"
+    old.mkdir(parents=True)
+    (old / "a.jsonl").write_text("old\n", encoding="utf-8")
+    new = home / "state/litellm/sessions"
+    new.mkdir(parents=True)
+    (new / "b.jsonl").write_text("new\n", encoding="utf-8")
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=((".cache/humanize/litellm", "litellm"),),
+    )
+
+    profile.directory()
+
+    assert sorted(one.name for one in new.iterdir()) == ["b.jsonl"]
+    assert (old / "a.jsonl").exists()
+
+
 def test_configuration(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert Profile.configuration() == home / ".config"
     monkeypatch.setenv("XDG_CONFIG_HOME", "/cfg")

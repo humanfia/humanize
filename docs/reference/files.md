@@ -15,8 +15,8 @@ Every file and directory Humanize writes: the home, the machine directory, a wor
 | --- | --- | --- |
 | Config directory | `${XDG_CONFIG_HOME:-~/.config}/humanize/` | Settings. |
 | Data directory | `${XDG_DATA_HOME:-~/.local/share}/humanize/` | Accounts, flowverses and installed flows, your own flows, epics, chats, this machine's identity, Ai-chan. |
-| State directory | `${XDG_STATE_HOME:-~/.local/state}/humanize/` | Prompt history, the last web port, directories derived from a working directory. |
-| Cache directory | `${XDG_CACHE_HOME:-~/.cache}/humanize/` | EasyTier binaries Humanize downloaded. Mirror records and LiteLLM sessions are kept in `~/.cache/humanize/`. |
+| State directory | `${XDG_STATE_HOME:-~/.local/state}/humanize/` | Prompt history, the last web port, directories derived from a working directory, mirror records and LiteLLM sessions. |
+| Cache directory | `${XDG_CACHE_HOME:-~/.cache}/humanize/` | EasyTier binaries Humanize downloaded. |
 | Workspace directory | `<workspace>/.hmz/` | Flows of the flowverse `local`. |
 | Machine directory | `<tmp>/humanize-<uid>/` | The daemon's socket and log, caches, scratch. `<tmp>` is the first of `$TMPDIR`, `$TEMP`, `$TMP` that exists and is writable, else the first of `/tmp`, `/var/tmp` and `/usr/tmp` that is. `<uid>` is your numeric user id. |
 
@@ -294,15 +294,17 @@ Humanize never adds `.hmz/` to `.gitignore`. Snapshots exclude `.hmz/` at the ro
 
 Humanize never writes CLI skills, hooks, commands, or instruction files into a workspace—including anything under `.claude/`, `.agents/`, `.cursor/`, `.codex/`, `.gemini/`, `.qwen/`, or `.grok/`, and any `AGENTS.md`, `CLAUDE.md`, or `.mcp.json`. It never writes epic records, sessions, traces, or archives there unless you specify that path as the destination.
 
-## The cache directory
+## The state directory
 
 | Path | Holds |
 | --- | --- |
-| `~/.cache/humanize/shadows/<sha16>.json` | `{"shadow": "<path>", "target": "<machine>"}`: one mirror on this machine and the machine it mirrors. `HUMANIZE_SHADOWS` names another directory. |
-| `~/.cache/humanize/shadows/<sha16>.journal`, `<sha16>.live` | What the CLI processes using that mirror know of its files, and a marker that it is in use. Mode `0600`. |
-| `~/.cache/humanize/litellm/sessions/<id>.jsonl` | A session of the `litellm` agent that is not kept in an epic. |
+| `<state>/shadows/<sha16>.json` | `{"shadow": "<path>", "target": "<machine>"}`: one mirror on this machine and the machine it mirrors. `HUMANIZE_SHADOWS` names another directory. |
+| `<state>/shadows/<sha16>.journal`, `<sha16>.live` | What the CLI processes using that mirror know of its files, and a marker that it is in use. Mode `0600`. |
+| `<state>/litellm/sessions/<id>.jsonl` | A session of the `litellm` agent that is not kept in an epic. |
 
-Humanize never removes these files. You can delete them when no `hmz` process or daemon is running.
+`<state>` is the state directory. Humanize never removes these files. You can delete them when no `hmz` process or daemon is running.
+
+Earlier releases kept these under `~/.cache/humanize/`. The first process that looks for `shadows/` (unless `HUMANIZE_SHADOWS` is set), `litellm/` or `displaced/` in the state directory and finds none moves the old one there. It never merges into a directory that already exists, and leaves the old one where it is if it cannot be moved.
 
 ## A backup target
 
@@ -347,7 +349,7 @@ Humanize creates only the following files on remote machines running an environm
 | A `mktemp -d` directory | An account's credential files for one turn of a CLI running there. Mode `0700`, files `0600`. | When the turn ends |
 | `<file>.humanize-<pid>-<n>.tmp` beside a file | A file being written, before it is renamed into place. | On rename |
 | The directories of a CLI process, in that machine's temporary directory | As [Other temporary files](#other-temporary-files). | As there, except `hmz-fence-<random>/`, which is never removed |
-| `~/.cache/humanize/shadows/` | The records of the mirrors on that machine, as [The cache directory](#the-cache-directory). | Never |
+| `shadows/` in that machine's state directory | The records of the mirrors on that machine, as [The state directory](#the-state-directory). | Never |
 
 Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-<hex8>`, or `<name_prefix>-<role>-<hex8>` if the runtime sets `name_prefix`. Each has the labels `humanize=<uid>`, `humanize.provider`, `humanize.role`, `humanize.host`, and `humanize.pid`, and is removed when the environment closes. See [Environments and runtimes](/reference/environments).
 
@@ -356,11 +358,9 @@ Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-
 Humanize never prunes these paths; delete them manually when you no longer need them:
 
 - `<data>/epics/` and `<data>/chats/`
-- `<state>/history.jsonl`
-- worktrees under `<state>/envs/`
 - `refs/hmz/snapshots/` in your repositories
 - `<mdir>/daemon.log`, `<mdir>/pinned/`, `<mdir>/skills/` and `<mdir>/backup/`
-- `~/.cache/humanize/`
+- the state directory
 
 Humanize reads `~/.ssh/config` and its included files, and never writes to them.
 

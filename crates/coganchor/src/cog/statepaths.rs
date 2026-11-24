@@ -65,7 +65,7 @@ pub const PROFILES: &[AgentProfile] = &[
     },
     AgentProfile {
         name: Cow::Borrowed("litellm"),
-        state_paths: &["~/.cache/humanize/litellm"],
+        state_paths: &["~/.local/state/humanize/litellm"],
     },
     AgentProfile {
         name: Cow::Borrowed("mcode"),
@@ -108,13 +108,25 @@ pub const PROFILES: &[AgentProfile] = &[
 ];
 
 /// Per-user state of *any* agent, never mirrored (`statepaths.COMMON_STATE_PATHS`):
-/// Humanize's own home (which holds the providers a turn may run as), what it was called
-/// before, and its caches and settings.
+/// Humanize's own configuration, data, state and cache where the XDG specification puts them
+/// by default (the providers a turn may run as among them), and what its home was called
+/// before. Wherever an [`XDG_HOMES`] variable moves one of the four, it is kept there too.
 pub const COMMON_STATE_PATHS: &[&str] = &[
     "~/.hmz",
     "~/.humanize",
     "~/.cache/humanize",
     "~/.config/humanize",
+    "~/.local/share/humanize",
+    "~/.local/state/humanize",
+];
+
+/// The variables that move those four, each a directory Humanize's own is `humanize` in
+/// (`statepaths._XDG_HOMES`).
+pub const XDG_HOMES: &[&str] = &[
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
 ];
 
 /// Where Codex's npm package keeps its native binary (`_CODEX_VENDOR_BIN`).
@@ -191,6 +203,14 @@ pub fn resolve(argv: &[OsString]) -> io::Result<Resolved> {
         .chain(COMMON_STATE_PATHS)
         .map(|one| expand(one))
         .collect();
+    // A relative value is ignored, as the XDG specification has it.
+    state.extend(
+        XDG_HOMES
+            .iter()
+            .filter_map(|one| env_string(one))
+            .filter(|moved| moved.starts_with('/'))
+            .map(|moved| normpath(&format!("{}/humanize", moved.trim_end_matches('/')))),
+    );
     // Only the agent's own runtime stays here; work helpers such as ripgrep go to the
     // target. A program kept in its own state directory is its runtime (grok re-execs its
     // native binary from `~/.grok/bin`).
