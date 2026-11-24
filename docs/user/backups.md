@@ -86,6 +86,10 @@ To download, choose **Download…** on `/settings backup`, then press <kbd>enter
 
 ![Download from lab in the terminal interface: an epic of studio marked here, and one of gpu-box under /srv/shop](/shots/user-backups-tui-download.svg)
 
+### The Download page
+
+The Download page lists what a target holds, by machine and folder, newest first, with what is already here marked `Here`. Press <kbd>enter</kbd> to download the epic or chat under the cursor, <kbd>f</kbd> to fetch the target again and <kbd>t</kbd> to turn to the next target. A download goes on when you close the page with <kbd>esc</kbd>; open the page again to see where it landed.
+
 ## From the command line
 
 Pass `--backup` when starting an epic to pick its targets. Repeat `--backup` for multiple targets, or pass `--backup none` to disable backups. Without the flag, the epic uses the default targets.

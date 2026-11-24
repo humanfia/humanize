@@ -26,6 +26,7 @@ and fetching one is a button.
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import semver
@@ -36,7 +37,9 @@ from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.runtime.kept import Runs, read_back
+from hmz.words import t
 
+from . import humanfia
 from .pick import (
     _ACT_ADD,
     _ACT_REMOVE,
@@ -65,7 +68,6 @@ from .pick import (
     Targets,
     _chip,
     _hmz,
-    _many,
     _popup,
     _shade,
     bad,
@@ -93,7 +95,23 @@ if TYPE_CHECKING:
     from hmz.runtime.flowing import Flowverse, Index, Installed, Offer, Release
 
 
-__all__ = ["HOME", "INSTALLED", "VERSES", "Fetches", "Flows", "Lists"]
+__all__ = [
+    "HOME",
+    "INSTALLED",
+    "VERSES",
+    "Fetches",
+    "Flows",
+    "Lists",
+    "Removes",
+    "Shelf",
+    "Uninstalls",
+    "add",
+    "fetch",
+    "install",
+    "offered",
+    "remove",
+    "uninstall",
+]
 
 #: The pages, by what each is called on the screen and in the code alike. The first screen of
 #: the two that are lists; what is installed; what a flow runs on; the flowverses; one
@@ -128,9 +146,9 @@ _PROFILING_ENVIRONMENT = f"{_APART_MARK}profile-environment"
 
 #: The two profiling switches: what each row is called, and what it means on.
 _PROFILING = {
-    _PROFILING_FLOW: ("profile flow", "samples the flow's own Python"),
+    _PROFILING_FLOW: ("Profile flow", "samples the flow's own Python"),
     _PROFILING_ENVIRONMENT: (
-        "profile environment",
+        "Profile environment",
         "samples the programs agents start",
     ),
 }
@@ -148,19 +166,215 @@ _ACT_INSTALL, _ACT_FETCH = "install", "fetch"
 #: What the menu of a flow or a flowverse opens it with, and copies of it.
 _ACT_OPEN, _ACT_NAME = "open", "copy-name"
 
-#: What says a row's flow is behind what its index lists, and what says a release is one.
-_NEWER, _PRE = "↑", "prerelease"
+#: What says a row's flow is behind what its index lists.
+_NEWER = "↑"
 
-#: The cards of the first screen: what each page is called, its mark, and what it is for.
+#: The cards of the first screen: what each page is called, its mark -- a point for what
+#: runs, a square for what is kept -- and what it is for.
 _CARDS = (
     (
         INSTALLED,
         "Installed",
-        "▶",
-        "flows ready to run: installed, or your own",
+        humanfia.POINT,
+        "flows ready to run, those installed and your own",
     ),
-    (VERSES, "Flowverses", "⑂", "indexes of flows to install, update and add to"),
+    (
+        VERSES,
+        "Flowverses",
+        humanfia.SQUARE,
+        "indexes of flows to install, update and add to",
+    ),
 )
+
+#: How a flowverse's index stands, by what its row says of it.
+_FETCHED, _UNFETCHED, _EDITED, _NO_ORIGIN = (
+    "fetched",
+    "not fetched",
+    "edited",
+    "no origin",
+)
+
+
+class Shelf:
+    """What the disk holds about flows, read once and read again after anything lands.
+
+    What `/flow` lists and what the Flows page lists are one reading: the flows there are to
+    run, the installs they are of, the newer release each index lists, the flowverses and
+    what each index lists. Reading what is installed means importing every flow of it, so
+    each is read the first time it is asked for and held until :meth:`forgets`.
+    """
+
+    def __init__(self) -> None:
+        """Holds nothing until it is asked."""
+        self._offers: list[Offer] | None = None
+        self._records: dict[tuple[str, str], Installed] | None = None
+        self._newer: dict[tuple[str, str], str] | None = None
+        self._indexes: dict[str, Index] = {}
+        self._verses: list[Flowverse] | None = None
+
+    def all(self) -> list[Offer]:
+        """Every flow there is to run."""
+        if self._offers is None:
+            self._offers = _hmz().flows.all()
+        return self._offers
+
+    def installs(self) -> dict[tuple[str, str], Installed]:
+        """Every flow installed out of an index, by flowverse and what it lists."""
+        if self._records is None:
+            self._records = {
+                (one.verse, one.listed): one for one in _hmz().verses.installed()
+            }
+        return self._records
+
+    def updates(self) -> dict[tuple[str, str], str]:
+        """The newer release each installed flow's index lists, by flowverse and flow."""
+        if self._newer is None:
+            self._newer = {
+                (one.installed.verse, one.installed.listed): one.version
+                for one in _hmz().verses.updates()
+            }
+        return self._newer
+
+    def index(self, verse: str) -> Index:
+        """What one flowverse's index lists."""
+        held = self._indexes.get(verse)
+        if held is None:
+            held = self._indexes[verse] = _hmz().verses.index(verse)
+        return held
+
+    def verses(self) -> list[Flowverse]:
+        """Every flowverse but your own two, which are places rather than indexes.
+
+        A directory under the flowverses home that is not a clone of anything -- what a clone
+        killed partway leaves -- is one of them, with nothing to fetch: listed, so that it can
+        be removed.
+        """
+        from hmz.runtime.flowing import MINE
+
+        if self._verses is None:
+            self._verses = [one for one in _hmz().verses.all() if one.name not in MINE]
+        return self._verses
+
+    def forgets(self) -> None:
+        """Drops everything read, which something landing has made wrong."""
+        self._offers = self._records = self._newer = self._verses = None
+        self._indexes = {}
+
+    @staticmethod
+    def module(offer: Offer) -> tuple[str, str]:
+        """Which installed flow an offer is of: its flowverse, and the flow's own name.
+
+        A module that holds several flows offers `<flow>:<inside>` for each but the one named
+        after it, and all of them are the one install.
+        """
+        from hmz.runtime.flowing.verses import split
+
+        return split(offer.name.partition(":")[0])
+
+    def held(self, offer: Offer) -> Installed | None:
+        """The install an offer is of, or None for a flow of your own."""
+        return self.installs().get(self.module(offer))
+
+    def newer(self, offer: Offer) -> str | None:
+        """The newer release an offer's index lists, or None for none."""
+        return self.updates().get(self.module(offer))
+
+
+def offered(release: Release, held: Installed | None) -> str:
+    """What installing a release is called, beside what is installed of its flow.
+
+    Args:
+      release: The release.
+      held: What is installed of its flow, or None.
+
+    Returns:
+      `Install 1.2.0` for a flow not installed, `Installed` for the release that is, and
+      `Update to` or `Switch to` it as it is newer or not than the one that is.
+    """
+    if held is None:
+        return t("Install {version}", version=release.version)
+    if held.version == release.version:
+        return t("Installed")
+    if release.semver > semver.Version.parse(held.version):
+        return t("Update to {version}", version=release.version)
+    return t("Switch to {version}", version=release.version)
+
+
+def install(verse: str, flow: str, version: str) -> tuple[str, set[str]]:
+    """Installs one release of a flow, and what it needs: seconds of git, so off the loop.
+
+    Args:
+      verse: The flowverse.
+      flow: The flow, as its index lists it.
+      version: The release.
+
+    Returns:
+      What to say of it, and every flow the install came to -- the ones it needs as well as
+      the one asked for -- as each is called.
+
+    Raises:
+      OSError, ValueError: If it could not be installed, saying why.
+    """
+    from hmz.runtime.flowing.verses import called
+
+    done = _hmz().verses.install(called(verse, flow), version)
+    asked, *needs = reversed(done)
+    touched = {one.called for one in done}
+    if not needs:
+        said = t("{name} {version} is installed.", name=asked.called, version=version)
+        return said, touched
+    return (
+        t(
+            "{name} {version} is installed, with {needs}.",
+            name=asked.called,
+            version=asked.version,
+            needs=", ".join(f"{one.called} {one.version}" for one in needs),
+        ),
+        touched,
+    )
+
+
+def uninstall(verse: str, flow: str) -> str:
+    """Takes one installed flow away, and answers what to say of it.
+
+    Raises:
+      OSError, ValueError: If it could not be, saying why -- another flow needs it.
+    """
+    from hmz.runtime.flowing.verses import called
+
+    named = called(verse, flow)
+    _hmz().verses.uninstall(named)
+    return t("{name} is uninstalled.", name=named)
+
+
+def fetch(name: str) -> str:
+    """Fetches one flowverse's index again, or for the first time, and answers what to say.
+
+    Raises:
+      OSError, ValueError: If it could not be fetched, saying why.
+    """
+    _hmz().verses.fetch(name)
+    return t("Fetched {name}.", name=name)
+
+
+def add(url: str, name: str = "") -> tuple[str, str]:
+    """Clones a flowverse's index, and answers what to say and what it is called here.
+
+    Raises:
+      OSError, ValueError: If it could not be cloned, saying why.
+    """
+    added = _hmz().verses.add(url, name).name
+    return t("Fetched {name}.", name=added), added
+
+
+def remove(name: str) -> str:
+    """Takes a flowverse away with everything installed out of it, and answers what to say.
+
+    Raises:
+      OSError, ValueError: If it could not be, saying why.
+    """
+    _hmz().verses.remove(name)
+    return t("{name} is removed.", name=name)
 
 
 @runtime_checkable
@@ -193,13 +407,39 @@ class Removes(Popup):
           flows: How many flows are installed out of it, which go with it.
         """
         super().__init__()
-        self.asked = f"Remove {verse}?"
-        gone = f" and {_many(flows, 'installed flow')}" if flows else ""
-        self.about = f"Takes its index away{gone}."
+        self.asked = t(
+            "Remove {name} and every flow installed out of it?", name=escape(verse)
+        )
+        self.about = t("{n} installed flows go with it.", n=flows) if flows else ""
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Taking it away, or keeping it."""
-        return [("yes", "remove", "remove it now"), ("no", "keep", "keep it")]
+        return [
+            ("yes", t("Remove"), t("removes the flowverse now")),
+            ("no", t("Cancel"), t("keeps the flowverse")),
+        ]
+
+
+class Uninstalls(Popup):
+    """Whether to take one installed flow away, asked by its name before it goes."""
+
+    CSS = _popup("Uninstalls")
+
+    def __init__(self, flow: str) -> None:
+        """Initializes the question.
+
+        Args:
+          flow: The flow, as it is called.
+        """
+        super().__init__()
+        self.asked = t("Uninstall {name}?", name=escape(flow))
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Taking it away, or keeping it."""
+        return [
+            ("yes", t("Uninstall"), t("uninstalls the installed flow")),
+            ("no", t("Cancel"), ""),
+        ]
 
 
 class Fetches(Form[tuple[str, str]]):
@@ -215,30 +455,32 @@ class Fetches(Form[tuple[str, str]]):
         return [
             Question(
                 "repository",
-                "repository",
-                "a URL, or owner/repo for one on GitHub",
+                t("URL"),
+                t("owner/repo or URL"),
                 needed=not self._typed_in.get("repository", "").strip(),
             ),
-            Question(
-                "name",
-                "name",
-                "flowverse name, or leave blank for the repository name",
-            ),
+            Question("name", t("Name"), t("Name (optional)")),
         ]
 
     def done_about(self) -> str:
         """What answering it does."""
-        return "clones its index; install flows from it next"
+        return t("clones the flowverse's index; flows are installed from it next")
 
     def _ask(self) -> None:
         """Says what a flowverse is."""
         from hmz.runtime.flowing.verses import tilded, under
 
-        self.query_one("#asked", Label).update("Add a flowverse")
+        self.query_one("#asked", Label).update(t("Add flowverse"))
         self.query_one("#about", Label).update(
-            "A git repository indexing flows: flows/[<user>/]<flow>/<version>/flow.yaml, "
-            f"one manifest per release. Its index is cloned under {escape(tilded(under()))}, "
-            "and the flows you install from it are offered as @<name>/[<user>/]<flow>."
+            escape(
+                t(
+                    "A git repository indexing flows as "
+                    "flows/[<user>/]<flow>/<version>/flow.yaml, one manifest per release. "
+                    "Its index is cloned under {path}. Flows installed from it are offered "
+                    "as @<name>/[<user>/]<flow>.",
+                    path=tilded(under()),
+                )
+            )
         )
         self._fill()
 
@@ -247,7 +489,7 @@ class Fetches(Form[tuple[str, str]]):
         url = self._typed_in.get("repository", "").strip()
         name = self._typed_in.get("name", "").strip()
         if not url:
-            self._wrong = "repository URL is required"
+            self._wrong = t("This needs a URL.")
             self._fill()
             return
         if name:
@@ -385,13 +627,8 @@ class Flows(Drafts[Chosen]):
         #: The flowverse and the flow of it being read, on the pages about one of them.
         self._verse = ""
         self._listed = ""
-        #: What was read off the disk, once per opening and again after anything lands:
-        #: reading what is installed means importing every flow of it.
-        self._offers: list[Offer] | None = None
-        self._records: dict[tuple[str, str], Installed] | None = None
-        self._newer: dict[tuple[str, str], str] | None = None
-        self._indexes: dict[str, Index] = {}
-        self._verses: list[Flowverse] | None = None
+        #: What was read off the disk, once per opening and again after anything lands.
+        self._shelf = Shelf()
         #: Which indexes have something written into them, as git said, or None before
         #: it has been asked.
         self._edited: dict[str, bool] | None = None
@@ -472,52 +709,28 @@ class Flows(Drafts[Chosen]):
 
     def _all(self) -> list[Offer]:
         """Every flow there is to run, read once."""
-        if self._offers is None:
-            self._offers = _hmz().flows.all()
-        return self._offers
+        return self._shelf.all()
 
     def _installs(self) -> dict[tuple[str, str], Installed]:
         """Every flow installed out of an index, by flowverse and what it lists, read once."""
-        if self._records is None:
-            self._records = {
-                (one.verse, one.listed): one for one in _hmz().verses.installed()
-            }
-        return self._records
+        return self._shelf.installs()
 
     def _updates(self) -> dict[tuple[str, str], str]:
         """The newer release each installed flow's index lists, by flowverse and flow."""
-        if self._newer is None:
-            self._newer = {
-                (one.installed.verse, one.installed.listed): one.version
-                for one in _hmz().verses.updates()
-            }
-        return self._newer
+        return self._shelf.updates()
 
     def _index(self, verse: str) -> Index:
         """What one flowverse's index lists, read once."""
-        held = self._indexes.get(verse)
-        if held is None:
-            held = self._indexes[verse] = _hmz().verses.index(verse)
-        return held
+        return self._shelf.index(verse)
 
     def _places_of_flows(self) -> list[Flowverse]:
-        """Every flowverse but your own two, which are places rather than indexes, read once.
-
-        A directory under the flowverses home that is not a clone of anything -- what a clone
-        killed partway leaves -- is one of them, with nothing to fetch: listed, so that it can
-        be removed.
-        """
-        from hmz.runtime.flowing import MINE
-
-        if self._verses is None:
-            self._verses = [one for one in _hmz().verses.all() if one.name not in MINE]
-        return self._verses
+        """Every flowverse but your own two, which are places rather than indexes, read once."""
+        return self._shelf.verses()
 
     def _forgets(self) -> None:
         """Drops everything read off the disk, which something landing has made wrong."""
-        self._offers = self._records = self._newer = self._verses = None
+        self._shelf.forgets()
         self._edited = None
-        self._indexes = {}
 
     def reread(self) -> None:
         """Drops what was read before a fetch landed, and draws the page again.
@@ -529,17 +742,6 @@ class Flows(Drafts[Chosen]):
             self._declared = declared_of(self._flow)
             self._runs = self._fitted(self._runs)
         self._fill()
-
-    @staticmethod
-    def _module(offer: Offer) -> tuple[str, str]:
-        """Which installed flow an offer is of: its flowverse, and the flow's own name.
-
-        A module that holds several flows offers `<flow>:<inside>` for each but the one named
-        after it, and all of them are the one install.
-        """
-        from hmz.runtime.flowing.verses import split
-
-        return split(offer.name.partition(":")[0])
 
     # -- Opening and drawing -----------------------------------------------------------------
 
@@ -664,9 +866,9 @@ class Flows(Drafts[Chosen]):
         """What one page is called across the top."""
         return {
             HOME: "/flow",
-            INSTALLED: "Installed",
+            INSTALLED: t("Installed"),
             ROLES: self._flow,
-            VERSES: "Flowverses",
+            VERSES: t("Flowverses"),
             VERSE: self._verse,
             RELEASES: self._listed,
         }[page]
@@ -693,24 +895,39 @@ class Flows(Drafts[Chosen]):
         """What the page open is for, in a line."""
         from hmz.runtime.flowing.verses import tilded, under
 
-        return {
-            HOME: "Flows to run, and the flowverses more are installed from.",
-            INSTALLED: "Flows ready to run here: pick one to set it up and run it, or "
-            "install more from a flowverse.",
-            ROLES: "Configure each role: an agent (CLI, account, model and effort) or an "
-            "environment; then what the flow takes and what an epic may spend.",
-            VERSES: "Indexes of flows to install, cloned under "
-            f"{escape(tilded(under()))}. Fetching, adding and removing one happen at once.",
-            VERSE: f"Flows {escape(self._verse)} lists, at their newest release. Open one "
-            "for its others; installing happens at once.",
-            RELEASES: f"Releases of {escape(self._listed)}, newest first. Pick one to "
-            "install it, or to switch to it.",
-        }[self._page]
+        if self._page == HOME:
+            return t("Flows to run, and the flowverses more are installed from.")
+        if self._page == INSTALLED:
+            return t(
+                "Flows ready to run here; pick one to set it up and run it, or install "
+                "more from a flowverse."
+            )
+        if self._page == ROLES:
+            return t(
+                "Set up each role, an agent (CLI, account, model and effort) or an "
+                "environment. Then set what the flow takes and what an epic may spend."
+            )
+        if self._page == VERSES:
+            return t(
+                "Indexes of flows to install, cloned under {path}. Fetching, adding and "
+                "removing one happen at once.",
+                path=escape(tilded(under())),
+            )
+        if self._page == VERSE:
+            return t(
+                "The flows {name} lists, each at its newest release. Open one for its "
+                "other releases; installing happens at once.",
+                name=escape(self._verse),
+            )
+        return t(
+            "Releases of {name}, newest first. Pick one to install it or switch to it.",
+            name=escape(self._listed),
+        )
 
     def _tuned(self, said: str) -> None:
         """Says something under the list, or nothing: what is going on, else what was said."""
         if self._busy:
-            said = f"{escape(self._busy)}…" + (f"{_DOT}{said}" if said else "")
+            said = escape(self._busy) + (f"{_DOT}{said}" if said else "")
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
@@ -725,7 +942,11 @@ class Flows(Drafts[Chosen]):
             cards.append(
                 Option(
                     self._card(
-                        icon, title, self._summary(page), blurb, here=page == landing
+                        icon,
+                        t(title),
+                        self._summary(page),
+                        t(blurb),
+                        here=page == landing,
                     ),
                     id=f"={page}",
                 )
@@ -733,18 +954,19 @@ class Flows(Drafts[Chosen]):
             cards.append(None)
         self._put(cards[:-1], landing)
         self._tuned(self._said)
-        self._footed(Key("enter", "open"))
+        self._footed(Key("enter", t("Open")))
 
     def _summary(self, page: str) -> str:
         """What one card says is in it, in a few words."""
         if page == INSTALLED:
-            return (
-                f"{_many(len(self._all()), 'flow')}{_DOT}{self._flow or 'none chosen'}"
-            )
+            flows = t("{n} flows", n=len(self._all()))
+            return f"{flows}{_DOT}{self._flow or t('none chosen')}"
         verses = self._places_of_flows()
         newer = len(self._updates())
-        said = ", ".join(one.name for one in verses) or "none"
-        return f"{said}{_DOT}{_NEWER} {_many(newer, 'update')}" if newer else said
+        said = ", ".join(one.name for one in verses) or t("none")
+        if not newer:
+            return said
+        return f"{said}{_DOT}{_NEWER} {t('{n} updates', n=newer)}"
 
     # -- Installed ----------------------------------------------------------------------------
 
@@ -783,9 +1005,11 @@ class Flows(Drafts[Chosen]):
         self._put(rows[:-1] if rows else [], landing)
         said = self._said
         if not shown:
-            said = said or ("no matching flows" if self._typed else "no flows yet")
+            said = said or (
+                t("No flow matches.") if self._typed else t("No flows installed yet.")
+            )
         self._tuned(said)
-        self._footed(Key("enter", "set up"))
+        self._footed(Key("enter", t("Set up")))
 
     def _release_chip(self, offer: Offer, *, here: bool) -> tuple[str, int]:
         """What a flow's row says at its far end: its release, and a newer one where listed.
@@ -797,10 +1021,10 @@ class Flows(Drafts[Chosen]):
         Returns:
           The markup, and how many cells it takes.
         """
-        held = self._installs().get(self._module(offer))
+        held = self._shelf.held(offer)
         if held is None:
             return "", 0
-        newer = self._updates().get(self._module(offer))
+        newer = self._shelf.newer(offer)
         said = held.version
         if newer is None:
             return _shade("$secondary", said, here=here), len(said)
@@ -825,8 +1049,8 @@ class Flows(Drafts[Chosen]):
         return [
             Action(
                 _ACT_MORE,
-                "install more…",
-                "browse the flowverses for flows to install",
+                t("Browse Flowverses"),
+                t("browse the flowverses for flows to install"),
                 lambda: self._goes(VERSES),
             ),
             *self._tending(),
@@ -839,22 +1063,22 @@ class Flows(Drafts[Chosen]):
         return [
             Action(
                 _ACT_UPDATE,
-                "update",
-                "install the newest release its flowverse lists",
+                t("Update"),
+                t("installs the newest release its flowverse lists"),
                 self._updates_one,
                 lambda: self._newer_of_cursor() is not None and not self._busy,
             ),
             Action(
                 _ACT_UNINSTALL,
-                "uninstall",
-                "take the flow under the cursor away",
+                t("Uninstall"),
+                t("uninstalls the flow under the cursor"),
                 self._uninstalls_cursor,
                 lambda: self._record_of_cursor() is not None and not self._busy,
             ),
             Action(
                 _ACT_COPY,
-                "copy here",
-                "copy the flow into this project to edit it",
+                t("Copy here"),
+                t("copies the flow into this workspace to edit it"),
                 self._forks,
                 self._copies,
             ),
@@ -863,12 +1087,12 @@ class Flows(Drafts[Chosen]):
     def _record_of_cursor(self) -> Installed | None:
         """The install the flow under the cursor is of, or None for one that is not."""
         one = self._under_cursor()
-        return None if one is None else self._installs().get(self._module(one))
+        return None if one is None else self._shelf.held(one)
 
     def _newer_of_cursor(self) -> str | None:
         """The newer release of the flow under the cursor, or None for none."""
         one = self._under_cursor()
-        return None if one is None else self._updates().get(self._module(one))
+        return None if one is None else self._shelf.newer(one)
 
     def _copies(self) -> bool:
         """Whether the flow under the cursor is one to copy here: not one of this project's."""
@@ -909,9 +1133,10 @@ class Flows(Drafts[Chosen]):
             self._fill()
             return
         self._forgets()
-        mine = escape(named.rpartition("/")[2])
-        self._said = (
-            f"copied to {escape(at)} -- you can edit it, and {mine} now points to it"
+        self._said = t(
+            "Copied to {path}; edit it there, and {name} now names the copy.",
+            path=escape(at),
+            name=escape(named.rpartition("/")[2]),
         )
         self._told.append(f"[dim]{self._said}[/dim]")
         self._fill()
@@ -921,24 +1146,16 @@ class Flows(Drafts[Chosen]):
     def _fill_roles(self) -> None:
         """Puts up each role the flow declares, what it takes, its budget and profiling."""
         roles, places = self._roles(), self._places()
+        unset, none = t("Not set"), t("none")
         lines: list[tuple[str, str, str, str]] = []
         for at, role in enumerate(roles):
             runs = self._runs.get(role, Runs(""))
-            lines.append(
-                (
-                    str(at),
-                    role,
-                    runs.spec or "not set",
-                    f"agent{_DOT}as {runs.provider}" if runs.provider else "agent",
-                )
-            )
+            about = t("agent")
+            if runs.provider:
+                about += _DOT + t("as {name}", name=runs.provider)
+            lines.append((str(at), role, runs.spec or unset, about))
         lines.extend(
-            (
-                f"@{place}",
-                place,
-                self._envs.get(place) or "not set",
-                "environment",
-            )
+            (f"@{place}", place, self._envs.get(place) or unset, t("environment"))
             for place in places
         )
         if self._declared is not None and self._declared.params.model_fields:
@@ -946,17 +1163,17 @@ class Flows(Drafts[Chosen]):
             lines.append(
                 (
                     _PARAMS,
-                    "params",
-                    ", ".join(changed) or "defaults",
-                    "what the flow itself takes",
+                    t("Parameters"),
+                    ", ".join(changed) or t("defaults"),
+                    t("what the flow itself takes"),
                 )
             )
         lines.append(
             (
                 _BUDGET,
-                "budget",
-                "set" if self._budget is not None else "none",
-                f"what an epic may spend: {_spending(self._budget)}",
+                t("Budget"),
+                t("set") if self._budget is not None else none,
+                t("what an epic may spend: {limits}", limits=_spending(self._budget)),
             )
         )
         # Straight under the budget, the ones about the run rather than any role: two
@@ -964,9 +1181,9 @@ class Flows(Drafts[Chosen]):
         lines.extend(
             (
                 held,
-                named,
+                t(named),
                 _YES if self._profiled[held] else _NO,
-                means if self._profiled[held] else "traced only",
+                t(means) if self._profiled[held] else t("traced only"),
             )
             for held, (named, means) in _PROFILING.items()
         )
@@ -974,10 +1191,11 @@ class Flows(Drafts[Chosen]):
         lines.append(
             (
                 _BACKING,
-                "backup",
-                ", ".join(backup) or "none",
-                "where each epic is backed up"
-                + (" (the defaults)" if self._backup is None else ""),
+                t("Backup"),
+                ", ".join(backup) or none,
+                t("where each epic is backed up (the defaults)")
+                if self._backup is None
+                else t("where each epic is backed up"),
             )
         )
         landing = self._lands([held for held, _, _, _ in lines])
@@ -990,7 +1208,7 @@ class Flows(Drafts[Chosen]):
                 if held in _PROFILING
                 else (
                     _shade(
-                        "$text-muted" if value in ("not set", "none") else "$secondary",
+                        "$text-muted" if value in (unset, none) else "$secondary",
                         said,
                         here=here,
                     ),
@@ -1004,7 +1222,7 @@ class Flows(Drafts[Chosen]):
         self._put(rows[:-1], landing)
         said = self._said or ("" if roles or places else self._noagents())
         self._tuned(said)
-        self._footed(Key("enter", "open"))
+        self._footed(Key("enter", t("Open")))
 
     def enters(self, row: str) -> bool:
         """Whether the arrow right goes into a row: every row that opens something.
@@ -1041,7 +1259,9 @@ class Flows(Drafts[Chosen]):
         """
         named, means = _PROFILING[row]
         return switched(
-            named, _YES if self._profiled[row] else _NO, (means, "traced only")
+            t(named),
+            _YES if self._profiled[row] else _NO,
+            (t(means), t("traced only")),
         )
 
     def dropped(self, row: str, picked: str) -> None:
@@ -1057,10 +1277,10 @@ class Flows(Drafts[Chosen]):
     def _noagents(self) -> str:
         """Why there is no role to set up, which is not always the same reason."""
         if self._declared is None:
-            return _wont_load(self._flow, "nothing can be configured")
-        return (
-            f"{escape(self._flow)} has no roles to configure; it interacts only "
-            "with you"
+            return _wont_load(self._flow, t("Nothing can be set up."))
+        return t(
+            "{name} has no roles to set up; it works only with you.",
+            name=escape(self._flow),
         )
 
     def _chose(self, name: str) -> None:
@@ -1131,9 +1351,11 @@ class Flows(Drafts[Chosen]):
                     self._flow,
                     Budgeted,
                     Budgeted.of(self._budget) if self._budget is not None else None,
-                    asked=f"Set budget for {self._flow}",
-                    about="An epic stops at whichever limit it reaches first; at least one "
-                    "limit is required. Leave empty or 0 for no limit.",
+                    asked=t("Set the budget for {name}", name=self._flow),
+                    about=t(
+                        "An epic stops at whichever limit it reaches first. At least one "
+                        "limit is required; leave a limit empty or 0 for none."
+                    ),
                 )
             )
         finally:
@@ -1147,7 +1369,7 @@ class Flows(Drafts[Chosen]):
     async def _backs_up(self) -> None:
         """Asks which backup targets an epic goes to, from its row on the roles page."""
         if not _hmz().backups.targets():
-            self._said = iffy("no backup targets: add one on /settings backup")
+            self._said = iffy(t("No backup target yet; add one in /settings backup."))
             self._fill()
             return
         if self.opening():
@@ -1240,11 +1462,13 @@ class Flows(Drafts[Chosen]):
                 if one.required and not self._envs.get(one.name)
             )
         if missing:
-            self._said = iffy(f"{escape(', '.join(missing))} is not configured yet")
+            self._said = iffy(
+                t("{roles} not set up yet.", roles=escape(", ".join(missing)))
+            )
             self._to_roles()
             return
         if self._budget is None and declared is not None:
-            self._said = iffy("this flow requires a budget: set the budget first")
+            self._said = iffy(t("This flow needs a budget; set the budget first."))
             self._to_roles()
             return
         self.dismiss(
@@ -1286,11 +1510,11 @@ class Flows(Drafts[Chosen]):
                         one.name,
                         (
                             _shade(
-                                "$warning" if state != "fetched" else "$text-muted",
-                                state,
+                                "$warning" if state != _FETCHED else "$text-muted",
+                                t(state),
                                 here=here,
                             ),
-                            len(state),
+                            len(t(state)),
                         ),
                         self._verse_about(one),
                         here=here,
@@ -1300,8 +1524,8 @@ class Flows(Drafts[Chosen]):
             )
             rows.append(None)
         self._put(rows[:-1] if rows else [], landing)
-        self._tuned(self._said or ("no matching flowverses" if not verses else ""))
-        self._footed(Key("enter", "open"))
+        self._tuned(self._said or (t("No flowverse matches.") if not verses else ""))
+        self._footed(Key("enter", t("Open")))
 
     def _standing(self, one: Flowverse) -> str:
         """Whether a flowverse's index is here, and whether anything was written into it.
@@ -1310,13 +1534,13 @@ class Flows(Drafts[Chosen]):
         and drawn once it has been answered.
         """
         if not one.url:
-            return "no git origin"
+            return _NO_ORIGIN
         if not one.fetched:
-            return "not fetched"
+            return _UNFETCHED
         if self._edited is None:
             self._edited = {}
             self._asks_edited()
-        return "edited" if self._edited.get(one.name) else "fetched"
+        return _EDITED if self._edited.get(one.name) else _FETCHED
 
     @work
     async def _asks_edited(self) -> None:
@@ -1333,15 +1557,15 @@ class Flows(Drafts[Chosen]):
 
     def _verse_about(self, one: Flowverse) -> str:
         """What a flowverse's card says: where it is from, what it lists, what is installed."""
-        said = [_hmz().verses.whence(one, "a directory with no git origin")]
+        said = [_hmz().verses.whence(one, t("local folder"))]
         if one.fetched:
-            said.append(_many(len(self._index(one.name).flows()), "flow"))
+            said.append(t("{n} flows", n=len(self._index(one.name).flows())))
         mine = [key for key in self._installs() if key[0] == one.name]
         if mine:
-            said.append(f"{len(mine)} installed")
+            said.append(t("{n} installed", n=len(mine)))
         newer = [key for key in self._updates() if key[0] == one.name]
         if newer:
-            said.append(f"{_NEWER} {_many(len(newer), 'update')}")
+            said.append(f"{_NEWER} {t('{n} updates', n=len(newer))}")
         return _DOT.join(said)
 
     def _verse_under(self) -> Flowverse | None:
@@ -1359,16 +1583,16 @@ class Flows(Drafts[Chosen]):
         return [
             Action(
                 _ACT_ADD,
-                "add flowverse…",
-                "a git repository indexing flows",
+                t("Add flowverse"),
+                t("adds a git repository indexing flows"),
                 self._adds_verse,
                 lambda: not self._busy,
             ),
             self._fetching(one),
             Action(
                 _ACT_REMOVE,
-                "remove",
-                "take it away, and every flow installed from it",
+                t("Remove"),
+                t("removes it and every flow installed out of it"),
                 self._removes,
                 lambda: (
                     (under := self._verse_under()) is not None
@@ -1381,10 +1605,11 @@ class Flows(Drafts[Chosen]):
 
     def _fetching(self, one: Flowverse | None) -> Action:
         """The button that fetches the flowverse under the cursor, or the one open."""
+        del one  # fetching is called one thing, fetched before or not, as on the page
         return Action(
             _ACT_FETCH,
-            "fetch again" if one is not None and one.fetched else "fetch",
-            "take what its index says now",
+            t("Fetch"),
+            t("takes what the flowverse's index says now"),
             self._fetches_under,
             lambda: (
                 (under := self._verse_under()) is not None
@@ -1424,7 +1649,7 @@ class Flows(Drafts[Chosen]):
         self._put(rows[:-1] if rows else [], landing)
         said = self._said or self._nothing_listed(listed, bool(flows))
         self._tuned(said)
-        self._footed(Key("enter", "releases"))
+        self._footed(Key("enter", t("Releases")))
 
     @staticmethod
     def _newest(listed: Index, name: str) -> Release:
@@ -1450,7 +1675,7 @@ class Flows(Drafts[Chosen]):
         if held is None:
             return _shade("$secondary", newest, here=here), len(newest)
         if held.version == newest:
-            said = f"{_INFORCE} {newest} installed"
+            said = f"{_INFORCE} {t('{version} installed', version=newest)}"
             return _shade("$success", said, here=here), len(said)
         said = f"{_INFORCE} {held.version}  {_NEWER} {newest}"
         return _shade("$warning", said, here=here), len(said)
@@ -1464,22 +1689,34 @@ class Flows(Drafts[Chosen]):
         one = self._verse_under()
         if not shown:
             if self._typed:
-                said.append("no matching flows")
+                said.append(t("No flow matches."))
             elif one is not None and not one.fetched:
-                said.append("not fetched yet: press fetch to clone its index")
+                said.append(
+                    t("Not fetched yet.")
+                    + t(" Fetch this flowverse to see what it lists.")
+                )
             else:
-                said.append("this index lists no flows yet")
+                said.append(t("This flowverse lists no flow."))
         if listed.skipped:
             first = listed.skipped[0]
             # What of `flows/` it is: `<flow>/<version>`, `<user>/<flow>/<version>`, `<user>`.
             parts = first.at.parts[:-1] if first.at.name == RELEASE else first.at.parts
             where = "/".join(parts[len(parts) - parts[::-1].index(FLOWS) :])
-            more = (
-                f" and {len(listed.skipped) - 1} more"
-                if len(listed.skipped) > 1
-                else ""
+            more = len(listed.skipped) - 1
+            said.append(
+                iffy(
+                    escape(
+                        t(
+                            "Skipped {where}: {why}, and {n} more",
+                            where=where,
+                            why=first.why,
+                            n=more,
+                        )
+                        if more
+                        else t("Skipped {where}: {why}", where=where, why=first.why)
+                    )
+                )
             )
-            said.append(iffy(escape(f"skipped {where}: {first.why}{more}")))
         return "\n".join(said)
 
     def _verse_actions(self) -> list[Action]:
@@ -1509,17 +1746,10 @@ class Flows(Drafts[Chosen]):
         """The button that installs, updates or switches to the release under the cursor."""
         one = self._release_under()
         held = None if one is None else self._installs().get((self._verse, one.listed))
-        if one is None or held is None:
-            label = f"install {one.version}" if one is not None else "install"
-        elif held.version == one.version:
-            label = "installed"
-        else:
-            newer = one.semver > semver.Version.parse(held.version)
-            label = f"{'update' if newer else 'switch'} to {one.version}"
         return Action(
             _ACT_INSTALL,
-            label,
-            "install this release, and whatever it needs",
+            t("Install") if one is None else offered(one, held),
+            t("installs this release and the flows it needs"),
             self._installs_under,
             lambda: (
                 (under := self._release_under()) is not None
@@ -1535,8 +1765,8 @@ class Flows(Drafts[Chosen]):
         """The button that takes away what is installed of the flow under the cursor."""
         return Action(
             _ACT_UNINSTALL,
-            "uninstall",
-            "take the installed flow away",
+            t("Uninstall"),
+            t("uninstalls the installed flow"),
             lambda: self._uninstalls(self._verse, self._flow_under()),
             lambda: (
                 bool(self._flow_under())
@@ -1565,9 +1795,9 @@ class Flows(Drafts[Chosen]):
             here = one.version == landing
             marks: list[str] = []
             if one.semver.prerelease:
-                marks.append(_PRE)
+                marks.append(t("prerelease"))
             if held is not None and held.version == one.version:
-                marks.append(f"{_INFORCE} installed")
+                marks.append(f"{_INFORCE} {t('Installed')}")
             said = "  ".join(marks)
             rows.append(
                 Option(
@@ -1589,14 +1819,17 @@ class Flows(Drafts[Chosen]):
             )
             rows.append(None)
         self._put(rows[:-1] if rows else [], landing)
-        self._tuned(self._said or ("no matching releases" if not releases else ""))
-        self._footed(Key("enter", "install"))
+        self._tuned(self._said or (t("No release matches.") if not releases else ""))
+        self._footed(Key("enter", t("Install")))
 
     @staticmethod
     def _release_about(one: Release) -> str:
         """What a release says about itself: where it was cut, its licence, what it needs."""
         said = [one.ref or "", one.commit[:12], one.license]
-        said.extend(f"needs {name} {spec}" for name, spec in one.dependencies.items())
+        said.extend(
+            t("needs {name} {spec}", name=name, spec=spec)
+            for name, spec in one.dependencies.items()
+        )
         return _DOT.join(part for part in said if part)
 
     def _releases_actions(self) -> list[Action]:
@@ -1616,22 +1849,18 @@ class Flows(Drafts[Chosen]):
         """
         from hmz.runtime.flowing.verses import called as calling
 
-        called = calling(verse, flow)
         #: Every flow the install came to, the ones it needs as well as the one asked for.
         touched: set[str] = set()
 
         def installing() -> str:
-            done = _hmz().verses.install(called, version)
-            touched.update(one.called for one in done)
-            asked, *needs = reversed(done)
-            also = (
-                f", with {', '.join(f'{one.called} {one.version}' for one in needs)}"
-                if needs
-                else ""
-            )
-            return f"{asked.called} {asked.version} is installed{also}"
+            said, came_to = install(verse, flow, version)
+            touched.update(came_to)
+            return said
 
-        if await self._off_loop(f"installing {called} {version}", installing):
+        doing = t(
+            "Installing {name} {version}…", name=calling(verse, flow), version=version
+        )
+        if await self._off_loop(doing, installing):
             # The flow in force may be one of the flows of what was just installed -- asked
             # for, or needed by what was -- and what it declares is read off the release that
             # is there now.
@@ -1651,12 +1880,8 @@ class Flows(Drafts[Chosen]):
         from hmz.runtime.flowing.verses import called as calling
 
         called = calling(verse, flow)
-
-        def uninstalling() -> str:
-            _hmz().verses.uninstall(called)
-            return f"{called} is uninstalled"
-
-        if not await self._off_loop(f"uninstalling {called}", uninstalling):
+        doing = t("Uninstalling {name}…", name=called)
+        if not await self._off_loop(doing, partial(uninstall, verse, flow)):
             return
         if called == self._flow.partition(":")[0]:
             # The flow the menu was holding is gone, and with it the draft of it.
@@ -1692,12 +1917,13 @@ class Flows(Drafts[Chosen]):
         url, name = said
 
         def adding() -> str:
-            added = _hmz().verses.add(url, name).name
-            self._aim = added
-            return f"{added} is fetched"
+            said, self._aim = add(url, name)
+            return said
 
         # Scrubbed, as everywhere a URL is drawn: a private index is added with a token in it.
-        await self._off_loop(f"fetching {name or _hmz().verses.plain(url)}", adding)
+        await self._off_loop(
+            t("Fetching {name}…", name=name or _hmz().verses.plain(url)), adding
+        )
 
     def _fetches_under(self) -> None:
         """Fetches the flowverse the fetch button is about."""
@@ -1712,12 +1938,7 @@ class Flows(Drafts[Chosen]):
         Args:
           name: The flowverse.
         """
-
-        def fetching() -> str:
-            _hmz().verses.fetch(name)
-            return f"{name} is fetched"
-
-        await self._off_loop(f"fetching {name}", fetching)
+        await self._off_loop(t("Fetching {name}…", name=name), partial(fetch, name))
 
     @work
     async def _removes(self) -> None:
@@ -1732,13 +1953,9 @@ class Flows(Drafts[Chosen]):
             self.opened()
         if sure != "yes":
             return
-        name = one.name
-
-        def removing() -> str:
-            _hmz().verses.remove(name)
-            return f"{name} was removed"
-
-        await self._off_loop(f"removing {name}", removing)
+        await self._off_loop(
+            t("Removing {name}…", name=one.name), partial(remove, one.name)
+        )
 
     async def _off_loop(self, doing: str, how: Callable[[], str]) -> bool:
         """Does one thing that touches git or the disk off the event loop, and says how it went.
@@ -1755,7 +1972,7 @@ class Flows(Drafts[Chosen]):
           Whether it was done.
         """
         if self._busy:
-            self._said = iffy(f"wait for {escape(self._busy)} to finish")
+            self._said = iffy(t("Wait for the one under way to finish."))
             self._fill()
             return False
         self._busy, self._said = doing, ""
@@ -1814,8 +2031,10 @@ class Flows(Drafts[Chosen]):
 
         return Action(
             _ACT_SAVE,
-            "save",
-            "run this flow, set up as it is here" if able() else "nothing to save yet",
+            t("Save"),
+            t("runs this flow, set up as it is here")
+            if able()
+            else t("nothing to save yet"),
             self.applied,
             able,
             "primary",
@@ -1849,12 +2068,14 @@ class Flows(Drafts[Chosen]):
                 [
                     Action(
                         _ACT_OPEN,
-                        "open",
-                        "set its agents up",
+                        t("Open"),
+                        t("sets its agents up"),
                         lambda: self._chose(named),
                     ),
                     *self._tending(),
-                    Action(_ACT_NAME, "copy name", named, lambda: self.copies(named)),
+                    Action(
+                        _ACT_NAME, t("Copy name"), named, lambda: self.copies(named)
+                    ),
                 ],
             )
         if self._page == VERSES and (verse := self._verse_under()) is not None:
@@ -1864,8 +2085,8 @@ class Flows(Drafts[Chosen]):
                 [
                     Action(
                         _ACT_OPEN,
-                        "open",
-                        "the flows it lists",
+                        t("Open"),
+                        t("shows the flows it lists"),
                         lambda: self._goes(VERSE, verse=called),
                     ),
                     *(
@@ -1874,7 +2095,11 @@ class Flows(Drafts[Chosen]):
                         if one.key in (_ACT_FETCH, _ACT_REMOVE)
                     ),
                     *(
-                        (Action(_ACT_NAME, "copy URL", url, lambda: self.copies(url)),)
+                        (
+                            Action(
+                                _ACT_NAME, t("Copy URL"), url, lambda: self.copies(url)
+                            ),
+                        )
                         if url
                         else ()
                     ),
@@ -1888,7 +2113,7 @@ class Flows(Drafts[Chosen]):
         Args:
           keys: The page's keys, for its list.
         """
-        back = Key("esc", "close" if self._page == HOME or self._only else "back")
+        back = Key("esc", t("Close") if self._page == HOME or self._only else t("Back"))
         super()._footed(*(one for one in keys if one.key != "esc"), back)
 
     # -- Choosing ----------------------------------------------------------------------------
@@ -1958,17 +2183,20 @@ def _wont_load(flow: str, also: str = "") -> str:
 
     Args:
       flow: The flow, by the name it was offered under.
-      also: What follows from it here, where anything does.
+      also: What follows from it here, where anything does, as a sentence.
 
     Returns:
       The line, ready to draw.
     """
-    said = f"{escape(flow)} failed to load"
     why = why_not(flow)
-    if why:
-        said += f": {escape(why)}"
+    said = (
+        t("The flow {name} failed to load: {why}", name=escape(flow), why=escape(why))
+        if why
+        else t("The flow {name} failed to load.", name=escape(flow))
+    )
     if also:
-        said += f"; {also}"
+        # Its own sentence, after whatever the reason ended in.
+        said = f"{said.rstrip('.')}. {also}"
     return bad(said)
 
 
@@ -1987,8 +2215,8 @@ def _spending(held: Budget | None) -> str:
       The caps, or what having none comes to.
     """
     if held is None:
-        return "none set; an epic needs one"
-    return f"stops at {spent(held)}"
+        return t("none set; an epic needs one")
+    return t("stops at {limits}", limits=spent(held))
 
 
 def _remembered_profiling(flow: str) -> dict[str, bool]:

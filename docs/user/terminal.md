@@ -163,6 +163,11 @@ The navigator on the left lists every chat and epic on this machine. It is open 
 Press <kbd>p</kbd> to pin a row, <kbd>u</kbd> to mark it unread, <kbd>g</kbd> to group by folder, date or as one list, and <kbd>.</kbd> for everything else you can do with it.
 
 To search instead, press <kbd>ctrl+k</kbd> and type. <kbd>tab</kbd> switches between all, chats and epics; <kbd>enter</kbd> opens the row; <kbd>esc</kbd> closes Search. See [the key tables](/reference/tui#navigator).
+## Flows page
+
+Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installed** lists the flows you can run, with any that has a newer release first and marked `↑`. **Flowverses** lists the indexes more flows are installed from, with when each was fetched. <kbd>tab</kbd> turns from one to the other, the bottom line lists the keys of the list you are in, and <kbd>esc</kbd> goes back one list and then closes the page. See [Find and install flows](/user/flows#the-flows-page).
+
+The Download, Import and Export pages move epics between machines. A transfer goes on when you close its page with <kbd>esc</kbd>; open any of the three again to see where it stands. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
 
 ## Good to know
 

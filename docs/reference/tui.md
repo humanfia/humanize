@@ -314,6 +314,43 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | Slices | <kbd>O</kbd> | Reverses the order. |
 | Slices | <kbd>enter</kbd> | Goes to that slice on the timeline. |
 
+### Flows page
+
+<kbd>ctrl+l</kbd> opens the Flows page from anywhere, and closes it. Its bottom line lists the keys of the list that is open.
+
+| Where | Key | Action |
+| --- | --- | --- |
+| Either tab | <kbd>tab</kbd> | Turns to the other tab: **Installed** or **Flowverses**. |
+| Installed | <kbd>enter</kbd> | Opens the flow: what it says of itself, its agents, environments and params. |
+| Installed, or a flow opened | <kbd>n</kbd> | Starts a new epic of the flow. |
+| Installed, or a flow opened | <kbd>u</kbd> | Updates to the newest release its flowverse lists. |
+| Installed, or a flow opened | <kbd>s</kbd> | Lists its releases; <kbd>enter</kbd> installs or switches to one. |
+| Installed, or a flow opened | <kbd>x</kbd> | Uninstalls it, after asking. |
+| Flowverses | <kbd>enter</kbd> | Lists the flows the flowverse lists. |
+| Flowverses | <kbd>a</kbd> | Adds a flowverse: a URL or `owner/repo`, and an optional name. |
+| Flowverses, or its flows | <kbd>f</kbd> | Fetches its index. |
+| Flowverses | <kbd>x</kbd> | Removes it and every flow installed out of it, after asking. |
+| A flowverse's flows | <kbd>i</kbd> | Installs the newest release of the flow. |
+| A flowverse's flows | <kbd>enter</kbd> | Lists the flow's releases. |
+| A flowverse's flows, releases | <kbd>x</kbd> | Uninstalls the flow, after asking. |
+| Releases | <kbd>enter</kbd> | Installs the release, or switches to it. |
+| Anywhere on the page | <kbd>esc</kbd> | Goes back one list, then closes the page. |
+
+Nothing is installed, updated or uninstalled while an epic is going; the page says so.
+
+### Download, Import and Export pages
+
+These three pages have no key of their own. Each lists the transfers under way and finished; a transfer goes on when its page is closed.
+
+| Page | Key | Action |
+| --- | --- | --- |
+| Download | <kbd>enter</kbd> | Downloads the epic or chat under the cursor. |
+| Download | <kbd>f</kbd> | Fetches the backup target again. |
+| Download | <kbd>t</kbd> | Turns to the next backup target, where there is more than one. |
+| Import | <kbd>enter</kbd> | Asks for the `.hmzepic` to import; <kbd>tab</kbd> finishes the path. |
+| Export | <kbd>enter</kbd> | Asks where the epic under the cursor goes, and writes its archive there. |
+| Any | <kbd>esc</kbd> | Closes the page. |
+
 ### Mouse
 
 | Action | Result |
