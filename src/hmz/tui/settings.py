@@ -617,7 +617,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             _BACKUP: self.BACKUP_ABOUT,
         }
         if self._tab in listed:
-            return listed[self._tab]
+            return t(listed[self._tab], spec="cli@account/model")
         if self._tab == _THEMES:
             said = t(
                 "The theme under the cursor is shown as you move through the list and "

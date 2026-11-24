@@ -98,10 +98,10 @@ async def test_every_nous_is_listed_with_its_envelope_and_its_graphs(
         await shows(
             pilot,
             "smart",
-            "virtual · no retries",
+            "Virtual · once",
             "claude/opus · then none",
             "claude/sonnet",
-            "concrete · 1 retry",
+            "Concrete · 1 more go",
             "then smart",
         )
 
@@ -111,7 +111,7 @@ async def test_a_concrete_nous_is_added_with_tries_and_a_then_chain(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_nous(pilot)
-        await shows(pilot, "no nous written down yet")
+        await shows(pilot, "No nous yet.")
         await pilot.click("#act-add")
         await on(pilot, NousForm)
 
@@ -133,7 +133,7 @@ async def test_a_concrete_nous_is_added_with_tries_and_a_then_chain(
         await shows(pilot, "codex/gpt-5 → claude/sonnet")
         await done(pilot, Adjusts)
 
-        await shows(pilot, "claude/opus", "2 retries", "● Unsaved")
+        await shows(pilot, "claude/opus", "2 more goes", "● Unsaved")
         await leaves(pilot)
 
     one = written("claude/opus")
@@ -175,7 +175,7 @@ async def test_a_virtual_nous_is_made_of_a_balance_node_and_a_fault_edge(
         await shows(
             pilot,
             "smart",
-            f"{strategy}(claude/opus×2, codex/gpt-5×1) → claude/sonnet",
+            f"{strategy}: claude/opus×2,",
         )
         await leaves(pilot)
 
@@ -223,7 +223,7 @@ async def test_a_nous_that_is_none_is_refused(workspace: Path) -> None:
 
         await pilot.click("#act-done")
 
-        await shows(pilot, "claude/opus says nothing: give it retries or a then")
+        await shows(pilot, "claude/opus says nothing; give it more tries or a then.")
         await on(pilot, NousForm)
 
 

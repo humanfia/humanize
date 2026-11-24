@@ -120,7 +120,7 @@ async def test_made_of_a_form_walked_out_of_is_nothing(accounts: _Accounts) -> N
 async def test_made_refuses_a_way_the_backend_has_not(accounts: _Accounts) -> None:
     made = await _made(_Host(_signs("sso")))
 
-    assert made == pick.Made(why="sso is not a supported sign-in method for claude")
+    assert made == pick.Made(why="sso is not a sign-in method for claude.")
     assert accounts.calls == []
 
 

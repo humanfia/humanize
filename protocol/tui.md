@@ -2635,6 +2635,24 @@ quotes such a word in lower case is to be read with the word as it is here.
 | 14 | the box `A flow is running.` offering `stop the flow and exit`, and `detach and exit` or `cancel` | the same box offering **Stop the flow and quit**, and **Detach and quit** or **Cancel** |
 | 19.13 | the box `Report errors to Humanize?` offering `yes` and `no` | the box `Send error reports to Humanize?` offering **Yes** and **No** |
 | 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
+| 15.4 | a switch reading `on` or `off`, and a row of a form named in lower case (`name`, `host`, `port`, `identity file`, …) | `On` or `Off`, and the row named as the web interface names the field (`Name`, `Host`, `Port`, `Identity file`, …) |
+| 16.5.3, 19.6.1, 19.6.3 | this machine's own sign-in, as `as local` | **Local**, with `signed in outside Humanize` beside it |
+| 16.6 | the form `Environment for <role>` | `Runtime for <role>` |
+| 17.1.2 | the scope `this directory`, and the epics `in this directory` | **This folder**, and the epics `in this folder` |
+| 17.1.3 | the filters `status`, `flow`, `workspace`, each opening on `all` | `State`, `Flow`, `Folder`, each opening on `All` |
+| 17.2 | an epic's rows `resume epic`, `graph`, `export epic`, `upload`, `copy name`, `copy task`, `copy path` | **Resume epic**, **Graph**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy path** |
+| 17.2 | an epic said to be `is still going`, `finished` or `was left unfinished` | `still going`, `done` or `unfinished` |
+| 17.3.1.1 | `no folder` | `No folder` |
+| 17.3.2 | `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`, `copy id` | **Follow**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy workspace**, **Copy ID** |
+| 19.5.2 | **Add daemon**, **edit…**, **connect**, **remove**, **copy name**, **Pair a device…**, **Devices…** | **New daemon**, **Edit**, **Connect**, **Remove**, **Copy name**, **Pair a device**, **Devices** |
+| 19.5.2 | the modes `Pairing code`, `SSH Config`, `Custom`, `Routes` | `Pairing code`, `SSH config`, `Custom`, `Routes` |
+| 19.5.4 | **install** and **not now** | **Install** and **Not now** |
+| 19.6.2 | **edit settings** and **sign in again** | **Edit** and **Sign in again** |
+| 19.6.4 | **Add an account** and **Add a custom CLI** | **Add account** and **Add CLI** |
+| 19.9 | **Add a runtime…**, `import ~/.ssh/config`, and a runtime's `edit`, `check` | **Add runtime…**, **Read SSH config**, and **Edit**, **Check** |
+| 19.9 | a runtime's kinds `ssh host`, `docker host`, `docker swarm`, `apple containers`, `slurm cluster` | `SSH host`, `Docker container`, `Docker swarm`, `Apple container`, `Slurm cluster` |
+| 19.10 | **Add target** on a form titled `Add backup target`, and **Download…** | **Add target** on a form titled `New target`, and **Download…** |
+| 16 | a budget cap cut off mid-turn said as `<cap> even mid-turn` | `<cap> cut off at once` |
 
 ## 34. Security Considerations
 
