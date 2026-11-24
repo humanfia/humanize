@@ -295,7 +295,7 @@ async def test_an_effort_picked_is_asked_of_the_daemon_as_the_chats_agent() -> N
         await pilot.press("enter")
         title, offered = await _picks(pilot, "low")
 
-        assert (title, offered) == ("Effort", ["auto", "low", "high"])
+        assert (title, offered) == ("EFFORT", ["auto", "low", "high"])
         assert daemon.calls("chat.agent") == [
             {"chat": "c1", "agent": "claude/fable:low"}
         ]
