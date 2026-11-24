@@ -125,7 +125,8 @@ class MimoCodeSession(OpencodeSession):
         Its own spelling of opencode's `--auto`: the same setting under the name this fork
         gives it, which is Claude Code's. Not to be confused with its top-level `--never-ask`,
         which is the other thing a session can be asked to stop stopping for and leaves the
-        permissions exactly where they were.
+        permissions exactly where they were. And, as opencode's, one no managed config of it
+        forbids (0.1.17).
         """
         return ["--dangerously-skip-permissions"]
 

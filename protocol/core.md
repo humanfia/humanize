@@ -1203,6 +1203,10 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
+**4.6.2.9** Where a Cursor team's admin has switched off Run Everything or headless use, no
+`cursor-agent` launch of the table is unattended and granted, so hmz MUST fail the agent's turn as
+one no retry changes, naming the harness, the team's admin and the setting.
+
 #### 4.6.3. Web search
 
 **4.6.3.1** A grant whose `network` is true MUST switch the harness's own web search on, and one
