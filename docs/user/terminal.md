@@ -169,6 +169,11 @@ Press <kbd>ctrl+l</kbd> to open the Flows page over the whole screen. **Installe
 
 The Download, Import and Export pages move epics between machines. A transfer goes on when you close its page with <kbd>esc</kbd>; open any of the three again to see where it stands. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
 Press <kbd>f5</kbd>, <kbd>f6</kbd> or <kbd>f7</kbd> to open the Files, Changes or Terminal of the environment you are working in beside the log, and <kbd>ctrl+w</kbd> inside one to widen it. The pane stays open while you type at the prompt. See [Files, changes and terminal](/user/environment-panels#keep-a-pane-open-beside-the-chat).
+Press <kbd>ctrl+g</kbd> for **Details** of the open chat: its model, effort, permissions and environment, each changed with <kbd>enter</kbd>, its usage, and **Rename…**, **Fork**, **Archive** and **Delete chat**.
+
+## Pages over the log
+
+Press <kbd>ctrl+n</kbd> for the New chat page: the first message, and above it the chips **Folder**, **Environment**, **Model**, **Effort** and **Permissions** showing what the chat starts with. A page covers the log until you press <kbd>esc</kbd>. See [Chat with an agent](/user/chat) and [Continue sessions from other CLIs](/user/harness-sessions).
 
 ## Good to know
 
