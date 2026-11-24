@@ -108,15 +108,15 @@ Open your existing epic and click the **Upload** up arrow in its bar. A notice s
 List the contents of the backup repository in a terminal:
 
 ```sh
-hmz backup --list
+hmz backup list --target epics
 ```
 
-![Terminal: hmz backup --list prints the target, then one line for the epic with its machine, workdir, name, ending and task](/shots/tutorials-read-back-a-run-backup-list.svg)
+![Terminal: hmz backup list --target epics prints one line for the epic with its key of machine, workdir and name, its ending, flow and task](/shots/tutorials-read-back-a-run-backup-list.svg)
 
 On another machine configured with the same target, open **Settings**, **Backup**, **Download**, and pick the epic. Or run:
 
 ```sh
-hmz backup --pull <epic>
+hmz backup pull <epic> --target epics
 ```
 
 ## What you did

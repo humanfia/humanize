@@ -488,7 +488,7 @@ A family is the typed calls of one group of daemon methods, read as an attribute
 | `runtimes`, `easytier` | `runtimes.*`, `easytier.*` |
 | `btw`, `aichan`, `notices` | `btw.*`, `aichan.*`, `notices.*` |
 
-Every family has `METHODS`, the daemon methods it calls. Only `devices` has calls so far; the others are being added.
+Every family has `METHODS`, the daemon methods it calls. `devices`, `runs`, `backups` and `files` have calls so far; the others are being added.
 
 #### devices {#client-devices}
 
@@ -506,6 +506,54 @@ with Client.local() as client:
     for device in client.devices.list():
         print(device.name, device.seen)
 ```
+
+#### runs {#client-runs}
+
+Recorded epics. An epic is a `dict` as the daemon answered it.
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `list(*, workspace=None, status=None, flow=None, query=None, offset=None, limit=None)` | `Listing` | A page of the epics written down, newest first. A `Listing` has `runs`, `total`, `offset`, `limit`, `counts` and `flows`. |
+| `get(name)` | `dict` | One epic, whole. Raises `Refused` with `code` 404 for a name no epic has. |
+| `trace(name)` | list of `dict` | What each session said and did: `key`, `agent` and `actions`. |
+| `timeline(name)` | `dict` | The epic's Exomyth timeline. |
+| `span(name, ident, layout=None)` | `dict` | One span of the timeline. Without `layout`, the timeline is laid out first. |
+| `bundle(name)` | `Bundle` | Has the daemon pack the epic. A `Bundle` has `handle`, `filename`, `size` and `type`; read the handle with `files.download`. |
+| `export(name, to=None)` | `Exported` | Writes the epic to a `.hmzepic` file here: `to`, or `<name>.hmzepic` in the directory `to` or the current one. An `Exported` has `path`, `filename` and `size`. |
+| `backup(name, *, to=None, wait=0, idem=None)` | `dict` | Backs the epic up now. Returns each queued target with `{}`, or, where `wait` is not `0`, with how it went: `at`, `ok`, `error`, `why`. `wait=None` waits as long as it takes; otherwise raises `TimeoutError` after `wait` seconds. |
+| `import_(path, *, idem=None)` | `Imported` | Sends a `.hmzepic` file of this machine and imports it. An `Imported` has `name`, `workspace`, `resumable` and `why`. |
+| `imported(*, handle=None, path=None, idem=None)` | `Imported` | Imports an archive the daemon already has: a write handle, or an absolute path on its machine. |
+| `usage(*, days=None, workspace=None)` | `dict` | What chats and epics spent: `days_back`, `days`, `flows`, `ended`, `whole`. |
+
+```python
+from hmz.sdk import Client
+
+with Client.local() as client:
+    for run in client.runs.list(status="failed", limit=10).runs:
+        print(run["name"], run["task"])
+        client.runs.export(run["name"], "failed/")
+```
+
+#### backups {#client-backups}
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `targets()` | list of `Target` | The backup targets in settings. A `Target` has `name`, `url`, `branch`, `policies`, `every` and `default`. |
+| `epics(target)` | list of `Stored` | The epics and chats a target holds, newest first. A `Stored` has `key`, `machine`, `workspace`, `epic`, `flow`, `task`, `began`, `ended`, `how`, `head`, `chat` and `here`. |
+| `pull(target, key, *, idem=None)` | `str` | Downloads one onto the daemon's machine and returns its name. |
+
+#### files {#client-files}
+
+File handles carry a file over the session in chunks of at most `CHUNK` (1 MiB).
+
+| Member | Returns | What it does |
+| --- | --- | --- |
+| `upload(path, *, name=None)` | `str` | Sends a file of this machine and returns a write handle holding it. |
+| `download(handle, to)` | `int` | Reads the whole file of a read handle into `to`, ends the handle, and returns the bytes written. |
+| `create(name, size)` | `str` | Makes a write handle. |
+| `write(handle, offset, data)` | `int` | Appends a chunk and returns the size written so far. |
+| `read(handle, offset, length=CHUNK)` | `Chunk` | Reads a chunk. A `Chunk` has `data` and `eof`. |
+| `close(handle)` | `None` | Ends a handle. |
 
 A family method that subscribes returns a `Subscription`: iterate it for each notification's parameters, call `next(seconds)` for one, and `close()` it to stop listening. A client whose families subscribe cannot also take a listener through `heard`.
 

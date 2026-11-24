@@ -32,13 +32,14 @@ python -m hmz ...
 | `daemon` | Run, reach, pair and install this machine's daemon. |
 | `relay` | Relay daemons and the devices that reach them. |
 | `update` | Update hmz to its newest release. |
-| `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
+| `backup` | Back epics up to git repositories, and download them again. |
 | `devices` | List and revoke the devices paired with this daemon. |
+| `runs` | List, read back, export and import epics, and total their spend. |
 
 There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
-`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices` and `devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
+`hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair`, `daemon devices`, `devices`, `runs` and `backup` start the daemon if none runs. `relay` and `update` do not.
 
 When the terminal interface closes, it waits up to 15 seconds for queued backups.
 
@@ -333,34 +334,6 @@ The newest release is asked of PyPI, or of the URL or file `HUMANIZE_RELEASES` n
 
 Running daemons continue on the old release until restarted. See [Install and update](/user/install).
 
-## hmz backup
-
-Back up an epic or chat to git repositories, list remote backups, or pull one locally.
-
-```text
-hmz backup [--to NAME]... EPIC
-hmz backup --list [--to NAME]...
-hmz backup --pull EPIC [--to NAME]...
-```
-
-| Argument | Value | What it does |
-| --- | --- | --- |
-| `EPIC` | A name, a chat id, or a path | The local epic or chat to back up. |
-| `--to` | `NAME` | A backup target from settings. Repeatable. For backups, defaults to the epic's targets, or the global defaults. For `--list` and `--pull`, defaults to all targets. |
-| `--list` | | Lists all epics and chats across the targets, from every machine. |
-| `--pull` | `EPIC` | Downloads an epic or chat from the first target holding it and prints its path. `EPIC` is a name, a chat id, or `<machine>/<workspace>/<epic>`. |
-
-`--list` and `--pull` are mutually exclusive.
-
-| Result | Output | Exit |
-| --- | --- | --- |
-| Every target took it | `<target>: backed up to <url>` on stdout, per target. | `0` |
-| A target failed | `<target>: failed: <reason>` on stderr. | `1` |
-| `--pull` failed, or the epic is already on this machine | `hmz backup: <why>` | `1` |
-| No such epic, no such target, no target configured, or a name held from several machines | A usage error. | `2` |
-
-See [Back up to git](/user/backups).
-
 ## Declared commands {#declared-commands}
 
 `hmz devices` is the first of the commands written as one declaration. Every such command is a client of the daemon, takes the same three options, and prints the same kind of help.
@@ -398,6 +371,84 @@ hmz devices pair [--route ROUTE]... [--seconds N]
 | `pair` | The code alone on standard output, and when it expires on standard error. | `{"code": <code>, "expires": <seconds since the epoch>}` |
 
 `--route` adds a route the code carries; without it, the code carries the routes the daemon listens on. `--seconds` sets how long the code can be claimed for.
+
+## hmz runs
+
+List, read back, export and import the epics the daemon wrote down, and total what they spent. These are [declared commands](#declared-commands).
+
+```text
+hmz runs list [--workspace PATH] [--status STATUS] [--flow NAME] [-q TEXT] [--offset N] [--limit N]
+hmz runs show NAME
+hmz runs trace NAME
+hmz runs timeline NAME [--spans]
+hmz runs span NAME ID [--layout LAYOUT]
+hmz runs export NAME [-o FILE]
+hmz runs import FILE [--there]
+hmz runs usage [--days N] [--workspace PATH]
+```
+
+`NAME` is an epic's name, as `hmz runs list` prints it.
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `list` | One line per epic, newest first: name, status, flow, when it began, first line of its task. If more match than were listed, a line on standard error names the next `--offset`. | `{"runs": [...], "total", "offset", "limit", "counts", "flows"}`. Each of `runs` is an epic row: `name`, `workspace`, `flow`, `task`, `began`, `ended`, `how`, `agents`, `sessions`, `resumable`, `spent`, `held`, `slot`, `asking`, `backup`, `backed`, and more. |
+| `show NAME` | One line per field, its name then its value, with the whole task last. | The epic row with the whole `task`, `at`, `ref`, `agents` and `sessions` in full, `envs`, `used`, `params`, `budget`, `picked_up`, `picks_up`, `foreign` and `calls`. |
+| `trace NAME` | One line per session with its key and agent, then an indented line per action: when it started, seconds taken, category, name. | `{"sessions": [{"key", "agent", "actions": [{"category", "name", "at", "start", "seconds", "args"}]}]}` |
+| `timeline NAME` | One line per process, and under it one line per track with its span count. `--spans` adds every span: id, start, duration, category, name. | The Exomyth timeline: `version`, `layout`, `epic`, `origin`, `live`, `strings`, `processes`, `tracks`, `spawns`, `summary`. |
+| `span NAME ID` | One line per field of the span, then what it carried as indented JSON. | `{"id", "process", "track", "start", "dur", "depth", "cat", "name", "at", "args"}` |
+| `export NAME` | The path of the file written. | `{"path", "filename", "size"}` |
+| `import FILE` | `Imported <name>`, and why it cannot be resumed here if it cannot. | `{"name", "workspace", "resumable", "why"}` |
+| `usage` | A table of flows, costliest first, a table of the days something ran, then the total. | `{"days_back", "days", "flows", "ended", "whole"}`; each of `days`, `flows` and `whole` has `runs`, `cost`, `output_tokens`, `seconds`, `money`, `tokens`, `worked`. |
+
+| Option | Command | What it does |
+| --- | --- | --- |
+| `--workspace PATH` | `list`, `usage` | Only the epics of the workspace at this folder. A relative path is taken from the current directory. |
+| `--status STATUS` | `list` | Only epics with this status: `running`, `done`, `failed`, `stopped` or `unfinished`. |
+| `--flow NAME` | `list` | Only epics of this flow. |
+| `-q`, `--query TEXT` | `list` | Only epics whose task, flow or name contains this text. |
+| `--offset N`, `--limit N` | `list` | Skip `N` of the newest matches; list at most `N`, 1 to 200, default 50. |
+| `--spans` | `timeline` | Also print every span under its track, with its id. |
+| `--layout LAYOUT` | `span` | The `layout` of the timeline the id was read from. The daemon refuses if the epic has been laid out again since. Without it, the timeline is laid out first. |
+| `-o`, `--output FILE` | `export` | The file to write, or a directory to write `<name>.hmzepic` into. Defaults to the current directory. An existing file is replaced. |
+| `--there` | `import` | `FILE` is an absolute path on the daemon's machine; the daemon reads it there instead of being sent it. |
+| `--days N` | `usage` | How many days back to count, 1 to 365, default 30. |
+
+`export` and `import` exit 1 if the local file cannot be written or read. `import` is refused if the epic is already there. See [Find and manage epics](/user/history), [Export and import](/user/export), [Trace an epic](/user/tracing) and [Usage](/user/usage).
+
+## hmz backup
+
+Back an epic up to git repositories now, list the targets and what one holds, and download an epic or chat. These are [declared commands](#declared-commands): the daemon does the uploading and downloading.
+
+```text
+hmz backup run EPIC [--to NAME]... [--no-wait] [--timeout SECONDS]
+hmz backup list [--target NAME]
+hmz backup pull KEY --target NAME
+```
+
+| Command | Text output | `--json` |
+| --- | --- | --- |
+| `run EPIC` | `<target>: uploaded <when>` per target that took the epic. | `{"queued": [<target>...], "backed": {<target>: {"at", "ok", "error", "why"}}}`; `backed` is `{}` with `--no-wait`. |
+| `list` | One line per target: name, URL, branch, policies, and `default` for a default target. `No backup target.` on standard error if there is none. | `{"targets": [{"name", "url", "branch", "policies", "every"}], "defaults": [<target>...]}` |
+| `list --target NAME` | One line per epic or chat the target holds, newest first: key, status, flow or `chat`, `here` if this machine holds it, task. | `{"epics": [{"key", "machine", "workspace", "epic", "flow", "task", "began", "ended", "how", "head", "chat", "here"}]}` |
+| `pull KEY` | The name of the epic or chat downloaded. | `{"name": <name>}` |
+
+| Argument | What it does |
+| --- | --- |
+| `EPIC` | The epic's name, as `hmz runs list` prints it. |
+| `--to NAME` | A backup target to upload to. Repeatable. Defaults to the targets the epic was started with, or else the default targets. |
+| `--no-wait` | Returns once the daemon has queued the uploads, printing `Uploading to <targets>`. |
+| `--timeout SECONDS` | How long to wait for the uploads, default 600. On timeout the command exits 3 and the upload carries on in the daemon. |
+| `--target NAME` | The backup target to list or download from. Required for `pull`. |
+| `KEY` | `<machine>/<workspace>/<epic>`, as `list --target` prints it, or the name alone if the target holds only one of that name. |
+
+| Result | Output | Exit |
+| --- | --- | --- |
+| Every target took the epic | `<target>: uploaded <when>` on stdout, per target. | `0` |
+| A target failed | `hmz backup run: <target>: failed, <error> <when>` on stderr. | `1` |
+| No such epic, no such target, no target configured | `hmz backup run: <the daemon's reason>` on stderr. | `1` |
+| `pull` of something already on this machine, of a name the target does not hold, or of a name held from several machines | `hmz backup pull: <why>` on stderr. | `1` |
+
+See [Back up to git](/user/backups).
 
 ## hmz internal
 

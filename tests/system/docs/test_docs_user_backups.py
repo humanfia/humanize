@@ -300,9 +300,9 @@ def test_backing_up_and_downloading_from_the_command_line(world: World) -> None:
     here, there = _staged(world, chat=True)
     reel = shots.Reel(f"{_PAGE}-cli")
     for argv in (
-        ["hmz", "backup", here],
-        ["hmz", "backup", "--list", "--to", _LAB],
-        ["hmz", "backup", "--pull", there],
+        ["hmz", "backup", "run", here],
+        ["hmz", "backup", "list", "--target", _LAB],
+        ["hmz", "backup", "pull", there, "--target", _LAB],
     ):
         reel.cli(argv, columns=116, rows=8, hold=4.0)
     reel.save()

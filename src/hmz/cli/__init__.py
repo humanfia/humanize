@@ -5,10 +5,9 @@
     hmz chat -a claude/MODEL:high "what does this repository do?"
 
 A few commands anybody types -- running a flow, saying one message to an agent, serving the web
-interface, backing an epic up to git repositories, and moving Humanize itself to its newest
-release -- and everything else Humanize keeps is walked at the prompt: a listing with a noun in
-it for every store would be a second interface to learn, and the one with the sheets in it is
-the interface.
+interface, and moving Humanize itself to its newest release -- and everything else Humanize
+keeps is walked at the prompt: a listing with a noun in it for every store would be a second
+interface to learn, and the one with the sheets in it is the interface.
 
 The other command in the listing is `hmz internal`, which is the six lines Humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
@@ -21,8 +20,8 @@ A command imports what it needs when it is the one asked for, and no earlier: `h
 not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `chat.py`, `web.py`, `update.py`,
-`backup.py`, and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
+one of them costs nothing for the others -- which is what `chat.py`, `web.py`, `update.py`, and
+`cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
 The other three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process
 becomes. `exec` has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`,
 since the terminal interface starts a flow from the same parts.
@@ -258,7 +257,7 @@ def _backs_up(running: Run, say: Callable[[str], object]) -> None:
                     return
         say(
             f"hmz exec: a backup took longer than {BACKING:.0f}s and was left; "
-            "`hmz backup EPIC` sends it again"
+            "`hmz backup run EPIC` sends it again"
         )
     except (OSError, ValueError, Refused):
         # The daemon gone: nothing is left to wait on.
@@ -515,20 +514,6 @@ def _update(argv: list[str]) -> int:
     return update(argv)
 
 
-def _backup(argv: list[str]) -> int:
-    """Backs one epic up to git repositories now, and says how it went.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero where every target took it; one where one did not.
-    """
-    from .backup import backup
-
-    return backup(argv)
-
-
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines Humanize spawns for itself was named.
 
@@ -669,7 +654,7 @@ def _closes(app: Humanize) -> int:
         if not done:
             print(
                 f"hmz: a backup took longer than {_CLOSING:.0f}s and was left; "
-                "`hmz backup EPIC` sends it again",
+                "`hmz backup run EPIC` sends it again",
                 file=sys.stderr,
             )
     return app.return_code or 0
@@ -706,12 +691,13 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Seven are for
+#: Each command, as what carries it out and the line a listing shows it as. Six are for
 #: anybody: running a flow in a directory, saying one message to an agent there, serving the
 #: web interface, running, reaching and pairing this machine's daemon, serving a relay daemons
-#: and devices meet through, moving Humanize itself to its newest release, and backing an
-#: epic up from a script -- everything else Humanize keeps is walked at the prompt rather
-#: than typed, a run already held here included, which `hmz` with no command opens.
+#: and devices meet through, and moving Humanize itself to its newest release -- everything
+#: else Humanize keeps is walked at the prompt rather than typed, or asked of the daemon by a
+#: declared command (`hmz.cli.commands`), a run already held here included, which `hmz` with
+#: no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
@@ -722,7 +708,6 @@ COMMANDS = {
     "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
-    "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),
 }
 

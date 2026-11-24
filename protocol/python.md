@@ -3770,7 +3770,129 @@ This section is reserved for the families of `epic.*` and `hosts.*`. It states n
 
 ### 4.26. `Client.runs`, `Client.backups` and `Client.files`
 
-This section is reserved for the families of `runs.*`, `backups.*` and `files.*`. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+```python
+class Runs(Family):
+    def list(self, *, workspace: str | None = None, status: str | None = None,
+             flow: str | None = None, query: str | None = None,
+             offset: int | None = None, limit: int | None = None) -> Listing: ...
+    def get(self, name: str) -> dict[str, Any]: ...
+    def trace(self, name: str) -> list[dict[str, Any]]: ...
+    def timeline(self, name: str) -> dict[str, Any]: ...
+    def span(self, name: str, ident: int | str,
+             layout: int | str | None = None) -> dict[str, Any]: ...
+    def bundle(self, name: str) -> Bundle: ...
+    def export(self, name: str, to: str | os.PathLike[str] | None = None) -> Exported: ...
+    def backup(self, name: str, *, to: Sequence[str] | None = None,
+               wait: float | None = 0, idem: str | None = None) -> dict[str, dict[str, Any]]: ...
+    def imported(self, *, handle: str | None = None, path: str | None = None,
+                 idem: str | None = None) -> Imported: ...
+    def import_(self, path: str | os.PathLike[str], *, idem: str | None = None) -> Imported: ...
+    def usage(self, *, days: int | None = None, workspace: str | None = None) -> dict[str, Any]: ...
+
+class Backups(Family):
+    def targets(self) -> list[Target]: ...
+    def epics(self, target: str) -> list[Stored]: ...
+    def pull(self, target: str, key: str, *, idem: str | None = None) -> str: ...
+
+class Files(Family):
+    def create(self, name: str, size: int) -> str: ...
+    def write(self, handle: str, offset: int, data: bytes) -> int: ...
+    def read(self, handle: str, offset: int, length: int = CHUNK) -> Chunk: ...
+    def close(self, handle: str) -> None: ...
+    def upload(self, path: str | os.PathLike[str], *, name: str | None = None) -> str: ...
+    def download(self, handle: str, to: str | os.PathLike[str]) -> int: ...
+
+CHUNK = 1_048_576
+
+class Listing:   # frozen
+    runs: list[dict[str, Any]]; total: int; offset: int; limit: int
+    counts: dict[str, int]; flows: list[str]
+
+class Bundle:    # frozen
+    handle: str; filename: str; size: int; type: str
+
+class Exported:  # frozen
+    path: Path; filename: str; size: int
+
+class Imported:  # frozen
+    name: str; workspace: str; resumable: bool; why: str
+
+class Target:    # frozen
+    name: str; url: str; branch: str; policies: tuple[str, ...]; every: int; default: bool
+
+class Stored:    # frozen
+    key: str; machine: str; workspace: str; epic: str; flow: str; task: str
+    began: str; ended: str; how: str; head: str; chat: bool; here: bool
+
+class Chunk:     # frozen
+    data: bytes; eof: bool
+```
+
+`hmz.sdk.families.runs` holds `Runs`, `Listing`, `Bundle`, `Exported` and `Imported`;
+`hmz.sdk.families.backups` holds `Backups`, `Target` and `Stored`; `hmz.sdk.families.files` holds
+`Files`, `Chunk` and `CHUNK`. The methods they call are those of Section 4.16 of [DAEMON] and
+Section 6.9 of [WIRE].
+
+**4.26.1** `Runs.list(...)` MUST call `runs.list`, `query` as `q`, and return a `Listing` of its
+`runs`, `total`, `offset`, `limit`, `counts` and `flows`, each epic of `runs` as the daemon answered
+it.
+
+**4.26.2** `Runs.get(name)`, `Runs.timeline(name)` and `Runs.usage(days, workspace)` MUST call
+`runs.get`, `runs.timeline` and `runs.usage` and return the result; `Runs.trace(name)` MUST call
+`runs.trace` and return its `sessions`.
+
+**4.26.3** `Runs.span(name, ident, layout)` MUST call `runs.span` with `ident` as `id`; where
+`layout` is `None` it MUST first call `runs.timeline` and give that timeline's `layout`.
+
+**4.26.4** `Runs.bundle(name)` MUST call `runs.bundle` and return a `Bundle` of its `handle`,
+`filename`, `size` and `type`; the handle is the caller's to read and to end.
+
+**4.26.5** `Runs.export(name, to)` MUST call `runs.bundle` and write the file of its handle as
+`Files.download` does: in the directory `to` under the bundle's `filename` where `to` is a directory
+or ends in a path separator, making that directory where it is not there; at `to` otherwise; and in
+the working directory under that `filename` where `to` is `None`.
+It MUST return an `Exported` of the file's absolute path, the bundle's `filename` and the bytes
+written.
+
+**4.26.6** `Runs.backup(name, to=..., wait=...)` MUST call `runs.backup` and return a dictionary
+with one key for each target of its `queued`, in that order. Where `wait` is `0` every value MUST
+be `{}` and no other method MUST be called. Otherwise it MUST call `runs.get` before `runs.backup`
+and again until `backed` holds, for every such target, a record other than the one it held before
+whose `why` is `manual`, MUST return each target with that record, and MUST raise `TimeoutError` where `wait` seconds pass
+first, `None` waiting for as long as it takes.
+
+**4.26.7** `Runs.imported(handle=..., path=...)` MUST call `runs.import` with whichever was given
+and return an `Imported` of its `name`, `workspace`, `resumable` and `why`.
+
+**4.26.8** `Runs.import_(path)` MUST send the file as `Files.upload` does and return what
+`Runs.imported` returns for that handle; where that raises, it MUST end the handle with
+`files.close`, ignoring a refusal of that, and raise what was raised.
+
+**4.26.9** `Backups.epics(target)` MUST call `backups.epics` and return a `Stored` for each of its
+`epics`, in the daemon's order; `Backups.pull(target, key)` MUST call `backups.pull` and return its
+`name`.
+
+**4.26.10** `Backups.targets()` MUST return a `Target` for each backup target of the daemon's
+settings, in the order `settings.get` answers `backup.targets`, `default` being whether
+`backup.defaults` names it. It reads `settings.get`, which `Backups.METHODS` does not name: that
+method is the settings family's (Section 4.22.2).
+
+**4.26.11** `Files.create`, `Files.write`, `Files.read` and `Files.close` MUST call `files.create`,
+`files.write`, `files.read` and `files.close`. `write` MUST send `data` as its base64 and return
+`size`; `read` MUST return a `Chunk` of the bytes `data` is the base64 of and of `eof`; `create`
+MUST return `handle`.
+
+**4.26.12** `Files.upload(path, name=...)` MUST call `files.create` with `name`, the file's own name
+where it is `None`, and the file's length, MUST then write the file in order in chunks of at most
+`CHUNK` bytes, never more than the length declared, and MUST return the handle. Where a call
+raises, it MUST end the handle with `files.close`, ignoring a refusal of that, and raise what was
+raised.
+
+**4.26.13** `Files.download(handle, to)` MUST read the file from offset 0 in chunks of at most
+`CHUNK` bytes until one has `eof` true, MUST write it beside `to` and move it there only once it is
+whole, replacing a file already there, and MUST return the bytes written. It MUST end the handle
+with `files.close` however the reading went, ignoring a refusal of that, and MUST raise `OSError`
+where a chunk holds no bytes and `eof` false.
 
 ### 4.27. `Client.envs`
 
