@@ -521,7 +521,8 @@ async def wrapped(pilot: Pilot[None], *texts: str) -> None:
     app = _app(pilot)
 
     def flat() -> str:
-        return " ".join(screen(app).replace("│", " ").split())
+        # The list's edge, light as a sheet once drew it or heavy as it does now.
+        return " ".join(screen(app).replace("│", " ").replace("┃", " ").split())
 
     try:
         await until(pilot, lambda: all(one in flat() for one in texts), "it")
