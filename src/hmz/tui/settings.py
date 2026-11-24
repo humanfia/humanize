@@ -574,7 +574,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._home or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _NOUS, _BACKUP)
         )
 
-    def _titled(self) -> tuple[str, str]:
+    def _page_title(self) -> tuple[str, str]:
         """What the page open is called, and what is kept there in a line."""
         return _cards()[_NAMES[self._tab]]
 
@@ -582,7 +582,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
 
     def crumb(self) -> str:
         """`/settings`, or the page open in it, which is what a menu opened from it is in."""
-        return "/settings" if self._home else escape(self._titled()[0])
+        return "/settings" if self._home else escape(self._page_title()[0])
 
     def crumbs(self) -> list[str]:
         """`/settings`, while a page of it is open."""
@@ -631,9 +631,9 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         elif self._tab == _NOTIFICATIONS:
             said = t("Of every daemon, as they happen.")
         elif self._tab == _DIRECTORY:
-            said = f"{_shortly(self._workspace)}{_DOT}{self._titled()[1]}"
+            said = f"{_shortly(self._workspace)}{_DOT}{self._page_title()[1]}"
         else:
-            said = self._titled()[1]
+            said = self._page_title()[1]
         return escape(said)
 
     def _fill(self) -> None:
