@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from hmz import home
+from hmz import state
 from hmz.web import kept_port
 
 
@@ -27,7 +27,7 @@ def test_no_port_is_kept_where_nothing_was_written() -> None:
     ],
 )
 def test_only_a_port_from_1_to_65535_is_read_as_one(written: str, read: int) -> None:
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "web-port").write_text(written)
+    state().mkdir(parents=True, exist_ok=True)
+    (state() / "web-port").write_text(written)
 
     assert kept_port() == read

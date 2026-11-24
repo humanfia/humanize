@@ -747,14 +747,15 @@ def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
 ) -> None:
     import tomlkit
 
-    from hmz import home
+    from hmz import config
 
     target: dict[str, Any] = {
         "name": "t",
         "url": str(project / "nowhere.git"),
         "policies": [],
     }
-    (home() / "settings.toml").write_text(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.toml").write_text(
         tomlkit.dumps({"backup": {"targets": [target], "defaults": []}})
     )
 

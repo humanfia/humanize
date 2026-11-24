@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.widgets import OptionList
 
+from hmz import config
 from hmz.runtime.epic import Epic
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
@@ -50,7 +51,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 def kept(tmp_path: Path) -> dict[str, object]:
     """The settings file, as read back, or nothing where none was written."""
-    at = tmp_path / "humanize-home" / "settings.toml"
+    at = config() / "settings.toml"
     return tomllib.loads(at.read_text()) if at.exists() else {}
 
 

@@ -6,7 +6,7 @@ fingerprint, the SHA-256 of the public key as the certificate encodes it, in bas
 a daemon's id to its clients and a client's device fingerprint to a daemon. The daemon of a
 machine and every client on it are one device, with one certificate between them.
 
-Kept under the home, in a directory per machine (`<home>/identity/<machine>/`), because a home
+Kept in the data directory, a directory per machine (`<data>/identity/<machine>/`), because a home
 many machines mount must not make them one device: the directory is named for the machine's
 own id, which the operating system keeps for exactly this. Made the first time anything needs
 it, by whichever of two processes gets there first: the other waits on the directory's lock
@@ -40,7 +40,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 )
 from cryptography.x509.oid import NameOID
 
-from hmz import home
+from hmz import data
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -225,8 +225,8 @@ def machine_id() -> str:
 
 
 def directory() -> Path:
-    """Where this machine's identity is kept: `<home>/identity/<machine>/`, made or not."""
-    return home() / "identity" / machine_id()
+    """Where this machine's identity is kept: `<data>/identity/<machine>/`, made or not."""
+    return data() / "identity" / machine_id()
 
 
 def device() -> Identity:

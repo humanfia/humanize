@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import tomlkit
 
-from hmz import home
+from hmz import config
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic, chats, epics, read
 from hmz.tui import Humanize
@@ -65,8 +65,8 @@ def _bare(tmp_path: Path, name: str) -> Path:
 
 
 def _targets(*targets: dict[str, Any], defaults: tuple[str, ...] = ()) -> None:
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.toml").write_text(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.toml").write_text(
         tomlkit.dumps(
             {"backup": {"targets": list(targets), "defaults": list(defaults)}}
         )
@@ -112,7 +112,7 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await leaves(pilot)
         await shows(pilot, "1 backup target saved")
 
-    saved = tomllib.loads((home() / "settings.toml").read_text())["backup"]
+    saved = tomllib.loads((config() / "settings.toml").read_text())["backup"]
     assert saved == {
         "targets": [
             {

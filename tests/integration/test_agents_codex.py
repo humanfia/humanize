@@ -11,7 +11,6 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
-import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
+from hmz import config
 from hmz.coganchor import nous, providers
 from hmz.coganchor.agents import (
     CodexAgent,
@@ -34,6 +34,7 @@ from hmz.coganchor.faking import FakeCli, FakeCommand
 from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     CODEX,
     Endpoint,
@@ -438,7 +439,7 @@ def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
 ) -> None:
     held = standins(tmp_path, monkeypatch, "CODEX_PROVIDER_KEY", "LITELLM_GATEWAY_KEY")
     held.install("codex", ROUTED)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     # A credential path answered by another is the supervisor's, which is tested where it is
     # written; an account that is variables alone is what is under test here.
@@ -586,7 +587,7 @@ def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
 
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
@@ -639,7 +640,7 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carv
         return None
 
     monkeypatch.setattr("hmz.coganchor.fence.unheld", unheld)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
@@ -678,7 +679,7 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_it_asks_before_a_comman
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
@@ -721,7 +722,7 @@ def test_a_codex_its_sandbox_held_is_started_again_inside_the_fence_once_it_asks
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
-    settings = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
+    settings = config() / "settings.toml"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('sandbox = {native = ["codex"]}\n', encoding="utf-8")
     (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)

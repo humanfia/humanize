@@ -1965,7 +1965,7 @@ states.
 
 **4.22.1.2** Each conversation MUST have an `id`, an integer one greater than the greatest `id`
 recorded, `1` for the first; and a slot `ai:<hex>` of its own, of the workspace of its host: the
-workspace of its scope, or, for the scope `daemon`, `<home>/ai/<machine>` (Section 4.16.1 of
+workspace of its scope, or, for the scope `daemon`, `<data>/ai/<machine>` (Section 4.16.1 of
 [FILES]).
 
 **4.22.1.3** Every host MUST name the session of a conversation's scoped link `Ai-chan#<id>`,
@@ -2552,7 +2552,7 @@ that each of the harnesses `claude`, `codex`, `grok`, `pi`, `omp`, `qwen`, `kimi
 `opencode`, `mimo` and `agy` installed on the daemon's machine keeps in its own home, that worked
 in the directory of that workspace, that no other session started or was forked into, and that no
 chat and no epic of the machine records as opened (`opened`, Section 6.5.4 of [FILES]) by that
-harness under that session id. A harness whose home is within `<home>`, or cannot be read, MUST
+harness under that session id. A harness whose home is within `<data>`, or cannot be read, MUST
 list none and MUST NOT fail the call.
 
 **4.25.8.2.1** Where a session worked MUST be read, for `kimi`, from `workDir` of the `state.json`

@@ -16,11 +16,12 @@ from typing import Any
 import pytest
 import tomlkit
 
-from hmz import home
+from hmz import config
 from hmz.cli import main
 from hmz.runtime import backing
 from hmz.runtime.epic import logs, read
 from hmz.sdk import Hmz
+from tests.conftest import rehome
 from tests.integration.doubles_core import AGENT, hmz_exec, install, write_flow
 
 #: Every epic here is held by a daemon of the test's own, in this process.
@@ -63,8 +64,8 @@ def bare(tmp_path: Path) -> Path:
 
 
 def _targets(*targets: dict[str, object], defaults: tuple[str, ...] = ()) -> None:
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.toml").write_text(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.toml").write_text(
         tomlkit.dumps(
             {"backup": {"targets": list(targets), "defaults": list(defaults)}}
         )
@@ -310,7 +311,7 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     assert before is not None
 
     # Another machine: a home of its own, the same workspace, the same repository.
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    rehome(monkeypatch, tmp_path / "elsewhere")
     _targets(target)
     assert epics.all() == []
     (held,) = Hmz().backups.listed("t")

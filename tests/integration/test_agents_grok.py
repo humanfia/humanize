@@ -31,6 +31,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     MCP,
     Endpoint,
@@ -301,7 +302,7 @@ def test_grok_under_an_account_a_gateway_holds_runs_the_model_through_it(
         "LITELLM_GATEWAY_KEY",
     )
     held.install("grok", ROUTED)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     # A credential path answered by another is the supervisor's, tested where it is written.
     monkeypatch.setattr(Provider, "swaps", _unswapped)

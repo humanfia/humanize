@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pytest
 from textual.widgets import OptionList
 
-from hmz import home
+from hmz import config
 from hmz.coganchor.machines import sshconfig
 from hmz.daemon import link, where
 from hmz.runtime import Hmz
@@ -47,6 +47,7 @@ from hmz.tui.pick import (
     Starting,
 )
 from hmz.tui.settings import Adjusts
+from tests.conftest import homed, places
 from tests.integration.doubles_daemon import ASKS
 from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
@@ -89,14 +90,11 @@ def host(
     far = tmp_path / "far"
     far.mkdir()
     found = faked(far, monkeypatch)
-    here = os.environ["HUMANIZE_HOME"]
     # Written there as a run there writes it: under that machine's own home.
-    monkeypatch.setenv("HUMANIZE_HOME", str(found.humanize))
     project = found.home / "project"
     project.mkdir()
-    with Epic("ralph", "tidy the far project", project):
+    with homed(found.humanize), Epic("ralph", "tidy the far project", project):
         pass
-    monkeypatch.setenv("HUMANIZE_HOME", here)
     yield found
     # The daemon `hmz daemon connect --stdio` started there, which outlives its client.
     pid = where.held(found.tmp / f"humanize-{os.getuid()}").get("pid")
@@ -126,10 +124,8 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
     # And one started there in no folder, in a directory that machine made for it alone.
     made = host.tmp.resolve() / f"humanize-{os.getuid()}" / "nofolder" / "tmpab12cd34"
     made.mkdir(parents=True)
-    with monkeypatch.context() as there:
-        there.setenv("HUMANIZE_HOME", str(host.humanize))
-        with Epic("ralph", "nowhere at all", made):
-            pass
+    with homed(host.humanize), Epic("ralph", "nowhere at all", made):
+        pass
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/settings daemons")
@@ -265,12 +261,8 @@ async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
         await on(pilot, Adjusts)
         await shows(pilot, "box: applied")
 
-    here = os.environ["HUMANIZE_HOME"]
-    os.environ["HUMANIZE_HOME"] = str(host.humanize)
-    try:
+    with homed(host.humanize):
         assert Hmz().settings.details
-    finally:
-        os.environ["HUMANIZE_HOME"] = here
 
 
 async def test_an_epic_is_started_on_another_daemon_and_steered_here(
@@ -280,10 +272,8 @@ async def test_an_epic_is_started_on_another_daemon_and_steered_here(
     project = host.home / "project"
     own_flow(project, ASKS)
     # Set up there as that directory last ran it: under that machine's own home.
-    here = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
-    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
-    monkeypatch.setenv("HUMANIZE_HOME", here)
+    with homed(host.humanize):
+        Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/epics @box")
@@ -376,10 +366,8 @@ async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
     Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
     project = host.home / "project"
     own_flow(project, ASKS)
-    here = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
-    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
-    monkeypatch.setenv("HUMANIZE_HOME", here)
+    with homed(host.humanize):
+        Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
 
     def held() -> list[str]:
         with pick.remotes().client("box") as client:
@@ -596,7 +584,7 @@ def ssh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) ->
 
 def _written() -> dict[str, dict[str, Any]]:
     """Each daemon as the settings file holds it, by name."""
-    held = tomllib.loads((home() / "settings.toml").read_text())
+    held = tomllib.loads((config() / "settings.toml").read_text())
     return {one.pop("name"): one for one in held["daemons"]}
 
 
@@ -698,7 +686,7 @@ def served(
     stand_in(tmp_path, monkeypatch)
     there = dict(
         os.environ,
-        HUMANIZE_HOME=str(tmp_path / "served"),
+        **places(tmp_path / "served"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="s", dir=os.environ["TMPDIR"]),
     )

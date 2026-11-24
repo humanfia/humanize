@@ -1,6 +1,6 @@
 """Humanize's one settings file: everything `/settings` can set, in `settings.toml`.
 
-One file under Humanize's own home, keyed by what each part of it is: what each workspace was
+One file in Humanize's config directory, keyed by what each part of it is: what each workspace was
 set up to run, the handful of settings that are this machine's, the chains a failed turn falls
 back along (`fallbacks`), the CLIs somebody added by hand (`clis`) and the machines an
 environment may be put on (`runtimes`). One file rather than one per setting, because a person
@@ -26,7 +26,7 @@ import time
 import tomllib
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
+from hmz import config
 from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ _TRIED: set[tuple[Path, int]] = set()
 
 def where() -> Path:
     """The file, whether or not anything has been written to it."""
-    return home() / "settings.toml"
+    return config() / "settings.toml"
 
 
 def reading() -> dict[str, Any] | None:

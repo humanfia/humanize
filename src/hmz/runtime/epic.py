@@ -17,7 +17,7 @@ run's.
 
 One epic is one run, and one directory::
 
-    ~/.hmz/epics/<workspace>/<when>-<which>/
+    ~/.local/share/humanize/epics/<workspace>/<when>-<which>/
         epic.jsonl                      what happened, a line at a time
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
         resume.jsonl                    the engine's journal, for a flow that can be picked up
@@ -47,11 +47,12 @@ another run, with sessions of its own, and so another epic -- which is what a fl
 can be picked up again is picked up as.
 
 A chat (:mod:`hmz.runtime.chatting`) is no epic, and is written down the same way, in a
-directory of its own -- `~/.hmz/chats/<workspace>/<when>-<which>/`, its record `chat.jsonl` and
-its sessions beside it -- by the same code: one assistant and one conversation, and so no
-flow, params, envs or budget written down. It is the one record that is opened again: a chat
-carried on is the same conversation, and so the same directory, which says it was `reopened`
-rather than beginning twice, and says it was `set` each time something of it is. A chat an
+directory of its own -- `~/.local/share/humanize/chats/<workspace>/<when>-<which>/`, its record
+`chat.jsonl` and its sessions beside it -- by the same code: one assistant and one
+conversation, and so no flow, params, envs or budget written down. It is the one record that
+is opened again: a chat carried on is the same conversation, and so the same directory, which
+says it was `reopened` rather than beginning twice, and says it was `set` each time something
+of it is. A chat an
 earlier Humanize wrote as an epic of kind `chat` is moved among the chats, as it stands, by
 :func:`migrated`. What a
 resumable flow keeps is the engine's journal
@@ -76,7 +77,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Self, cast
 
-from hmz import home
+from hmz import data
 from hmz.coganchor import backends
 
 if TYPE_CHECKING:
@@ -805,7 +806,7 @@ class Uncarried(Exception):  # noqa: N818 -- named for what happened, as Refused
 class Epic:
     """One run of one flow, or one chat: the directory it is written to, and what happened to it.
 
-    A chat is written under `chats/` of Humanize's home, into :data:`CHATTED`; a run under
+    A chat is written under `chats/` of Humanize's data directory, into :data:`CHATTED`; a run under
     `epics/`, into :data:`JOURNAL`.
     """
 
@@ -878,7 +879,7 @@ class Epic:
         self._begin(
             picked_up
             if picked_up is not None and reopened
-            else home()
+            else data()
             / ("chats" if kind == CHAT else "epics")
             / _PLAIN.sub("-", str((workspace or Path.cwd()).resolve()))
             # The moment names it and six hex say which, since two processes may start flows
@@ -1301,7 +1302,7 @@ def under(workspace: Path | str | None = None) -> Path:
       whatever writes there is what makes it.
     """
     return (
-        home() / "epics" / _PLAIN.sub("-", str(Path(workspace or Path.cwd()).resolve()))
+        data() / "epics" / _PLAIN.sub("-", str(Path(workspace or Path.cwd()).resolve()))
     )
 
 
@@ -1324,7 +1325,7 @@ def chats(workspace: Path | str | None = None) -> list[Path]:
     Returns:
       One directory per chat, ordered by the moment it began, which is what each is named.
     """
-    kept = home() / "chats"
+    kept = data() / "chats"
     found: list[Path] = []
     with contextlib.suppress(OSError):
         for under in (
@@ -1382,7 +1383,7 @@ def migrated() -> tuple[list[str], dict[str, str]]:
     """
     moved: list[str] = []
     left: dict[str, str] = {}
-    kept = home() / "epics"
+    kept = data() / "epics"
     try:
         workspaces = sorted(kept.iterdir())
     except OSError:
@@ -1400,7 +1401,7 @@ def migrated() -> tuple[list[str], dict[str, str]]:
         for at in found:
             if at.is_symlink() or not chatted(at):
                 continue
-            into = home() / "chats" / workspace.name / at.name
+            into = data() / "chats" / workspace.name / at.name
             if into.exists():
                 left[at.name] = f"a chat is already at {into}"
                 continue
@@ -1524,7 +1525,7 @@ def adopted(
       ValueError: Where a file of the session cannot be copied.
     """
     at = (
-        home()
+        data()
         / "chats"
         / _PLAIN.sub("-", str(workspace.resolve()))
         / f"{_stamp()}-{uuid.uuid4().hex[:6]}"
@@ -1590,7 +1591,7 @@ def every() -> list[Path]:
     """
     found: list[Path] = []
     with contextlib.suppress(OSError):
-        for workspace in (home() / "epics").iterdir():
+        for workspace in (data() / "epics").iterdir():
             with contextlib.suppress(OSError):
                 found += (
                     one for one in workspace.iterdir() if (one / JOURNAL).is_file()

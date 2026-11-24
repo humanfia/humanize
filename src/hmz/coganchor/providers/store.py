@@ -1,9 +1,9 @@
 """What a provider is, and where the credentials of one are kept.
 
-One directory per provider, under `~/.hmz/providers/<cli>/<name>/`: what it was made by
-and what a turn under it is run with, in `provider.json`, and beside that the files the CLI
-itself writes when it signs in -- kept at the same names it uses, under `home/` for the ones
-inside its own directory and `user/` for the ones outside it.
+One directory per provider, under `~/.local/share/humanize/providers/<cli>/<name>/`: what it
+was made by and what a turn under it is run with, in `provider.json`, and beside that the files
+the CLI itself writes when it signs in -- kept at the same names it uses, under `home/` for the
+ones inside its own directory and `user/` for the ones outside it.
 
 Nothing here reaches a CLI. Making a provider is :mod:`hmz.coganchor.providers.login`, running a
 turn under one is :mod:`hmz.coganchor.providers.redirect`, and this is only the answer to "which
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
+from hmz import data
 from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
@@ -195,12 +195,12 @@ class Provider:
 
 
 def under() -> Path:
-    """Where every provider is kept, which is one directory under Humanize's own home.
+    """Where every provider is kept, which is one directory of Humanize's data directory.
 
     Returns:
       The directory, whether or not anything is in it.
     """
-    return home() / "providers"
+    return data() / "providers"
 
 
 def where(cli: str, name: str) -> Path:
@@ -455,8 +455,8 @@ def _kept(at: Path) -> None:
 
     `Path.mkdir(parents=True, mode=...)` gives the mode to the last directory only and makes
     the rest at whatever the umask allows, which for a tree of credentials is the wrong way
-    round: what is being made is `~/.hmz/providers/<cli>/<name>/...`, and every level of
-    it is this user's business and nobody else's.
+    round: what is being made is `~/.local/share/humanize/providers/<cli>/<name>/...`, and
+    every level of it is this user's business and nobody else's.
 
     Args:
       at: The directory to make.

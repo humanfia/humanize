@@ -39,7 +39,7 @@ Work on a server or in a container is fenced the same way on the machine where t
 
 ## Credentials
 
-- **Accounts.** An account is a named set of credentials for one coding agent, stored under `~/.hmz/providers/`. Humanize never displays saved values; the app and terminal list only the variable names an account sets. A turn running under an account ignores any other credentials for that agent in your environment. See [Accounts](/user/accounts).
+- **Accounts.** An account is a named set of credentials for one coding agent, stored under `~/.local/share/humanize/providers/`. Humanize never displays saved values; the app and terminal list only the variable names an account sets. A turn running under an account ignores any other credentials for that agent in your environment. See [Accounts](/user/accounts).
 - **Your agent's own settings.** An agent that rewrites its settings while it runs, or that Humanize adds settings to, starts in a settings directory of its own. The settings files there are copies, and Humanize drops the agent's changes to them when the process stops. The agent still uses your own sign-in and sessions.
 - **Remote machines.** When an agent runs on another machine under an account, Humanize places the account's credentials there for the turn and removes them afterward.
 - **Archives and backups.** Humanize scrubs every exported `.hmzepic` archive and every backup. It replaces every secret it finds with `[redacted]`, including account values, vendor keys, web and bearer tokens, URL credentials, and any field named as a token, key, secret, or password. It keeps your prompts and the agents' output. See [Export and import a run](/user/export) and [Back up to git](/user/backups).

@@ -50,7 +50,7 @@ If a command does not work in your current view, Humanize tells you where it wor
 
 ### Recall prompt history
 
-Humanize saves every line you send to `~/.hmz/history.jsonl` with its folder. Press <kbd>↑</kbd> and <kbd>↓</kbd> to walk the lines sent in the current folder, or lines from all folders if you have not sent any here yet. Walk past the newest line to return to the draft you were typing. Consecutive duplicate lines are saved once.
+Humanize saves every line you send to `~/.local/state/humanize/history.jsonl` with its folder. Press <kbd>↑</kbd> and <kbd>↓</kbd> to walk the lines sent in the current folder, or lines from all folders if you have not sent any here yet. Walk past the newest line to return to the draft you were typing. Consecutive duplicate lines are saved once.
 
 ## Run commands
 

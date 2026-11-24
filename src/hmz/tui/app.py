@@ -6454,11 +6454,11 @@ class Humanize(App[None]):
             return self._web[1]
         from urllib.parse import quote
 
-        from hmz import home
+        from hmz import state
 
-        # `<home>/web-port`, as the last `hmz web` here wrote it (Section 4.15 of files.md).
+        # `<state>/web-port`, as the last `hmz web` here wrote it (Section 4.15 of files.md).
         try:
-            said = (home() / "web-port").read_text(encoding="ascii").strip()
+            said = (state() / "web-port").read_text(encoding="ascii").strip()
         except (OSError, UnicodeDecodeError):
             said = ""
         port = int(said) if said.isdigit() and int(said) in range(1, 1 << 16) else 0

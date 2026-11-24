@@ -26,7 +26,8 @@
 <path d="M176 120H206" fill="none" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
 <rect x="208" y="80" width="152" height="80" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
 <text x="284" y="108" text-anchor="middle">2  You</text>
-<text x="284" y="136" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#435058">~/.hmz/flows/</text>
+<text x="284" y="132" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#435058">~/.local/share/</text>
+<text x="284" y="148" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#435058">humanize/flows/</text>
 <text x="284" y="192" text-anchor="middle" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#5d6a72">@user/tidy</text>
 </g>
 <g class="s s3">

@@ -27,12 +27,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz import home
+from hmz import config
 from hmz.coganchor import easytier, settings
 from hmz.daemon import link, where
 from hmz.reach import SocketPipe
 from hmz.runtime.doing.daemons import Daemons, Remotes, Unreached
 from hmz.trust import identity, tls
+from tests.conftest import places
 
 from . import doubles_easytier
 from .doubles_ssh import Host, faked, written
@@ -86,7 +87,7 @@ def _gone(pid: int) -> bool:
 
 
 def _daemons() -> list[dict[str, object]]:
-    return tomllib.loads((home() / "settings.toml").read_text())["daemons"]
+    return tomllib.loads((config() / "settings.toml").read_text())["daemons"]
 
 
 def test_a_daemon_over_ssh_is_reached_pinned_and_attached(host: Host) -> None:
@@ -481,7 +482,7 @@ def served(tmp_path: Path) -> Iterator[_Served]:
     """`hmz daemon serve` under a home of its own, listening on a TCP port of loopback."""
     there = dict(
         os.environ,
-        HUMANIZE_HOME=str(tmp_path / "served"),
+        **places(tmp_path / "served"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="s", dir=os.environ["TMPDIR"]),
     )

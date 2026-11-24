@@ -13,7 +13,7 @@ Humanize runs one `easytier-core` on each end -- :func:`serving` beside a daemon
 on `easytier:<name>`, :func:`joining` beside whoever opens it -- and neither needs anything
 installed: :func:`binary` downloads the release pinned here from EasyTier's own GitHub
 releases, checks it against the SHA-256 pinned beside it, and keeps it under
-`~/.hmz/easytier/<VERSION>/`.
+`~/.cache/humanize/easytier/<VERSION>/`.
 
 Neither end makes a TUN device, which is what would need root. With `--no-tun` the serving end
 still answers the fixed virtual address it is given, and what reaches it there on a TCP port is
@@ -60,7 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, cast
 
-from hmz import home
+from hmz import cache
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -294,7 +294,7 @@ def binary(say: Callable[[str], object] | None = None) -> Path:
       say: What is told, as it happens, that a download is under way.
 
     Returns:
-      What `HUMANIZE_EASYTIER` names, or else the one kept under Humanize's home.
+      What `HUMANIZE_EASYTIER` names, or else the one kept in Humanize's cache.
 
     Raises:
       OSError: If there is none and one cannot be downloaded: this machine is one EasyTier
@@ -304,7 +304,7 @@ def binary(say: Callable[[str], object] | None = None) -> Path:
     said = os.environ.get(WHICH)
     if said and (named := Path(said).expanduser()).is_file():
         return named
-    kept = home() / "easytier" / VERSION
+    kept = cache() / "easytier" / VERSION
     core = kept / ("easytier-core.exe" if sys.platform == "win32" else "easytier-core")
     if core.is_file():
         return core

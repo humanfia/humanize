@@ -28,6 +28,7 @@ from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic
 from hmz.tui.epic import Graph, SessionRead
 from hmz.tui.pick import Does, Epics, RemoteEpics
+from tests.conftest import homed
 from tests.integration.doubles_ssh import faked
 from tests.integration.doubles_tui import on, onto, shows, typed
 from tests.system.docs import shots
@@ -357,19 +358,17 @@ def server(world: World, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     far = world.home.parent / "far"
     far.mkdir()
     found = faked(far, monkeypatch)
-    here = os.environ["HUMANIZE_HOME"]
     # Written there as a run there writes it: under that machine's own home.
-    monkeypatch.setenv("HUMANIZE_HOME", str(found.humanize))
     project = found.home / "pricing"
     project.mkdir()
-    for flow, task in (
-        ("rlar", "Fit the price model to last month's orders"),
-        ("ralph_loop", "Speed up the nightly price import"),
-    ):
-        with Epic(flow, task, project):
-            pass
-        time.sleep(1.1)
-    monkeypatch.setenv("HUMANIZE_HOME", here)
+    with homed(found.humanize):
+        for flow, task in (
+            ("rlar", "Fit the price model to last month's orders"),
+            ("ralph_loop", "Speed up the nightly price import"),
+        ):
+            with Epic(flow, task, project):
+                pass
+            time.sleep(1.1)
     Hmz().daemons.write("server", {"routes": ["stdio:ssh://server.example"]})
     yield
     # The daemon `hmz daemon connect --stdio` started there, which outlives its client.

@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import data, state
 from hmz.flows import HarnessError
 from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec
 from hmz.runtime.epic import CHATTED, SESSIONS, epics, forked, note, read, under
@@ -208,7 +208,7 @@ def test_a_chat_talks_in_the_project_and_is_written_down_as_one(
     assert start["argv"][start["argv"].index("--model") + 1] == MODEL
     assert start["argv"][start["argv"].index("--effort") + 1] == "high"
     # A record of its own under `chats/`, beside the workspace's epics and none of them.
-    assert ended.at.parent == home() / "chats" / under(project).name
+    assert ended.at.parent == data() / "chats" / under(project).name
     assert [one.name for one in ended.at.iterdir() if one.suffix == ".jsonl"] == [
         CHATTED
     ]
@@ -403,7 +403,7 @@ def test_a_chat_started_in_a_worktree_works_there_and_returns_there_carried_on(
     assert ran.workspace == str(project.resolve())
     assert worktree.is_dir()
     assert worktree.resolve() != project.resolve()
-    assert worktree.is_relative_to(home() / "envs")
+    assert worktree.is_relative_to(state() / "envs")
     assert (worktree / "kept").read_text() == "kept\n"
     assert _git(worktree, "rev-parse", "HEAD") == head
     assert _git(worktree, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"

@@ -229,7 +229,10 @@ Call the path helpers on `hmz` to get a `pathlib.Path` for Humanize's directorie
 
 | Call | Answers | Holds |
 | --- | --- | --- |
-| `hmz.home()` | `~/.hmz`, or the directory `HUMANIZE_HOME` names | Persistent data: settings, flowverses, epics, and chats. |
+| `hmz.config()` | `humanize` in `$XDG_CONFIG_HOME`, else `~/.config/humanize` | Settings. |
+| `hmz.data()` | `humanize` in `$XDG_DATA_HOME`, else `~/.local/share/humanize` | Persistent data: accounts, flowverses, your own flows, epics, and chats. |
+| `hmz.state()` | `humanize` in `$XDG_STATE_HOME`, else `~/.local/state/humanize` | Prompt history and the directories environments derive. |
+| `hmz.cache()` | `humanize` in `$XDG_CACHE_HOME`, else `~/.cache/humanize` | Downloads Humanize can fetch again. |
 | `hmz.here()` | `.hmz`, relative to the current directory | Project data: its `flows/` directory and runs exported here. |
 | `hmz.machine()` | `humanize-<uid>` in the system's temporary directory | Local runtime state, such as running processes. |
 
@@ -239,7 +242,7 @@ import hmz
 flows = hmz.here() / "flows"  # this project's own flows, the @local source
 ```
 
-`hmz.home()` and `hmz.here()` do not create the directory on disk. If only a directory under the earlier name (`~/.humanize`, `.humanize`) exists, the first call renames it; a directory that `HUMANIZE_HOME` names is used as it is. `hmz.machine()` creates its directory with user-only permissions, and raises `PermissionError` if what already exists at that path is not a directory of yours that nobody else can write. Inside a `with hmz.working_in(workspace):` block, `hmz.here()` returns `<workspace>/.hmz` for the current thread.
+`hmz.config()`, `hmz.data()`, `hmz.state()`, `hmz.cache()` and `hmz.here()` do not create the directory on disk. An `XDG_*` variable that is empty or not an absolute path counts as unset. The first of them called in a process moves what an earlier release kept in `~/.hmz` (or `~/.humanize`) into the four directories, once: see [Files on disk](/reference/files#moving-from-hmz). If only `.humanize` exists in a project, `hmz.here()` renames it to `.hmz`. `hmz.machine()` creates its directory with user-only permissions, and raises `PermissionError` if what already exists at that path is not a directory of yours that nobody else can write. Inside a `with hmz.working_in(workspace):` block, `hmz.here()` returns `<workspace>/.hmz` for the current thread.
 
 These paths always point to the machine running the flow. An agent's working directory lives in its environment, which may be on another machine; access agent files through the environment instead. See [Files on disk](/reference/files) for the directory layout.
 

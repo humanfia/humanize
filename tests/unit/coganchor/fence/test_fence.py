@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import config
 from hmz.coganchor import binary
 from hmz.coganchor import fence as fencing
 from hmz.coganchor.fence import (
@@ -706,7 +707,7 @@ def test_wrapper_passes_the_backend_the_settings_choose(
 
 def _settings(said: str) -> None:
     """This machine's settings file, holding what is said."""
-    where = Path(os.environ["HUMANIZE_HOME"], "settings.toml")
+    where = config() / "settings.toml"
     where.parent.mkdir(parents=True, exist_ok=True)
     where.write_text(said, encoding="utf-8")
 

@@ -14,7 +14,10 @@ from hmz.coganchor import settings
 
 
 def test_where_is_settings_toml_in_the_home() -> None:
-    assert settings.where() == Path(os.environ["HUMANIZE_HOME"]) / "settings.toml"
+    assert (
+        settings.where()
+        == Path(os.environ["XDG_CONFIG_HOME"]) / "humanize" / "settings.toml"
+    )
 
 
 def test_a_missing_file_holds_nothing() -> None:

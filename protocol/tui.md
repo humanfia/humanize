@@ -774,7 +774,7 @@ withdrawn; a question withdrawn while its sheet is open MUST close it, saying wh
 `markdown` as Markdown, `code` and `diff` highlighted as their language and as a diff, `table` as a
 table, `json` indented, and `image` and `chart` as one line naming the block and saying that the web
 page shows it, with the address of the epic's page where it is known: where this machine runs the
-epic and `<home>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
+epic and `<state>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
 most 40 lines, and each after it at most 12, and a table at most 10 rows, followed by how many
 more there are and, where it is known, that address.
 
