@@ -30,7 +30,7 @@
 
     <rect x="200" y="192" width="360" height="72" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
     <text x="216" y="218" font-weight="600">Your machine</text>
-    <text x="216" y="240" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">~/.hmz/flowverses/team/installed/review</text>
+    <text x="216" y="240" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">…/humanize/flowverses/team/installed/review</text>
 
     <g class="a1">
       <line x1="496" y1="80" x2="266" y2="80" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#h)"/>

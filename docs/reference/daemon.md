@@ -83,7 +83,7 @@ webrtc:wss://relay.example.com
 
 ## Listeners
 
-Alongside its local socket, a daemon listens on the addresses configured in the `listen` key of [settings.yaml](/reference/settings) or passed to repeatable `hmz daemon serve --listen SPEC` flags. Every listener is untrusted.
+Alongside its local socket, a daemon listens on the addresses configured in the `listen` key of [settings.toml](/reference/settings) or passed to repeatable `hmz daemon serve --listen SPEC` flags. Every listener is untrusted.
 
 | Spec | Listens |
 | --- | --- |
@@ -93,11 +93,12 @@ Alongside its local socket, a daemon listens on the addresses configured in the 
 | `webrtc:<ws-url>` | By registering at a relay for pages, in a browser or in Desktop. Requires the `webrtc` extra of hmz. |
 | `easytier:<name>` | By joining the EasyTier network of entry `<name>`. |
 
-```yaml
-listen:
-  - tcp://0.0.0.0:41817
-  - relay:wss://relay.example.com
-  - webrtc:wss://relay.example.com
+```toml
+listen = [
+  "tcp://0.0.0.0:41817",
+  "relay:wss://relay.example.com",
+  "webrtc:wss://relay.example.com",
+]
 ```
 
 - Any other spec, including `wss://` or a `ws://` spec with a path, is refused by `--listen`: `<spec> is not a listener.` In the `listen` setting it is skipped and logged to `daemon.log`.

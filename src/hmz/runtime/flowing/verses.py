@@ -3,8 +3,8 @@
 A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml` for the flows
 it lists bare and `flows/<user>/<flow>/<version>/flow.yaml` for the ones it lists under their
 owner, one manifest per release of a flow, saying which repository and commit that release is
-(:mod:`index`). It is cloned into `~/.hmz/flowverses/<name>/index/`, and holds no code: what
-runs is what somebody chose to install out of it, which is kept beside the clone, in
+(:mod:`index`). It is cloned into `~/.local/share/humanize/flowverses/<name>/index/`, and holds
+no code: what runs is what somebody chose to install out of it, which is kept beside the clone, in
 `installed/`, and offered under the flowverse's name. Fetching an index again changes what may
 be installed, and never what runs.
 
@@ -43,7 +43,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from hmz import here, home
+from hmz import data, here
 
 __all__ = [
     "AT",
@@ -69,9 +69,11 @@ __all__ = [
     "refresh",
     "remove",
     "renamed",
+    "shown",
     "spelled",
     "split",
     "standing",
+    "tilded",
     "under",
 ]
 
@@ -82,18 +84,13 @@ __all__ = [
 OFFICIAL = "official"
 OFFICIAL_URL = "https://github.com/humanfia/flowverse"
 
-#: What the flows of your own are listed under: this project's, and the ones in your home
-#: directory. Flowverses like any other, except that nothing fetches them.
+#: What the flows of your own are listed under: this project's, and the ones in Humanize's
+#: data directory. Flowverses like any other, except that nothing fetches them.
 LOCAL = "local"
 USER = "user"
 
-#: And where those two are, nearest first. Kept unresolved: the project one is relative to
-#: wherever Humanize is being run, and `~` is whoever is running it, neither of which is
-#: settled when this is imported.
-MINE = {
-    LOCAL: ".hmz/flows",
-    USER: "~/.hmz/flows",
-}
+#: And the two, nearest first: where each is, as a person is told, is :func:`shown`.
+MINE = (LOCAL, USER)
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is
 #: Humanize's own and two are yours, and a repository cloned into any of their slots would be
@@ -163,8 +160,8 @@ class Flowverse:
 
 
 def under() -> Path:
-    """Where every flowverse is kept, which is one directory under Humanize's home."""
-    return home() / "flowverses"
+    """Where every flowverse is kept, which is one directory of Humanize's data directory."""
+    return data() / "flowverses"
 
 
 def holds(one: Flowverse) -> Path:
@@ -278,16 +275,10 @@ def _own(name: str) -> Flowverse:
       it from, and a directory that is not there is a place holding no flows rather than one
       with a download outstanding. Fixed, since a place that is wherever you are cannot be
       taken away.
-
-    Note:
-      Expanded with `os.path` rather than `Path.expanduser`, which raises where there is no
-      home behind the `~`: a machine with no home directory is a machine with no flows of
-      yours on it, which is a thing to say rather than the reason a flow Humanize itself came
-      with could not be found.
     """
     # This project's are in its own directory, which moves one kept under its old name to
     # where they are read from.
-    at = here() / "flows" if name == LOCAL else Path(os.path.expanduser(MINE[name]))
+    at = here() / "flows" if name == LOCAL else data() / "flows"
     return Flowverse(
         name=name,
         url="",
@@ -316,6 +307,36 @@ def spelled(flow: str | os.PathLike[str]) -> str:
         return flow
     at = os.fspath(flow)
     return at if pathed(at) else f"./{at}"
+
+
+def shown(name: str) -> str:
+    """Where one of the two places your own flows live is, as a person is told.
+
+    Args:
+      name: Which of them, as :data:`MINE` names it.
+
+    Returns:
+      This project's relative to wherever Humanize is being run, and yours where they are in
+      use -- in the data directory, wherever `XDG_DATA_HOME` moves it -- from `~` where they
+      are under the home directory.
+    """
+    return ".hmz/flows" if name == LOCAL else tilded(data() / "flows")
+
+
+def tilded(at: Path) -> str:
+    """A path as a person writes it: under the home directory, from `~`.
+
+    Args:
+      at: The path, absolute.
+
+    Returns:
+      It, with a leading home directory written `~`; as it is where there is no home behind
+      the `~`.
+    """
+    home = Path(os.path.expanduser("~"))
+    if home.is_absolute() and at.is_relative_to(home) and at != home:
+        return f"~/{at.relative_to(home).as_posix()}"
+    return str(at)
 
 
 def called(verse: str, flow: str) -> str:
@@ -421,7 +442,7 @@ def add(url: str, name: str = "") -> Flowverse:
         # Same again: these two are the flows of your own, read out of a directory rather than
         # a clone, so a repository under the name would be listed and never looked at.
         raise ValueError(
-            f"{called} is what your own flows in {MINE[called]} are listed under; "
+            f"{called} is what your own flows in {shown(called)} are listed under; "
             "pick another name"
         )
     if where(called).exists():
@@ -471,7 +492,7 @@ def fetch(name: str) -> Flowverse:
         # Telling somebody the second is their own flows directory is telling them to look in
         # a place their problem is not in.
         said = (
-            f"a directory of flows of your own, {MINE[name]}"
+            f"a directory of flows of your own, {shown(name)}"
             if name in MINE
             else "a flowverse with no clone of an index in it; remove it and add it again"
         )

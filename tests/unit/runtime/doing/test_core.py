@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -37,7 +36,6 @@ def test_the_workspace_is_the_one_named_or_wherever_humanize_is_run(
 
     assert Hmz().workspace == Path.cwd()
     assert Hmz(str(tmp_path / "x")).workspace == tmp_path / "x"
-    assert Hmz(tmp_path).home == Path(os.environ["HUMANIZE_HOME"])
 
 
 @pytest.mark.parametrize(

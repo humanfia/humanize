@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
 
 from hmz.coganchor import settings
 from hmz.coganchor.machines.store import (
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 def written() -> dict[str, Any]:
-    return yaml.safe_load(settings.where().read_text())
+    return tomllib.loads(settings.where().read_text())
 
 
 # ------------------------------------------------------------------------------ affine

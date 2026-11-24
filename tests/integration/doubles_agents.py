@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import psutil
 
+from tests.conftest import rehome
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
@@ -220,7 +222,7 @@ def routing(
         del self
         return ()
 
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     monkeypatch.setattr(Provider, "swaps", unswapped)
     providers.add(

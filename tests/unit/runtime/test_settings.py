@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
 
 from hmz.coganchor.machines import store as machines
 from hmz.runtime.kept import Runs
@@ -335,7 +334,7 @@ def test_every_write_says_how_it_spells_an_environment(
     assert held.held["spelling"] == machines.SPELLING
 
 
-@pytest.mark.parametrize("why", [OSError("read-only"), yaml.YAMLError("garbled")])
+@pytest.mark.parametrize("why", [OSError("read-only"), ValueError("garbled")])
 def test_a_file_that_cannot_be_written_is_remembered_for_as_long_as_this_is(
     why: Exception, held: doubles.Store, tmp_path: Path
 ) -> None:

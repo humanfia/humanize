@@ -24,6 +24,7 @@ from hmz.daemon import where
 from hmz.reach import WebSocketPipe
 from hmz.rpc import Peer, hello
 from hmz.trust import pairing
+from tests.conftest import places
 
 from .doubles_ssh import Host, faked
 from .doubles_web import PATIENCE, Browser, served, states
@@ -248,7 +249,7 @@ def test_a_daemon_that_cannot_be_started_there_says_why(host: Host) -> None:
 def _another(tmp_path: Path) -> Generator[pairing.Code]:
     """A daemon of another home, serving a TCP listener, and a pairing code it made."""
     there = dict(os.environ)
-    there["HUMANIZE_HOME"] = str(tmp_path / "there-home")
+    there |= places(tmp_path / "there-home")
     # Short, as a socket's path under it must be.
     there["TMPDIR"] = tempfile.mkdtemp(prefix="a", dir=os.environ.get("TMPDIR"))
     serving = subprocess.Popen(

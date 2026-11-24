@@ -1981,7 +1981,7 @@ module.
 | Source | Holds |
 | --- | --- |
 | `local` | `.hmz/flows/` under the current directory |
-| `user` | `~/.hmz/flows/` |
+| `user` | `<data>/flows/` (Section 4.9 of [FILES]) |
 | `official` | the flows installed from the official index |
 | any other flowverse | the flows installed from its index |
 
@@ -2346,7 +2346,6 @@ members of a returned type that Section 4 does not state are not part of this AP
 class Hmz:
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None: ...
     workspace: Path      # property
-    home: Path           # property
     settings: Settings   # property
     flows: Flows         # property
     verses: Flowverses   # property
@@ -2393,18 +2392,15 @@ class Hmz:
 resolving links; where `workspace` is `None`, it MUST be the current directory at the moment the
 property is read.
 
-**4.4.1.3** `Hmz.home` MUST be the **home** directory as Section 4 of [FILES] locates it, and
-reading it MUST NOT create it.
-
-**4.4.1.4** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
+**4.4.1.3** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
 workspace and this machine; members of its type are not part of this API.
 
-**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
+**4.4.1.4** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
 and `Hmz.daemons` MUST each return the same object on every access of one `Hmz` instance.
 
-**4.4.1.6** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
+**4.4.1.5** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
 
-**4.4.1.7** `Hmz.epics` MUST be the `Epics` of `Hmz.workspace`.
+**4.4.1.6** `Hmz.epics` MUST be the `Epics` of `Hmz.workspace`.
 
 #### 4.4.2. Backends
 
@@ -2856,8 +2852,9 @@ fetched.
 **4.8.21** `Flowverses.plain(url)` MUST return `url` with any credentials removed.
 
 **4.8.22** `Flowverses.whence(one, nowhere)` MUST return the flowverse's credential-free URL; for
-`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in
-~/.hmz/flows`; and `nowhere` for a directory with no readable origin.
+`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in ` and
+the directory of Section 4.9 of [FILES], a leading home directory written `~`; and `nowhere` for a
+directory with no readable origin.
 
 ### 4.9. `Accounts`
 
@@ -3506,11 +3503,14 @@ gave with a fake as it states.
 of that process, and MUST NOT start a process of hmz of its own.
 
 **4.19.5** A private daemon MUST use a temporary home and a temporary machine directory of its own,
-made when it starts, holding a copy of the settings file of the home where there is one, except
-that private daemons running at the same time in one process, whose environment and `tempfile`
-name one home and one machine directory, MAY share them, removed once the last of them is torn
+made when it starts, holding a copy of the settings file of the home where there is one and a
+symbolic link to the user's flows (Section 4.9 of [FILES]) where they are, except
+that private daemons running at the same time in one process, which name one home and one machine
+directory, MAY share them, removed once the last of them is torn
 down; it MUST NOT read, write, start, stop or reach the daemon of this machine, its socket, its
-daemon directory or its home's epics, and MUST NOT listen beyond its socket pair.
+daemon directory or its home's epics, and MUST NOT listen beyond its socket pair. It MUST NOT
+change the variables `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` of
+the process, which the harnesses it starts read as their own.
 
 **4.19.6** A private daemon MUST be torn down -- every host closed as Section 4.13.6 of [DAEMON]
 states, its session closed, its temporary home and machine directory removed where no other private

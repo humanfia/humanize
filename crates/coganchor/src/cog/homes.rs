@@ -27,6 +27,7 @@ use serde_json::{Map, Value};
 
 use crate::cog::mergers::{self, pyjson};
 
+pub(crate) use paths::copytree;
 pub use paths::realpath;
 pub use scripts::{BACK, SCRIPT, words};
 

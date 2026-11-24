@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from hmz import home
+from hmz import state
 from hmz.web import is_origin, kept_port, serve
 from tests.integration.doubles_daemon import WAITS, written
 from tests.integration.doubles_web import PATIENCE, Browser, served
@@ -502,8 +502,8 @@ def test_a_text_message_on_rpc_closes_it(project: Path) -> None:
 def test_the_port_listened_on_is_kept_and_listened_on_again(project: Path) -> None:
     del project
     assert kept_port() == 0
-    (home()).mkdir(parents=True, exist_ok=True)
-    (home() / "web-port").write_text("70000")
+    state().mkdir(parents=True, exist_ok=True)
+    (state() / "web-port").write_text("70000")
     assert kept_port() == 0
 
     said: list[str] = []
@@ -518,13 +518,13 @@ def test_the_port_listened_on_is_kept_and_listened_on_again(project: Path) -> No
     assert port > 0
     assert said == [said[0]]
     assert f":{port}/?key=" in said[0]
-    assert (home() / "web-port").read_text() == str(port)
-    written_at = (home() / "web-port").stat().st_mtime_ns
+    assert (state() / "web-port").read_text() == str(port)
+    written_at = (state() / "web-port").stat().st_mtime_ns
 
     with pytest.raises(KeyboardInterrupt):
         serve(shown=shown)
     assert f":{port}/?key=" in said[1]
-    assert (home() / "web-port").stat().st_mtime_ns == written_at
+    assert (state() / "web-port").stat().st_mtime_ns == written_at
 
     # The port kept taken, any free one is listened on.
     with socket.create_server(("127.0.0.1", port)), pytest.raises(KeyboardInterrupt):

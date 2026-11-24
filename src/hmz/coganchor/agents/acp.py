@@ -1404,6 +1404,6 @@ class AcpAgent(AgentBase):
             f"{cli}: this permission cuts the network, and nothing says which hosts {cli}'s "
             f"model is at to leave it; declare them where it was added, under clis in "
             f"{settings.where()}, as "
-            f"{cli}: {{command: [...], hosts: [api.example.com], "
-            f"state: [~/.{cli}]}} -- or grant it network=True"
+            f'clis.{cli} = {{command = [...], hosts = ["api.example.com"], '
+            f'state = ["~/.{cli}"]}} -- or grant it network=True'
         )

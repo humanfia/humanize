@@ -98,7 +98,7 @@ def test_an_agent_given_is_spelled_as_dash_a_spells_it(drove: Drove, spec: str) 
 def test_runs_are_kept_under_the_workspace_they_ran_in(workspace: Path) -> None:
     under = epic.under(workspace)
 
-    assert under.parent == Path(os.environ["HUMANIZE_HOME"]) / "epics"
+    assert under.parent == Path(os.environ["XDG_DATA_HOME"]) / "humanize" / "epics"
     assert "/" not in under.name
     assert under == epic.under(str(workspace))
     assert epic.under(workspace / "other") != under

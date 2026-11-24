@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from hmz import data
 from hmz.runtime.flowing import verses
 from hmz.runtime.flowing.index import kept
 from hmz.runtime.flowing.verses import (
@@ -153,7 +154,7 @@ def test_three_places_are_always_there(project: Path) -> None:
     )
     assert official.at == under() / OFFICIAL / INDEX
     assert local == Flowverse(LOCAL, "", Path(".hmz/flows"), fetched=True, fixed=True)
-    assert user.at == Path(project.parent / "me" / ".hmz" / "flows")
+    assert user.at == data() / "flows"
     assert [one.name for one in nearest()] == [LOCAL, USER, OFFICIAL]
     assert set(MINE) == {LOCAL, USER}
 
@@ -433,3 +434,14 @@ def test_a_clone_that_fails_leaves_nothing(runs: Runs, tmp_path: Path) -> None:
     with pytest.raises(OSError, match="could not read"):
         verses.clone("file:///srv/x", at)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_your_flows_are_shown_where_they_are_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "me"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "me" / "kept"))
+    assert verses.shown(USER) == "~/kept/humanize/flows"
+    assert verses.shown(LOCAL) == ".hmz/flows"
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "elsewhere"))
+    assert verses.shown(USER) == str(tmp_path / "elsewhere" / "humanize" / "flows")

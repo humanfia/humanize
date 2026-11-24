@@ -111,7 +111,7 @@ async def best_of(
 
 Each call to `attempt` runs six steps:
 
-1. `derive_worktree()` creates a worktree under `~/.hmz/envs/` checked out at your project's current commit, excluding uncommitted changes, and returns it as an environment.
+1. `derive_worktree()` creates a worktree under `~/.local/state/humanize/envs/` checked out at your project's current commit, excluding uncommitted changes, and returns it as an environment.
 2. `coder.spawn()` opens a dedicated session so the turns can run in parallel.
 3. `env=tree` runs the turn inside the worktree instead of your project.
 4. `budget=` caps the turn on top of the run budget, and `graceful=False` stops the agent the moment the minutes are up.

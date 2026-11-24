@@ -239,7 +239,7 @@ def test_sessions_another_run_kept_are_read_from_where_they_were_kept(
     workspace: Path, stand: Stands
 ) -> None:
     collected = stand(collector, "collect", {})
-    home = Path(os.environ["HUMANIZE_HOME"])
+    home = Path(os.environ["XDG_DATA_HOME"]) / "humanize"
     elsewhere = home / "epics" / "other" / "run" / SESSIONS / "claude"
     with Epic("chat", "t", workspace) as one:
         one.session("builder", "claude", "", "s1", where=elsewhere)

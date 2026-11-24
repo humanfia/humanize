@@ -45,8 +45,8 @@ __all__ = ["FAKE", "Fakes"]
 #: What a driver object is named by to the private daemon holding it.
 FAKE = "fake:"
 
-#: What the private daemon's home and machine directory are told apart from the program's by.
-_PLACES = ("HUMANIZE_HOME", "TMPDIR")
+#: The kinds of directory the private daemon's home is, each in the place made for it.
+_HOMES = ("config", "data", "state", "cache")
 
 
 class Fakes:
@@ -138,52 +138,64 @@ class Fakes:
 class _Place:
     """The temporary home and machine directory of this process's private daemons.
 
-    Where Humanize keeps its home and its machine's directory is the process's environment,
-    which every thread shares: the private daemons going at once share one place, made as the
-    first comes up -- with a copy of the settings file -- and removed, epics and all, as the
-    last goes, the process's own place put back.
+    Where Humanize keeps its home and its machine's directory is the process's -- its home
+    told to `hmz` alone (:data:`hmz._INSTEAD`), since the bases it is in are every program's,
+    and its machine's directory its `TMPDIR` -- which every thread shares: the private daemons
+    going at once share one place, made as the first comes up -- with a copy of the settings
+    file -- and removed, epics and all, as the last goes, the process's own place put back.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._holding = 0
         self._made: Path | None = None
-        self._was: dict[str, str | None] = {}
+        self._was: str | None = None
         self._tempdir: str | None = None
 
     def takes(self) -> None:
-        """Holds the place for one more private daemon, making it for the first."""
-        from hmz import home
+        """Holds the place for one more private daemon, making it for the first.
+
+        The home made holds a copy of the settings file, and the user's own flows where they
+        are: a link, which a flow named `@user/...` is found through as it is outside.
+        """
+        import hmz
 
         with self._lock:
             self._holding += 1
             if self._holding > 1:
                 return
             made = Path(tempfile.mkdtemp(prefix="hmz-private-"))
-            settings = home() / "settings.yaml"
-            (made / "home").mkdir()
+            flows = hmz.data() / "flows"
+            for kind in _HOMES:
+                (made / kind).mkdir()
             (made / "tmp").mkdir()
-            if settings.is_file():
-                shutil.copyfile(settings, made / "home" / "settings.yaml")
+            # The YAML one too, where it is not converted yet: the private home converts it.
+            for name in ("settings.toml", "settings.yaml"):
+                if (hmz.config() / name).is_file():
+                    shutil.copyfile(hmz.config() / name, made / "config" / name)
+            if flows.is_dir():
+                (made / "data" / "flows").symlink_to(flows)
             self._made = made
-            self._was = {name: os.environ.get(name) for name in _PLACES}
+            self._was = os.environ.get("TMPDIR")
             self._tempdir = tempfile.tempdir
-            os.environ["HUMANIZE_HOME"] = str(made / "home")
+            hmz._INSTEAD |= {kind: made / kind for kind in _HOMES}  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
             os.environ["TMPDIR"] = str(made / "tmp")
             tempfile.tempdir = str(made / "tmp")
 
     def leaves(self) -> None:
         """Lets go of the place for one private daemon, removing it after the last."""
+        import hmz
+
         with self._lock:
             self._holding -= 1
             if self._holding or self._made is None:
                 return
             made, self._made = self._made, None
-            for name, value in self._was.items():
-                if value is None:
-                    os.environ.pop(name, None)
-                else:
-                    os.environ[name] = value
+            if self._was is None:
+                os.environ.pop("TMPDIR", None)
+            else:
+                os.environ["TMPDIR"] = self._was
+            hmz._INSTEAD.clear()  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
             tempfile.tempdir = self._tempdir
         with contextlib.suppress(OSError):
             shutil.rmtree(made, ignore_errors=True)

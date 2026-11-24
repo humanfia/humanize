@@ -126,11 +126,11 @@ Removing the app leaves `hmz` and your epics intact, and removing `hmz` leaves t
 | --- | --- | --- |
 | The app, macOS | Quit it, then move it from Applications to the Trash. | `~/Library/Application Support/ai.humanfia.humanize`, and the folders of the same name under `~/Library/WebKit`, `~/Library/Caches` and `~/Library/Logs` |
 | The app, Windows | **Quit** from the tray icon, then **Settings → Apps → Installed apps**. | `%APPDATA%\ai.humanfia.humanize` and `%LOCALAPPDATA%\ai.humanfia.humanize` |
-| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.hmz` (or the folder `HUMANIZE_HOME` names), `~/.cache/humanize`, and `.hmz/` in each project where you keep flows |
+| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.config/humanize`, `~/.local/share/humanize`, `~/.local/state/humanize` and `~/.cache/humanize` (or `humanize` in the folders `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` name), and `.hmz/` in each project where you keep flows |
 
 If you ever ran `hmz daemon install`, run `hmz daemon uninstall` before you remove the CLI.
 
-To erase your epics, chats, accounts, and installed flows, delete `~/.hmz`. See [Files on disk](/reference/files) for the full list of files.
+To erase your epics, chats, accounts, and installed flows, delete `~/.local/share/humanize`. See [Files on disk](/reference/files) for the full list of files.
 
 ## Good to know
 

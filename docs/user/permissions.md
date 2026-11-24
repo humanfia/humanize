@@ -88,7 +88,7 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 
 | What | How it is held |
 | --- | --- |
-| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits`, Codex uses `workspace-write` with approval `on-request`, and Humanize approves every request. |
+| Approvals | Every CLI runs without prompts: `bypassPermissions` on Claude Code and approval `never` on Codex. If a managed policy forbids those modes, Claude Code uses `acceptEdits`, Codex uses `workspace-write` with approval `on-request`, and Humanize approves every request. Kimi Code runs at `auto`, or `yolo` while a hook listens, and has no managed policy. If it refuses the mode, the turn fails before the prompt is sent and names the mode. If a `requirements.toml` locks Grok Build's always-approve off, Grok Build runs every turn asking, with its write tools kept, and Humanize approves every request; a role with `network=False`, web search off or a Grok Build setting only `grok -p` takes fails to open, and its chats cannot be forked. |
 | Antigravity admin settings | Before it starts a fenced `agy` agent, Humanize reads the organization's `admin_settings.json` without changing it. If the file holds every command for review, or confines commands to agy's own sandbox on a Linux machine that withholds user namespaces, the session fails to open and names the setting. If it confines commands to that sandbox elsewhere, or keeps file tools inside the workspace, the agent runs and says so once. If it turns off plugins or MCP servers, offering the agent flow tools fails. Actions agy still refuses are reported in the chat. |
 | Read-only roles | File-writing tools are disabled when the CLI supports it. The shell stays enabled, and the fence blocks any file writes it attempts. |
 | `network=False` | The fence cuts the network, and Humanize disables the CLI's web search where supported. `cursor-agent` and `mcode` run searches on vendor servers, so they are refused for offline roles. Any CLI added over ACP must declare its hosts. |
@@ -97,6 +97,8 @@ Humanize runs every agent inside an OS fence that enforces the permission on the
 ## Good to know
 
 - If Humanize cannot enforce a permission, the session fails to open with `HarnessSandboxed`. An agent never runs with wider access than its permission allows.
+- A Cursor team admin can turn off **Run Everything** or headless use in the Cursor dashboard. `cursor-agent` then cannot run without prompts, so its first turn fails, before any model call, with an error that names the setting. Ask the admin to turn it back on, or pick another CLI for that agent. A managed opencode or mimocode config cannot forbid the settings Humanize sends.
+- No managed policy can forbid Oh My Pi's `yolo`, MiniMax Code's `full` or DeepSeek Harness's `danger-full-access`, so these CLIs need no fallback.
 - When an agent reports a refused write, the permission is working. Start the chat in the folder you want changed, or select a wider preset.
 - Under **Edit this folder**, the agent can also write to `/tmp`, `/var/tmp` and `$TMPDIR`.
 - Under any preset, every agent can write to its own settings, sign-in and session files.

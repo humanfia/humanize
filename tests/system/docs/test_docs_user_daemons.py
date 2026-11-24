@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
+from tests.conftest import own
 from tests.integration.doubles_tui import on, onto, picks, shows, typed
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
@@ -111,7 +112,7 @@ def _devbox(world: World, port: int = _LISTENS) -> Generator[_Devbox]:
     there = dict(
         os.environ,
         HOME=str(home),
-        HUMANIZE_HOME=str(home / ".hmz"),
+        **own(home),
         PYTHONPATH=str(site),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="d", dir=str(base)),
@@ -161,7 +162,7 @@ def _paired(world: World) -> None:
     there = dict(
         os.environ,
         HOME=str(home),
-        HUMANIZE_HOME=str(home / ".hmz"),
+        **own(home),
         TMPDIR=tempfile.mkdtemp(prefix="l", dir=str(base)),
     )
     subprocess.run(

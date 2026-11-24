@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import daemon
+from hmz import daemon, data
 from hmz.daemon import where
 from hmz.reach.pipes import SocketPipe
 from hmz.rpc import PROTOCOL, Peer, RpcError
@@ -57,7 +57,7 @@ class Params(FlowParams):
 
 @flow(agents=Agents, envs=Envs, params=Params, name="ai_chan")
 async def ai_chan(task, *, agents, envs, params, ctx):
-    told = Path(os.environ["HUMANIZE_HOME"]) / f"link-{params.id}"
+    told = Path(os.environ["XDG_DATA_HOME"], "humanize", f"link-{params.id}")
     told.write_text(os.environ.get("HUMANIZE_AICHAN_LINK", ""))
     while True:
         await asyncio.sleep(0.05)
@@ -158,7 +158,7 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
 
         # Her host was told its scoped link, which only she says hello on.
         link = where.at() / f"ai-{slot.removeprefix('ai:')}.sock"
-        told = tmp_path / "humanize-home" / "link-1"
+        told = data() / "link-1"
         assert until(lambda: told.exists() and told.read_text() == str(link))
         assert link.stat().st_mode & 0o777 == 0o600
         with pytest.raises(RpcError, match=r"Only Ai-chan says hello as ai-chan\."):
@@ -318,7 +318,7 @@ def test_a_read_only_ai_chan_has_no_flow_loaded_by_its_path(
         )
         link = where.at() / f"ai-{said['slot'].removeprefix('ai:')}.sock"
         assert until(link.exists)
-        (machine,) = (tmp_path / "humanize-home" / "ai").iterdir()
+        (machine,) = (data() / "ai").iterdir()
         return _session(link, "ai-chan"), machine / str(said["id"])
 
     # Her scratch directory is hers to write, whatever her preset: a flow she wrote there is
@@ -464,7 +464,7 @@ def test_a_conversation_is_made_only_as_said(workspace: tuple[Path, Path]) -> No
             {"scope": "daemon", "nous": AGENT, "task": "hi"},
             timeout=60,
         )
-        assert "/humanize-home/ai/" in made["workspace"]
+        assert f"{data()}/ai/" in made["workspace"]
         # Its nous is the one the next conversation is made with, where it names none.
         assert user.call("settings.get", {}, timeout=30)["ai_chan"] == AGENT
         (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]

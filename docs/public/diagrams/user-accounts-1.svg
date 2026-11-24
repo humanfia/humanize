@@ -5,7 +5,7 @@
 <text x="24" y="44" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#141a1f">One CLI, three accounts at once</text>
 <text x="24" y="80" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">Agent</text>
 <text x="288" y="80" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">Account</text>
-<text x="504" y="80" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">Credentials, under ~/.hmz/</text>
+<text x="504" y="80" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">Under ~/.local/share/humanize/</text>
 <rect x="24" y="96" width="208" height="56" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
 <text x="40" y="129" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">claude@work/MODEL</text>
 <path d="M232 124H286" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>

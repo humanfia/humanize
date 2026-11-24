@@ -31,7 +31,7 @@ tests run are in `tests/integration/flows/`.
 | `protocol/daemon.md` | one daemon per machine, remote daemons, and the daemon as a frontend sees it |
 | `protocol/wire.md`, `protocol/openrpc.json` | carriers, routes, device identities, pairing, the relay, frames, and the JSON-RPC session and its methods |
 | `protocol/python.md` | the flow API, and `hmz.sdk` |
-| `protocol/files.md` | every key of `settings.yaml`, every environment variable read, every file left on disk |
+| `protocol/files.md` | every key of `settings.toml`, every environment variable read, every file left on disk |
 
 ## The layers of `src/hmz`
 
@@ -51,7 +51,7 @@ on an import outside it: to add a layer or an edge, edit `ALLOWED` and this tabl
 | `flows` | the flow API: the types, mixins, hooks and errors a flow imports | `runtime.flowing`, `coganchor.faking` |
 | `runtime` | the rest of `runtime/` not named below | nothing |
 | `runtime.kept` | | `coganchor.nous`, `coganchor.spelling` |
-| `runtime.settings` | `settings.yaml` | `runtime.kept`, `coganchor.machines.store`, `coganchor.settings` |
+| `runtime.settings` | `settings.toml` | `runtime.kept`, `coganchor.machines.store`, `coganchor.settings` |
 | `runtime.telemetry` | | `runtime.settings` |
 | `runtime.tracing` | a backend's logs read back as a trace | `coganchor` |
 | `runtime.watching` | a run as it happens, for every interface: who is working, what it has cost | `coganchor` |

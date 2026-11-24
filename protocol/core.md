@@ -239,8 +239,12 @@ has its own file systems and its own temporary directory.
 
 **2.3.4** **This machine** is the machine on which the hmz process being described runs.
 
-**2.3.5** The **home** is the directory named by the environment variable `HUMANIZE_HOME` where that
-variable is set and non-empty, and the directory `.hmz` in the user's home directory otherwise.
+**2.3.5** The **home** is the four directories in which hmz keeps what it keeps for the user of a
+machine: the **config directory**, the **data directory**, the **state directory** and the **cache
+directory**, each the directory `humanize` in the base directory that the environment variable
+`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` or `XDG_CACHE_HOME` respectively names where it
+is set to an absolute path, and in `~/.config`, `~/.local/share`, `~/.local/state` or `~/.cache`
+respectively otherwise (Section 4 of [FILES]).
 
 **2.3.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
@@ -321,7 +325,7 @@ epics apart from every frontend, and serves every frontend over the sessions of 
 **2.6.2** A **frontend** is a way for a user to start, watch and steer epics: the command line, the
 terminal interface (TUI), the web interface, or the desktop application for macOS or for Windows.
 
-**2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
+**2.6.3** The **settings file** is the file `settings.toml` in the home (Section 3 of [FILES]).
 
 **2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
 client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
@@ -725,7 +729,7 @@ Out of scope:
 - The flow-facing API through which a flow declares roles, permissions, hooks, tools and budgets:
   Section 3 of [PYTHON].
 - The `-a` command-line option and exit statuses: [CLI].
-- The `nous` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
+- The `nous` and `clis` keys of `settings.toml`: Section 3 of [FILES].
 - Where an epic keeps the sessions of its agents: Section 3.
 - How usage and cost are displayed while an epic runs: Section 10.
 
@@ -1187,7 +1191,8 @@ nothing. Each harness MUST be launched as the table states:
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
 `untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
-MUST run at `yolo` where the table says `auto`.
+MUST run at `yolo` where the table says `auto`. Where Kimi Code refuses the mode it is told, or
+holds the session at another, hmz MUST fail the session before the prompt is sent, naming the mode.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
@@ -1203,7 +1208,20 @@ MUST say so once per agent.
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
 
-**4.6.2.9** Before `agy` runs a confined agent on the machine hmz runs on, hmz MUST read, without
+**4.6.2.9** Where a Cursor team's admin has switched off Run Everything or headless use, no
+`cursor-agent` launch of the table is unattended and granted, so hmz MUST fail the agent's turn as
+one no retry changes, naming the harness, the team's admin and the setting.
+
+**4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
+it, and hmz MUST launch each at that mode without reading any policy first.
+
+**4.6.2.11** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
+run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
+request granted and a schema asked for in the prompt, and MUST say so once per agent. An agent with
+web search off, or with a setting only `grok -p` carries, MUST be refused as its session opens, and
+a fork of its conversation MUST be refused, each naming the lock's source.
+
+**4.6.2.12** Before `agy` runs a confined agent on the machine hmz runs on, hmz MUST read, without
 writing, the admin settings agy reads there. Where they hold every command for review, or every
 command outside agy's terminal sandbox on a machine that cannot start it, hmz MUST refuse the
 agent when it is configured, naming the file and the setting. Where they run commands in that
@@ -1814,7 +1832,7 @@ removed.
 
 **4.14.1.1** The user MUST be able to add as a harness any command that speaks the Agent Client
 Protocol, under the name of the program it runs, and hmz MUST record it under `clis` in
-`settings.yaml`, as Section 3 of [FILES] states.
+`settings.toml`, as Section 3 of [FILES] states.
 
 **4.14.1.2** hmz MUST refuse to add a command whose program is a built-in harness under any alias, a
 command that is empty, and a name other than the program's own.
@@ -1869,7 +1887,7 @@ Out of scope:
 
 - The harness kinds, agent specs, retries and nous: Section 4.
 - The LiteLLM gateway's lifecycle: Section 4.13.2.
-- The layout of `<home>/providers/` and of the machine cache as files: Section 4 of [FILES] and
+- The layout of `<data>/providers/` and of the machine cache as files: Section 4 of [FILES] and
   Section 7 of [FILES].
 - Where a harness runs relative to its env: Section 6.
 - The account pages of the terminal and web frontends: [TUI] and Section 3 of [WEB].
@@ -1949,7 +1967,7 @@ found it, with no account variable added or removed and no credential file subst
 
 #### 5.4.1. Layout
 
-**5.4.1.1** Each account MUST be one directory `<home>/providers/<cli>/<name>/`, as Section 4 of
+**5.4.1.1** Each account MUST be one directory `<data>/providers/<cli>/<name>/`, as Section 4 of
 [FILES] states.
 
 **5.4.1.2** The account's directory MUST hold a file `provider.json` stating the harness kind, the
