@@ -121,7 +121,7 @@ clis:
 | `hosts` | Hosts it may reach when a flow cuts the network, each a host name, an IP address or a URL. With none declared, such a flow refuses to run it. |
 | `state` | Paths it writes its own state to, which stay writable under any permission. |
 
-An entry with only a command can be written as a list, `my-agent: [my-agent, --acp]`, which is what the terminal form saves. To remove a custom CLI, delete its entry under `clis`.
+An entry with only a command can be written as a list, `my-agent: [my-agent, --acp]`, which is what the terminal form saves. To remove a custom CLI, delete its entry under `clis`. A mistyped key such as `host`, and a `hosts` or `state` written as one string, are fixed in the file when it is read. Other mistakes are not fixed: choosing that CLI fails with an error naming the entry and what is wrong (see [`clis`](/reference/settings#clis)).
 
 ### Use it
 

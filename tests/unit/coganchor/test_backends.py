@@ -732,6 +732,67 @@ def test_speaking_reads_a_hand_edited_file_forgivingly(clis: object) -> None:
     assert backends.speaking() == {}
 
 
+def test_speaking_fixes_a_mistyped_key_and_a_lone_host_in_the_file(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "my-agent": {
+                    "comand": ["my-agent", "--acp"],
+                    "host": "api.mine",
+                    "state": "~/.mine",
+                }
+            }
+        )
+    )
+    assert backends.speaking() == {"my-agent": ("my-agent", "--acp")}
+    assert backends.declared("my-agent") == (("api.mine",), ("~/.mine",))
+    assert backends.broken("my-agent") is None
+    assert settings.read()["clis"]["my-agent"] == {
+        "command": ["my-agent", "--acp"],
+        "hosts": ["api.mine"],
+        "state": ["~/.mine"],
+    }
+    assert "'host' renamed to 'hosts'" in caplog.text
+    assert "'~/.mine' made a list" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("entry", "why"),
+    [
+        ("my-agent --acp", r"expected a command as a list"),
+        (
+            {"command": "my-agent --acp"},
+            r"command must be a list, such as \['my-agent', '--acp'\]",
+        ),
+        ({"command": []}, "command must be a non-empty list"),
+        ({"hosts": ["api.mine"]}, "command must be a non-empty list"),
+        ({"command": ["my-agent"], "notes": "x"}, "unknown key 'notes'"),
+        ({"command": ["my-agent"], "hosts": {"a": 1}}, "hosts must be a list"),
+    ],
+)
+def test_an_entry_that_cannot_be_fixed_is_ignored_and_refused_by_name(
+    entry: object, why: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    settings.changes(lambda held: held.update(clis={"my-agent": entry}))
+    assert backends.speaking() == {}
+    said = backends.broken("my-agent")
+    assert said is not None
+    assert said.startswith(f"clis.my-agent in {settings.where()}: ")
+    assert re.search(why, said)
+    assert re.search(why, caplog.text)
+    with pytest.raises(ValueError, match=why):
+        backends.read("my-agent/m")
+    assert settings.read()["clis"]["my-agent"] == entry
+
+
+def test_broken_is_none_for_a_name_nothing_was_written_under() -> None:
+    assert backends.broken("my-agent") is None
+    backends.remember("my-agent", ["my-agent"])
+    assert backends.broken("my-agent") is None
+
+
 def test_speaking_reads_an_unreadable_file_as_nothing_added() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
