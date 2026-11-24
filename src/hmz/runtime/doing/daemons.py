@@ -1597,7 +1597,9 @@ class Remotes:
 
         def handshake(pipe: Pipe) -> _Session:
             route, until = routed[id(pipe)]
-            session = _Session(pipe, route, given.id, name, until=until)
+            session = _Session(
+                pipe, route, given.id, name, kind=self._kind, until=until
+            )
             try:
                 session.peer.call(
                     "pair.claim",

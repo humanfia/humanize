@@ -1582,9 +1582,9 @@ daemon or an answer that was not yes.
 **16.13** Where a declared command takes `-w`/`--workspace <dir>` to name a workspace of the
 daemon's machine, a `<dir>` beginning `~` MUST be sent as written, for the daemon to expand; any
 other MUST be sent as an absolute path, a relative one read against the directory the command is
-run in, with no link followed; and where the option is absent that directory MUST be sent, but
-where the command's own section states otherwise. Which workspace a path names, its links
-followed, is the daemon's to say (Section 4.5.2 of [DAEMON]).
+run in, with no link followed and no `..` taken out; and where the option is absent that directory
+MUST be sent, but where the command's own section states otherwise. Which workspace a path names,
+its links followed, is the daemon's to say (Section 4.5.2 of [DAEMON]).
 
 **16.14** A declared command that is interrupted (`SIGINT`) MUST exit with status 130, MUST write no
 traceback and nothing more to either stream -- under `--json` too, 16.7 notwithstanding -- and MUST
@@ -1806,7 +1806,7 @@ columns. Its JSON document MUST be `{"hosts": [{"workspace", "slot", "pid", "sta
 written.
 
 **18.6.2** `hmz hosts stop` MUST call `hosts.stop` with the workspace and slot of Section 18.1.2.
-Its JSON document MUST be `{"workspace": <path>, "slot": <slot>}`.
+Its JSON document MUST be `{"workspace": <path>, "slot": <slot>}`, each as it was sent.
 
 **18.6.3** `hmz hosts open` MUST call `hosts.open` (Section 4.6.2.3 of [DAEMON]) with the workspace
 and slot of Section 18.1.2, which starts that host where none is and attaches nothing to it, and
@@ -1817,7 +1817,7 @@ answered them, `slot` being the slot made where `--slot` was `exec:` or `chat:` 
 **18.6.4** `hmz hosts detach` MUST call `hosts.detach` (Section 4.6.3.2 of [DAEMON]) with the
 workspace and slot of Section 18.1.2, which lets every attached frontend go and leaves every epic
 running, and MUST write how many were let go. Its JSON document MUST be `{"workspace": <path>,
-"slot": <slot>, "let_go": <n>}`.
+"slot": <slot>, "let_go": <n>}`, `workspace` and `slot` as they were sent.
 
 ## 19. `hmz runs`
 

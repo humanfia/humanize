@@ -373,13 +373,13 @@ def _fork(call: Call) -> None:
 
 def _delete(call: Call) -> None:
     chats = call.client.chats
-    if not call.yes and not call.json and sys.stdin.isatty():
+
+    def question() -> str:
         # Read only where somebody is there to be shown it.
         named = "  ".join(_line(chats.get(call.chat)))
-    else:
-        named = call.chat
-    question, warning = t("Delete {name}?", name=named), t("It cannot be brought back.")
-    sure(call, f"{question} {warning}")
+        return f"{t('Delete {name}?', name=named)} {t('It cannot be brought back.')}"
+
+    sure(call, question)
     chats.delete(call.chat)
     call.answers({"deleted": call.chat})
 

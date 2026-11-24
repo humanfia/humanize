@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from dataclasses import dataclass, field
 from functools import cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, NoReturn
 
 from hmz.words import t
@@ -358,20 +358,21 @@ def reach(daemon: str) -> Client:
 def whole(path: str) -> str:
     """A path of the daemon's machine as a daemon is told it: whole.
 
-    One written from here is taken from the directory the line was typed in, with no link
-    followed: which directory that names is the daemon's to say. One beginning `~` is left as
-    it is, for the daemon to expand on its own machine.
+    One written from here is taken from the directory the line was typed in, and nothing more
+    is made of it: no link is followed and no `..` taken out, since which directory it names
+    once its links are followed is the daemon's to say. One beginning `~` is left as it is,
+    for the daemon to expand on its own machine.
     """
-    return path if path.startswith("~") else os.path.abspath(path)  # noqa: PTH100
+    return path if path.startswith("~") else str(Path(path).absolute())
 
 
 def workspace(call: Call) -> str:
     """The workspace a line names with `--workspace`: where it was typed, where it names none."""
     given: str | None = call.given.workspace
-    return os.getcwd() if given is None else whole(given)  # noqa: PTH109 -- as the shell names it
+    return str(Path.cwd()) if given is None else whole(given)
 
 
-def asks(call: Call, question: str) -> bool:
+def asks(call: Call, question: str | Callable[[], str]) -> bool:
     """Whether somebody said yes: on the line with `--yes`, or to the question at a terminal.
 
     Never asked of anything but somebody at a terminal, nor under `--json`, whose standard
@@ -380,7 +381,8 @@ def asks(call: Call, question: str) -> bool:
 
     Args:
       call: The command being run, which takes :data:`YES`.
-      question: What is asked, as the page asks it.
+      question: What is asked, as the page asks it; or what makes it, called only where
+        somebody is asked, for a question that costs a call to word.
 
     Raises:
       hmz.sdk.Refused: If nobody can be asked.
@@ -391,16 +393,17 @@ def asks(call: Call, question: str) -> bool:
         return True
     if call.json or not sys.stdin.isatty():
         raise Refused(t("Nobody is at a terminal to ask; run it again with `-y`."))
-    print(f"{question} [y/N] ", end="", file=sys.stderr, flush=True)
+    asked = question if isinstance(question, str) else question()
+    print(f"{asked} [y/N] ", end="", file=sys.stderr, flush=True)
     return sys.stdin.readline().strip().lower() in ("y", "yes")
 
 
-def sure(call: Call, question: str) -> None:
+def sure(call: Call, question: str | Callable[[], str]) -> None:
     """Asks before something is removed, and returns only where the answer is yes.
 
     Args:
       call: The command being run, which takes :data:`YES`.
-      question: What is asked, as the page asks it.
+      question: What is asked, as :func:`asks` takes it.
 
     Raises:
       hmz.sdk.Refused: If the answer is not yes, or nobody can be asked: nothing was changed.
@@ -826,11 +829,21 @@ def runs(argv: Sequence[str]) -> int:
     Returns:
       Its exit status.
     """
-    from hmz.sdk import Refused
-
     passes = commands()[argv[0]].passes
     if passes is not None:
         return passes(list(argv[1:]))
+    try:
+        return _runs(argv)
+    except KeyboardInterrupt:
+        # Whatever it was waiting on, letting go of its session included: nothing more is
+        # said, and what a daemon holds goes on.
+        return INTERRUPTED
+
+
+def _runs(argv: Sequence[str]) -> int:
+    """Runs a declared command, and says why where it was not done."""
+    from hmz.sdk import Refused
+
     path, command, rest = named(argv)
     plain = "--no-color" in rest
     reads = _parser(path, command, plain=plain)
@@ -854,9 +867,6 @@ def runs(argv: Sequence[str]) -> int:
         helped = t("Run `{line}` for help.", line=f"{reads.prog} --help")
         _failed(call, path, _BAD, str(why) if call.json else f"{why}\n{helped}")
         return UNREAD
-    except KeyboardInterrupt:
-        # Whatever it was waiting on: nothing more is said, and what a daemon holds goes on.
-        return INTERRUPTED
     except Refused as why:
         code: int = getattr(why, "code", 0) or 0
         if code != _WENT or not call.went():

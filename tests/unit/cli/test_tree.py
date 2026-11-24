@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import os
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -13,9 +12,6 @@ import pytest
 import hmz.sdk
 from hmz.cli import main, tree
 from hmz.cli.tree import Arg, Call, Command, Example, Exit, Field
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _greets(call: Call) -> int | None:
@@ -726,9 +722,10 @@ def test_a_workspace_is_whole_and_read_from_where_the_line_was_typed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    here = os.getcwd()  # noqa: PTH109 -- as the helper names it
+    here = str(Path.cwd())
 
-    assert tree.whole("sub/../app") == f"{here}/app"
+    # Nothing is made of it but whole: where `sub` links to is the daemon's to follow.
+    assert tree.whole("sub/../app") == f"{here}/sub/../app"
     assert tree.whole("/abs/app") == "/abs/app"
     # The daemon's own home, which this machine cannot expand for it.
     assert tree.whole("~/app") == "~/app"
