@@ -388,11 +388,11 @@ Sheet #actions Button {
     color: $block-cursor-blurred-foreground; text-style: none; }
 Sheet #actions Button:hover { text-style: underline; }
 Sheet #actions Button:focus {
-    background: $primary; color: $background; text-style: bold; }
+    background: $primary; color: $block-cursor-foreground; text-style: bold; }
 Sheet #actions Button.-primary, Sheet #actions Button.-error {
-    background: $accent; color: $background; }
+    background: $accent; color: $block-cursor-foreground; }
 Sheet #actions Button.-primary:focus, Sheet #actions Button.-error:focus {
-    background: $accent; color: $background; text-style: bold; }
+    background: $accent; color: $block-cursor-foreground; text-style: bold; }
 Sheet #actions Button:disabled {
     background: $background; color: $text-muted; text-opacity: 100%;
     text-style: none; }
