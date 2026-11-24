@@ -143,7 +143,7 @@ Close a dialog by pressing <kbd>esc</kbd>, clicking its **Close** button, or cli
 
 ## Use menus
 
-Click chips and buttons to open menus, or right-click a row, heading, transcript line, or chat title for its context menu. Text fields and selected text keep the native browser menu. Only one menu stays open at a time.
+Click chips and buttons to open menus, or right-click a row, heading, transcript line, or chat title for its context menu. On a touch screen, hold a finger still on one of these for about half a second to open the same menu; sliding first scrolls, and lifting early does nothing. Text fields and selected text keep the native browser menu. Only one menu stays open at a time.
 
 Inside a menu, press <kbd>up</kbd>, <kbd>down</kbd>, <kbd>home</kbd>, and <kbd>end</kbd> to move through items. Press <kbd>right</kbd> to open a submenu and <kbd>left</kbd> to close it. Click elsewhere, press <kbd>esc</kbd>, scroll, or switch views to close the menu.
 

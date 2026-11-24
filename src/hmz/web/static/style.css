@@ -1436,6 +1436,7 @@ body.dropping .app {
 body {
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .selectable,
@@ -1453,6 +1454,7 @@ textarea,
 [contenteditable]:not([contenteditable='false']) {
   user-select: text;
   -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 /* A control is not, whatever it holds. */
