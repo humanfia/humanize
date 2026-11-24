@@ -1023,7 +1023,7 @@ def test_a_chat_is_started_with_a_permission_and_set_to_another(
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         thread = page.locator("[data-hmz=thread]")
         expect(thread).to_contain_text("did: hello there")
-        (record,) = project.parent.glob("humanize-home/chats/*/*/chat.jsonl")
+        (record,) = project.parent.glob("xdg/data/humanize/chats/*/*/chat.jsonl")
         began = json.loads(record.read_text().splitlines()[0])
         assert began["permission"] == "danger-full-access"
 
@@ -1071,9 +1071,9 @@ def test_a_chat_is_listed_renamed_stopped_and_carried_on_by_its_id(
         # A chat is no epic: it is at its own address, by its id, and its record is its own.
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         name = urllib.parse.unquote(page.url.split("#/chats/")[1])
-        (record,) = project.parent.glob("humanize-home/chats/*/*/chat.jsonl")
+        (record,) = project.parent.glob("xdg/data/humanize/chats/*/*/chat.jsonl")
         assert record.parent.name == name
-        assert not list(project.parent.glob("humanize-home/epics/*/*"))
+        assert not list(project.parent.glob("xdg/data/humanize/epics/*/*"))
         thread = page.locator("[data-hmz=thread]")
         expect(thread).to_contain_text("did: hello there")
 
@@ -1156,7 +1156,7 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     chasers = ["-a", f"first_chaser={AGENT}", "-a", f"second_chaser={AGENT}"]
     ran = hmz_exec("-f", "flame_chase", *chasers, "-p", "budget.duration=2s", "work")
     assert ran.returncode == 0, ran.stderr
-    (record,) = project.parent.glob("humanize-home/epics/*/*/epic.jsonl")
+    (record,) = project.parent.glob("xdg/data/humanize/epics/*/*/epic.jsonl")
     origin = record.parent.name
     # As an earlier Humanize wrote a year down: in ISO 8601, in years.
     began, *rest = record.read_text().splitlines()

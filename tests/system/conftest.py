@@ -31,11 +31,11 @@ LOOPS = ("goal", "ralph_loop", "rlar", "stateful_ralph")
 
 
 @pytest.fixture(autouse=True)
-def _no_real_agents(monkeypatch: pytest.MonkeyPatch) -> None:
+def _no_real_agents(_humanize_home: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """Overrides the root's: the agents installed here are what these tests run.
 
     As whoever runs the suite, whose `HOME` and `PATH` the suite's own stand in for between
-    tests.
+    tests, once the test's own home is named.
     """
     as_them(monkeypatch)
 

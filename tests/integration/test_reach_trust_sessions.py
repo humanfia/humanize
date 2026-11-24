@@ -23,6 +23,7 @@ import pytest
 
 from hmz.trust import identity, pairing, tls
 from hmz.trust.devices import Device, Devices
+from tests.conftest import homed, places
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,12 +34,9 @@ Carrier = tuple[socket.socket, socket.socket]
 
 def made(home: Path, monkeypatch: pytest.MonkeyPatch) -> identity.Identity:
     """The device of a home of its own."""
-    was = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(home))
-    try:
+    del monkeypatch
+    with homed(home):
         return identity.device()
-    finally:
-        monkeypatch.setenv("HUMANIZE_HOME", was)
 
 
 def said(session: tls.Secured, message: dict[str, Any]) -> None:
@@ -252,7 +250,7 @@ def test_an_expired_or_reused_code_is_refused(
 
 def test_processes_racing_to_make_the_identity_end_with_one(tmp_path: Path) -> None:
     probe = "from hmz.trust import identity; print(identity.device().fingerprint)"
-    environ = {**os.environ, "HUMANIZE_HOME": str(tmp_path / "home")}
+    environ = {**os.environ, **places(tmp_path / "home")}
     running = [
         subprocess.Popen(
             [sys.executable, "-c", probe],
@@ -266,5 +264,5 @@ def test_processes_racing_to_make_the_identity_end_with_one(tmp_path: Path) -> N
     assert len(printed) == 1
     (fingerprint,) = printed
     assert identity.is_fingerprint(fingerprint)
-    (kept,) = (tmp_path / "home" / "identity").iterdir()
+    (kept,) = (tmp_path / "home" / "data" / "humanize" / "identity").iterdir()
     assert sorted(one.name for one in kept.iterdir()) == ["cert.pem", "key.pem"]

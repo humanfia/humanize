@@ -78,7 +78,10 @@ fail_if_asked("ssh")
 if not args:
     sys.exit(255)
 host, rest = args[0], args[1:]
+# The far side's own environment: its home, and none of this side's XDG directories.
 env = dict(os.environ, HOME=os.environ["FAKE_HOME"])
+env.pop("XDG_CACHE_HOME", None)
+env.pop("XDG_STATE_HOME", None)
 os.execve("/bin/sh", ["/bin/sh", "-c", " ".join(rest)], env)
 """
 

@@ -13,7 +13,7 @@ from hmz.coganchor.machines import Slurm, SlurmConfig
 from hmz.coganchor.machines.docker import CPUS, GPUS, MEMORY
 from hmz.coganchor.machines.slurm import SRUN, TCP, Unplaced, jobs
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE, SUPERVISED
-from hmz.coganchor.transport import REMOTE_CACHE, Road, Target
+from hmz.coganchor.transport import REMOTE_CACHE, REMOTE_STATE, Road, Target
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -231,9 +231,9 @@ def test_a_job_reached_over_tcp_runs_coganchor_and_is_dialled_with_its_secret(
     named = f"coganchor-{binary.digest(built)}"
     assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
     assert script.endswith(
-        'exec "$p" anchor --listen 0.0.0.0:0 --export /w'
-        ' --export "${HUMANIZE_HOME:-$HOME/.hmz}/envs"\n'
+        'exec "$p" anchor --listen 0.0.0.0:0 --export /w --export "$s/envs"\n'
     )
+    assert REMOTE_STATE in script
     assert machine.token
     assert f"HUMANIZE_TOKEN={machine.token}" in script
     assert "/opt/py" not in script

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz import home
+from hmz import state
 from hmz.tui.history import History
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ def here(tmp_path: Path) -> Path:
 
 
 def _file() -> Path:
-    return home() / "history.jsonl"
+    return state() / "history.jsonl"
 
 
 def _rows() -> list[dict[str, str]]:
@@ -169,7 +169,7 @@ def test_a_history_nobody_can_write_still_walks_what_was_said(
 ) -> None:
     blocked = tmp_path / "a-file"
     blocked.write_text("")
-    monkeypatch.setenv("HUMANIZE_HOME", str(blocked / "home"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(blocked / "state"))
     history = History(here)
 
     history.add("still here")

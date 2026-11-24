@@ -62,11 +62,13 @@ from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
 from .config import AgentConfig, Unfenced, Unserved
-from .event import Event, Failed, Usage
+from .event import Event, Failed, Unrecoverable, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
 
@@ -89,7 +91,23 @@ _COMMAND = "cursor-agent"
 #: A turn nobody fenced, one driven by hand, is not given this or any other flag, and runs in
 #: the posture `cursor-agent` keeps for a turn nobody has said anything about: what it asks
 #: before, what it runs itself, which sandbox it opens in.
+#:
+#: What a team's admin may forbid of this is kept on Cursor's servers, set in its dashboard and
+#: fetched with the sign-in as a run starts: no file on this machine says it and no command of
+#: the CLI prints it, so it is found out by the run itself, before the turn reaches a model.
+#: `--sandbox` is the flag's to say whatever the team's settings are.
 _UNASKED = ("--force", "--sandbox", "disabled")
+
+#: What `cursor-agent` exits on, before it has reached a model, when its team's admin has
+#: switched off what a turn here runs at -- 2026.11.22's words, with what each switched off.
+#: Neither has another mode to fall back to. A print run without `--force` declines whatever
+#: it would have asked about, and its Auto-review has a model approve each call
+#: (protocol/core.md 4.6.2.2), so a team without Run Everything has no turn here that is both
+#: unattended and granted; and every turn here is a print run.
+_FORBIDDEN = {
+    "has disabled the 'Run Everything' option": "Run Everything (`--force`)",
+    "has disabled headless Cursor CLI usage": "headless use (`--print`)",
+}
 
 #: The tools it starts a fleet of its own with, by the names its stream calls them. A turn
 #: that reaches for one of these is a turn with agents under it, which is worth showing as
@@ -354,6 +372,44 @@ class CursorSession(CommandSessionBase):
             argv.append(f"--resume={self._id}")
         # After `--`, so that a prompt opening with a dash is a prompt rather than a flag.
         return [*argv, "--", prompt], None
+
+    def _stream(
+        self, prompt: str, *, schema: type[BaseModel] | None = None
+    ) -> Iterator[Event]:
+        """Takes one turn, failing it for good where the team's admin forbade how it runs.
+
+        Cursor says so as it starts, before the turn reaches a model, and tells the person to
+        run it some other way -- which is Humanize's to decide rather than theirs, and which
+        no other try of the same agent decides differently (:data:`_FORBIDDEN`).
+
+        Args:
+          prompt: The input prompt for this turn.
+          schema: The shape to answer in, or None to take what the agent says.
+
+        Yields:
+          What the agent said, in the order it said it.
+
+        Raises:
+          Unrecoverable: If the team's admin switched off Run Everything for a fenced turn,
+            or headless use for any.
+          Failed: If the turn failed for anything else.
+        """
+        try:
+            yield from super()._stream(prompt, schema=schema)
+        except Failed as failed:
+            said = f"{failed.stderr or ''}{failed.output or ''}"
+            forbidden = [one for words, one in _FORBIDDEN.items() if words in said]
+            if not forbidden:
+                raise
+            raise Unrecoverable(
+                failed.returncode,
+                failed.cmd,
+                failed.output,
+                f"{_COMMAND}: this Cursor team's admin has switched off "
+                f"{' and '.join(forbidden)}, without which no turn of it runs unattended "
+                "with what it asks for granted; ask the admin to switch it back on, or give "
+                "this agent another harness",
+            ) from failed
 
     def _reads(self, line: str, *, error: bool) -> Iterator[Event]:
         """Reads one line Cursor wrote, as the things it says the agent did.

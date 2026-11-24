@@ -40,10 +40,10 @@ _PORTS = range(1, 65536)
 
 
 def _port_file() -> Path:
-    """`<home>/web-port`, the port the last `hmz web` of this home listened on."""
-    from hmz import home
+    """`<state>/web-port`, the port the last `hmz web` of this home listened on."""
+    from hmz import state
 
-    return home() / "web-port"
+    return state() / "web-port"
 
 
 def kept_port() -> int:

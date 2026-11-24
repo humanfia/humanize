@@ -132,7 +132,7 @@ The CLI logs each wait and each fallback to another nous.
 
 ![hmz chat with a virtual nous: Codex is rate-limited, the turn waits, then carries on as Claude Code](/shots/user-nous-chat.svg)
 
-You cannot create a nous from the CLI. Create it in the app, in the terminal, or in Python with [the SDK](/builder/sdk). Humanize saves every nous in `~/.hmz/settings.yaml` under `nous:`. See [settings.yaml](/reference/settings).
+You cannot create a nous from the CLI. Create it in the app, in the terminal, or in Python with [the SDK](/builder/sdk). Humanize saves every nous in `~/.config/humanize/settings.toml` under `nous`. See [settings.toml](/reference/settings).
 
 ## How faults work
 

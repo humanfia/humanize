@@ -23,6 +23,7 @@ from hmz.daemon import where
 from hmz.reach import dial
 from hmz.rpc import PROTOCOL, Code, Peer, RpcError, hello
 from hmz.trust import identity, pairing, tls
+from tests.conftest import homed
 from tests.integration import doubles_ssh
 from tests.integration.doubles_daemon import WAITS, hosting, project, until, written
 
@@ -54,12 +55,9 @@ def listens(*specs: str) -> None:
 
 def device(home: Path, monkeypatch: pytest.MonkeyPatch) -> identity.Identity:
     """The device of a home of its own: another machine's, as the daemon sees it."""
-    was = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(home))
-    try:
+    del monkeypatch
+    with homed(home):
         return identity.device()
-    finally:
-        monkeypatch.setenv("HUMANIZE_HOME", was)
 
 
 class Client:

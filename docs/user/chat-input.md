@@ -118,7 +118,7 @@ Type `/prefer` to see whether shared `$` names run the skill or the flow and whe
 
 ![The terminal interface after /prefer: $<name> runs the skill where it names both: native, from the settings file](/shots/user-chat-input-terminal-prefer.svg)
 
-To change the default for all chats on your machine, run `/settings general` and set **Chat prefers for $**, or set `chat.prefer` in [settings.yaml](/reference/settings).
+To change the default for all chats on your machine, run `/settings general` and set **Chat prefers for $**, or set `chat.prefer` in [settings.toml](/reference/settings).
 
 See [Terminal commands and keys](/reference/tui) for the full list of Humanize commands (`/clear`, `/resume`, `/exit` and others).
 

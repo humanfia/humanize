@@ -158,7 +158,7 @@ You can also rewind to these snapshots manually while the flow runs. See [Snapsh
 
 ## Storage and cleanup
 
-Humanize stores derived directories under `envs/` inside `~/.hmz` (or `HUMANIZE_HOME` when set) on the environment's machine.
+Humanize stores derived directories under `envs/` in its state directory, `~/.local/state/humanize` (or `humanize` in `XDG_STATE_HOME` when set), on the environment's machine.
 
 | Kind | Directory under `envs/<workdir name>-<digest>/` | Removed |
 | --- | --- | --- |

@@ -55,8 +55,7 @@ class Hmz:
 | Property | Type | Value |
 | --- | --- | --- |
 | `workspace` | `Path` | The project directory. |
-| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.hmz`. Not created. |
-| `settings` | `Settings` | Saved settings for this workspace and machine. Internal type; see [settings.yaml](/reference/settings) for keys. |
+| `settings` | `Settings` | Saved settings for this workspace and machine. Internal type; see [settings.toml](/reference/settings) for keys. |
 | `flows` | `Flows` | [Flows](#flows). |
 | `verses` | `Flowverses` | [Flowverses](#flowverses). Same object as `flows.verses`. |
 | `accounts` | `Accounts` | [Accounts](#accounts). |

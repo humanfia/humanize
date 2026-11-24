@@ -27,6 +27,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
+from tests.conftest import rehome
 from tests.integration.doubles_agents import (
     Endpoint,
     Standins,
@@ -268,7 +269,7 @@ def test_agy_under_an_account_a_gateway_holds_is_its_openai_gateway(
         "LITELLM_GATEWAY_KEY",
     )
     held.install("agy", AGY_GATEWAY)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     monkeypatch.setattr(Provider, "swaps", _unswapped)
     providers.add(

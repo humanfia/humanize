@@ -98,7 +98,7 @@ Place your flows in one of two folders. Humanize reads them directly without an 
 | Folder | Flowverse | Scope |
 | --- | --- | --- |
 | `.hmz/flows/` in the project | `local` | Runs started in this project. |
-| `~/.hmz/flows/` | `user` | All your projects on this machine. |
+| `~/.local/share/humanize/flows/` | `user` | All your projects on this machine. |
 
 A flow module can be a directory or a single file:
 
@@ -131,7 +131,7 @@ Qualify the name to target a specific source:
 | `tidy` | The nearest matching flow: project, user, official, then other flowverses alphabetically. |
 | `tidy:once` | The `once` flow inside the `tidy` module. |
 | `@local/tidy` | The project flow in `.hmz/flows/`. |
-| `@user/tidy` | Your user flow in `~/.hmz/flows/`. |
+| `@user/tidy` | Your user flow in `~/.local/share/humanize/flows/`. |
 | `@theirs/review` | A flow installed from the `theirs` flowverse. One that flowverse lists under a user is `@theirs/alice/kernel`. |
 | `alice/kernel` | A flow under user `alice` in the official flowverse. |
 | `./drafts/tidy` | A file path starting with `.`, `/`, or `~` pointing to a flow directory or `.py` file (with or without the extension). |

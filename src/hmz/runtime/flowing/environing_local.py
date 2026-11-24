@@ -24,7 +24,7 @@ import threading
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from hmz import home
+from hmz import state
 from hmz.flows import EnvBackendKind, EnvError, EnvUnavailable, TempCloneBusy
 
 from .environing import (
@@ -626,7 +626,7 @@ class LocalMachine(Machine):
         return self._home(path)
 
     async def state(self) -> PurePosixPath:
-        return PurePosixPath(home().absolute())
+        return PurePosixPath(state().absolute())
 
     async def start(self, argv: Sequence[str], cwd: PurePosixPath) -> _LocalRun:
         loop = asyncio.get_running_loop()

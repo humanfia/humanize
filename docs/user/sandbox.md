@@ -59,11 +59,11 @@ Give a role no network in a flow to restrict its connections (`network=False`, s
 
 ## Choose the backend on Linux
 
-Set `sandbox.backend` in `~/.hmz/settings.yaml` to pin a backend on Linux. You must edit this file by hand; the change applies from the next turn, with no restart.
+Set `sandbox.backend` in `~/.config/humanize/settings.toml` to pin a backend on Linux. You must edit this file by hand; the change applies from the next turn, with no restart.
 
-```yaml
-sandbox:
-  backend: bwrap
+```toml
+[sandbox]
+backend = "bwrap"
 ```
 
 | Value | Meaning |
@@ -78,9 +78,9 @@ If a pinned backend cannot start, it refuses the role instead of falling back. U
 
 You can let Codex enforce the permission with its own sandbox instead of the fence:
 
-```yaml
-sandbox:
-  native: [codex]
+```toml
+[sandbox]
+native = ["codex"]
 ```
 
 ::: warning
@@ -88,6 +88,8 @@ This is a trade, not a default. Codex's sandbox limits what the commands it runs
 :::
 
 Humanize honors only `codex` and fences any other name in the list as usual. Codex still runs in the Humanize fence when the permission takes a path back under a wider rule, when Codex's sandbox cannot start on this machine, when the work is on another machine, or when a flow checks each permission request. When Codex uses its own sandbox, its session shows a notice, once per agent, starting with `codex: held to its permission by Codex's own sandbox`.
+
+If your organization's Codex requirements forbid approval `never`, Codex keeps its own sandbox and runs with approval `on-request`. Humanize refuses every request to run outside that sandbox. If the requirements forbid the sandbox the permission needs, the session fails before its first turn.
 
 ## Work on another machine
 

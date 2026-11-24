@@ -10,7 +10,7 @@ one it heard.
 
 Written once here rather than in each way in: the web interface and the terminal interface tell
 of the same runs, and which kinds a person wants told -- kept under `notifications` in this
-machine's `settings.yaml` -- is one answer for both.
+machine's `settings.toml` -- is one answer for both.
 """
 
 from __future__ import annotations
@@ -309,10 +309,10 @@ def _unspent(usage: Any) -> bool:
 
 
 def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Which notifications are wanted, as `settings.yaml` holds them: every one, where it is silent.
+    """Which notifications are wanted, as `settings.toml` holds them: every one, where it is silent.
 
     Args:
-      held: Everything `settings.yaml` holds; read afresh where None.
+      held: Everything `settings.toml` holds; read afresh where None.
 
     Returns:
       `kinds`, whether each kind is told, and `system`, whether the system is asked to show
@@ -335,7 +335,7 @@ def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:
 def prefer(
     kinds: dict[str, bool] | None = None, *, system: bool | None = None
 ) -> dict[str, Any]:
-    """Writes which notifications are wanted into `settings.yaml`, leaving the rest as it was.
+    """Writes which notifications are wanted into `settings.toml`, leaving the rest as it was.
 
     Args:
       kinds: Whether each kind named is told; the kinds not named are left as they are.

@@ -139,7 +139,7 @@ See [Runtimes: servers, containers and clusters](/user/runtimes).
 | --- | --- | --- |
 | `Humanize Desktop.log` | `~/Library/Logs/ai.humanfia.humanize/` on macOS, `%LOCALAPPDATA%\ai.humanfia.humanize\logs\` on Windows | The app's startup, installs of `hmz`, connections and update checks. |
 | `daemon.log` | `humanize-<uid>/` in the system's temporary directory | Failures of the daemon before any run. |
-| `host.log` | The epic's directory, `~/.hmz/epics/<workspace>/<epic>/`: see [Files on disk](/reference/files#epic-directory) | Failures that belong to one run. |
+| `host.log` | The epic's directory, `~/.local/share/humanize/epics/<workspace>/<epic>/`: see [Files on disk](/reference/files#epic-directory) | Failures that belong to one run. |
 
 ## Good to know
 
