@@ -89,11 +89,53 @@ def test_resolve_keeps_the_agents_own_state_and_humanizes_here(
     assert found.program == str(program)
     assert found.argv == [str(program), "-p", "hi"]
     assert found.local_paths == sorted(found.local_paths)
-    for kept in (".claude", ".claude.json", ".hmz", ".humanize", ".cache/humanize"):
+    for kept in (
+        ".claude",
+        ".claude.json",
+        ".hmz",
+        ".humanize",
+        ".cache/humanize",
+        ".config/humanize",
+        ".local/share/humanize",
+        ".local/state/humanize",
+    ):
         assert str(home / kept) in found.local_paths
     assert str(program) in found.local_programs
     assert str(home / ".claude") in found.local_programs
     assert "/bin/sh" in found.local_programs  # the interpreter it names outright
+
+
+def test_resolve_keeps_humanizes_own_wherever_xdg_moves_it(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _program(root / "bin" / "claude")
+    monkeypatch.setenv("PATH", str(root / "bin"))
+    for variable, under in (
+        ("XDG_CONFIG_HOME", "conf"),
+        ("XDG_DATA_HOME", "data"),
+        ("XDG_STATE_HOME", "state"),
+        ("XDG_CACHE_HOME", "cache"),
+    ):
+        monkeypatch.setenv(variable, str(root / under))
+
+    found = resolve(["claude"])
+
+    for under in ("conf", "data", "state", "cache"):
+        assert str(root / under / "humanize") in found.local_paths
+    # And the defaults still, where an earlier process may have left something.
+    assert str(root / "home" / ".local/state/humanize") in found.local_paths
+
+
+def test_resolve_ignores_a_relative_xdg_directory(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _program(root / "bin" / "claude")
+    monkeypatch.setenv("PATH", str(root / "bin"))
+    monkeypatch.setenv("XDG_STATE_HOME", "relative/state")
+
+    found = resolve(["claude"])
+
+    assert not any("relative" in one for one in found.local_paths)
 
 
 def test_resolve_follows_a_link_to_the_real_program(

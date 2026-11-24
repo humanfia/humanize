@@ -512,6 +512,13 @@ class OpencodeSession(CommandSessionBase):
         agent's `unattended`, which where nobody has said comes to whether the agent runs in a
         fence at all. A turn that does not carry it gets the CLI's own answer instead -- a
         headless run refuses what it is asked rather than waiting to be told.
+
+        Nothing an admin manages forbids it, so nothing is looked for before a turn. The
+        managed config -- `opencode.json` under `/etc/opencode` or
+        `/Library/Application Support/opencode`, or an MDM profile -- is merged under the
+        permission variable rather than over it (1.19.6), and has no setting about the flag;
+        what it may still deny is a tool the variable does not mention, which the turn is
+        told it cannot use rather than failed on. mimocode reads the same files, the same way.
         """
         return ["--auto"]
 

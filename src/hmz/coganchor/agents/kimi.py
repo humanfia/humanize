@@ -68,7 +68,7 @@ from hmz.coganchor.backends import SWARM
 
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
-from .event import Event, Failed, Question, Usage, say
+from .event import Event, Failed, Question, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Moment
 from .native import NativeCommand
 from .preload import preloaded
@@ -586,6 +586,11 @@ _ANSWERS = ("approved", "rejected")
 #: from the browser. Nobody is at that browser here, which is why every approval it raises is
 #: read and answered by :meth:`KimiCodeCLISession._approved` rather than left to stall the
 #: turn until the watchdog ends it.
+#:
+#: Nor is there an administrator above the install to forbid either mode. Kimi Code has no
+#: managed or system policy as of 2.7.3: its configuration is the user's `config.toml` alone,
+#: and its daemon sets whichever of the three modes it is told. So nothing is probed before a
+#: session is profiled; what the profile route answers is read instead, by :func:`_unheld`.
 _NEVER_ASK = "auto"
 _ASK_WHEN_NEEDED = "yolo"
 
@@ -1606,11 +1611,16 @@ class KimiCodeCLISession(SessionBase):
                 # a setting it holds, and the same objective again is asking for it again.
                 profile = turn | ({"goal_objective": prompt} if goal else {})
                 if goal or profile != self._profile or server is not self._profiled:
-                    server.call(
-                        "POST",
-                        f"/sessions/{session}/profile",
-                        {"agent_config": profile},
-                    )
+                    route = f"/sessions/{session}/profile"
+                    try:
+                        held = server.call("POST", route, {"agent_config": profile})
+                    except Failed as refused:
+                        # Only the route's own refusal, in its envelope: a status, or a
+                        # daemon gone, is the transport and is tried again as one.
+                        if str(refused.stderr).startswith(f"{route}: "):
+                            _unheld(profile, refused.stderr, server._argv)
+                        raise
+                    _unheld(profile, held, server._argv)
                     self._profile, self._profiled = profile, server
                 updates = _Updates(server._base, server._token, session, self._stepped)
                 # Said before the prompt goes in, so that a word put in has a session to be
@@ -1882,6 +1892,48 @@ class KimiCodeCLISession(SessionBase):
                 if updates is not None:
                     updates.close()
                 self._running = _Running()
+
+
+def _unheld(profile: Mapping[str, Any], said: object, argv: list[str]) -> None:
+    """Fails the opening of a session whose daemon will not run it at the mode it was told.
+
+    Kimi Code has no managed policy to read first: as of 2.7.3 its only configuration is the
+    user's own `config.toml`, and its daemon takes every one of its three modes from anybody
+    holding its token. So what it runs a session at is read back off the profile route rather
+    than probed beforehand -- the route answers with the agent's state, its mode included --
+    (2.7.3's `readAgentState`), and a refusal is the route's own: a build that has no such
+    mode refuses the key by name. Either is said here, before the prompt goes in, rather than
+    as a failed turn tried again or one stalled on an approval nobody answers
+    (protocol/core.md Section 4.6.2.4). A build whose route says nothing of the mode is taken
+    at its word.
+
+    Args:
+      profile: What the session was told.
+      said: What the route answered: its data, or what it refused with.
+      argv: The daemon's command line, which is what failed.
+
+    Raises:
+      Unrecoverable: If a mode was told and the daemon refused it or holds another.
+    """
+    told = profile.get("permission_mode")
+    if told is None:
+        return
+    if isinstance(said, str):
+        if "permission_mode" not in said:
+            return
+        why = said
+    else:
+        agent: object = cast("dict[str, Any]", said or {}).get("agent")
+        held = cast("dict[str, Any]", agent).get("permission_mode") if agent else None
+        if held in (None, told):
+            return
+        why = f"it holds the session at `{held}`"
+    raise Unrecoverable(
+        1,
+        argv,
+        "",
+        f"kimi: Kimi Code will not run a fenced session at permission mode `{told}`: {why}",
+    )
 
 
 def _erred(error: object) -> str:

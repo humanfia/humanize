@@ -291,10 +291,10 @@ class Flowverses:
           token in the log of every job that ran it.
         """
         with _within(self._workspace):
-            from hmz.runtime.flowing.verses import MINE, plain
+            from hmz.runtime.flowing.verses import MINE, plain, shown
 
             if one.name in MINE:
-                return f"your own flows in {MINE[one.name]}"
+                return f"your own flows in {shown(one.name)}"
             return plain(one.url) if one.url else nowhere
 
 

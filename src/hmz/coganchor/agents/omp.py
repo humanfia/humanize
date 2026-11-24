@@ -49,6 +49,10 @@ _COMMAND = "omp"
 #: an approval nobody is there to give is a flow that has stopped. So whatever the fence writes,
 #: omp is asked nothing and the fence holds the grant; an agent with no fence, one driven by
 #: hand, is told no mode at all, leaving omp wherever its own configuration leaves it.
+#:
+#: Nothing can forbid it, so nothing is read for it first: `--approval-mode` is a runtime
+#: override, above every layer omp reads -- the agent directory's `config.yml`, a project's,
+#: `--config` -- and omp reads no managed or system layer at all.
 _UNATTENDED = "yolo"
 
 #: What the `get_state` asking a new process which session it opened is sent under, so that

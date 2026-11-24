@@ -23,7 +23,7 @@ import sqlite3
 import urllib.parse
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from hmz import home
+from hmz import data
 from hmz.coganchor import backends
 from hmz.runtime.tracing.readers import agy, mcode, mimo, opencode
 from hmz.runtime.tracing.session import mapping
@@ -184,7 +184,7 @@ def _of(harness: str, spelled: Collection[str]) -> Iterator[Found]:
     ):
         return
     under = profile.directory()
-    if under.is_relative_to(home()):
+    if under.is_relative_to(data()):
         return
     if harness in _STORED:
         database, rows = _STORED[harness]

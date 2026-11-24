@@ -84,9 +84,9 @@ def plain_writes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def device(home: Path, monkeypatch: pytest.MonkeyPatch) -> identity.Identity:
     """A device of its own home, made there as this machine's would be."""
-    was = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(home))
+    was = os.environ["XDG_DATA_HOME"]
+    monkeypatch.setenv("XDG_DATA_HOME", str(home))
     try:
         return identity.device()
     finally:
-        monkeypatch.setenv("HUMANIZE_HOME", was)
+        monkeypatch.setenv("XDG_DATA_HOME", was)

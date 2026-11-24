@@ -59,7 +59,7 @@ def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], Runtime]:
         monkeypatch.setattr(store, kind, Runtime)
     monkeypatch.setattr(store, "find", find)
     monkeypatch.setattr(store, "saved", is_saved)
-    monkeypatch.setattr(settings, "where", lambda: Path("/settings.yaml"))
+    monkeypatch.setattr(settings, "where", lambda: Path("/settings.toml"))
     return found
 
 

@@ -71,13 +71,6 @@ class Hmz:
         return Path(self._workspace) if self._workspace is not None else Path.cwd()
 
     @property
-    def home(self) -> Path:
-        """Where Humanize keeps what outlives one run of one flow."""
-        from hmz import home
-
-        return home()
-
-    @property
     def settings(self) -> Settings:
         """What Humanize remembers: what was set up to run here, and what is true everywhere."""
         if self._settings is None:

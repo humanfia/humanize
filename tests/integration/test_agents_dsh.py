@@ -23,6 +23,7 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed, Unrecoverable
 from hmz.coganchor.agents.skills import Loaded, skills
 from hmz.coganchor.gateway import gatewayable
+from tests.conftest import rehome
 from tests.integration.doubles_agents import Endpoint, harnessed, kinds, serving
 
 if TYPE_CHECKING:
@@ -108,7 +109,7 @@ def test_a_model_gone_silent_is_given_up_on_by_the_watchdog(
 def test_a_turn_under_an_account_a_gateway_holds_reaches_its_endpoint_through_it(
     endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    rehome(monkeypatch, tmp_path / "hmz")
     monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
     providers.add(
         "dsh",

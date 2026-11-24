@@ -83,7 +83,7 @@ Refs that `load` takes:
 | Ref | Names |
 | --- | --- |
 | `:<subflow>` | A flow in the caller's module. |
-| `<flow>`, `<flow>:<subflow>` | A flow by name, looked up beside the calling flow first, then in `.hmz/flows/`, `~/.hmz/flows/`, the official flowverse and every other flowverse, in that order. The bare form loads the flow named after the directory or file, or the single visible flow in it. |
+| `<flow>`, `<flow>:<subflow>` | A flow by name, looked up beside the calling flow first, then in `.hmz/flows/`, `~/.local/share/humanize/flows/`, the official flowverse and every other flowverse, in that order. The bare form loads the flow named after the directory or file, or the single visible flow in it. |
 | `<user>/<flow>`, `<user>/<flow>:<subflow>` | A flow under that GitHub user in the official flowverse (or in an installed flow's own flowverse). |
 | `@<flowverse>/<flow>`, `@<flowverse>/<user>/<flow>`, each with an optional `:<subflow>` | A flow of that flowverse only. `@local` and `@user` take a single name, as in `@local/shipped`. |
 | `./<path>`, `/<path>`, `~/<path>`, each with an optional `:<subflow>` | A path. The first that exists of `<path>/__init__.py`, `<path>` and `<path>.py` is used. |

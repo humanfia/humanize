@@ -3,7 +3,7 @@
 Everything said goes down, the task that starts a flow and the words put into one already
 running alike: both are things a person wrote, and either may be worth writing again.
 
-One file holds them all, under Humanize's own home, and every line says which directory it was
+One file holds them all, in Humanize's state directory, and every line says which directory it was
 typed in. What is walked is what was typed here, and everything ever typed anywhere where
 nothing has been typed here yet -- so a directory nothing has been run in still has something
 to walk back through. Which of the two it is, is settled when the interface starts rather than
@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from hmz import home
+from hmz import state
 
 __all__ = ["History"]
 
@@ -34,7 +34,7 @@ class History:
           workspace: Where the interface is running, defaulting to this directory.
         """
         self._where = Path(workspace or Path.cwd()).resolve()
-        self._file = home() / "history.jsonl"
+        self._file = state() / "history.jsonl"
         #: Oldest first, and never the same thing twice running: a history is for finding
         #: what was said, and one thing said twice is one thing to find.
         self._said: list[str] = []

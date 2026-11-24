@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from playwright.sync_api import expect
 
+from tests.conftest import own
 from tests.integration.doubles_tui import onto, shows, typed
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
@@ -56,7 +57,7 @@ def _paired(world: World) -> None:
     there = dict(
         os.environ,
         HOME=str(home),
-        HUMANIZE_HOME=str(home / ".hmz"),
+        **own(home),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="l", dir=str(base)),
     )
