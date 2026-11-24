@@ -1,0 +1,164 @@
+{
+ "entries": [
+  {
+   "wants": "what the F2 key does: opens Settings",
+   "where": "key hint on the bottom line of the terminal interface, one lower-case word",
+   "text": "settings"
+  },
+  {
+   "wants": "line under the title of the terminal interface's Settings screen: every setting Humanize keeps is here; a change to a daemon's or a workspace's setting is held until it is saved, while a theme or a language is kept as soon as it is chosen",
+   "where": "one or two short sentences with full stops, under the screen's title",
+   "text": "Every setting is here. A change to a daemon or workspace setting is held until saved, while a theme or language is kept as soon as it is chosen."
+  },
+  {
+   "wants": "what the Themes page of Settings holds, for the terminal interface: the colours this terminal interface is drawn in (the web page's text is 'Colours and pictures of this browser’s page'; a terminal has no pictures and is no browser)",
+   "where": "one line under the page's name on its card, no full stop",
+   "text": "Colours of this terminal"
+  },
+  {
+   "wants": "what the Daemons page of Settings holds, for the terminal interface: the machines this terminal interface reaches (the web page's text is 'Machines this page reaches, and the one it shows'; the terminal interface is not a page)",
+   "where": "one line under the page's name on its card, no full stop",
+   "text": "Machines this terminal reaches, and the one it shows"
+  },
+  {
+   "wants": "what the Language page of Settings holds, for the terminal interface: what this terminal interface is written in (the web page's text is 'What this browser’s page is written in')",
+   "where": "one line under the page's name on its card, no full stop",
+   "text": "What this terminal is written in"
+  },
+  {
+   "wants": "how many of the kinds of notification are turned on: {n} of {total} on",
+   "where": "a few words at the far end of the Notifications card of Settings, lower case, keep {n} and {total}",
+   "text": "{n} of {total} on"
+  },
+  {
+   "wants": "a count of accounts: {n} accounts",
+   "where": "a few words at the far end of the Accounts card of Settings, lower case, keep {n}",
+   "text": "{n} accounts",
+   "one": "{n} account"
+  },
+  {
+   "wants": "a count of daemons: {n} daemons",
+   "where": "a few words at the far end of the Daemons card of Settings, lower case, keep {n}",
+   "text": "{n} daemons",
+   "one": "{n} daemon"
+  },
+  {
+   "wants": "a count of runtimes: {n} runtimes",
+   "where": "a few words at the far end of the Runtimes card of Settings, lower case, keep {n}",
+   "text": "{n} runtimes",
+   "one": "{n} runtime"
+  },
+  {
+   "wants": "a count of backup targets: {n} targets",
+   "where": "a few words at the far end of the Backup card of Settings, lower case, keep {n}",
+   "text": "{n} targets",
+   "one": "{n} target"
+  },
+  {
+   "wants": "a count of nous: {n} nous (nous is its own plural)",
+   "where": "a few words at the far end of the Nous card of Settings, lower case, keep {n}",
+   "text": "{n} nous"
+  },
+  {
+   "wants": "line under the title of the Themes page of the terminal interface: the theme under the cursor is shown as you move through the list and kept once chosen; Auto follows the terminal's background, light or dark",
+   "where": "one or two short sentences with full stops",
+   "text": "The theme under the cursor is shown as you move through the list and kept once chosen. Auto follows the terminal's background, light or dark."
+  },
+  {
+   "wants": "what the appearance Auto means in a terminal: the light or dark side of the theme, whichever the terminal's background asks for",
+   "where": "a few words beside the row Auto on the Themes page, sentence case, no full stop",
+   "text": "Light or dark, whichever the terminal's background asks for"
+  },
+  {
+   "wants": "what the appearance Terminal means: drawn in the terminal's own sixteen colours on its own background, whatever theme is in use",
+   "where": "a few words beside the row Terminal on the Themes page, sentence case, no full stop",
+   "text": "The terminal's own sixteen colours on its own background, whatever theme is in use"
+  },
+  {
+   "wants": "line under the title of the Language page of the terminal interface: System follows the language this terminal is set to; what a daemon, a flow or an agent wrote stays as it was written (the web page's text is 'System follows the language this browser asks for. What a daemon, a flow or an agent wrote stays as it was written.')",
+   "where": "two short sentences with full stops",
+   "text": "System follows the language this terminal is set to. What a daemon, a flow or an agent wrote stays as it was written."
+  },
+  {
+   "wants": "a note that the environment variable {name} is set and decides this instead of what is chosen on this page, for as long as it is set",
+   "where": "one short sentence under the list of a Settings page, keep {name}, with full stop",
+   "text": "{name} is set in the environment and decides this while it is set."
+  },
+  {
+   "wants": "label of the setting that says what `$name` typed in a chat starts where a native skill of the harness and a flow share that name; its value is `native` or `flow`",
+   "where": "row label on the General page of Settings, a few words, sentence case, keep the `$` sign without backticks",
+   "text": "When $name is both"
+  },
+  {
+   "wants": "what that setting is: what $name starts in a chat where a native skill and a flow share the name",
+   "where": "one line under the row label, sentence case, no full stop, write $name without backticks",
+   "text": "What $name starts in a chat where a native skill and a flow share the name"
+  },
+  {
+   "wants": "what the value `native` of that setting means: the harness's own skill of that name runs",
+   "where": "a few words beside the value in a dropped-down list, sentence case, no full stop",
+   "text": "The harness's own skill of that name runs"
+  },
+  {
+   "wants": "what the value `flow` of that setting means: the flow of that name starts, and the skill stays `$` in the harness",
+   "where": "a few words beside the value in a dropped-down list, sentence case, no full stop, write $ without backticks",
+   "text": "The flow of that name starts, and the skill stays $ in the harness"
+  },
+  {
+   "wants": "what the setting Harness sessions does in the terminal interface: /resume in a chat lists the sessions each harness had of its own in this folder, to continue as chats",
+   "where": "one line under the row label, sentence case, no full stop, keep /resume as written without backticks",
+   "text": "/resume in a chat lists the sessions each harness had of its own in this folder, to continue as chats"
+  },
+  {
+   "wants": "label of the row that, opened, says what an error report includes and what it never includes",
+   "where": "row label on the General page of Settings, two or three words, sentence case",
+   "text": "What is sent"
+  },
+  {
+   "wants": "what that row is: what error reports include and what they leave out",
+   "where": "one line under the row label, sentence case, no full stop",
+   "text": "What error reports include and what they leave out"
+  },
+  {
+   "wants": "the two lists that row says once opened: what is sent, {sent}, and what is never sent, {kept}; each a list already written out",
+   "where": "two short sentences under the list of the General page, keep {sent} and {kept}, with full stops",
+   "text": "Sent: {sent}. Never sent: {kept}."
+  },
+  {
+   "wants": "what the System switch of Notifications does in a terminal: the terminal shows a system notification while it is not the window in front, and rings its bell where it shows none",
+   "where": "one line under the row label System on the Notifications page, sentence case, no full stop",
+   "text": "Shows a system notification while the terminal is not in front, or rings the bell where it cannot"
+  },
+  {
+   "wants": "label of the workspace setting that is the agent a new chat in this folder talks to",
+   "where": "row label on the Workspace page of Settings, two words, sentence case",
+   "text": "Default agent"
+  },
+  {
+   "wants": "what that setting is: the agent a new chat in this folder talks to",
+   "where": "one line under the row label, sentence case, no full stop",
+   "text": "The agent a new chat in this folder talks to"
+  },
+  {
+   "wants": "when a held change lands: it takes effect the next time hmz is launched",
+   "where": "a few words beside a held setting, lower case, no full stop",
+   "text": "on next launch"
+  },
+  {
+   "wants": "when a held change lands: it takes effect in the next chat",
+   "where": "a few words beside a held setting, lower case, no full stop",
+   "text": "in the next chat"
+  },
+  {
+   "wants": "a setting called {name} could not be saved, and why: {why}",
+   "where": "one line in the transcript after Settings closes, keep {name} and {why}, no full stop",
+   "text": "Could not save {name}: {why}"
+  },
+  {
+   "wants": "the scope of the Usage page that is this folder alone, beside the page's own 'Every folder'",
+   "where": "a value in a dropped-down list, two words, sentence case",
+   "text": "This folder"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

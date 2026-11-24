@@ -233,8 +233,12 @@ class Shell:
 
             if not isinstance(made, Screen):
                 raise TypeError(f"the page {name!r} is not a screen")
-            self._pages[name] = made
-            await self._app.push_screen(cast("Screen[None]", made))
+            # A page's key is bound over everything, the page itself included: pressed on
+            # the page it opens, or on anything opened from it, it is not opened again.
+            page = cast("Screen[None]", made)
+            if not any(type(one) is type(page) for one in self._app.screen_stack):
+                self._pages[name] = made
+                await self._app.push_screen(page)
         else:
             await self.zone(view.zone).shows(view, made, keys=keys)
         self.hints()

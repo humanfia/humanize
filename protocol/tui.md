@@ -95,6 +95,11 @@ It is normative. It is cited by the tag [TUI].
 - [30. Environment panes](#30-environment-panes)
 - [31. Flows page and transfers](#31-flows-page-and-transfers)
 - [32. Settings: App and Daemon](#32-settings-app-and-daemon)
+  - [32.1. Groups](#321-groups)
+  - [32.2. Themes](#322-themes)
+  - [32.3. Language](#323-language)
+  - [32.4. Telling the system](#324-telling-the-system)
+  - [32.5. What is kept](#325-what-is-kept)
 - [33. Monitor, Exomyth and sheets in humanfia](#33-monitor-exomyth-and-sheets-in-humanfia)
 - [34. Security Considerations](#34-security-considerations)
 - [35. References](#35-references)
@@ -1252,11 +1257,12 @@ Humanize recorded for one (Section 17.2.3).
 
 ### 19.1. Landing screen
 
-**19.1.1** `/settings` MUST be one menu of nine pages, in this order: General, Notifications,
-Daemons, Accounts, Nous, Runtimes, Backup, Workspace, Usage.
+**19.1.1** `/settings` MUST be one menu of eleven pages in three groups, in this order: under
+**App**, Themes, Daemons, Notifications, Language; under **Daemon**, General, Accounts, Nous,
+Runtimes, Backup, Usage; under **Workspace**, Workspace (Section 32.1).
 
-**19.1.2** The landing screen MUST show one card per page with a summary of it, and `● unsaved` on
-each card whose page holds a change.
+**19.1.2** The landing screen MUST show each group's name over its pages, one card per page with a
+summary of it, and `■ Unsaved` on each card whose page holds a change.
 
 **19.1.3** `enter` or a click on a card MUST open its page; `esc`, `←` or `backspace` on a page MUST
 return to the landing screen with the cursor on that page's card.
@@ -1291,13 +1297,13 @@ transcript; details off MUST show the agents' answers only.
 ### 19.4. Notifications
 
 **19.4.1** The Notifications page MUST offer, each on or off, the kinds Done, Failed, Stopped,
-Questions and Waiting, and **System**, whether the terminal's bell rings and a system
-notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
-its own (Section 3.15 of [WEB]).
+Questions and Waiting, and **System**, whether the system is told of a notice too (Section 32.4),
+kept in the settings file (Section 3.4.5 of [FILES]); the page keeps its own (Section 3.15 of
+[WEB]).
 
 **19.4.2** For every epic and every chat of Local and of every remote daemon that is `up`, the
 interface MUST show each notice of a kind turned on (Section 10 of [CORE]) as a card that goes after
-a while, and, with **System** on, MUST ring the bell and show a system notification.
+a while, and, with **System** on, MUST tell the system as Section 32.4 specifies.
 
 **19.4.3** The interface MUST NOT give a notice of an epic of this directory while its log or the
 monitor is on the screen, nor of the chat on the screen, which a notice names by `chat` where
@@ -1902,7 +1908,98 @@ This section is reserved for the Flows page and the Download, Import and Export 
 
 ## 32. Settings: App and Daemon
 
-This section is reserved for the grouping of `/settings` into App and Daemon pages, and the Themes, Language and Notifications pages. It states no requirement yet: the change that adds them writes this section, and no other, in the same change.
+### 32.1. Groups
+
+**32.1.1** The pages of `/settings` MUST stand in the groups the web interface's Settings has them
+in (Section 3.11 of [WEB]): **App**, what is kept on this machine for the person at it; **Daemon**,
+what the daemon keeps; and **Workspace**, the page of the directory `hmz` was started in.
+
+**32.1.2** A group's name MUST be a heading the cursor steps over, drawn in capitals and ruled to
+the far edge.
+
+**32.1.3** `/settings <page>` (Section 7.13.2) MUST also take `themes` and `language`.
+
+**32.1.4** `f2` MUST be the key of the _Settings_ view, a page (Section 25.1.2) that is `/settings`
+on its landing screen and whose hint is `settings`. `f2` pressed while `/settings` is open, or
+anything opened from it is, MUST NOT open it again.
+
+**32.1.5** The Themes and Language pages MUST hold nothing: what is chosen on them MUST be kept at
+once, MUST NOT mark a card `■ Unsaved`, and MUST NOT be asked about on leaving.
+
+### 32.2. Themes
+
+**32.2.1** The Themes page MUST list, under **Appearance**, Auto, Light, Dark and Terminal, and
+under **Presets**, every preset of the web interface (Section 3.12 of [WEB]) by the name it has
+there, each with a sample of it in its own colours, and MUST mark the appearance and the preset in
+use.
+
+**32.2.2** The interface MUST have, for every preset, a light theme and a dark theme named
+`<preset>-light` and `<preset>-dark`, whose colours are the ones the web interface draws that
+preset in, and which obey Section 25.3.2 with the preset's accent for cyan, its highlight for pink
+and its brand colour for green; the preset Humanize Green MUST be `humanfia-light` and
+`humanfia-dark`.
+
+**32.2.3** Auto MUST draw the light side of the preset in use where `COLORFGBG` says the terminal's
+background is light and its dark side otherwise; Light and Dark MUST draw that side; Terminal MUST
+draw the theme `terminal` whatever the preset in use.
+
+**32.2.4** While the cursor is on a row of the Themes page, the whole interface MUST be drawn as
+it would be were that row chosen. `enter` on the row MUST keep it; leaving the page or the menu
+MUST draw the interface as kept. Opening the page MUST put the cursor on the preset in use, or
+on Terminal where that is the appearance in use.
+
+**32.2.5** Choosing a preset while Terminal is the appearance in use MUST set the appearance to
+Auto.
+
+**32.2.6** Where `TEXTUAL_THEME` names a theme, and otherwise where `NO_COLOR` is set, that
+variable MUST decide the theme (Section 3): the page MUST say which variable is set, MUST NOT
+redraw the interface as the cursor moves, and MUST still keep what is chosen.
+
+### 32.3. Language
+
+**32.3.1** The Language page MUST list System, and English, 简体中文 and 繁體中文, each by the name
+it calls itself, and MUST mark the one in use.
+
+**32.3.2** System MUST be the language of the first of `LC_ALL`, `LC_MESSAGES` and `LANG` that is
+set: Traditional Chinese for a Chinese locale of Taiwan, Hong Kong or Macao or one naming `Hant`,
+Simplified Chinese for any other Chinese locale, and English otherwise.
+
+**32.3.3** While the cursor is on a row of the Language page, the menu MUST be drawn in that row's
+language; `enter` MUST keep it; leaving the page or the menu MUST go back to the language kept.
+
+**32.3.4** The language kept MUST be in effect before the interface first draws, and for every
+view and menu drawn after it is chosen (Section 25.5.2). What a daemon, a flow or an agent wrote
+MUST stay as written.
+
+### 32.4. Telling the system
+
+**32.4.1** With **System** on (Section 19.4.1), the interface MUST tell the system of each notice it
+shows a card for, by writing to the terminal: OSC 777 (`notify`, a title and a body) to a terminal
+that takes it -- one that sets `VTE_VERSION`, or whose `TERM` starts with `rxvt` or `foot`; OSC 9 to
+a terminal known to show it as a system notification -- iTerm2, Ghostty, WezTerm, kitty, Warp and
+Windows Terminal; and to any other terminal, and to any inside tmux or screen (`TMUX` or `STY`
+set, or a `TERM` starting with `tmux` or `screen`), the bell followed by OSC 9.
+
+**32.4.2** The interface MUST NOT write more than one of OSC 777 and OSC 9 for one notice.
+
+**32.4.3** Where the terminal has reported whether it has the focus, the interface MUST NOT tell
+the system of a notice while the terminal has it. A terminal that has reported nothing MUST be
+told every notice.
+
+**32.4.4** Every control character of what is written between the sequence's introducer and its
+terminator MUST be replaced by a space.
+
+### 32.5. What is kept
+
+**32.5.1** The preset, the appearance and the language MUST be kept under `tui` in the settings
+file, as `theme` (a preset's key, `humanize` by default), `appearance` (`auto`, `light`, `dark` or
+`terminal`; `auto` by default) and `language` (`en`, `zh-Hans`, `zh-Hant`, or empty for System, the
+default), which every other key of that file, and of `tui`, is left beside (Section 3.3.2.4 of [FILES]).
+
+**32.5.2** A value of any of the three that is none of those MUST be read as its default.
+
+**32.5.3** Where the settings file cannot be written, the interface MUST keep what was chosen for
+as long as it runs and MUST NOT report an error.
 
 ## 33. Monitor, Exomyth and sheets in humanfia
 

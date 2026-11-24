@@ -96,7 +96,7 @@ async def test_a_half_typed_command_is_offered_and_tab_takes_it(
 
         await pilot.press("tab")
 
-        drawn = await shows(pilot, "❯ /settings", "workspace")
+        drawn = await shows(pilot, "❯ /settings", "themes")
         assert "general" in drawn  # and now its pages are offered
 
 

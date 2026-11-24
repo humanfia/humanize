@@ -62,26 +62,34 @@ async def into_settings(pilot: Pilot[None], page: str = "") -> Adjusts:
     return await on(pilot, Adjusts)
 
 
-async def test_settings_opens_on_its_seven_pages_and_esc_closes_it(
+async def test_settings_opens_on_its_pages_in_their_groups_and_esc_closes_it(
     workspace: Path,
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await into_settings(pilot)
 
-        assert rows(app) == list(PAGES)
-        await shows(
+        # A card per page, in the order they are named; a heading is no page.
+        assert [row for row in rows(app) if row != "None"] == list(PAGES)
+        drawn = await shows(
             pilot,
-            "General",
-            "Notifications",
+            "APP",
+            "Themes",
             "Daemons",
+            "Notifications",
+            "Language",
+            "DAEMON",
+            "General",
             "Accounts",
             "Nous",
             "Runtimes",
             "Backup",
-            "Workspace",
             "Usage",
+            "WORKSPACE",
         )
+        # What is this person's stands over what the daemon keeps, and the folder is last.
+        assert drawn.index("APP") < drawn.index("Themes") < drawn.index("DAEMON")
+        assert drawn.index("DAEMON") < drawn.index("General") < drawn.index("WORKSPACE")
 
         await pilot.press("escape")
         await shows(pilot, f"◉ {RUNS}")
@@ -93,9 +101,9 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "this machine: what epics show, chat $, error reports")
+        await shows(pilot, "Display and reporting", "Details Off")
         await opens(pilot, "general")
-        drawn = await shows(pilot, "show every tool call and all of the thinking")
+        drawn = await shows(pilot, "Tool calls and thinking")
         # Her nous is the one last used, which `/ai` asks: nothing here sets it.
         assert "Ai-chan" not in drawn
 
@@ -108,7 +116,7 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
 
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "details on")
+        await shows(pilot, "Details On")
 
 
 async def test_a_change_discarded_on_the_way_out_is_not_written(
@@ -131,7 +139,7 @@ async def test_what_dollar_prefers_in_a_chat_is_saved_for_this_machine(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "general")
-        await shows(pilot, "Chat prefers for $")
+        await shows(pilot, "When $name is both", "What $name starts in a chat")
 
         await picks(pilot, "prefer", "flow")
         await shows(pilot, "unsaved changes")
@@ -145,7 +153,11 @@ async def test_listing_harness_sessions_is_saved_for_this_machine(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "general")
-        await shows(pilot, "Harness sessions", "to continue as chats")
+        await shows(
+            pilot,
+            "Harness sessions",
+            "/resume in a chat lists the sessions each harness had of its own",
+        )
 
         await picks(pilot, "harness_sessions", "on")
         await shows(pilot, "unsaved changes")
@@ -159,7 +171,9 @@ async def test_the_chat_agent_set_up_on_the_workspace_page_is_remembered_there(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "workspace")
-        await shows(pilot, "Chat agent", "the agent a new chat here talks to")
+        await shows(
+            pilot, "Default agent", "The agent a new chat in this folder talks to"
+        )
 
         await opens(pilot, "chat-agent")
         await on(pilot, Agent)
@@ -218,7 +232,7 @@ async def test_a_page_named_on_the_command_opens_on_that_page(workspace: Path) -
         await shows(
             pilot,
             trail("/settings", "Workspace"),
-            f"What {workspace.parent.name}/workspace remembers",
+            f"{workspace.parent.name}/workspace · What this folder was last set up",
         )
 
 
@@ -233,7 +247,7 @@ async def test_a_page_that_is_not_one_is_said_so(workspace: Path) -> None:
 async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "0 accounts", "0 machines")
+        await shows(pilot, "0 accounts", "0 runtimes", "1 daemon", "0 targets")
 
         await opens(pilot, "accounts")
         await shows(pilot, "no accounts yet", "Add an account")
@@ -359,19 +373,24 @@ async def test_usage_says_what_the_epics_spent_by_day_and_by_flow(
             epic.write("usage", cost=cost, output_tokens=2000, seconds=90)
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "last 30 days")
+        await shows(pilot, "30d")
         await opens(pilot, "usage")
 
-        await shows(pilot, "$2.00", "2 epics · 4.0k output tokens", "By day", "75%")
         await shows(
-            pilot, "chat", "ralph", "1 epic · 2.0k output tokens · worked 1m30s"
+            pilot, "$2.00", "over 2 epics · 4.0k output tokens", "COST BY DAY", "75%"
+        )
+        await shows(
+            pilot,
+            "chat",
+            "ralph",
+            "over 1 epic · 2.0k output tokens · 1m30s agent time",
         )
 
-        await picks(pilot, "scope", "every directory")
-        await shows(pilot, "$4.00", "3 epics")
-        await picks(pilot, "range", "7 days")
-        await shows(pilot, "7 days", "$4.00")
+        await picks(pilot, "scope", "every")
+        await shows(pilot, "Every folder", "$4.00", "over 3 epics")
+        await picks(pilot, "range", "7")
+        await shows(pilot, "7d", "$4.00")
         await pilot.press("escape")
-        await shows(pilot, "$4.00 in 7 days")
+        await shows(pilot, "$4.00 · 7d")
         await pilot.press("escape")
         await shows(pilot, f"◉ {RUNS}")
