@@ -50,7 +50,7 @@ if [ ! -f "$kernel" ]; then
   work=$(mktemp -d "${TMPDIR:-/tmp}/hmz-landlock-kernel.XXXXXX")
   trap 'rm -rf "$work"' EXIT
   archive=$work/linux-$version.tar.xz
-  curl --fail --location --retry 3 --max-time 10m --proto '=https' --tlsv1.2 \
+  curl --fail --location --retry 3 --max-time 600 --proto '=https' --tlsv1.2 \
     --output "$archive" \
     "https://cdn.kernel.org/pub/linux/kernel/v${version%%.*}.x/linux-$version.tar.xz"
   echo "$digest  $archive" | sha256sum --check --status \
