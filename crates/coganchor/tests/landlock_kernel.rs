@@ -20,6 +20,7 @@ mod linux {
     use std::io::{self, Read, Write};
     use std::net::{TcpListener, TcpStream, UdpSocket};
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::path::Path;
     use std::process::{Child, Command, Stdio};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -67,7 +68,9 @@ mod linux {
         let outside = root.path().join("outside");
         fs::create_dir(&inside).expect("an inside directory");
         fs::create_dir(&outside).expect("an outside directory");
-        let policy = policy(&inside, true, &[]);
+        fs::write(inside.join("readable"), b"inside").expect("a readable file inside");
+        fs::write(outside.join("kept"), b"outside").expect("a file outside");
+        let policy = policy_with_deny(&inside, true, &[], &[&outside]);
         let done = fenced(&policy)
             .args(["path"])
             .arg(&inside)
@@ -165,9 +168,21 @@ mod linux {
     }
 
     fn child_path(inside: &str, outside: &str) -> Result<(), String> {
-        fs::write(std::path::Path::new(inside).join("written"), b"inside")
+        let inside = Path::new(inside);
+        let outside = Path::new(outside);
+        match fs::read(inside.join("readable")) {
+            Ok(said) if said.as_slice() == b"inside" => {}
+            Ok(said) => return Err(format!("the inside file held {said:?}")),
+            Err(why) => return Err(format!("read inside: {why}")),
+        }
+        fs::write(inside.join("written"), b"inside")
             .map_err(|why| format!("write inside: {why}"))?;
-        match fs::write(std::path::Path::new(outside).join("written"), b"outside") {
+        match fs::read(outside.join("kept")) {
+            Err(why) if why.kind() == io::ErrorKind::PermissionDenied => {}
+            Err(why) => return Err(format!("read outside failed with {why}")),
+            Ok(_) => return Err("the fence allowed a read outside".into()),
+        }
+        match fs::write(outside.join("written"), b"outside") {
             Err(why) if why.kind() == io::ErrorKind::PermissionDenied => Ok(()),
             Err(why) => Err(format!(
                 "write outside failed with {why}, not permission denied"
@@ -269,11 +284,19 @@ mod linux {
     }
 
     fn policy(write: &std::path::Path, online: bool, listen: &[u16]) -> String {
+        policy_with_deny(write, online, listen, &[])
+    }
+
+    fn policy_with_deny(write: &Path, online: bool, listen: &[u16], deny: &[&Path]) -> String {
+        let deny = deny
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
         json!({
             "read": ["/"],
             "write": [write],
             "keep": [],
-            "deny": [],
+            "deny": deny,
             "online": online,
             "hosts": [],
             "tmp": "",

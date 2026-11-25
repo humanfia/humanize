@@ -434,17 +434,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: crates/coganchor
-          shared-key: coganchor
-          save-if: false
-
       - name: Install QEMU, kernel build dependencies and BusyBox
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            bc bison build-essential busybox-static cpio curl file flex libelf-dev \
+            bc bison build-essential busybox-static cpio curl file flex jq libelf-dev \
             libssl-dev make musl-tools qemu-system-x86 xz-utils
           rustup target add x86_64-unknown-linux-musl
 
