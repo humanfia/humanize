@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+
+export PATH=/bin
+
+mount -t devtmpfs devtmpfs /dev
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+ip link set lo up
+mkdir -p /tmp/home
+chmod 1777 /tmp
+chown 1000:1000 /tmp /tmp/home
+echo 1 >/proc/sys/kernel/yama/ptrace_scope
+
+. /test/env
+su matrix -c /test/landlock_kernel
+status=$?
+if [ "$status" -eq 0 ]; then
+  echo "LANDLOCK-MATRIX RUN PASS kernel=$HMZ_LANDLOCK_KERNEL ABI=$HMZ_LANDLOCK_MATRIX_ABI"
+else
+  echo "LANDLOCK-MATRIX RUN FAIL kernel=$HMZ_LANDLOCK_KERNEL ABI=$HMZ_LANDLOCK_MATRIX_ABI status=$status"
+fi
+
+reboot -f

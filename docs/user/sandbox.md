@@ -42,7 +42,7 @@ Run `hmz exec` to see the same turn printed in the terminal. This project flow h
 | System | Backend | Needs |
 | --- | --- | --- |
 | macOS | Seatbelt | Humanize must not itself run inside another sandbox |
-| Linux | Landlock, with seccomp | kernel 5.13 or later with Landlock enabled; kernel 6.7 or later to cut the network |
+| Linux | Landlock, with seccomp | kernel 5.13 or later with Landlock enabled; kernel 6.7 or later to cut the network; kernel 6.12 or later to scope signals and abstract Unix sockets |
 | Linux | bubblewrap | a `bwrap` program that starts on this machine |
 
 On Linux, Humanize uses Landlock when it can enforce the permission, and bubblewrap otherwise.
@@ -115,7 +115,11 @@ Projects can configure their CLI to start programs like hooks, MCP servers, plug
 
 ## Good to know
 
-- The fence does not block connections to Unix sockets (like a container daemon or session bus) or macOS Mach services. An agent can ask those listening processes to act on its behalf.
+- A process can connect to a Unix socket reached by its path, such as a container daemon or
+  session bus, and macOS processes can reach Mach services. An agent can ask those listening
+  processes to act on its behalf. On Linux before kernel 6.12 (Landlock ABI 6), it can also
+  signal processes outside its fence and reach their abstract Unix sockets; from 6.12, those
+  two remain inside the fenced process tree.
 - A refused session fails with `HarnessSandboxed` and names what the machine lacks. Humanize never retries it on the same nous. A turn where the CLI itself is blocked from a required host fails as `fenced`.
 - On Linux, bubblewrap requires any denied path under a wider rule to already exist, or the session is refused.
 - Inside a container that forbids process tracing, or when Yama's `ptrace_scope` is 2 or 3, Landlock cannot cut the network. Bubblewrap can.

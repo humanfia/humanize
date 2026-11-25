@@ -186,6 +186,7 @@ and **`title`**.
 | `tests (<os>)` | on Linux and macOS: `coganchor` built, then `tests/unit/<package>` a package at a time, `tests/integration/test_<topic>_*.py` a topic at a time, and the page's `node --test` | that package, or what that topic's tests import |
 | `vendor` | `src/hmz/web/static/vendor/` is what `src/hmz/web/vendor/` builds, byte for byte | either, or `ci.yml` |
 | `coganchor (<os>)` | `cargo fmt`, `clippy`, `test` on Linux and macOS, and a static musl build on Linux | `crates/coganchor/` |
+| `landlock (<kernel>)` | the real Landlock ABI and its path, TCP, signal and abstract Unix socket behaviour in QEMU, on Linux 5.15, 6.8, 6.10 and 6.12 | `crates/coganchor/` |
 | `desktop`, `desktop-windows` | `cargo fmt`, `clippy`, `test` and an unoptimised build of the app | `desktop/` or `src/hmz/web/static/` |
 
 The `changes` job decides what runs, from the filters written in `ci.yml`. `pyproject.toml`,
