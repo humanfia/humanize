@@ -38,6 +38,7 @@ file "$busybox" | grep -q 'statically linked' \
 command -v "$qemu" >/dev/null
 command -v cpio >/dev/null
 command -v gzip >/dev/null
+command -v jq >/dev/null
 command -v sha256sum >/dev/null
 command -v tar >/dev/null
 
@@ -79,13 +80,29 @@ if [ ! -f "$kernel" ]; then
   trap - EXIT
 fi
 
-(
+build_log=$(mktemp "${TMPDIR:-/tmp}/hmz-landlock-cargo.XXXXXX")
+trap 'rm -f "$build_log"' EXIT
+if ! (
   cd "$here"
-  cargo test --locked --target "$target" --test landlock_kernel --no-run
-)
-test_binary=$(find "$here/target/$target/debug" -type f \
-  -name 'landlock_kernel-*' -perm -u+x | head -n 1)
-[ -n "$test_binary" ] || { echo "the Landlock test executable is missing" >&2; exit 1; }
+  cargo test --locked --target "$target" --test landlock_kernel --no-run \
+    --message-format=json-render-diagnostics
+) >"$build_log"; then
+  cat "$build_log" >&2
+  exit 1
+fi
+test_binary=$(jq -r '
+  select(.reason == "compiler-artifact" and
+    .target.name == "landlock_kernel" and
+    .executable != null) |
+  .executable
+' "$build_log" | tail -n 1)
+rm -f "$build_log"
+trap - EXIT
+if [[ -n "$test_binary" && "$test_binary" != /* ]]; then
+  test_binary=$here/$test_binary
+fi
+[ -n "$test_binary" ] && [ -x "$test_binary" ] \
+  || { echo "the Landlock test executable is missing" >&2; exit 1; }
 coganchor=$here/target/$target/debug/coganchor
 [ -f "$coganchor" ] || { echo "the static coganchor is missing" >&2; exit 1; }
 
