@@ -8,6 +8,7 @@ import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrt
 import { fromBase64, toBase64 } from './rpc/pipe.js'
 import { routeKind } from './rpc/routes.js'
 import { t } from './i18n.js'
+import { nextStep, unreached } from './unreached.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
 const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
@@ -110,6 +111,8 @@ export class Refused extends Error {
 
 /** Every daemon reached, by name. */
 const clients = new Map()
+/** What each daemon reached was reached by, by name: its kind says what to check when it fails. */
+const entries = new Map()
 /** Who is told each change of any daemon's state. */
 const stateWatchers = new Set()
 /**
@@ -130,6 +133,7 @@ export async function client(name = daemon()) {
   const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
   if (!entry) throw new Refused(t('There is no daemon {name}.', { name }), ERRORS.NOT_FOUND)
   if (clients.has(name)) return clients.get(name)
+  entries.set(name, entry)
   const made = connect(entry, providers, {
     client: CLIENT,
     // An id answered over a trusted route is pinned from then on (Section 3.8.2.7 of protocol/daemon.md).
@@ -217,6 +221,12 @@ export function kindOf(entry) {
   return CARRIERS[kind] || kind || ''
 }
 
+/** What to do about a daemon that cannot be reached, by how it was reached and where the page is shown. */
+export function nextFor(name) {
+  const entry = entries.get(name)
+  return nextStep(name, { kind: entry && name !== 'local' ? kindOf(entry) : '', desktop: DESKTOP })
+}
+
 /** What each kind of route a remote daemon is first reached over is called. */
 const CARRIERS = { 'stdio:ssh': 'SSH', easytier: 'EasyTier', tcp: 'TCP', ws: 'WebSocket', relay: 'Relay', webrtc: 'WebRTC' }
 
@@ -235,17 +245,17 @@ export async function pair(name, code, first, ice = []) {
   }
 }
 
-/** How a daemon is reached, as a failure to reach it says it. */
-const STATES = { idle: t('idle@@link'), connecting: t('connecting'), asking: t('asking@@link'), installing: t('installing'), up: t('up'), failed: t('failed') }
-
-/** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
+/**
+ * A failure, said as the page says it: a refusal keeps its words; a daemon that cannot be
+ * reached -- a remote one, or Local while it is not up -- says so in one sentence, and is marked
+ * `unreached` so that where the page offers to reach it again it can say what to do next.
+ */
 function refused(error, name) {
   if (error instanceof Refused) return error
   if (error instanceof RpcError) {
-    if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
-      const { state: now, detail } = stateOf(name)
-      const state = Object.hasOwn(STATES, now) ? STATES[now] : now
-      return new Refused(detail ? t('{name} is unavailable, {state}: {detail}', { name, state, detail }) : t('{name} is unavailable, {state}.', { name, state }), error.code, error.data)
+    const { state, detail } = stateOf(name)
+    if (error.code === ERRORS.UNAVAILABLE && (name !== 'local' || state !== 'up')) {
+      return Object.assign(new Refused(unreached(name, state, detail || error.message), error.code, error.data), { unreached: true })
     }
     return new Refused(error.message, error.code, error.data)
   }

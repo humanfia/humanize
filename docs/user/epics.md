@@ -54,6 +54,16 @@ If a required role is empty (`Pick an agent for reviewer.`) or no limit is set (
 
 If no flow is installed, the page shows `No flow installed yet.` and a button for **Open Flows**.
 
+### Your first epic {#first-epic}
+
+Humanize ships no flow. On a new machine, under **Open Flows**, the page shows **Your first epic**, three steps with the example flow, `ralph_loop`:
+
+1. Click **Install example**. It fetches the official [flowverse](/user/flows)'s index if it was never fetched, installs the flow and opens the form on it. If the install fails, the page says why beside the button.
+2. Set at least one limit under **Budget**, such as 10 minutes.
+3. Type the task in the bottom box and press <kbd>enter</kbd>.
+
+**Flows** with nothing installed links to the same steps through **New epic**, beside **Browse Flowverses**.
+
 ## In the terminal {#in-the-terminal}
 
 Type `/flow review_loop` in `hmz` and press <kbd>enter</kbd> to open the flow's setup page. Type plain `/flow` to list installed flows first.

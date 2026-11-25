@@ -180,6 +180,20 @@
   opacity: 1;
 }
 
+/* The daemon shown cannot be reached: why, what to do next, and the buttons that do it. */
+.side-unreached {
+  padding: 4px 8px;
+}
+
+.side-unreached .side-next {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
+
+.side-unreached .row {
+  margin: 8px 0 0;
+}
+
 /* ------------------------------------------------------------------------ A flow's epic */
 
 /* Two lines: its title where a chat's is, and under it its flow. */

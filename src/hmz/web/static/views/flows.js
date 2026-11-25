@@ -149,13 +149,19 @@ export function mount(root, { query }) {
     }
     const installed = Object.fromEntries(((verses && verses.installed) || []).map((one) => [one.flow, one]))
     const updates = Object.fromEntries(((verses && verses.updates) || []).map((one) => [one.flow, one]))
+    // None on offer: where a first one comes from -- the example, a step away on New epic, or a flowverse.
     if (!data.flows.length) {
       fill(
         list,
-        empty(
-          t('No flows installed yet.'),
-          t(' A flow is what an epic runs. Install one from a flowverse.'),
-          h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'flows-browse', onclick: browse }, t('Browse Flowverses')),
+        h(
+          'div',
+          { 'data-hmz': 'no-flows' },
+          empty(
+            t('No flows installed yet.'),
+            t(' A flow is what an epic runs. Install one from a flowverse.') + t(' Or start with the example: New epic installs it in a step.'),
+            h('a', { class: 'btn primary', href: hash('/new') }, t('New epic')),
+            h('button', { class: 'btn', type: 'button', 'data-hmz': 'flows-browse', onclick: browse }, t('Browse Flowverses')),
+          ),
         ),
       )
       return
