@@ -351,4 +351,9 @@ export default {
   'read-only@@preset': '唯讀',
   'workspace-write@@preset': '可寫入工作區',
   'danger-full-access@@preset': '完整存取',
+  'Check that hmz is installed where your login shell finds it, then press Connect.': '請確認 hmz 已安裝在登入 shell 找得到的位置，然後按「連線」。',
+  'Check that hmz web is still running, then press Connect. If it stopped, start it again and open the address it prints.': '請確認 hmz web 仍在執行，然後按「連線」。若它已停止，請重新啟動，並開啟它輸出的位址。',
+  'Check that ssh reaches its host from a terminal here without asking for anything, then press Connect.': '請確認在本機終端機裡 ssh 能直接連到它的主機、不會提示輸入任何內容，然後按「連線」。',
+  'Check that both machines name the same network secret and a node they both reach, then press Connect.': '請確認兩台機器填寫了相同的網路密鑰，以及雙方都連得到的節點，然後按「連線」。',
+  'Check that its machine is on and its daemon is listening, then press Connect.': '請確認它所在的機器已開機、常駐程式正在監聽，然後按「連線」。',
 }

@@ -202,4 +202,12 @@ export default {
   'exit {status}': '退出码 {status}',
   '{text} -- refused: {why}': '{text} -- 已拒绝：{why}',
   '{text} -- refused': '{text} -- 已拒绝',
+  ' Or start with the example: New epic installs it in a step.': '也可以从示例开始：在“新建史诗”里一步即可安装。',
+  'Install example': '安装示例',
+  'Your first epic': '你的第一个史诗',
+  'Humanize ships no flow. Start with the example, {flow}, in three steps:': 'Humanize 不自带流程。从示例 {flow} 开始，分三步：',
+  'Install the example flow from the official flowverse.': '从官方流程库安装示例流程。',
+  'Set a budget below: at least one limit, such as 10 minutes.': '在下方设置预算：至少一项限制，例如 10 分钟。',
+  'Describe the task in the box, and press Enter.': '在输入框中描述任务，然后按 Enter。',
+  'Or install another flow from {flowverses}.': '也可以从{flowverses}安装其他流程。',
 }

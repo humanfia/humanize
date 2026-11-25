@@ -351,4 +351,9 @@ export default {
   'read-only@@preset': '只读',
   'workspace-write@@preset': '可写工作区',
   'danger-full-access@@preset': '完全访问',
+  'Check that hmz is installed where your login shell finds it, then press Connect.': '请确认 hmz 已安装在登录 shell 能找到的位置，然后按“连接”。',
+  'Check that hmz web is still running, then press Connect. If it stopped, start it again and open the address it prints.': '请确认 hmz web 仍在运行，然后按“连接”。如果它已停止，请重新启动，并打开它输出的地址。',
+  'Check that ssh reaches its host from a terminal here without asking for anything, then press Connect.': '请确认在本机终端里 ssh 能直接连到它的主机、不会提示输入任何内容，然后按“连接”。',
+  'Check that both machines name the same network secret and a node they both reach, then press Connect.': '请确认两台机器填写了相同的网络密钥，以及双方都能连到的节点，然后按“连接”。',
+  'Check that its machine is on and its daemon is listening, then press Connect.': '请确认它所在的机器已开机、守护进程正在监听，然后按“连接”。',
 }

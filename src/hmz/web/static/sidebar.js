@@ -7,7 +7,7 @@
 // them, in one row, the daemon the page is of, how many epics are going on it and a picker of the
 // daemons, and the settings. A splitter on its right edge sizes it.
 
-import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
+import { call, daemon, exported, given, hash, hello, known, nextFor, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { t } from './i18n.js'
 import { warm } from './logged.js'
@@ -15,7 +15,7 @@ import { harnessName } from './names.js'
 import { pick } from './importing.js'
 import { chain } from './layers.js'
 import { copy, menuButton, menuOn, posted, toast } from './ui.js'
-import { ago, fill, flowName, h, headline, icon, iconButton, svg, tone, when } from './dom.js'
+import { acting, ago, fill, flowName, h, headline, icon, iconButton, problem, svg, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
@@ -257,7 +257,7 @@ export function mountSidebar(root, context, where) {
         asked = null
         loading = null
       }
-      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : t('Loading…')))
+      if (!data) fill(list, error ? failed(error) : h('p', { class: 'error', role: 'alert' }, t('Loading…')))
       else draw()
       // The latest of them are read ahead, behind everything else, to open at once.
       if (data && !waiting.size) warm(data.runs)
@@ -825,6 +825,28 @@ export function mountSidebar(root, context, where) {
     watch()
     watchPlaces()
   })
+}
+
+/**
+ * Why the epics of the daemon shown could not be read: a daemon that cannot be reached, said in
+ * the one sentence it is said in everywhere, with what to do next and the two things to do about
+ * it here -- reach it again, or manage the daemons -- or another refusal, as it was said.
+ */
+function failed(error) {
+  if (!error.unreached) return problem(error)
+  const name = daemon()
+  return h(
+    'div',
+    { class: 'side-unreached', 'data-hmz': 'unreached' },
+    problem(error),
+    h('p', { class: 'side-next', 'data-hmz': 'next' }, nextFor(name)),
+    h(
+      'p',
+      { class: 'row' },
+      acting(t('Connect'), () => reconnect(name).then(() => ['chat.list', 'runs.list'].forEach((one) => refresh(one))), { kind: 'btn small', busy: t('Connecting…') }),
+      h('a', { class: 'btn small quiet', href: hash('/settings/daemons') }, t('Manage')),
+    ),
+  )
 }
 
 /** The mark of a notice unread, on its chat or epic and on the folded workspace that lists it. */

@@ -2857,6 +2857,36 @@ details.fold[open] > summary {
   margin-top: var(--space-16);
 }
 
+/* A workspace with no flow on offer: how its first epic is started, a step at a time. */
+.first-use {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+}
+
+.first-use h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.first-use p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.first-use ol {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding-left: 1.4em;
+}
+
+.first-use li .confirm,
+.first-use li [data-hmz='installed'] {
+  margin-left: 8px;
+}
+
 /* Who fills a role and where an environment works, a step at a time. */
 .option-group {
   display: grid;

@@ -82,6 +82,18 @@ Each row displays **Name**, **Kind**, **Address** (the routes), and **State**. C
 | `up` | Connected. |
 | `failed` | Connection failed. Displays the reason. |
 
+### When a machine cannot be reached {#unreachable}
+
+Wherever the page asks a machine it cannot reach, it says so in one sentence, such as `Local is unavailable, failed: …` or `devbox is unavailable, connecting: …`: which machine, its state, and what reaching it said last. Where the sidebar cannot read that machine's chats and epics, it also says what to check, with **Connect** to try again and **Manage** to open **Settings > Daemons**.
+
+| Machine | What to check |
+| --- | --- |
+| Local, in a browser | `hmz web` is still running. If it stopped, start it again and open the address it prints. |
+| Local, in the [desktop app](/user/desktop) | `hmz` is installed where your login shell finds it. |
+| SSH | `ssh` reaches the host from a terminal here without prompting. |
+| EasyTier | Both machines use the same network secret and a node they both reach. |
+| Any other | The machine is on and its daemon is listening. |
+
 ### Edit routes
 
 Click **Edit** on a machine row to rename it or change its routes. Under **Routes** (or **More routes** for SSH and EasyTier), use **Add**, **Move up**, and **Remove** to order the routes, then click **Save**. Humanize tries routes in the listed order. A machine needs at least one route (`A daemon needs at least one route.`).

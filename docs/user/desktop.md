@@ -139,7 +139,7 @@ Every error screen includes a **Documentation** button that opens this page.
 
 ### Local cannot be reached on macOS
 
-On macOS, the app does not install `hmz`. If your login shell cannot find `hmz`, the page opens and shows `hmz is not installed on this machine.` under Local. [Install the CLI](/user/install), then quit the app and open it again.
+On macOS, the app does not install `hmz`. If your login shell cannot find `hmz`, the page opens and shows `Local is unavailable, failed: hmz is not installed on this machine.` [Install the CLI](/user/install), then quit the app and open it again.
 
 ### Read the log
 
