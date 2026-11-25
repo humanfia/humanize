@@ -1,4 +1,4 @@
-"""CI runs a topic when what its tests import changed, as `docs/contributing/ci.md` says.
+"""CI runs a topic when what its tests import changed, as `CONTRIBUTING.md` says.
 
 `.github/workflows/ci.yml`'s `changes` job lists, a topic at a time, the paths a change has to
 touch for `tests/integration/test_<topic>_*.py` to run. Read here against what those tests

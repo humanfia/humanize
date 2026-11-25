@@ -1,68 +1,86 @@
 // What Humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
 // down the side, in two groups. The app's own -- how this page is drawn, which daemons it
-// reaches and what it tells you of them -- are this browser's, or this machine's, whichever
-// daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
-// and what takes over when one fails, where their work goes, where epics are backed up, one
-// directory, and last what the runs there spent -- are read from and written to the daemon
-// picked above them, the one on screen unless another is, and each page that saves can copy
-// what it holds to other daemons at once.
+// reaches and which of them it shows, what it tells you of them and the language it is written
+// in -- are this browser's, or this machine's, whichever daemon is on screen. The daemon's --
+// what is true wherever Humanize runs, who its agents are and what takes over when one fails,
+// where their work goes, where epics are backed up, and last what all that ran there spent --
+// are read from and written to the daemon the page shows, which is said over them and picked
+// nowhere here but under `Daemons`; each page that saves can copy what it holds to other daemons
+// at once. What one folder was set up with is no page of this dialog: it is the folder's own,
+// opened from the sidebar (views/workspace.js).
 
 import { call, daemon, hash, known } from '../api.js'
-import { shut, stays } from '../app.js'
-import { fill, h, iconButton, problem } from '../dom.js'
+import { shut } from '../app.js'
+import { fill, h, icon, iconButton, problem } from '../dom.js'
+import { t } from '../i18n.js'
+import { modal } from '../layers.js'
 import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it, in its group. */
 const PAGES = {
-  themes: { group: 'app', label: 'Themes', about: 'Colours and pictures of this browser’s page', load: () => import('./settings/themes.js') },
-  daemons: { group: 'app', label: 'Daemons', about: 'Machines this page reaches', load: () => import('./settings/daemons.js') },
-  notifications: { group: 'app', label: 'Notifications', about: 'What every daemon tells you', load: () => import('./settings/notifications.js') },
-  general: { group: 'daemon', label: 'General', about: 'Display, Ai-chan and reporting', load: () => import('./settings/general.js') },
-  accounts: { group: 'daemon', label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
-  nous: { group: 'daemon', label: 'Nous', about: 'Who takes a turn, and where it goes once it fails', load: () => import('./settings/nous.js') },
-  runtimes: { group: 'daemon', label: 'Runtimes', about: 'Machines environments run on', load: () => import('./settings/runtimes.js') },
-  backup: { group: 'daemon', label: 'Backup', about: 'Git repositories epics go to', load: () => import('./settings/backup.js') },
-  workspace: { group: 'daemon', label: 'Workspace', about: 'This directory’s saved setup', load: () => import('./settings/workspace.js') },
-  usage: { group: 'daemon', label: 'Usage', about: 'Spending by day and flow', load: () => import('./settings/usage.js') },
+  themes: { group: 'app', label: t('Themes'), about: t('Colours and pictures of this browser’s page'), load: () => import('./settings/themes.js') },
+  daemons: { group: 'app', label: t('Daemons'), about: t('Machines this page reaches, and the one it shows'), load: () => import('./settings/daemons.js') },
+  notifications: { group: 'app', label: t('Notifications'), about: t('What every daemon tells you'), load: () => import('./settings/notifications.js') },
+  language: { group: 'app', label: t('Language'), about: t('What this browser’s page is written in'), load: () => import('./settings/language.js') },
+  general: { group: 'daemon', label: t('General'), about: t('Display and reporting'), load: () => import('./settings/general.js') },
+  accounts: { group: 'daemon', label: t('Accounts'), about: t('Credentials agents run as'), load: () => import('./settings/accounts.js') },
+  nous: { group: 'daemon', label: t('Nous'), about: t('Who takes a turn, and where it goes once it fails'), load: () => import('./settings/nous.js') },
+  runtimes: { group: 'daemon', label: t('Runtimes'), about: t('Machines environments run on'), load: () => import('./settings/runtimes.js') },
+  backup: { group: 'daemon', label: t('Backup'), about: t('Git repositories epics go to'), load: () => import('./settings/backup.js') },
+  usage: { group: 'daemon', label: t('Usage'), about: t('What everything on this daemon spent, by day and flow'), load: () => import('./settings/usage.js') },
 }
 
 const GROUPS = [
-  ['app', 'App'],
-  ['daemon', 'Daemon'],
+  ['app', t('App')],
+  ['daemon', t('Daemon')],
 ]
 
 /** What a daemon is called on screen. */
-function called(one) {
-  return one.label || (one.name === 'local' ? 'Local' : one.name)
+export function called(one) {
+  return one.label || (one.name === 'local' ? t('Local') : one.name)
 }
 
-/** Every daemon this browser keeps: Local alone where none can be read. */
-async function daemons() {
-  return known().catch(() => [{ name: 'local' }])
+/**
+ * What a page reads, writes and copies with: the daemon the page shows, which is the only one a
+ * page is ever of, and the folder it is of where it is of one.
+ *
+ * @param {HTMLElement} root Where `Batch apply` draws its dialog.
+ * @param {string} [workspace] The folder, for a page of one (views/workspace.js).
+ */
+export function scopeOf(root, workspace = '') {
+  const on = daemon()
+  return {
+    name: on,
+    workspace,
+    call: (method, params = {}) => call(method, params, { on }),
+    batch: (calls, { off = '', small = true } = {}) => batchButton(root, on, calls, off, small),
+  }
 }
 
 export function mount(root, { parts, query }) {
   const name = parts[1] in PAGES ? parts[1] : 'general'
   const page = PAGES[name]
-  let body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
-  const links = {}
-  let chosen = query.get('daemon') || daemon()
-  const href = (key) => hash(`/settings/${key}${PAGES[key].group === 'daemon' && query.get('daemon') ? `?daemon=${encodeURIComponent(chosen)}` : ''}`)
+  const body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
+  let current = null
   const nav = h(
     'nav',
-    { class: 'settings-nav', 'aria-label': 'Settings pages' },
-    h('h2', {}, 'Settings'),
+    { class: 'settings-nav', 'aria-label': t('Settings pages') },
+    h('h2', {}, t('Settings')),
     GROUPS.map(([group, label]) => [
       h('h4', { class: 'settings-group' }, label),
       Object.entries(PAGES)
         .filter(([, one]) => one.group === group)
-        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null }, one.label))),
+        // The dialog opens on the page it shows: its link has the focus.
+        .map(([key, one]) => {
+          const link = h('a', { href: hash(`/settings/${key}`), 'aria-current': key === name ? 'page' : null, autofocus: key === name }, one.label)
+          if (key === name) current = link
+          return link
+        }),
     ]),
   )
-  const picker = h('select', { 'aria-label': 'Daemon', 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
-  const head = h('div', { class: 'settings-head' }, h('div', {}, h('h3', {}, page.label), h('p', { class: 'dim' }, page.about)), iconButton('close', 'Close', { onclick: shut }))
+  const head = h('div', { class: 'settings-head' }, h('div', {}, h('h3', {}, page.label), h('p', { class: 'dim' }, page.about)), iconButton('close', t('Close'), { onclick: shut }))
   root.classList.add('dialog-settings')
-  root.setAttribute('aria-label', 'Settings')
+  root.setAttribute('aria-label', t('Settings'))
   fill(
     root,
     // The top row of a narrow window, which it fills; on a wide one, a column inside it.
@@ -71,63 +89,22 @@ export function mount(root, { parts, query }) {
       'div',
       { class: 'settings-page' },
       head,
-      page.group === 'daemon' ? h('div', { class: 'settings-daemon' }, h('span', { class: 'label' }, 'Daemon'), picker) : null,
+      // Whose the page is, said and never picked: the daemon the whole page shows.
+      page.group === 'daemon' ? h('div', { class: 'settings-of', 'data-hmz': 'settings-of' }, icon('server'), h('span', { class: 'label' }, t('Daemon')), h('b', {}, called({ name: daemon() }))) : null,
       body,
     ),
   )
+  // In the middle of the strip the pages are across a narrow window.
+  current.scrollIntoView({ block: 'nearest', inline: 'center' })
 
-  let listed = [{ name: 'local' }]
   let leaving = null
   let gone = false
-  let drawn = 0
-
-  /** What every page on the daemon picked reads, writes and copies with. */
-  const scope = () => {
-    const on = chosen
-    return {
-      name: on,
-      call: (method, params = {}) => call(method, params, { on }),
-      // What a page puts in the address beside its own, so the daemon picked stays in it.
-      query: query.get('daemon') ? { daemon: chosen } : {},
-      batch: (calls, { off = '' } = {}) => batchButton(root, on, () => listed, calls, off),
-    }
-  }
-
-  const draw = () => {
-    const mine = ++drawn
-    if (leaving) leaving()
-    leaving = null
-    // A body of its own: what the last daemon's page reads late is drawn where nobody sees it.
-    const fresh = body.cloneNode(false)
-    body.replaceWith(fresh)
-    body = fresh
-    fill(fresh, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
-    page
-      .load()
-      .then((module) => {
-        if (!gone && mine === drawn) leaving = module.draw(fresh, query, parts, scope()) || null
-      })
-      .catch((error) => fill(fresh, problem(error)))
-  }
-
-  if (page.group === 'daemon') {
-    daemons().then((read) => {
-      if (gone) return
-      listed = read
-      if (!listed.some((one) => one.name === chosen)) listed = [...listed, { name: chosen }]
-      fill(picker, listed.map((one) => h('option', { value: one.name, selected: one.name === chosen }, called(one))))
+  page
+    .load()
+    .then((module) => {
+      if (!gone) leaving = module.draw(body, query, parts, scopeOf(root)) || null
     })
-    picker.addEventListener('change', () => {
-      chosen = picker.value
-      // Kept in the address, so that this daemon's page is one that can be kept; what the
-      // page said of the last daemon's directories says nothing of this one's.
-      query = new URLSearchParams({ daemon: chosen })
-      stays({ daemon: chosen })
-      for (const key of Object.keys(PAGES)) links[key].href = href(key)
-      draw()
-    })
-  }
-  draw()
+    .catch((error) => fill(body, problem(error)))
   return () => {
     gone = true
     if (leaving) leaving()
@@ -137,48 +114,42 @@ export function mount(root, { parts, query }) {
 
 /**
  * Copies what a page holds to other daemons: a dialog of every daemon but the one it came from,
- * ticked as they are wanted, and what each said once it was sent there.
+ * ticked as they are wanted, and what each said once it was sent there. The button is given in
+ * a group of its own, which stands at the end of a card's heading, after why it can do nothing
+ * where it cannot.
  *
  * @param {HTMLElement} root Where the dialog is drawn.
  * @param {string} from The daemon the page holds what it holds of.
- * @param {() => {name: string}[]} known Every daemon there is, as last read.
  * @param {(() => Array<[string, object]>) | null} calls What is called: each method and its params.
  * @param {string} off Why nothing can be, where nothing can.
+ * @param {boolean} small Whether the button is as small as a card's own are, not a form's.
  */
-function batchButton(root, from, known, calls, off) {
-  const button = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, 'Batch apply')
-  if (off) return h('span', { class: 'row' }, button, h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off))
-  button.addEventListener('click', () => {
-    const others = known().filter((one) => one.name !== from)
+function batchButton(root, from, calls, off, small) {
+  const button = h('button', { class: ['btn quiet', small && 'small'], type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, t('Batch apply'))
+  const group = h('span', { class: 'row' }, off ? h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off) : null, button)
+  if (off) return group
+  button.addEventListener('click', async () => {
+    // Every other daemon this browser keeps, read as it is asked for: none where none can be read.
+    const others = (await known().catch(() => [])).filter((one) => one.name !== from)
     const boxes = others.map((one) => ({ one, box: h('input', { type: 'checkbox', 'data-daemon': one.name }) }))
     const all = h('input', { type: 'checkbox', 'data-hmz': 'batch-all' })
     all.addEventListener('change', () => boxes.forEach(({ box }) => (box.checked = all.checked)))
     for (const { box } of boxes) box.addEventListener('change', () => (all.checked = boxes.every((each) => each.box.checked)))
     const results = h('ul', { class: 'batch-results', 'data-hmz': 'batch-results', 'aria-live': 'polite' })
-    const apply = h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'batch-go' }, 'Apply')
+    const apply = h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'batch-go' }, t('Apply'))
     const dialog = h(
       'dialog',
-      { class: 'batch-dialog', 'data-hmz': 'batch-dialog', 'aria-label': 'Batch apply' },
-      h('h3', {}, 'Batch apply'),
-      h('p', { class: 'dim' }, `From ${called({ name: from })}`),
+      { class: 'batch-dialog', 'data-hmz': 'batch-dialog', 'aria-label': t('Batch apply') },
+      h('h3', {}, t('Batch apply')),
+      h('p', { class: 'dim' }, t('From {name}', { name: called({ name: from }) })),
       others.length
-        ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, 'All')), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
-        : h('p', { class: 'dim' }, 'No other daemon.'),
+        ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, t('All'))), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
+        : h('p', { class: 'dim' }, t('No other daemon.')),
       results,
-      h('div', { class: 'row' }, others.length ? apply : null, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close')),
+      h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, t('Close')), others.length ? apply : null),
     )
-    // Escape closes this dialog, not Settings under it, wherever the focus is.
-    const escape = (event) => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      event.preventDefault()
-      dialog.close()
-    }
-    document.addEventListener('keydown', escape, true)
-    dialog.addEventListener('close', () => {
-      document.removeEventListener('keydown', escape, true)
-      dialog.remove()
-    })
+    // Closed, the button it was opened by has the focus back in every browser.
+    dialog.addEventListener('close', () => (dialog.remove(), button.focus()))
     apply.addEventListener('click', async () => {
       const picked = boxes.filter(({ box }) => box.checked).map(({ one }) => one)
       if (!picked.length) return
@@ -187,7 +158,7 @@ function batchButton(root, from, known, calls, off) {
       let sent
       try {
         sent = await calls()
-        if (!sent.length) throw new Error('Nothing to apply.')
+        if (!sent.length) throw new Error(t('Nothing to apply.'))
       } catch (error) {
         fill(results, h('li', {}, problem(error)))
         apply.disabled = false
@@ -195,11 +166,11 @@ function batchButton(root, from, known, calls, off) {
       }
       await Promise.all(
         picked.map(async (one) => {
-          const line = h('li', { 'data-hmz': 'batch-result', 'data-daemon': one.name }, h('b', {}, called(one)), ' ', h('span', { class: 'dim' }, 'Applying…'))
+          const line = h('li', { 'data-hmz': 'batch-result', 'data-daemon': one.name }, h('b', {}, called(one)), ' ', h('span', { class: 'dim' }, t('Applying…')))
           results.append(line)
           try {
             for (const [method, params] of sent) await call(method, params, { on: one.name })
-            fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'ok' }, 'Applied'))
+            fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'ok' }, t('Applied')))
             line.dataset.ok = 'true'
           } catch (error) {
             fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'bad' }, error.message))
@@ -210,7 +181,8 @@ function batchButton(root, from, known, calls, off) {
       apply.disabled = false
     })
     root.append(dialog)
-    dialog.showModal()
+    // Over Settings, which Escape and a press beside this one leave open.
+    modal(dialog)
   })
-  return button
+  return group
 }

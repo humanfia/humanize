@@ -71,6 +71,18 @@ def test_driver_of_nothing_anybody_drives(monkeypatch: pytest.MonkeyPatch) -> No
         driver("nobody")
 
 
+def test_driver_of_an_added_cli_written_wrong_says_why(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(name: str) -> str:
+        return f"clis.{name}: command must be a list"
+
+    monkeypatch.setattr(backends, "speaking", dict)
+    monkeypatch.setattr(backends, "broken", broken)
+    with pytest.raises(ValueError, match=r"clis\.mycli: command must be a list"):
+        driver("mycli")
+
+
 def test_all_is_what_the_package_has() -> None:
     assert len(set(agents.__all__)) == len(agents.__all__)
     for name in agents.__all__:

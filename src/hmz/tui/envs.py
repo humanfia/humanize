@@ -7,6 +7,13 @@ its git changes, grouped as a source-control view groups them, staged and commit
 list; its snapshots, rewound to; and a shell in it, which is this terminal handed over to a
 terminal in the environment until `~.` or the shell ending hands it back.
 
+The same three -- files, changes, terminal -- are panes too (:class:`FilesPane`,
+:class:`ChangesPane`, :class:`TerminalPane`): widgets that sit in a zone beside the log
+(`hmz.tui.views.envpanes`), so that what an agent says and what it changed are read side by
+side. A pane and its sheet ask the host the same things and read the answers with the same
+functions here; what differs is where they are drawn. A pane's terminal is drawn by a
+terminal emulator in the pane (:class:`Tty`) rather than handed the whole screen.
+
 What is said to the host is the `env.*` methods, made through the interface's own link with
 the epic's subscription: the same session the rest of the epic is reached through, so that a
 terminal's output -- which reaches only the frontend that opened it -- comes back here.
@@ -18,6 +25,7 @@ import asyncio
 import base64
 import contextlib
 import difflib
+import functools
 import os
 import posixpath
 import queue
@@ -30,22 +38,33 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Self, cast
 
+import pyte
+from rich.cells import cell_len
 from rich.markup import escape
+from rich.style import Style
 from rich.syntax import Syntax
+from rich.text import Text
 from textual import on
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
+from textual.widget import Widget
 from textual.widgets import Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
+from hmz.words import t
+
+from . import humanfia
 from .pick import Action, Form, Key, Popup, Question, Sheet, handed_over
+from .shell import Zone
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
+    from textual import events
     from textual.app import App, ComposeResult
     from textual.timer import Timer
 
@@ -54,7 +73,9 @@ __all__ = [
     "CHUNK",
     "LARGE",
     "PANELS",
+    "VIEWED",
     "Changes",
+    "ChangesPane",
     "Commit",
     "Conflict",
     "Credit",
@@ -64,14 +85,20 @@ __all__ = [
     "Envs",
     "Escape",
     "Files",
+    "FilesPane",
     "Inbox",
     "Matches",
     "Named",
     "Opens",
+    "Pane",
     "Reach",
     "Read",
     "Snapshots",
     "Sure",
+    "TerminalPane",
+    "Terminals",
+    "Tty",
+    "Viewing",
     "about",
     "bridge",
     "default_panel",
@@ -91,7 +118,7 @@ __all__ = [
 PANELS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("files", "Files", ("files",)),
     ("changes", "Changes", ("git", "git_worktree")),
-    ("shell", "Shell", ("shell",)),
+    ("shell", "Terminal", ("shell",)),
     ("snapshots", "Snapshots", ("rewind",)),
 )
 
@@ -100,6 +127,9 @@ CHUNK = 1024 * 1024
 
 #: How large a file is still edited here; a larger one is not opened in the editor.
 LARGE = 5 * 1024 * 1024
+
+#: How large a file is still read in a pane, which colours all of it at once.
+VIEWED = CHUNK
 
 #: How much terminal output is written out before it is acknowledged, so the host sends more.
 ACK_EVERY = 64 * 1024
@@ -474,6 +504,7 @@ class Reach:
         ask: Callable[[dict[str, Any]], dict[str, Any]],
         envs: Callable[[], Sequence[Mapping[str, Any]]],
         say: Callable[[str, str], object] = lambda _text, _style: None,
+        of: Callable[[], str] = lambda: "",
     ) -> None:
         """Holds how to reach the host.
 
@@ -482,11 +513,16 @@ class Reach:
             the refusal.
           envs: The environments as the host last said they stand.
           say: What puts a line on the interface's transcript, in a style.
+          of: The chat or epic the environments are of now, by its id, or "" for none.
         """
         self._ask = ask
         self._envs = envs
         self.say = say
+        self._of = of
+        #: The environment the panes of each chat or epic were last turned to, by its id.
+        self._turned: dict[str, str] = {}
         self._watchers: list[Callable[[], None]] = []
+        self._viewers: list[Viewing] = []
         self._bridged: Inbox | None = None
         self._credits: dict[str, Credit] = {}
         self._lock = threading.Lock()
@@ -506,6 +542,62 @@ class Reach:
     def envs(self) -> list[Mapping[str, Any]]:
         """The environments, as the host last said they stand."""
         return list(self._envs())
+
+    def desks(self, page: str) -> list[Desk]:
+        """The open environments that have one page, in the order `/env` lists them.
+
+        Args:
+          page: `files`, `changes`, `shell` or `snapshots`.
+
+        Returns:
+          Each as a pane works on it; none where no environment here has that page.
+        """
+        return [
+            Desk(one, self)
+            for _, one in tree(self.envs())
+            if one.get("open", True) and page in panels_of(one)
+        ]
+
+    def desk(self, page: str) -> Desk | None:
+        """The environment a pane of one page shows: the one turned to, else the first.
+
+        Args:
+          page: `files`, `changes`, `shell` or `snapshots`.
+
+        Returns:
+          It, or None where no open environment here has that page.
+        """
+        desks = self.desks(page)
+        turned = self._turned.get(self._of())
+        return next(
+            (one for one in desks if one.id == turned), desks[0] if desks else None
+        )
+
+    def turns(self, env: str) -> None:
+        """Turns the panes of the chat or epic in front to one environment, and remembers it.
+
+        Args:
+          env: The environment, by its id.
+        """
+        self._turned[self._of()] = env
+
+    def views(self, viewing: Viewing) -> Callable[[], None]:
+        """Hands a terminal's messages to a pane that draws it, until told not to.
+
+        Args:
+          viewing: Which terminal, and what takes its messages.
+
+        Returns:
+          What stops them being handed over.
+        """
+        with self._lock:
+            self._viewers.append(viewing)
+
+        def stops() -> None:
+            with self._lock, contextlib.suppress(ValueError):
+                self._viewers.remove(viewing)
+
+        return stops
 
     def watching(self, watcher: Callable[[], None]) -> Callable[[], None]:
         """Calls `watcher` whenever an environment may have changed, until told not to.
@@ -536,10 +628,13 @@ class Reach:
             self._bridged = inbox
 
     def told(self, message: Mapping[str, Any]) -> bool:
-        """Takes a terminal's message, which is the bridge's or, while there is none, nobody's.
+        """Takes a terminal's message: the bridge's, a pane's, or, with neither, nobody's.
 
         A terminal left running is still one this frontend watches, and the host stops it
         once its output goes unacknowledged; so what nobody is reading is acknowledged here.
+        A pane still opening a terminal is handed every terminal's, since a new shell's
+        prompt may be told before the answer saying which it is, and is told whether what
+        it is handed is acknowledged here already.
 
         Args:
           message: What the host told this frontend.
@@ -553,8 +648,15 @@ class Reach:
         term = str(message.get("term") or "")
         with self._lock:
             bridged = self._bridged
+            viewers = list(self._viewers)
         if bridged is not None and bridged.term in (term, ""):
             bridged.put(dict(message))
+            return True
+        drawn = any(one.term == term for one in viewers)
+        for one in viewers:
+            if one.term in (term, ""):
+                one.hears(dict(message), not drawn)
+        if drawn:
             return True
         if kind == "term_exit":
             self._credits.pop(term, None)
@@ -571,6 +673,28 @@ class Reach:
     def _acks(self, term: str, acked: int) -> None:
         with contextlib.suppress(Exception):
             self.ask("env.term.ack", {"term": term, "bytes": acked})
+
+
+class Viewing:
+    """One terminal as a pane draws it: which it is, and what is handed its messages.
+
+    Attributes:
+      term: The terminal, or "" while it is being opened, which takes any terminal's.
+      hears: What takes a message, on whatever thread it was told on, and whether the bytes
+        it carries are acknowledged to the host already.
+    """
+
+    def __init__(
+        self, hears: Callable[[dict[str, Any], bool], None], term: str = ""
+    ) -> None:
+        """Watches one terminal.
+
+        Args:
+          hears: What takes its messages.
+          term: The terminal, or "" for one still being opened.
+        """
+        self.hears = hears
+        self.term = term
 
 
 @dataclass
@@ -654,10 +778,16 @@ async def _read(desk: Desk, path: str, cap: int = LARGE) -> Read:
                 break
         if not moved:
             return Read(b"".join(chunks), etag, size, whole)
-    raise OSError(f"{path} kept changing while it was read")
+    raise OSError(t("{path} kept changing while it was being read", path=path))
 
 
 # -- The shell ----------------------------------------------------------------------------------
+
+
+class _Failed(str):
+    """How a shell ended, where it ended because the terminal or the host was lost."""
+
+    __slots__ = ()
 
 
 def bridge(
@@ -714,7 +844,9 @@ def bridge(
                         continue  # another terminal's, told while this one was opening
                     kind = message.get("type")
                     if kind == "term_exit":
-                        return f"exited with status {message.get('status')}"
+                        return t(
+                            "Exited with status {status}.", status=message.get("status")
+                        )
                     if kind != "term":
                         continue
                     data = _decoded(message.get("data"))
@@ -724,14 +856,14 @@ def bridge(
             if stdin in ready:
                 typed = os.read(stdin, 4096)
                 if not typed:
-                    return "left; it keeps running"
+                    return t("Left; it keeps running.")
                 sent, leaves = escape_.typed(typed)
                 if sent:
                     ask("env.term.input", {"term": term, "data": _encoded(sent)})
                 if leaves:
-                    return "left; it keeps running"
+                    return t("Left; it keeps running.")
     except Exception as why:  # noqa: BLE001 -- the terminal or the host gone, said
-        return f"ended: {why}"
+        return _Failed(t("Failed: {why}", why=why))
     finally:
         restore()
         if previous is not None:
@@ -786,7 +918,15 @@ async def _shell(host: App[Any], desk: Desk, term: str = "") -> None:
         or stdout is None
         or not (stdin.isatty() and stdout.isatty())
     ):
-        say(f"hmz: a shell in {desk.named} needs this to be a terminal", "red")
+        say(
+            "hmz: "
+            + t(
+                "A shell in {name} cannot be opened because hmz is not running in a "
+                "terminal.",
+                name=desk.named,
+            ),
+            "red",
+        )
         return
     cols, rows = _size()
     # Taking whatever a terminal says from before it is open: a new shell's prompt is told
@@ -818,7 +958,168 @@ async def _shell(host: App[Any], desk: Desk, term: str = "") -> None:
         inbox.close()
     # A refusal of what was typed -- a paired device's, among them -- said as one.
     say(
-        f"shell in {desk.named}: {ended}", "red" if ended.startswith("ended") else "dim"
+        t("Shell in {name}: {ended}", name=desk.named, ended=ended),
+        "red" if isinstance(ended, _Failed) else "dim",
+    )
+
+
+# -- What a sheet and a pane read alike ---------------------------------------------------------
+
+
+def _entries(said: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """One directory as `env.list` answered it, its folders first."""
+    # Directories first, as the host lists them -- and as it is listed here whatever it does.
+    return sorted(said.get("entries") or (), key=lambda one: one.get("kind") != "dir")
+
+
+def _entry(one: Mapping[str, Any]) -> tuple[str, str]:
+    """One entry of a directory as a row: what it is called, and the line about it."""
+    name, kind = str(one.get("name")), str(one.get("kind") or "file")
+    if kind == "dir":
+        return f"{name}/", ""
+    if kind == "link":
+        return f"{name}@", f"→ {one.get('target') or '?'}"
+    return name, _sized(int(one.get("size") or 0))
+
+
+def _standing(said: Mapping[str, Any]) -> str:
+    """Where a repository stands, in a line: its branch, its upstream, its top directory."""
+    branch = str(said.get("branch") or "")
+    head = str(said.get("head") or "")[:7]
+    upstream = str(said.get("upstream") or "")
+    return _DOT.join(
+        one
+        for one in (
+            branch or (t("{commit} (detached)", commit=head) if head else ""),
+            f"↑{said.get('ahead') or 0} ↓{said.get('behind') or 0} {upstream}".strip()
+            if upstream
+            else "",
+            str(said.get("root") or ""),
+        )
+        if one
+    )
+
+
+def _changed(files: Sequence[Mapping[str, Any]]) -> list[_Row]:
+    """The changed files as rows, a heading over each group that has any."""
+    rows: list[_Row] = []
+    for group, held in grouped(files):
+        rows.append(
+            _Row(f"{_HEADING}{group}", f"{t(group)} ({len(held)})", heading=True)
+        )
+        for one in held:
+            path = str(one.get("path"))
+            code = (
+                "U"
+                if group == _CONFLICTS
+                else "?"
+                if group == "Untracked"
+                else str(one.get("index" if group == _STAGED else "worktree"))
+            )
+            orig = one.get("orig")
+            rows.append(
+                _Row(
+                    f"{group}{_SEP}{path}", path, code + (f"  ← {orig}" if orig else "")
+                )
+            )
+    return rows
+
+
+def _staged(files: Sequence[Mapping[str, Any]], path: str | None = None) -> list[str]:
+    """The paths that unstage `path`, or all that is staged: a rename's old path too."""
+    return sorted(
+        {
+            str(one[key])
+            for group, held in grouped(files)
+            if group == _STAGED
+            for one in held
+            if path in (None, str(one.get("path")))
+            for key in ("path", "orig")
+            if one.get(key)
+        }
+    )
+
+
+def _unstaged(files: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Every path with a change that is not staged, which staging all stages."""
+    return sorted(
+        {
+            str(one.get("path"))
+            for group, held in grouped(files)
+            if group != _STAGED
+            for one in held
+        }
+    )
+
+
+class _Differed(NamedTuple):
+    """One file's change, read: what it is headed, the diff, and what is said for none."""
+
+    title: str
+    diff: str
+    said: str
+
+
+async def _differed(desk: Desk, path: str, *, staged: bool) -> _Differed:
+    """Reads one file's change off the host, as a unified diff or as why there is none."""
+    said = await desk.asks("env.git.diff", path=path, staged=staged)
+    title = f"{path}{_DOT}{t(_STAGED if staged else 'Changes')}"
+    old, new = said.get("old"), said.get("new")
+    if said.get("binary"):
+        return _Differed(
+            title,
+            "",
+            t(
+                "{name} is a binary file ({before}, {after}): there is no text to compare.",
+                name=posixpath.basename(path),
+                before=_sized(len(_decoded(old))),
+                after=_sized(len(_decoded(new))),
+            ),
+        )
+    diff = unified(
+        None if old is None else _decoded(old),
+        None if new is None else _decoded(new),
+        path,
+    )
+    return _Differed(title, diff, "" if diff else t("An empty diff."))
+
+
+def _removing(name: str, *, folder: bool) -> Sure:
+    """The box that asks before a file or a folder is deleted, naming it."""
+    return Sure(
+        t("Delete the folder {name} and everything in it?", name=name)
+        if folder
+        else t("Delete {name}?", name=name),
+        "",
+        t("Delete"),
+    )
+
+
+def _discarding(path: str, *, untracked: bool) -> Sure:
+    """The box that asks before a file's changes are thrown away, naming it."""
+    return Sure(
+        t(
+            "Delete the untracked file {name}? It is removed from the disk, and this "
+            "cannot be undone.",
+            name=path,
+        )
+        if untracked
+        else t("Discard the changes to {name}? This cannot be undone.", name=path),
+        "",
+        t("Discard Changes"),
+    )
+
+
+def _rewinding(ref: str) -> Sure:
+    """The box that asks before an environment is rewound, naming the snapshot."""
+    return Sure(
+        t(
+            "Rewind this environment to {ref}? Its working tree is reset to that "
+            "snapshot: every change made since, committed or not, is lost.",
+            ref=ref,
+        ),
+        "",
+        t("Rewind"),
     )
 
 
@@ -868,7 +1169,7 @@ class _Listing(Sheet[str]):
 
     def keys(self) -> list[Key]:
         """This sheet's keys for its list, in the order they are reached for."""
-        return [Key("enter", "open"), Key("esc", "back")]
+        return [Key("enter", t("Open")), Key("esc", t("Back"))]
 
     def actions(self) -> list[Action]:
         """Searching, for a list that is searched."""
@@ -1017,8 +1318,6 @@ class _Listing(Sheet[str]):
 class Envs(_Listing):
     """The environments of the epic or chat in front of you, by role: each one's panels."""
 
-    asked = "Environments"
-
     def __init__(self, reach: Reach, host: App[Any]) -> None:
         """Lists the environments.
 
@@ -1030,7 +1329,8 @@ class Envs(_Listing):
         self._reach = reach
         self._host = host
         self._stops: Callable[[], None] = lambda: None
-        self.about = "Every environment the run in front of you uses."
+        self.asked = t("Environments")
+        self.about = t("Every environment that this chat or epic uses.")
         self._rows_now = self._rows()
 
     def _rows(self) -> list[_Row]:
@@ -1043,7 +1343,7 @@ class Envs(_Listing):
         return rows
 
     def crumb(self) -> str:
-        return "Environments"
+        return t("Environments")
 
     def on_mount(self) -> None:
         self._stops = self._reach.watching(lambda: self.shows(self._rows(), self._said))
@@ -1052,7 +1352,11 @@ class Envs(_Listing):
         self._stops()
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]no environment is open here[/]"
+        return (
+            ""
+            if self._rows_now
+            else f"[$text-muted]{t('No environment is open here yet.')}[/]"
+        )
 
     def chosen(self, row: str) -> None:
         env = next((one for one in self._reach.envs() if one.get("id") == row), None)
@@ -1065,8 +1369,12 @@ def about(env: Mapping[str, Any]) -> str:
     """What one environment is, in a line: backend, provider, workdir, facts, and closed."""
     facts = cast("dict[str, Any]", env.get("facts") or {})
     sized = [
-        f"{facts[key]} {what}"
-        for key, what in (("cpu", "CPUs"), ("memory", "memory"), ("gpu_count", "GPUs"))
+        t(what, n=facts[key], size=facts[key])
+        for key, what in (
+            ("cpu", "{n} CPUs"),
+            ("memory", "{size} memory"),
+            ("gpu_count", "{n} GPUs"),
+        )
         if facts.get(key)
     ]
     return _DOT.join(
@@ -1076,7 +1384,7 @@ def about(env: Mapping[str, Any]) -> str:
             env.get("provider"),
             env.get("workdir"),
             *sized,
-            *(() if env.get("open", True) else ("closed",)),
+            *(() if env.get("open", True) else (t("closed"),)),
         )
         if one
     )
@@ -1139,11 +1447,13 @@ class _Page(_Listing):
 
     def crumb(self) -> str:
         title = next(title for name, title, _ in PANELS if name == self.PAGE)
-        return f"{self._desk.named} · {title}"
+        return f"{self._desk.named} · {t(title)}"
 
     def page_keys(self) -> list[Key]:
         """`tab`, where there is another page to step to."""
-        return [Key("tab", "page")] if len(panels_of(self._desk.env)) > 1 else []
+        return (
+            [Key("tab", t("Next page"))] if len(panels_of(self._desk.env)) > 1 else []
+        )
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "page":
@@ -1166,14 +1476,21 @@ _NEW = "\x1dnew"
 class Terminals(_Listing):
     """The terminals left running in an environment, and a new one."""
 
-    asked = "Terminal"
-    about = "Come back to a shell left running here, or open another."
     SEARCHES: ClassVar = False
 
     def __init__(self, alive: Sequence[Mapping[str, Any]]) -> None:
         super().__init__()
+        self.asked = t("Terminals")
+        self.about = t(
+            "Come back to a terminal left running in this environment, or open a new "
+            "one."
+        )
         self._rows_now = [
-            _Row(_NEW, "new shell", "a login shell of its own"),
+            _Row(
+                _NEW,
+                t("New terminal"),
+                t("a new login shell of its own in this environment"),
+            ),
             *(
                 _Row(
                     str(one.get("term")),
@@ -1226,7 +1543,7 @@ class Named(Form[str]):
     def action_done(self) -> None:
         said = self._typed_in.get("value", "").strip()
         if not said:
-            self._wrong = f"{self._label} is required"
+            self._wrong = t("This needs an answer.")
             self._fill()
             return
         self.dismiss(said)
@@ -1252,21 +1569,24 @@ class Sure(Popup):
 
     CSS = _BOX.format(name="Sure")
 
-    def __init__(self, asked: str, about: str = "", doing: str = "yes") -> None:
+    def __init__(self, asked: str, about: str = "", doing: str = "") -> None:
         """Asks.
 
         Args:
           asked: The question.
           about: What doing it does.
-          doing: What the button that does it says.
+          doing: What the button that does it says, or "" for the page's Yes.
         """
         super().__init__()
         self.asked = escape(asked)
         self.about = escape(about)
-        self._doing = doing
+        self._doing = doing or t("Yes")
 
     def rows(self) -> list[tuple[str, str, str]]:
-        return [("yes", self._doing, "do it"), ("no", "cancel", "leave it as it is")]
+        return [
+            ("yes", self._doing, t("does what was asked")),
+            ("no", t("Cancel"), t("changes nothing")),
+        ]
 
 
 #: What the question about a write refused as a conflict is answered with.
@@ -1285,14 +1605,24 @@ class Conflict(Popup):
           path: The file.
         """
         super().__init__()
-        self.asked = f"{escape(path)} changed on disk"
-        self.about = "Since it was read, something else wrote it."
+        self.asked = t(
+            "{name} changed in the environment since you opened it.", name=escape(path)
+        )
+        self.about = t("Something else wrote this file on disk since you read it.")
 
     def rows(self) -> list[tuple[str, str, str]]:
         return [
-            (RELOAD, "reload", "throw yours away and read it again"),
-            (KEEP, "keep mine", "write yours over it"),
-            (COMPARE, "show diff", "what is on disk against yours"),
+            (
+                RELOAD,
+                t("Reload"),
+                t("throws away your edit and reads the file again"),
+            ),
+            (KEEP, t("Keep mine"), t("writes your edit over what is on disk")),
+            (
+                COMPARE,
+                t("Show the diff"),
+                t("compares what is on disk with your edit"),
+            ),
         ]
 
 
@@ -1310,16 +1640,18 @@ class Diff(ModalScreen[None]):
         Binding("q", "dismiss", "back", show=False),
     ]
 
-    def __init__(self, title: str, diff: str) -> None:
+    def __init__(self, title: str, diff: str, said: str = "") -> None:
         """Shows one diff.
 
         Args:
           title: What it is of.
           diff: The unified diff.
+          said: What is said in place of a diff that is empty, or "" for the page's own.
         """
         super().__init__()
         self._title = title
         self._diff = diff
+        self._said = said or t("An empty diff.")
 
     def compose(self) -> ComposeResult:
         yield Label(escape(self._title), id="title")
@@ -1327,10 +1659,10 @@ class Diff(ModalScreen[None]):
             yield Static(
                 Syntax(self._diff, "diff", word_wrap=False)
                 if self._diff
-                else "no difference",
+                else escape(self._said),
                 id="body",
             )
-        yield Label("[b $accent]esc[/] back", id="keys")
+        yield Label(f"[b $primary]esc[/] {t('Back')}", id="keys")
 
 
 class Files(_Page):
@@ -1375,17 +1707,17 @@ class Files(_Page):
 
     def keys(self) -> list[Key]:
         return [
-            Key("enter", "open"),
-            Key("backspace", "up"),
-            Key("n", "file"),
-            Key("N", "folder"),
-            Key("r", "rename"),
-            Key("d", "delete"),
-            Key("e", "$EDITOR"),
-            Key("ctrl+p", "open…"),
-            Key("?", "find"),
+            Key("enter", t("Open")),
+            Key("backspace", t("Up")),
+            Key("n", t("New file")),
+            Key("N", t("New folder")),
+            Key("r", t("Rename")),
+            Key("d", t("Delete")),
+            Key("e", t("External editor")),
+            Key("ctrl+p", t("Go to file")),
+            Key("?", t("Search in files")),
             *self.page_keys(),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         ]
 
     def on_mount(self) -> None:
@@ -1414,20 +1746,12 @@ class Files(_Page):
             return
         was = self._path
         self._path = str(said.get("path") or path)
-        # Directories first, as the host lists them -- and as it is listed here whatever it does.
-        entries = sorted(
-            said.get("entries") or (), key=lambda one: one.get("kind") != "dir"
-        )
+        entries = _entries(said)
         self._entries = {str(one.get("name")): one for one in entries}
         rows: list[_Row] = []
         for one in entries:
-            name, kind = str(one.get("name")), str(one.get("kind") or "file")
-            if kind == "dir":
-                rows.append(_Row(name, f"{name}/", "folder"))
-            elif kind == "link":
-                rows.append(_Row(name, f"{name}@", f"→ {one.get('target') or '?'}"))
-            else:
-                rows.append(_Row(name, name, _sized(int(one.get("size") or 0))))
+            label, line = _entry(one)
+            rows.append(_Row(str(one.get("name")), label, line or t("Folder").lower()))
         self.asked = f"{self._desk.named}: {self._path}"
         if not keep or was != self._path:
             self._current = landing or posixpath.basename(was.rstrip("/"))
@@ -1440,7 +1764,7 @@ class Files(_Page):
         self._current = ""
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]nothing here[/]"
+        return "" if self._rows_now else f"[$text-muted]{t('Nothing here yet')}[/]"
 
     def _at(self, name: str) -> str:
         return posixpath.join(self._path, name)
@@ -1452,7 +1776,9 @@ class Files(_Page):
             posixpath.dirname(path) == self._path
             and int(entry.get("size") or 0) > LARGE
         ):
-            self.fails(f"{posixpath.basename(path)} is larger than 5 MiB: {_OUTSIDE}")
+            self.fails(
+                _too_large(posixpath.basename(path), int(entry.get("size") or 0))
+            )
             return
         self._interface().push_screen(
             Editing(self._desk, path, self._host, line=line),
@@ -1509,9 +1835,12 @@ class Files(_Page):
         self.run_worker(self._finds(), group="do")
 
     async def _makes(self, *, folder: bool) -> None:
-        what = "folder" if folder else "file"
         named = await self._interface().push_screen_wait(
-            Named(f"New {what} in {self._path}", "name", f"what the {what} is called")
+            Named(
+                t("New folder") if folder else t("New file"),
+                t("Folder name") if folder else t("File name"),
+                self._path,
+            )
         )
         if not named:
             return
@@ -1530,7 +1859,7 @@ class Files(_Page):
 
     async def _renames(self, row: str) -> None:
         named = await self._interface().push_screen_wait(
-            Named(f"Rename {row}", "name", "what it is called now", row)
+            Named(t("New name for {name}", name=row), t("New name"), "", row)
         )
         if not named or named == row:
             return
@@ -1543,15 +1872,7 @@ class Files(_Page):
 
     async def _removes(self, row: str) -> None:
         folder = self._entries.get(row, {}).get("kind") == "dir"
-        sure = await self._interface().push_screen_wait(
-            Sure(
-                f"Delete {row}?",
-                "Everything in it goes too; this cannot be undone."
-                if folder
-                else "This cannot be undone.",
-                "delete",
-            )
-        )
+        sure = await self._interface().push_screen_wait(_removing(row, folder=folder))
         if sure != "yes":
             return
         try:
@@ -1584,7 +1905,7 @@ class Files(_Page):
 
     async def _finds(self) -> None:
         query = await self._interface().push_screen_wait(
-            Named(f"Search {self._desk.named}", "text", "what to look for in its files")
+            Named(t("Search in files"), t("Search"), self._desk.named)
         )
         if not query:
             return
@@ -1609,12 +1930,13 @@ class Files(_Page):
 class Opens(_Listing):
     """Every file of an environment, narrowed by typing, to open one."""
 
-    asked = "Open a file"
-
     def __init__(self, paths: Sequence[str], *, truncated: bool = False) -> None:
         super().__init__()
-        self.about = f"{len(paths)} files" + (
-            ", and more not listed" if truncated else ""
+        self.asked = t("Go to file")
+        self.about = (
+            t("{n} files, and more not shown", n=len(paths))
+            if truncated
+            else t("{n} files", n=len(paths))
         )
         self._rows_now = [_Row(one, one) for one in paths]
 
@@ -1626,8 +1948,6 @@ class Opens(_Listing):
 class Matches(_Listing):
     """Every line a search found, to open a file at one."""
 
-    asked = "Found"
-
     def __init__(
         self,
         query: str,
@@ -1636,8 +1956,15 @@ class Matches(_Listing):
         truncated: bool = False,
     ) -> None:
         super().__init__()
-        self.about = f"{len(matches)} lines with {query!r}" + (
-            ", and more not listed" if truncated else ""
+        self.asked = t("Search in files")
+        self.about = (
+            t(
+                "{n} lines with {query}, and more not shown",
+                n=len(matches),
+                query=repr(query),
+            )
+            if truncated
+            else t("{n} lines with {query}", n=len(matches), query=repr(query))
         )
         self._rows_now = [
             _Row(
@@ -1649,7 +1976,7 @@ class Matches(_Listing):
         ]
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]nothing found[/]"
+        return "" if self._rows_now else f"[$text-muted]{t('No results.')}[/]"
 
 
 async def _outside(host: App[Any], desk: Desk, path: str) -> None:
@@ -1688,17 +2015,34 @@ async def _edits_outside(host: App[Any], desk: Desk, path: str) -> None:
             if answer == COMPARE:
                 now = await _read(desk, path, cap=sys.maxsize)
                 await host.push_screen_wait(
-                    Diff(f"{path}: on disk → yours", unified(now.data, after, path))
+                    Diff(
+                        t("{path} · on disk and your edit", path=path),
+                        unified(now.data, after, path),
+                    )
                 )
                 continue
-            say(f"{path}: kept what is on disk; your edit was dropped", "dim")
+            say(
+                t("{path}: kept what is on disk and dropped your edit", path=path),
+                "dim",
+            )
             return
-        say(f"saved {path} in {desk.named}", "dim")
+        say(t("Saved {path} back into {name}", path=path, name=desk.named), "dim")
         return
 
 
-#: Why a file is not opened in the editor here, and what opens it instead.
-_OUTSIDE = "e opens it in your own editor"
+#: What opens a file the editor here does not, said after why it does not.
+_OUTSIDE = "Press e to open it in your own editor."
+
+
+def _too_large(name: str, size: int) -> str:
+    """That a file is too large for the editor here, and what opens it instead."""
+    said = t(
+        "{name} is {size}; files over {limit} are not opened here.",
+        name=name,
+        size=_sized(size),
+        limit=_sized(LARGE),
+    )
+    return f"{said} {t(_OUTSIDE)}"
 
 
 class Editing(ModalScreen[str | None]):
@@ -1731,7 +2075,10 @@ class Editing(ModalScreen[str | None]):
         self._etag: str | None = None
         self._saved = ""
         self._loaded = False
-        self._state = "Reading…"
+        self._state = t("Reading…")
+        #: Whether what the status line says of saving is that it is saved, which an edit
+        #: takes off it.
+        self._settled = False
         self._timer: Timer | None = None
         self._lock = asyncio.Lock()
         self._conflict = False
@@ -1775,14 +2122,17 @@ class Editing(ModalScreen[str | None]):
             return
         named = posixpath.basename(self._path)
         if not read.whole:
-            self.dismiss(f"{named} is {_sized(read.size)}: {_OUTSIDE}")
+            self.dismiss(_too_large(named, read.size))
             return
         try:
             if b"\0" in read.data[:8192]:
                 raise UnicodeDecodeError("utf-8", b"", 0, 1, "a NUL")  # noqa: TRY301
             text = read.data.decode("utf-8")
         except UnicodeDecodeError:
-            self.dismiss(f"{named} is not text: {_OUTSIDE}")
+            self.dismiss(
+                t("{name} is not text and cannot be opened here.", name=named)
+                + f" {t(_OUTSIDE)}"
+            )
             return
         self._etag = read.etag
         self._saved = text
@@ -1801,11 +2151,12 @@ class Editing(ModalScreen[str | None]):
         area = self._area()
         row, column = area.cursor_location
         dirty = self._loaded and area.text != self._saved
-        state = self._state or ("● edited" if dirty else "")
+        state = self._state or (f"● {t('Unsaved')}" if dirty else "")
         self.query_one("#status", Static).update(
-            f"[b]{escape(self._path)}[/]  Ln {row + 1}, Col {column + 1}"
+            f"[b]{escape(self._path)}[/]  "
+            + t("Ln {line}, Col {column}", line=row + 1, column=column + 1)
             + (f"  [$text-muted]{escape(state)}[/]" if state else "")
-            + "   [$text-muted]ctrl+s save · esc close[/]"
+            + f"   [$text-muted]ctrl+s {t('Save')}{_DOT}esc {t('Close')}[/]"
         )
 
     @on(TextArea.SelectionChanged, "#code")
@@ -1816,8 +2167,8 @@ class Editing(ModalScreen[str | None]):
     def _edited(self) -> None:
         if not self._loaded:
             return
-        if self._state in ("Saved", ""):
-            self._state = ""
+        if self._settled:
+            self._state, self._settled = "", False
         if self._timer is not None:
             self._timer.stop()
         self._timer = (
@@ -1846,7 +2197,7 @@ class Editing(ModalScreen[str | None]):
                 return True
             if self._conflict and not over:
                 return False
-            self._state = "Saving…"
+            self._state = t("Saving…")
             self._says()
             try:
                 said = await self._desk.asks(
@@ -1858,17 +2209,17 @@ class Editing(ModalScreen[str | None]):
             except Exception as why:  # noqa: BLE001 -- a conflict is asked about
                 if _conflicted(why):
                     self._conflict = True
-                    self._state = "conflict: changed on disk"
+                    self._state = t("Conflict")
                     self._says()
                     self.run_worker(self._resolves(), group="conflict", exclusive=True)
                 else:
-                    self._state = f"not saved: {why}"
+                    self._state = t("Not saved: {why}", why=why)
                     self._says()
                 return False
             self._etag = str(said.get("etag") or "")
             self._saved = text
             self._conflict = False
-            self._state = "Saved"
+            self._state, self._settled = t("Saved"), True
             self._says()
         if self.dirty():
             # Typed into while it was being written: what was typed is written next.
@@ -1899,7 +2250,7 @@ class Editing(ModalScreen[str | None]):
                 mine = self._area().text.encode("utf-8")
                 await self._ui().push_screen_wait(
                     Diff(
-                        f"{self._path}: on disk → yours",
+                        t("{path} · on disk and your edit", path=self._path),
                         unified(disk.data, mine, self._path),
                     )
                 )
@@ -1938,9 +2289,13 @@ class Editing(ModalScreen[str | None]):
             return
         sure = await self._ui().push_screen_wait(
             Sure(
-                f"Close {posixpath.basename(self._path)} without saving?",
+                t(
+                    "{name} has edits not written to the environment. Close and lose "
+                    "them?",
+                    name=posixpath.basename(self._path),
+                ),
                 self._state,
-                "close",
+                t("Close"),
             )
         )
         if sure == "yes":
@@ -1963,11 +2318,16 @@ class Commit(Form[tuple[str, bool]]):
         return [
             Question(
                 "message",
-                "message",
-                "what the commit says",
+                t("Message"),
+                t("Commit message"),
                 needed=not self._typed_in.get("message", "").strip(),
             ),
-            Question("amend", "amend", "replace the last commit instead", kind="steps"),
+            Question(
+                "amend",
+                t("Amend"),
+                t("amend the commit checked out instead of adding a new one"),
+                kind="steps",
+            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -1977,10 +2337,10 @@ class Commit(Form[tuple[str, bool]]):
         return held == "message"
 
     def done_about(self) -> str:
-        return "commits what is staged"
+        return t("commit what is staged")
 
     def _ask(self) -> None:
-        self.query_one("#asked", Label).update("Commit")
+        self.query_one("#asked", Label).update(t("Commit"))
         self.query_one("#about", Label).update("")
         self._fill()
 
@@ -1988,7 +2348,7 @@ class Commit(Form[tuple[str, bool]]):
         said = self._typed_in.get("message", "").strip()
         amend = self._typed_in.get("amend") == "on"
         if not said:
-            self._wrong = "message is required"
+            self._wrong = t("Write a commit message first.")
             self._fill()
             return
         self.dismiss((said, amend))
@@ -2015,12 +2375,12 @@ class Changes(_Page):
           host: The interface.
         """
         super().__init__(desk, host)
-        self.asked = f"{desk.named}: changes"
+        self.asked = f"{desk.named}: {t('Changes')}"
         self._stops: Callable[[], None] = lambda: None
         self._files: list[Mapping[str, Any]] = []
 
     def crumb(self) -> str:
-        return "Changes"
+        return t("Changes")
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in self._OWN:
@@ -2029,23 +2389,36 @@ class Changes(_Page):
 
     def keys(self) -> list[Key]:
         return [
-            Key("enter", "diff"),
-            Key("s", "stage"),
-            Key("u", "unstage"),
-            Key("x", "discard"),
-            Key("c", "commit"),
-            Key("r", "refresh"),
+            Key("enter", t("Show the diff")),
+            Key("s", t("Stage Changes")),
+            Key("u", t("Unstage Changes")),
+            Key("x", t("Discard Changes")),
+            Key("c", t("Commit")),
+            Key("r", t("Refresh")),
             *self.page_keys(),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         ]
 
     def actions(self) -> list[Action]:
         return [
-            Action("stage-all", "stage all", "stage every change", self._stages_all),
             Action(
-                "unstage-all", "unstage all", "unstage everything", self._unstages_all
+                "stage-all",
+                t("Stage All Changes"),
+                t("stage every change"),
+                self._stages_all,
             ),
-            Action("commit", "commit…", "commit what is staged", self.action_commit),
+            Action(
+                "unstage-all",
+                t("Unstage All Changes"),
+                t("unstage everything staged"),
+                self._unstages_all,
+            ),
+            Action(
+                "commit",
+                t("Commit"),
+                t("commit what is staged"),
+                self.action_commit,
+            ),
             *super().actions(),
         ]
 
@@ -2066,46 +2439,11 @@ class Changes(_Page):
             self.fails(why)
             return
         self._files = list(said.get("files") or ())
-        branch = str(said.get("branch") or "")
-        head = str(said.get("head") or "")[:7]
-        upstream = str(said.get("upstream") or "")
-        self.about = _DOT.join(
-            one
-            for one in (
-                branch or (f"detached at {head}" if head else ""),
-                f"↑{said.get('ahead') or 0} ↓{said.get('behind') or 0} {upstream}".strip()
-                if upstream
-                else "",
-                str(said.get("root") or ""),
-            )
-            if one
-        )
-        rows: list[_Row] = []
-        for group, files in grouped(self._files):
-            rows.append(
-                _Row(f"{_HEADING}{group}", f"{group} ({len(files)})", heading=True)
-            )
-            for one in files:
-                path = str(one.get("path"))
-                code = (
-                    "U"
-                    if group == _CONFLICTS
-                    else "?"
-                    if group == "Untracked"
-                    else str(one.get("index" if group == _STAGED else "worktree"))
-                )
-                orig = one.get("orig")
-                rows.append(
-                    _Row(
-                        f"{group}{_SEP}{path}",
-                        path,
-                        code + (f"  ← {orig}" if orig else ""),
-                    )
-                )
-        self.shows(rows)
+        self.about = _standing(said)
+        self.shows(_changed(self._files))
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]no changes[/]"
+        return "" if self._rows_now else f"[$text-muted]{t('No changes')}[/]"
 
     def _under(self) -> tuple[str, str]:
         group, _, path = self.under().partition(_SEP)
@@ -2118,22 +2456,11 @@ class Changes(_Page):
 
     async def _diffs(self, path: str, *, staged: bool) -> None:
         try:
-            said = await self._desk.asks("env.git.diff", path=path, staged=staged)
+            read = await _differed(self._desk, path, staged=staged)
         except Exception as why:  # noqa: BLE001 -- said under the list
             self.fails(why)
             return
-        if said.get("binary"):
-            text = ""
-            title = f"{path}: binary"
-        else:
-            old, new = said.get("old"), said.get("new")
-            text = unified(
-                None if old is None else _decoded(old),
-                None if new is None else _decoded(new),
-                path,
-            )
-            title = f"{path} ({'staged' if staged else 'working tree'})"
-        await self._interface().push_screen_wait(Diff(title, text))
+        await self._interface().push_screen_wait(Diff(read.title, read.diff, read.said))
 
     async def _does(self, method: str, /, **params: Any) -> None:
         try:
@@ -2153,22 +2480,9 @@ class Changes(_Page):
         group, path = self._under()
         if path and group == _STAGED:
             self.run_worker(
-                self._does("env.git.unstage", paths=self._staged(path)), group="do"
+                self._does("env.git.unstage", paths=_staged(self._files, path)),
+                group="do",
             )
-
-    def _staged(self, path: str | None = None) -> list[str]:
-        """The paths that unstage `path`, or all that is staged: a rename's old path too."""
-        return sorted(
-            {
-                str(one[key])
-                for group, files in grouped(self._files)
-                if group == _STAGED
-                for one in files
-                if path in (None, str(one.get("path")))
-                for key in ("path", "orig")
-                if one.get(key)
-            }
-        )
 
     def action_discard(self) -> None:
         group, path = self._under()
@@ -2179,31 +2493,18 @@ class Changes(_Page):
 
     async def _discards(self, path: str, *, untracked: bool) -> None:
         sure = await self._interface().push_screen_wait(
-            Sure(
-                f"Discard changes to {path}?",
-                "The file is deleted; this cannot be undone."
-                if untracked
-                else "Its changes are lost; this cannot be undone.",
-                "discard",
-            )
+            _discarding(path, untracked=untracked)
         )
         if sure == "yes":
             await self._does("env.git.discard", paths=[path])
 
     def _stages_all(self) -> None:
-        paths = sorted(
-            {
-                str(one.get("path"))
-                for group, files in grouped(self._files)
-                if group != _STAGED
-                for one in files
-            }
-        )
+        paths = _unstaged(self._files)
         if paths:
             self.run_worker(self._does("env.git.stage", paths=paths), group="do")
 
     def _unstages_all(self) -> None:
-        paths = self._staged()
+        paths = _staged(self._files)
         if paths:
             self.run_worker(self._does("env.git.unstage", paths=paths), group="do")
 
@@ -2232,11 +2533,17 @@ class Snapshots(_Page):
           host: The interface.
         """
         super().__init__(desk, host)
-        self.asked = f"{desk.named}: snapshots"
-        self.about = "Rewinding puts its files back as they were at that snapshot."
+        self.asked = f"{desk.named}: {t('Snapshots')}"
+        self.about = t(
+            "Rewinding puts the environment's files back as they were at that snapshot."
+        )
 
     def keys(self) -> list[Key]:
-        return [Key("enter", "rewind"), *self.page_keys(), Key("esc", "back")]
+        return [
+            Key("enter", t("Rewind")),
+            *self.page_keys(),
+            Key("esc", t("Back")),
+        ]
 
     def on_mount(self) -> None:
         self.run_worker(self._reads(), group="list", exclusive=True)
@@ -2251,19 +2558,13 @@ class Snapshots(_Page):
         self.shows([_Row(one, one) for one in refs], self._said)
 
     def nothing(self) -> str:
-        return "" if self._rows_now else "[$text-muted]no snapshots yet[/]"
+        return "" if self._rows_now else f"[$text-muted]{t('No snapshots yet.')}[/]"
 
     def chosen(self, row: str) -> None:
         self.run_worker(self._rewinds(row), group="do")
 
     async def _rewinds(self, ref: str) -> None:
-        sure = await self._interface().push_screen_wait(
-            Sure(
-                f"Rewind {self._desk.named} to {ref}?",
-                "Its files go back as they were then; later changes are lost.",
-                "rewind",
-            )
-        )
+        sure = await self._interface().push_screen_wait(_rewinding(ref))
         if sure != "yes":
             return
         try:
@@ -2272,7 +2573,7 @@ class Snapshots(_Page):
             self.fails(why)
             return
         self._said = ""
-        self._desk.reach.say(f"rewound {self._desk.named} to {ref}", "dim")
+        self._desk.reach.say(t("Rewound the environment to {ref}.", ref=ref), "dim")
         self.dismiss(None)
 
 
@@ -2306,8 +2607,1817 @@ def opens_env(host: App[Any], reach: Reach, named: str = "") -> str:
     env = _matching(envs, named) if named else None
     if named and env is None:
         roles = sorted({str(one.get("role")) for one in envs})
-        return f"/env: no environment {named!r} here; choose {', '.join(roles)}"
+        return t(
+            "/env {name}: no such environment here; choose {roles}.",
+            name=named,
+            roles=", ".join(roles),
+        )
     host.push_screen(Envs(reach, host))
     if env is not None:
         opens_page(host, Desk(env, reach), default_panel(env))
     return ""
+
+
+# -- Panes --------------------------------------------------------------------------------------
+
+#: How long a pane waits, after being told an environment may have changed, before it reads
+#: it again: a turn that writes ten files is read once, in seconds.
+_SETTLE = 0.3
+
+#: What every character that would move a terminal's cursor is drawn as in a file read here.
+_PLAIN = dict.fromkeys((*range(9), 11, 12, *range(14, 32), 127), "·") | {13: None}
+
+#: How many rows of a file are left above the line it is opened at.
+_ABOVE = 3
+
+#: What is between one key and the next on the line of a pane's keys.
+_GAP = "   "
+
+#: The folder that is open, in a tree; one that is shut is `humanfia.POINT`.
+_OPEN = "▾"
+
+
+def _keyed(key: str) -> str:
+    """A key as it is written for a person, as the hint line writes it: `ctrl+p` is `^P`."""
+    held, _, name = key.rpartition("+")
+    name = name.upper() if len(name) == 1 and held else name
+    return f"^{name}" if held == "ctrl" else f"{held}+{name}" if held else name
+
+
+class Pane(Vertical):
+    """One page of an environment as a pane beside the log: the environment's, whichever.
+
+    The pane shows the environment its chat or epic was last turned to that has this page,
+    else the first that does; with several, a first row names the one shown and `tab` turns
+    to the next, for every pane of that chat or epic. It reads the environment again when
+    the host says it may have changed, and says its own keys on a line at its foot.
+    """
+
+    #: Which page this is: one of :data:`PANELS`.
+    PAGE: ClassVar[str] = ""
+    #: What is said where environments are open and none has this page.
+    NONE: ClassVar[str] = ""
+
+    DEFAULT_CSS = """
+    Pane { height: 1fr; }
+    Pane > #pane-env { display: none; height: 1; padding: 0 1; color: $text-muted; }
+    Pane > #pane-env.several { display: block; }
+    Pane > #pane-about { height: auto; padding: 0 1; color: $text-muted; }
+    Pane > #pane-list { height: 1fr; border: none; padding: 0 1; background: $surface; }
+    Pane > #pane-path { height: auto; padding: 0 1; text-style: bold; }
+    Pane > #pane-view { height: 1fr; padding: 0 1; }
+    Pane > #pane-view:focus { background: $boost; }
+    Pane > #pane-said { height: auto; padding: 0 1; color: $text-muted; }
+    Pane > #pane-foot { height: auto; padding: 0 1; color: $text-muted;
+        border-top: heavy $hmz-line; }
+    """
+    BINDINGS: ClassVar = [
+        Binding("ctrl+w", "widen", "Widen", show=False),
+        Binding("tab", "turn", "Next environment", show=False),
+    ]
+
+    def __init__(self, reach: Reach, host: App[Any]) -> None:
+        """Makes the pane.
+
+        Args:
+          reach: The host, which says what the environments are.
+          host: The interface, which the boxes and the editor open over.
+        """
+        super().__init__()
+        self._reach = reach
+        self._host = host
+        self._desk: Desk | None = None
+        #: What went wrong last, said over the keys until something else is.
+        self._said = ""
+        self._stops: Callable[[], None] = lambda: None
+        self._again: Timer | None = None
+
+    @property
+    def desk(self) -> Desk | None:
+        """The environment shown, or None where there is none to show."""
+        return self._desk
+
+    def compose(self) -> ComposeResult:
+        """The environment shown, what the page is, what went wrong, and the keys."""
+        yield Static(id="pane-env")
+        yield from self.body()
+        yield Static(id="pane-said")
+        yield Static(id="pane-foot")
+
+    def body(self) -> ComposeResult:
+        """What this page is made of, between the environment's row and the keys."""
+        yield OptionList(id="pane-list")
+
+    def keys(self) -> list[tuple[str, str]]:
+        """The keys this pane takes where the keys are now, each with what it does."""
+        several = len(self._reach.desks(self.PAGE)) > 1
+        return [
+            *((("tab", "Next environment"),) if several else ()),
+            ("ctrl+w", "Widen"),
+        ]
+
+    def nothing(self) -> str:
+        """What is said while nothing went wrong, as plain text: that the page is empty."""
+        return ""
+
+    def opened(self) -> None:
+        """Reads the environment now shown from the start: another one, or the first."""
+
+    def freshens(self) -> None:
+        """Reads the environment shown again, since it may have changed."""
+
+    def aim(self) -> Widget:
+        """What the keys go to when the pane is given them."""
+        return self.query_one("#pane-list")
+
+    def focus(self, scroll_visible: bool = True) -> Self:  # noqa: FBT001, FBT002
+        """Gives the keys to what in the pane takes them."""
+        self.aim().focus(scroll_visible)
+        return self
+
+    def on_mount(self) -> None:
+        """Shows the environment, and watches for it changing."""
+        self._stops = self._reach.watching(self._moved)
+        self._settles()
+
+    def on_unmount(self) -> None:
+        """Stops watching."""
+        self._stops()
+
+    def on_descendant_focus(self, _: events.DescendantFocus) -> None:
+        """Says the keys of whatever in the pane has them now."""
+        self.draws()
+
+    def on_descendant_blur(self, _: events.DescendantBlur) -> None:
+        """Says them again once the keys have settled somewhere."""
+        self.call_after_refresh(self.draws)
+
+    def _moved(self) -> None:
+        if self._again is not None:
+            self._again.stop()
+        self._again = self.set_timer(_SETTLE, self._settled)
+
+    def _settled(self) -> None:
+        was = self._desk.id if self._desk is not None else None
+        self._settles()
+        if self._desk is not None and self._desk.id == was:
+            self.freshens()
+
+    def _settles(self) -> None:
+        """Turns to the environment to show, reading it from the start where it is another."""
+        desks = self._reach.desks(self.PAGE)
+        desk = self._reach.desk(self.PAGE)
+        was = self._desk
+        self._desk = desk
+        row = self.query_one("#pane-env", Static)
+        row.set_class(len(desks) > 1, "several")
+        if desk is not None:
+            at = next(at for at, one in enumerate(desks, 1) if one.id == desk.id)
+            row.update(
+                f"{t('Environment')} [b $primary]{escape(desk.named)}[/]"
+                f"  {at}/{len(desks)}"
+            )
+        if (was.id if was is not None else None) != (
+            desk.id if desk is not None else None
+        ) or (was is None and desk is None):
+            self._said = ""
+            self.opened()
+        self.draws()
+
+    def draws(self) -> None:
+        """Draws what is said over the keys, and the keys."""
+        if not self.is_mounted:
+            return
+        if self._said:
+            said = f"[$error]{escape(self._said)}[/]"
+        elif self._desk is None:
+            said = escape(
+                t(self.NONE)
+                if self._reach.envs()
+                else t("No environment is open here yet.")
+            )
+        else:
+            said = escape(self.nothing())
+        line = self.query_one("#pane-said", Static)
+        line.display = bool(said)
+        line.update(said)
+        # A row at a time, so that a key is never at the end of one row and what it does at
+        # the start of the next.
+        room = max(self.size.width - 2, 1)
+        rows: list[list[str]] = [[]]
+        used = 0
+        for key, does in self.keys():
+            shown, doing = _keyed(key), t(does)
+            wide = len(shown) + 1 + len(doing)
+            if rows[-1] and used + len(_GAP) + wide > room:
+                rows.append([])
+                used = 0
+            used += wide + (len(_GAP) if rows[-1] else 0)
+            rows[-1].append(f"[b $primary]{escape(shown)}[/] {escape(doing)}")
+        self.query_one("#pane-foot", Static).update(
+            "\n".join(_GAP.join(row) for row in rows)
+        )
+
+    def on_resize(self, _: events.Resize) -> None:
+        """Lays the keys out again in however wide the pane is now."""
+        self.draws()
+
+    def fails(self, why: BaseException | str) -> None:
+        """Says what went wrong, over the keys."""
+        self._said = str(why)
+        self.draws()
+
+    def says(self, said: str = "") -> None:
+        """Says something over the keys, or takes back what was said."""
+        self._said = said
+        self.draws()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Leaves `tab` to the interface where there is one environment only."""
+        if action == "turn":
+            return len(self._reach.desks(self.PAGE)) > 1
+        return super().check_action(action, parameters)
+
+    def action_widen(self) -> None:
+        """Makes the zone the pane is in one step wider."""
+        for one in self.ancestors:
+            if isinstance(one, Zone):
+                one.widens()
+                return
+
+    def action_turn(self) -> None:
+        """Turns every pane of this chat or epic to the next environment that has this page."""
+        desks = self._reach.desks(self.PAGE)
+        if len(desks) < 2 or self._desk is None:  # noqa: PLR2004 -- one to turn to
+            return
+        ids = [one.id for one in desks]
+        at = ids.index(self._desk.id) if self._desk.id in ids else -1
+        self._reach.turns(ids[(at + 1) % len(ids)])
+        self._settles()
+
+    def _gone(self, desk: Desk) -> bool:
+        """Whether the pane has turned from an environment since something was asked of it."""
+        return self._desk is None or self._desk.id != desk.id
+
+    def _under(self) -> str:
+        """The row of the list under the cursor, by its id, or ""."""
+        listing = self.query_one("#pane-list", OptionList)
+        if listing.highlighted is None:
+            return ""
+        return str(listing.get_option_at_index(listing.highlighted).id or "")
+
+    def _lists(self, options: Sequence[Option], landing: str = "") -> None:
+        """Puts rows in the list, the cursor on `landing` or where it was, else the first."""
+        listing = self.query_one("#pane-list", OptionList)
+        was = landing or self._under()
+        listing.set_options(options)
+        at = next(
+            (
+                at
+                for at, one in enumerate(options)
+                if one.id == was and not one.disabled
+            ),
+            next((at for at, one in enumerate(options) if not one.disabled), None),
+        )
+        listing.highlighted = at
+
+    def _shade(self) -> str:
+        """The colours code is read in: the terminal's own sixteen, light or dark."""
+        return "ansi_dark" if self._host.current_theme.dark else "ansi_light"
+
+
+class FilesPane(Pane):
+    """An environment's files as a tree beside the log, and one of them to read."""
+
+    PAGE: ClassVar = "files"
+    NONE: ClassVar = "No files in this environment"
+
+    DEFAULT_CSS = """
+    FilesPane > #pane-path { display: none; }
+    FilesPane > #pane-view { display: none; }
+    FilesPane.reading > #pane-list { display: none; }
+    FilesPane.reading > #pane-path { display: block; }
+    FilesPane.reading > #pane-view { display: block; }
+    """
+    BINDINGS: ClassVar = [
+        Binding("e", "edit", "Edit", show=False),
+        Binding("n", "new_file", "New file", show=False),
+        Binding("N", "new_folder", "New folder", show=False),
+        Binding("r", "rename", "Rename", show=False),
+        Binding("d", "delete", "Delete", show=False),
+        Binding("ctrl+p", "quick", "Go to file", show=False),
+        Binding("slash", "find", "Search in files", show=False),
+        Binding("backspace", "back", "Back", show=False),
+    ]
+
+    #: The keys of the tree, which do nothing while a file is being read.
+    _TREE = frozenset({"new_file", "new_folder", "rename", "delete"})
+
+    def __init__(self, reach: Reach, host: App[Any]) -> None:
+        """Makes the pane.
+
+        Args:
+          reach: The host.
+          host: The interface.
+        """
+        super().__init__(reach, host)
+        self._root = ""
+        #: Each directory read, by its path: its entries, folders first.
+        self._kids: dict[str, list[Mapping[str, Any]]] = {}
+        #: What each path listed is: `dir`, `file` or `link`.
+        self._kinds: dict[str, str] = {}
+        #: The folders open in the tree.
+        self._unfolded: set[str] = set()
+        #: The file being read, or "", and what it was when it was drawn.
+        self._reading: str = ""
+        self._drawn: str = ""
+
+    @property
+    def reading(self) -> str:
+        """The file being read in the pane, by its path, or "" while the tree is shown."""
+        return self._reading
+
+    def body(self) -> ComposeResult:
+        """The tree, and over it once a file is opened, the file."""
+        yield OptionList(id="pane-list")
+        yield Static(id="pane-path")
+        with VerticalScroll(id="pane-view"):
+            yield Static(id="pane-text")
+
+    def keys(self) -> list[tuple[str, str]]:
+        """The tree's keys, or those of the file being read."""
+        if self._reading:
+            return [
+                ("backspace", "Back"),
+                ("e", "Edit"),
+                ("ctrl+p", "Go to file"),
+                ("/", "Search in files"),
+                *super().keys(),
+            ]
+        return [
+            ("enter", "Open"),
+            ("e", "Edit"),
+            ("n", "New file"),
+            ("shift+n", "New folder"),
+            ("r", "Rename"),
+            ("d", "Delete"),
+            ("ctrl+p", "Go to file"),
+            ("/", "Search in files"),
+            *super().keys(),
+        ]
+
+    def nothing(self) -> str:
+        """That the environment's directory is empty, once it has been read and is."""
+        empty = self._root in self._kids and not self._kids[self._root]
+        return t("Nothing here yet") if empty and not self._reading else ""
+
+    def aim(self) -> Widget:
+        """The file where one is being read, else the tree."""
+        return self.query_one("#pane-view" if self._reading else "#pane-list")
+
+    def opened(self) -> None:
+        """Forgets the tree, and reads the top of the environment now shown."""
+        self._kids, self._kinds, self._unfolded = {}, {}, set()
+        self._shuts()
+        self._root = self._desk.workdir if self._desk is not None else ""
+        self._trees()
+        if self._desk is not None:
+            self.run_worker(self._reads([self._root]), group="list", exclusive=True)
+
+    def freshens(self) -> None:
+        """Reads every folder open again, and the file being read."""
+        folders = [self._root, *sorted(self._unfolded)]
+        self.run_worker(self._reads(folders), group="list", exclusive=True)
+        if self._reading:
+            self.run_worker(
+                self._shows(self._reading, quiet=True), group="view", exclusive=True
+            )
+
+    async def _reads(self, folders: Sequence[str], landing: str = "") -> None:
+        """Reads directories off the host, and draws the tree with what they hold."""
+        desk = self._desk
+        if desk is None:
+            return
+        read = await asyncio.gather(
+            *(desk.asks("env.list", path=folder) for folder in folders),
+            return_exceptions=True,
+        )
+        if self._gone(desk):
+            return
+        for folder, said in zip(folders, read, strict=True):
+            if isinstance(said, BaseException):
+                if folder == self._root:
+                    self.fails(said)
+                    return
+                # A folder gone since it was opened: shut, and nothing said of it.
+                self._unfolded.discard(folder)
+                self._kids.pop(folder, None)
+                continue
+            at = folder
+            if folder == self._root:
+                at = self._root = str(said.get("path") or folder)
+            self._kids[at] = _entries(said)
+            for one in self._kids[at]:
+                path = posixpath.join(at, str(one.get("name")))
+                kind = str(one.get("kind") or "file")
+                # A link opened as the folder it leads to is still that, read again.
+                if not (kind == "link" and path in self._unfolded):
+                    self._kinds[path] = kind
+        self._trees(landing)
+        self.draws()
+
+    def _trees(self, landing: str = "") -> None:
+        """Draws the tree: each folder open with what it holds under it, a step in."""
+        options: list[Option] = []
+
+        def lays(folder: str, depth: int) -> None:
+            for one in self._kids.get(folder, ()):
+                label, line = _entry(one)
+                path = posixpath.join(folder, str(one.get("name")))
+                pad = "  " * depth
+                if self._kinds.get(path) == "dir":
+                    shut = path not in self._unfolded
+                    mark = humanfia.POINT if shut else _OPEN
+                    options.append(
+                        Option(f"{pad}[$text-muted]{mark}[/] {escape(label)}", id=path)
+                    )
+                    if not shut:
+                        lays(path, depth + 1)
+                else:
+                    options.append(
+                        Option(
+                            f"{pad}  {escape(label)}  [$text-muted]{escape(line)}[/]",
+                            id=path,
+                        )
+                    )
+
+        lays(self._root, 0)
+        self._lists(options, landing)
+
+    @on(OptionList.OptionSelected, "#pane-list")
+    def _picked(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        path = str(event.option.id or "")
+        kind = self._kinds.get(path)
+        if kind == "dir":
+            self._folds(path)
+        elif kind == "link":
+            self.run_worker(self._follows(path), group="list", exclusive=True)
+        elif path:
+            self.shows(path)
+
+    def _folds(self, path: str) -> None:
+        """Opens a folder of the tree, reading it, or shuts one that is open."""
+        if path in self._unfolded:
+            self._unfolded.discard(path)
+            self._trees()
+        else:
+            self._unfolded.add(path)
+            self.run_worker(self._reads([path]), group="list", exclusive=True)
+
+    async def _follows(self, path: str) -> None:
+        """Opens a link: as a folder where it leads to one, as a file where it does not."""
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            await desk.asks("env.list", path=path)
+        except Exception:  # noqa: BLE001 -- not a directory, so a file to read
+            await self._shows(path)
+            return
+        self._kinds[path] = "dir"
+        self._unfolded.add(path)
+        await self._reads([path])
+
+    def shows(self, path: str, line: int = 0) -> None:
+        """Opens one file to read in the pane, in place of the tree.
+
+        Args:
+          path: The file.
+          line: The line to show, from 1, or 0 for the top.
+        """
+        self.run_worker(self._shows(path, line), group="view", exclusive=True)
+
+    async def _shows(self, path: str, line: int = 0, *, quiet: bool = False) -> None:
+        """Reads one file and draws it, coloured by its name; `quiet` reads one again."""
+        desk = self._desk
+        if desk is None:
+            return
+        name = posixpath.basename(path)
+        try:
+            read = await _read(desk, path, cap=VIEWED)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            if quiet:
+                # Gone since it was opened: back to the tree, which no longer lists it.
+                self._shuts()
+            self.fails(why)
+            return
+        if self._gone(desk):
+            return
+        if not read.whole:
+            self.fails(
+                t(
+                    "{name} is {size}; files over {limit} are not opened here.",
+                    name=name,
+                    size=_sized(read.size),
+                    limit=_sized(VIEWED),
+                )
+            )
+            return
+        if quiet and path == self._reading and read.etag == self._drawn:
+            return
+        said = ""
+        try:
+            if b"\0" in read.data[:8192]:
+                raise UnicodeDecodeError("utf-8", b"", 0, 1, "a NUL")  # noqa: TRY301
+            text = read.data.decode("utf-8")
+        except UnicodeDecodeError:
+            text = read.data.decode("utf-8", "replace")
+            said = t("{name} is not UTF-8 text, so it is open read-only.", name=name)
+        text = text.translate(_PLAIN)
+        within = self.has_focus_within
+        self._reading, self._drawn = path, read.etag
+        self.add_class("reading")
+        shown = posixpath.relpath(path, self._root) if self._root else path
+        self.query_one("#pane-path", Static).update(escape(shown))
+        self.query_one("#pane-text", Static).update(
+            Syntax(
+                text,
+                Syntax.guess_lexer(path, code=text),
+                theme=self._shade(),
+                line_numbers=True,
+                word_wrap=True,
+                highlight_lines={line} if line else None,
+            )
+        )
+        if not quiet:
+            self._said = said
+            view = self.query_one("#pane-view", VerticalScroll)
+            if within:
+                view.focus()
+            view.scroll_to(y=self._row_of(text, line, view), animate=False)
+        self.draws()
+
+    @staticmethod
+    def _row_of(text: str, line: int, view: VerticalScroll) -> int:
+        """The row a line of a file is drawn on, less a few, counting the rows lines wrap to."""
+        if line <= 1:
+            return 0
+        lines = text.split("\n")
+        # What is left of the pane's width for code, beside the numbers and their margin.
+        room = max(view.size.width - 2 - len(str(len(lines))) - 3, 1)
+        rows = sum(max(-(-cell_len(one) // room), 1) for one in lines[: line - 1])
+        return max(rows - _ABOVE, 0)
+
+    def _shuts(self) -> None:
+        """Puts the tree back in place of the file being read."""
+        within = self.is_mounted and self.has_focus_within
+        self._reading = self._drawn = ""
+        self.remove_class("reading")
+        if within:
+            self.query_one("#pane-list").focus()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Leaves the tree's keys alone while a file is read, and `backspace` while not."""
+        if action in self._TREE:
+            return not self._reading
+        if action == "back":
+            return bool(self._reading)
+        return super().check_action(action, parameters)
+
+    def action_back(self) -> None:
+        """Back from the file to the tree."""
+        self._shuts()
+        self.says()
+
+    def _picked_file(self) -> str:
+        """The file `e` means: the one being read, else the one under the cursor."""
+        if self._reading:
+            return self._reading
+        path = self._under()
+        return path if path and self._kinds.get(path) != "dir" else ""
+
+    def action_edit(self) -> None:
+        """Opens the file in the editor, which saves itself, over the screen."""
+        if (path := self._picked_file()) and self._desk is not None:
+            self._edits(path)
+
+    def _edits(self, path: str, line: int = 0) -> None:
+        if self._desk is None:
+            return
+
+        def closed(why: str | None) -> None:
+            if why:
+                self.fails(why)
+            self.freshens()
+
+        self._host.push_screen(Editing(self._desk, path, self._host, line=line), closed)
+
+    def _folder(self) -> str:
+        """Where a new file goes: the open folder under the cursor, else beside the row."""
+        path = self._under()
+        if not path:
+            return self._root
+        if self._kinds.get(path) == "dir" and path in self._unfolded:
+            return path
+        return posixpath.dirname(path)
+
+    def action_new_file(self) -> None:
+        """Asks for a name, makes an empty file of it, and opens it in the editor."""
+        self.run_worker(self._makes(folder=False), group="do")
+
+    def action_new_folder(self) -> None:
+        """Asks for a name, and makes a folder of it."""
+        self.run_worker(self._makes(folder=True), group="do")
+
+    def action_rename(self) -> None:
+        """Asks what the row under the cursor is called now."""
+        if path := self._under():
+            self.run_worker(self._renames(path), group="do")
+
+    def action_delete(self) -> None:
+        """Deletes the row under the cursor, once a box has asked."""
+        if path := self._under():
+            self.run_worker(self._removes(path), group="do")
+
+    def action_quick(self) -> None:
+        """Opens a file by its name, narrowed by typing."""
+        self.run_worker(self._quick(), group="do")
+
+    def action_find(self) -> None:
+        """Searches the environment's files for a text, and opens a file at a line found."""
+        self.run_worker(self._finds(), group="do")
+
+    async def _makes(self, *, folder: bool) -> None:
+        desk, within = self._desk, self._folder()
+        if desk is None:
+            return
+        named = await self._host.push_screen_wait(
+            Named(
+                t("New folder") if folder else t("New file"),
+                t("Folder name") if folder else t("File name"),
+                within,
+            )
+        )
+        if not named:
+            return
+        path = posixpath.join(within, named)
+        try:
+            if folder:
+                await desk.asks("env.mkdir", path=path)
+            else:
+                await desk.asks("env.write", path=path, data="", if_match="")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        self._said = ""
+        await self._reads([within], landing=posixpath.join(within, named.split("/")[0]))
+        if not folder:
+            self._edits(path)
+
+    async def _renames(self, path: str) -> None:
+        desk, was = self._desk, posixpath.basename(path)
+        if desk is None:
+            return
+        named = await self._host.push_screen_wait(
+            Named(t("New name for {name}", name=was), t("New name"), "", was)
+        )
+        if not named or named == was:
+            return
+        to = posixpath.join(posixpath.dirname(path), named)
+        try:
+            await desk.asks("env.rename", path=path, to=to)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        self._said = ""
+        if path in self._unfolded:
+            self._unfolded.discard(path)
+        await self._reads([posixpath.dirname(path)], landing=to)
+
+    async def _removes(self, path: str) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        folder = self._kinds.get(path) == "dir"
+        sure = await self._host.push_screen_wait(
+            _removing(posixpath.basename(path), folder=folder)
+        )
+        if sure != "yes":
+            return
+        try:
+            await desk.asks("env.remove", path=path)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        self._said = ""
+        self._unfolded = {
+            one
+            for one in self._unfolded
+            if one != path and not one.startswith(f"{path}/")
+        }
+        await self._reads([posixpath.dirname(path)])
+
+    def _whole(self, path: str) -> str:
+        """A path the host named, from the top: one given from where the environment works."""
+        return path if path.startswith("/") else posixpath.join(self._root, path)
+
+    async def _quick(self) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            found = await desk.asks("env.find")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        picked = await self._host.push_screen_wait(
+            Opens(
+                [str(one) for one in found.get("paths") or ()],
+                truncated=bool(found.get("truncated")),
+            )
+        )
+        if picked:
+            await self._shows(self._whole(picked))
+
+    async def _finds(self) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        query = await self._host.push_screen_wait(
+            Named(t("Search in files"), t("Search"), desk.named)
+        )
+        if not query:
+            return
+        try:
+            found = await desk.asks("env.search", query=query)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        picked = await self._host.push_screen_wait(
+            Matches(
+                query,
+                list(found.get("matches") or ()),
+                truncated=bool(found.get("truncated")),
+            )
+        )
+        if picked:
+            path, _, line = picked.rpartition(_SEP)
+            await self._shows(self._whole(path), int(line or 0))
+
+
+class ChangesPane(Pane):
+    """An environment's git changes beside the log: the list, and the change of one file."""
+
+    PAGE: ClassVar = "changes"
+    NONE: ClassVar = "No changes in this environment"
+
+    DEFAULT_CSS = """
+    ChangesPane > #pane-list { height: auto; max-height: 40%; }
+    ChangesPane > #pane-path { border-top: heavy $hmz-line; color: $text-muted; }
+    ChangesPane.listing > #pane-list { height: 1fr; max-height: 100%; }
+    ChangesPane.listing > #pane-path { display: none; }
+    ChangesPane.listing > #pane-view { display: none; }
+    """
+    BINDINGS: ClassVar = [
+        Binding("s", "stage", "Stage Changes", show=False),
+        Binding("u", "unstage", "Unstage Changes", show=False),
+        Binding("x", "discard", "Discard Changes", show=False),
+        Binding("S", "stage_all", "Stage All Changes", show=False),
+        Binding("U", "unstage_all", "Unstage All Changes", show=False),
+        Binding("c", "commit", "Commit", show=False),
+        Binding("l", "log", "Commits", show=False),
+        Binding("p", "snapshots", "Snapshots", show=False),
+        Binding("r", "refresh", "Refresh", show=False),
+        Binding("backspace", "back", "Back", show=False),
+    ]
+
+    #: The keys of the list of changes, which do nothing on the commits or the snapshots.
+    _STATUS = frozenset(
+        {
+            "stage",
+            "unstage",
+            "discard",
+            "stage_all",
+            "unstage_all",
+            "commit",
+            "log",
+            "snapshots",
+        }
+    )
+
+    def __init__(self, reach: Reach, host: App[Any]) -> None:
+        """Makes the pane.
+
+        Args:
+          reach: The host.
+          host: The interface.
+        """
+        super().__init__(reach, host)
+        #: What the list is of: `status`, `log` or `snapshots`.
+        self._mode = "status"
+        self._files: list[Mapping[str, Any]] = []
+        #: Whether the list has been read, and so may be said to be empty.
+        self._read_in = False
+        #: The row whose change is drawn under the list, and that row with what was drawn.
+        self._diffed = ""
+        self._shown: tuple[str, _Differed] | None = None
+
+    @property
+    def mode(self) -> str:
+        """What the list is of now: `status`, `log` or `snapshots`."""
+        return self._mode
+
+    def body(self) -> ComposeResult:
+        """Where the repository stands, the list, and under it the change of one file."""
+        yield Static(id="pane-about")
+        yield OptionList(id="pane-list")
+        yield Static(id="pane-path")
+        with VerticalScroll(id="pane-view"):
+            yield Static(id="pane-text")
+
+    def keys(self) -> list[tuple[str, str]]:
+        """The keys of the list of changes, of the diff, of the commits, or of the snapshots."""
+        if self._mode == "log":
+            return [("backspace", "Back"), ("r", "Refresh"), *super().keys()]
+        if self._mode == "snapshots":
+            return [
+                ("enter", "Rewind"),
+                ("backspace", "Back"),
+                ("r", "Refresh"),
+                *super().keys(),
+            ]
+        if self.query_one("#pane-view").has_focus:
+            return [("backspace", "Close the diff"), *super().keys()]
+        return [
+            ("enter", "Show the diff"),
+            ("s", "Stage Changes"),
+            ("u", "Unstage Changes"),
+            ("x", "Discard Changes"),
+            ("shift+s", "Stage All Changes"),
+            ("shift+u", "Unstage All Changes"),
+            ("c", "Commit"),
+            ("l", "Commits"),
+            ("p", "Snapshots"),
+            ("r", "Refresh"),
+            *super().keys(),
+        ]
+
+    def nothing(self) -> str:
+        """That there is nothing to list, once the list has been read and is empty."""
+        listing = self.query_one("#pane-list", OptionList)
+        if not self._read_in or listing.option_count:
+            return ""
+        return t(
+            {"log": "No commits yet.", "snapshots": "No snapshots yet."}.get(
+                self._mode, "No changes"
+            )
+        )
+
+    def opened(self) -> None:
+        """Reads the changes of the environment now shown."""
+        self._files, self._read_in = [], False
+        self._turns_to("status")
+
+    def freshens(self) -> None:
+        """Reads what is listed again."""
+        self.action_refresh()
+
+    def _turns_to(self, mode: str) -> None:
+        """Lists the changes, the commits or the snapshots, read from the host."""
+        self._mode = mode
+        self._read_in = False
+        self.set_class(mode != "status", "listing")
+        self._lists([])
+        self._diffs_none()
+        self.query_one("#pane-about", Static).update("")
+        if self.has_focus_within:
+            self.query_one("#pane-list").focus()
+        self.action_refresh()
+
+    def action_refresh(self) -> None:
+        """Reads what is listed off the host again."""
+        if self._desk is None:
+            return
+        reads = {"log": self._logs, "snapshots": self._snaps}.get(
+            self._mode, self._reads
+        )
+        self.run_worker(reads(), group="status", exclusive=True)
+
+    async def _reads(self) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            said = await desk.asks("env.git.status")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        if self._gone(desk) or self._mode != "status":
+            return
+        self._files = list(said.get("files") or ())
+        self.query_one("#pane-about", Static).update(escape(_standing(said)))
+        options = [
+            Option(f"[b $text-muted]{escape(one.label)}[/]", id=one.id, disabled=True)
+            if one.heading
+            else Option(
+                f" {escape(one.label)}  [$text-muted]{escape(one.about)}[/]", id=one.id
+            )
+            for one in _changed(self._files)
+        ]
+        self._read_in = True
+        # A change staged or unstaged is in another group now: the cursor goes with it.
+        was = self._under().partition(_SEP)[2]
+        moved = next(
+            (
+                str(one.id)
+                for one in options
+                if was and not one.disabled and str(one.id).endswith(f"{_SEP}{was}")
+            ),
+            "",
+        )
+        self._lists(
+            options, "" if self._under() in {one.id for one in options} else moved
+        )
+        if not self._under():
+            self._diffs_none()
+        self.draws()
+
+    async def _logs(self) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            said = await desk.asks("env.git.log")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        if self._gone(desk) or self._mode != "log":
+            return
+        self.query_one("#pane-about", Static).update(t("Commits"))
+        self._read_in = True
+        self._lists(
+            [
+                Option(
+                    f"[$primary]{escape(str(one.get('hash'))[:7])}[/] "
+                    f"{escape(str(one.get('subject') or ''))}  [$text-muted]"
+                    f"{escape(str(one.get('author') or ''))}{_DOT}"
+                    f"{escape(str(one.get('date') or '')[:10])}[/]",
+                    id=str(one.get("hash")),
+                )
+                for one in said.get("commits") or ()
+            ]
+        )
+        self.draws()
+
+    async def _snaps(self) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            said = await desk.asks("env.git.snapshots")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        if self._gone(desk) or self._mode != "snapshots":
+            return
+        self.query_one("#pane-about", Static).update(t("Snapshots"))
+        self._read_in = True
+        self._lists(
+            [
+                Option(escape(str(one)), id=str(one))
+                for one in said.get("snapshots") or ()
+            ]
+        )
+        self.draws()
+
+    def _row(self) -> tuple[str, str]:
+        """The change under the cursor: its group and its path, or two of ""."""
+        if self._mode != "status":
+            return "", ""
+        group, _, path = self._under().partition(_SEP)
+        return group, path
+
+    @on(OptionList.OptionHighlighted, "#pane-list")
+    def _moved_to(self, event: OptionList.OptionHighlighted) -> None:
+        event.stop()
+        group, path = self._row()
+        if not path:
+            return
+        self._diffed = self._under()
+        self.run_worker(
+            self._diffs(path, staged=group == _STAGED), group="diff", exclusive=True
+        )
+
+    def _diffs_none(self) -> None:
+        """Says to pick a file, where the change of none is drawn."""
+        self._diffed, self._shown = "", None
+        self.query_one("#pane-path", Static).update("")
+        self.query_one("#pane-text", Static).update(
+            f"[$text-muted]{escape(t('Pick a file in the list to see its diff.'))}[/]"
+        )
+
+    async def _diffs(self, path: str, *, staged: bool) -> None:
+        desk, row = self._desk, self._diffed
+        if desk is None:
+            return
+        try:
+            read = await _differed(desk, path, staged=staged)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        if self._gone(desk) or row != self._diffed or self._shown == (row, read):
+            return
+        another = self._shown is None or self._shown[0] != row
+        self._shown = row, read
+        self.query_one("#pane-path", Static).update(escape(read.title))
+        self.query_one("#pane-text", Static).update(
+            Syntax(
+                read.diff,
+                "diff",
+                theme=self._shade(),
+                word_wrap=True,
+            )
+            if read.diff
+            else f"[$text-muted]{escape(read.said)}[/]"
+        )
+        if another:
+            self.query_one("#pane-view", VerticalScroll).scroll_home(animate=False)
+
+    @on(OptionList.OptionSelected, "#pane-list")
+    def _picked(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        if self._mode == "snapshots":
+            self.run_worker(self._rewinds(str(event.option.id or "")), group="do")
+        elif self._mode == "status" and self._row()[1]:
+            self.query_one("#pane-view").focus()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Leaves the keys of the changes alone on the commits and on the snapshots."""
+        if action in self._STATUS:
+            return self._mode == "status"
+        if action == "back":
+            return self._mode != "status" or self.query_one("#pane-view").has_focus
+        return super().check_action(action, parameters)
+
+    def action_back(self) -> None:
+        """Back from the diff to the list, or from the commits or snapshots to the changes."""
+        if self._mode == "status":
+            self.query_one("#pane-list").focus()
+        else:
+            self.says()
+            self._turns_to("status")
+
+    def action_log(self) -> None:
+        """Lists the commits, newest first."""
+        self.says()
+        self._turns_to("log")
+
+    def action_snapshots(self) -> None:
+        """Lists the snapshots the environment can be rewound to."""
+        self.says()
+        self._turns_to("snapshots")
+
+    async def _does(self, method: str, /, **params: Any) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            await desk.asks(method, **params)
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        self._said = ""
+        await self._reads()
+
+    def action_stage(self) -> None:
+        """Stages the change under the cursor."""
+        group, path = self._row()
+        if path and group != _STAGED:
+            self.run_worker(self._does("env.git.stage", paths=[path]), group="do")
+
+    def action_unstage(self) -> None:
+        """Unstages the change under the cursor."""
+        group, path = self._row()
+        if path and group == _STAGED:
+            self.run_worker(
+                self._does("env.git.unstage", paths=_staged(self._files, path)),
+                group="do",
+            )
+
+    def action_stage_all(self) -> None:
+        """Stages every change."""
+        if paths := _unstaged(self._files):
+            self.run_worker(self._does("env.git.stage", paths=paths), group="do")
+
+    def action_unstage_all(self) -> None:
+        """Unstages everything staged."""
+        if paths := _staged(self._files):
+            self.run_worker(self._does("env.git.unstage", paths=paths), group="do")
+
+    def action_discard(self) -> None:
+        """Throws the change under the cursor away, once a box has asked."""
+        group, path = self._row()
+        if path and group != _STAGED:
+            self.run_worker(
+                self._discards(path, untracked=group == "Untracked"), group="do"
+            )
+
+    async def _discards(self, path: str, *, untracked: bool) -> None:
+        sure = await self._host.push_screen_wait(_discarding(path, untracked=untracked))
+        if sure == "yes":
+            await self._does("env.git.discard", paths=[path])
+
+    def action_commit(self) -> None:
+        """Asks for a message, and commits what is staged, or amends the last commit."""
+        self.run_worker(self._commits(), group="do")
+
+    async def _commits(self) -> None:
+        said = await self._host.push_screen_wait(Commit())
+        if said is None:
+            return
+        message, amend = said
+        await self._does("env.git.commit", message=message, amend=amend)
+
+    async def _rewinds(self, ref: str) -> None:
+        desk = self._desk
+        if desk is None or not ref:
+            return
+        sure = await self._host.push_screen_wait(_rewinding(ref))
+        if sure != "yes":
+            return
+        try:
+            await desk.asks("env.git.rewind", ref=ref)
+        except Exception as why:  # noqa: BLE001 -- the guard's refusal, said
+            self.fails(why)
+            return
+        self.says()
+        self._turns_to("status")
+
+
+# -- The terminal in a pane ---------------------------------------------------------------------
+
+#: What each key that is not a character is to a terminal.
+_SENT = {
+    "enter": "\r",
+    "tab": "\t",
+    "shift+tab": "\x1b[Z",
+    "backspace": "\x7f",
+    "escape": "\x1b",
+    "up": "\x1b[A",
+    "down": "\x1b[B",
+    "right": "\x1b[C",
+    "left": "\x1b[D",
+    "home": "\x1b[H",
+    "end": "\x1b[F",
+    "insert": "\x1b[2~",
+    "delete": "\x1b[3~",
+    "pageup": "\x1b[5~",
+    "pagedown": "\x1b[6~",
+    "f1": "\x1bOP",
+    "f2": "\x1bOQ",
+    "f3": "\x1bOR",
+    "f4": "\x1bOS",
+    "f5": "\x1b[15~",
+    "f6": "\x1b[17~",
+    "f7": "\x1b[18~",
+    "f8": "\x1b[19~",
+    "f9": "\x1b[20~",
+    "f10": "\x1b[21~",
+    "f11": "\x1b[23~",
+    "f12": "\x1b[24~",
+}
+
+#: How many hundredths of a second a terminal waits to be laid out before it is opened.
+_LAID_OUT = 100
+
+#: The arrows and their like, which a terminal in application mode is sent differently.
+_CURSOR = frozenset({"up", "down", "right", "left", "home", "end"})
+
+#: The mode a program sets to be sent them so (DECCKM), as the emulator keeps private modes.
+_APPLICATION = 1 << 5
+
+#: The emulator's names for the colours that are not Rich's.
+_HUES = {"brown": "yellow", "brightbrown": "bright_yellow"}
+
+#: How long a colour written as its red, green and blue is.
+_HEX = 6
+
+
+def _hue(name: str) -> str | None:
+    """One of the emulator's colours, as Rich names it; None for the terminal's own."""
+    if name == "default":
+        return None
+    if name in _HUES:
+        return _HUES[name]
+    if name.startswith("bright"):
+        return f"bright_{name.removeprefix('bright')}"
+    if len(name) == _HEX and all(one in "0123456789abcdefABCDEF" for one in name):
+        return f"#{name}"
+    return name
+
+
+@functools.cache
+def _cell(
+    fg: str,
+    bg: str,
+    *,
+    bold: bool,
+    italics: bool,
+    underscore: bool,
+    reverse: bool,
+) -> Style:
+    """The style of one cell of the emulator's screen."""
+    try:
+        return Style(
+            color=_hue(fg),
+            bgcolor=_hue(bg),
+            bold=bold or None,
+            italic=italics or None,
+            underline=underscore or None,
+            reverse=reverse or None,
+        )
+    except Exception:  # noqa: BLE001 -- a colour Rich has no name for: the terminal's own
+        return Style(bold=bold or None, reverse=reverse or None)
+
+
+class Tty(Widget, can_focus=True):
+    """One terminal of an environment, drawn in a pane and typed into while it has the keys.
+
+    What the terminal prints is read by a terminal emulator and drawn as its screen; every
+    key pressed while this has the keys is the terminal's, but for `~.` after a newline,
+    which gives the keys back and leaves it running, as it does in the shell `/env` hands
+    the whole screen to.
+    """
+
+    DEFAULT_CSS = """
+    Tty { height: 1fr; }
+    """
+
+    class Left(Message):
+        """`~.` was typed: the keys are to go back to the pane."""
+
+    class Opened(Message):
+        """The terminal is open, and which it is is known."""
+
+        def __init__(self, tty: Tty) -> None:
+            """Says which.
+
+            Args:
+              tty: What draws it.
+            """
+            super().__init__()
+            self.tty = tty
+
+    class Ended(Message):
+        """The terminal ended, or could not be opened."""
+
+        def __init__(self, tty: Tty) -> None:
+            """Says which.
+
+            Args:
+              tty: What drew it.
+            """
+            super().__init__()
+            self.tty = tty
+
+    def __init__(self, desk: Desk, term: str = "") -> None:
+        """Draws one terminal.
+
+        Args:
+          desk: The environment.
+          term: The terminal to come back to, or "" to open a new one.
+        """
+        super().__init__()
+        self._desk = desk
+        #: The terminal, or "" until a new one is open.
+        self.term = term
+        #: How it ended, as it is said in the pane, or "" while it runs.
+        self.ended = ""
+        emulator = cast("Any", pyte)
+        self._screen: Any = emulator.Screen(80, 24)
+        self._stream: Any = emulator.ByteStream(self._screen)
+        # What a program asks the terminal -- where the cursor is -- is answered as typed.
+        self._screen.write_process_input = self._answers
+        self._escape = Escape()
+        self._credit = Credit()
+        self._typed: asyncio.Queue[bytes] = asyncio.Queue()
+        #: What was told of terminals before this one was known, or None once it is.
+        self._early: list[tuple[dict[str, Any], bool]] | None = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._viewing = Viewing(self._told, term)
+        self._stops: Callable[[], None] = lambda: None
+        #: Each row as it was drawn last, the size they were drawn at, and where the cursor was.
+        self._rows: dict[int, Text] = {}
+        self._sized = (0, 0)
+        self._cursor: tuple[int, int] | None = None
+
+    @property
+    def text(self) -> str:
+        """What the terminal's screen shows, a line to a row, as plain text."""
+        return "\n".join(one.rstrip() for one in self._screen.display)
+
+    def _cells(self) -> tuple[int, int]:
+        """How many columns and rows there are to draw in."""
+        return self.size.width or 80, self.size.height or 24
+
+    def on_mount(self) -> None:
+        """Watches the terminal, and opens it once there is a size to open it at."""
+        self._loop = asyncio.get_running_loop()
+        self._stops = self._desk.reach.views(self._viewing)
+        self.call_after_refresh(
+            lambda: self.run_worker(self._attaches(), group="attach", exclusive=True)
+        )
+
+    def on_unmount(self) -> None:
+        """Stops watching; the terminal keeps running, and what was drawn is acknowledged."""
+        self._stops()
+        if self.term and (rest := self._credit.rest()):
+            threading.Thread(
+                target=self._acked, args=(rest,), daemon=True, name="hmz-env-ack"
+            ).start()
+
+    def _acked(self, drawn: int) -> None:
+        with contextlib.suppress(Exception):
+            self._desk.reach.ask("env.term.ack", {"term": self.term, "bytes": drawn})
+
+    async def _asks(self, method: str, /, **params: Any) -> dict[str, Any]:
+        """Asks the host one thing of this terminal, which is named by itself alone."""
+        return await asyncio.to_thread(
+            self._desk.reach.ask, method, {"term": self.term, **params}
+        )
+
+    async def _attaches(self) -> None:
+        """Opens the terminal, or comes back to it, then sends on what is typed, in order."""
+        # Opened at the size it is drawn at, which is known once the pane has been laid out.
+        for _ in range(_LAID_OUT):
+            if self.size.width and self.size.height:
+                break
+            await asyncio.sleep(0.01)
+        cols, rows = self._cells()
+        self._screen.resize(rows, cols)
+        try:
+            opened = await self._desk.asks(
+                "env.term.open",
+                cols=cols,
+                rows=rows,
+                **({"term": self.term} if self.term else {}),
+            )
+        except Exception as why:  # noqa: BLE001 -- refused, in the host's words
+            self._stops()
+            self._early = None
+            self._ends(str(why))
+            return
+        self.term = self._viewing.term = str(opened.get("term") or self.term)
+        self._draws(_decoded(opened.get("replay")), acked=True)
+        early, self._early = self._early or [], None
+        for message, acked in early:
+            self._hears(message, acked)
+        self.post_message(self.Opened(self))
+        if self._cells() != (cols, rows):
+            # Made another size while it was being opened, which nothing was told of.
+            cols, rows = self._cells()
+            with contextlib.suppress(Exception):
+                await self._asks("env.term.resize", cols=cols, rows=rows)
+        while True:
+            data = await self._typed.get()
+            while not self._typed.empty():
+                data += self._typed.get_nowait()
+            try:
+                await self._asks("env.term.input", data=_encoded(data))
+            except Exception as why:  # noqa: BLE001 -- refused: said where it would print
+                self._draws(f"\r\n{why}\r\n".encode(), acked=True)
+
+    def _told(self, message: dict[str, Any], acked: bool) -> None:  # noqa: FBT001
+        """Takes a terminal's message on whatever thread, and hands it to the interface's."""
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            self._hears(message, acked)
+        else:
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(self._hears, message, acked)
+
+    def _hears(self, message: dict[str, Any], acked: bool) -> None:  # noqa: FBT001
+        if self._early is not None:
+            self._early.append((message, acked))
+            return
+        if message.get("term") != self.term or self.ended:
+            return
+        if message.get("type") == "term_exit":
+            status = message.get("status")
+            self._ends(
+                t("[exited]")
+                if status is None
+                else t("[exited with status {status}]", status=status)
+            )
+        elif message.get("type") == "term":
+            self._draws(_decoded(message.get("data")), acked=acked)
+
+    def _draws(self, data: bytes, *, acked: bool) -> None:
+        """Has the emulator read what was printed, and acknowledges it once enough is."""
+        if not data:
+            return
+        self._stream.feed(data)
+        self.refresh()
+        if not acked and (drawn := self._credit.took(len(data))) and self.is_attached:
+            self.run_worker(
+                self._asks("env.term.ack", bytes=drawn),
+                group="ack",
+                exit_on_error=False,
+            )
+
+    def _ends(self, said: str) -> None:
+        """Says how the terminal ended where it would have printed, and tells the pane."""
+        self.ended = said
+        self._stream.feed(f"\r\n{said}\r\n".encode())
+        self.refresh()
+        self.post_message(self.Ended(self))
+
+    def _answers(self, data: str) -> None:
+        self._typed.put_nowait(data.encode())
+
+    def types(self, data: bytes) -> None:
+        """Types into the terminal, but for `~.` after a newline, which leaves it.
+
+        Args:
+          data: What was typed, as a terminal is sent it.
+        """
+        sent, leaves = self._escape.typed(data)
+        if sent and not self.ended:
+            self._typed.put_nowait(sent)
+        if leaves:
+            self.post_message(self.Left())
+
+    def on_key(self, event: events.Key) -> None:
+        """Sends the key to the terminal, and to nothing else."""
+        event.stop()
+        event.prevent_default()
+        key = event.key
+        if key in _SENT:
+            sent = _SENT[key]
+            if key in _CURSOR and _APPLICATION in self._screen.mode:
+                sent = sent.replace("[", "O")
+        elif event.character:
+            sent = event.character
+        elif key.startswith("ctrl+") and len(key) == len("ctrl+a"):
+            sent = chr(ord(key[-1]) & 0x1F)
+        else:
+            return
+        self.types(sent.encode())
+
+    def on_paste(self, event: events.Paste) -> None:
+        """Types what was pasted."""
+        event.stop()
+        self.types(event.text.encode())
+
+    def on_resize(self, _: events.Resize) -> None:
+        """Makes the terminal the size it is drawn at."""
+        cols, rows = self._cells()
+        if (cols, rows) == (self._screen.columns, self._screen.lines):
+            return
+        self._screen.resize(rows, cols)
+        self.refresh()
+        if self.term and not self.ended and self._early is None:
+            self.run_worker(
+                self._asks("env.term.resize", cols=cols, rows=rows),
+                group="size",
+                exclusive=True,
+                exit_on_error=False,
+            )
+
+    def on_focus(self) -> None:
+        """Draws the cursor, now that what is typed goes here."""
+        self.refresh()
+
+    def on_blur(self) -> None:
+        """Stops drawing it."""
+        self.refresh()
+
+    def render(self) -> Text:
+        """The emulator's screen, the cursor drawn where the keys are here.
+
+        A row is drawn again only where the emulator says it changed, or the cursor came to
+        it or left it; the others are as they were drawn last.
+        """
+        screen = self._screen
+        cursor: tuple[int, int] | None = (
+            (int(screen.cursor.y), int(screen.cursor.x))
+            if self.has_focus and not screen.cursor.hidden and not self.ended
+            else None
+        )
+        size = (int(screen.columns), int(screen.lines))
+        if size != self._sized:
+            self._sized, self._rows = size, {}
+        stale = {int(one) for one in screen.dirty}
+        screen.dirty.clear()
+        for one in (cursor, self._cursor):
+            if one is not None:
+                stale.add(one[0])
+        self._cursor = cursor
+        for y in stale:
+            self._rows.pop(y, None)
+        drawn = Text(no_wrap=True, end="")
+        for y in range(size[1]):
+            row = self._rows.get(y)
+            if row is None:
+                row = self._rows[y] = self._row(y, cursor)
+            drawn.append_text(row)
+            if y < size[1] - 1:
+                drawn.append("\n")
+        return drawn
+
+    def _row(self, y: int, cursor: tuple[int, int] | None) -> Text:
+        """One row of the emulator's screen, a run of cells of one style at a time."""
+        cells = self._screen.buffer[y]
+        row = Text(no_wrap=True, end="")
+        run: list[str] = []
+        held: Style | None = None
+        for x in range(self._screen.columns):
+            char = cells[x]
+            style = _cell(
+                char.fg,
+                char.bg,
+                bold=bool(char.bold),
+                italics=bool(char.italics),
+                underscore=bool(char.underscore),
+                reverse=bool(char.reverse) != ((y, x) == cursor),
+            )
+            if style is not held:
+                if run and held is not None:
+                    row.append("".join(run), held)
+                run, held = [], style
+            # The second cell of a wide character holds nothing, and takes no column.
+            run.append(str(char.data))
+        if run and held is not None:
+            row.append("".join(run), held)
+        return row
+
+
+@dataclass
+class _Tab:
+    """One terminal of the pane: which it is, what it is called, and what draws it."""
+
+    term: str
+    title: str
+    tty: Tty | None = None
+
+
+class _Tabs(Static, can_focus=True):
+    """The row of terminals, which has the keys while no terminal does."""
+
+    DEFAULT_CSS = """
+    _Tabs { height: auto; padding: 0 1; color: $text-muted; }
+    """
+
+
+class TerminalPane(Pane):
+    """An environment's terminals beside the log, as tabs: one drawn, and typed into."""
+
+    PAGE: ClassVar = "shell"
+    NONE: ClassVar = "No terminal in this environment"
+
+    DEFAULT_CSS = """
+    TerminalPane > #pane-ttys { height: 1fr; }
+    """
+    BINDINGS: ClassVar = [
+        Binding("enter", "into", "Type in", show=False),
+        Binding("left", "step(-1)", "Previous", show=False),
+        Binding("right", "step(1)", "Next", show=False),
+        Binding("n", "new", "New terminal", show=False),
+        Binding("x", "close", "Close terminal", show=False),
+    ]
+
+    def __init__(self, reach: Reach, host: App[Any]) -> None:
+        """Makes the pane.
+
+        Args:
+          reach: The host.
+          host: The interface.
+        """
+        super().__init__(reach, host)
+        self._tabs: list[_Tab] = []
+        self._at = 0
+
+    @property
+    def tty(self) -> Tty | None:
+        """What draws the terminal shown, or None where there is none."""
+        return self._tabs[self._at].tty if self._at < len(self._tabs) else None
+
+    def body(self) -> ComposeResult:
+        """The row of terminals, and under it the one shown."""
+        yield _Tabs(id="pane-tabs")
+        yield Vertical(id="pane-ttys")
+
+    def keys(self) -> list[tuple[str, str]]:
+        """`~.` while a terminal has the keys, which takes every other; else the row's."""
+        tty = self.tty
+        if tty is not None and tty.has_focus:
+            return [("~.", "Leave terminal")]
+        return [
+            ("enter", "Type in"),
+            ("left", "Previous"),
+            ("right", "Next"),
+            ("n", "New terminal"),
+            ("x", "Close terminal"),
+            *super().keys(),
+        ]
+
+    def nothing(self) -> str:
+        """That no terminal is open, where none is."""
+        return "" if self._tabs else t("No terminal is open here.")
+
+    def aim(self) -> Widget:
+        """The terminal shown, while it runs; else the row of terminals."""
+        tty = self.tty
+        return (
+            tty if tty is not None and not tty.ended else self.query_one("#pane-tabs")
+        )
+
+    def opened(self) -> None:
+        """Lists the terminals of the environment now shown, and opens one where none runs."""
+        for tab in self._tabs:
+            if tab.tty is not None:
+                tab.tty.remove()
+        self._tabs, self._at = [], 0
+        self._draws_tabs()
+        if self._desk is not None:
+            self.run_worker(self._reads(first=True), group="list", exclusive=True)
+
+    def freshens(self) -> None:
+        """Reads which terminals run again: one may have been opened or ended elsewhere."""
+        self.run_worker(self._reads(), group="list", exclusive=True)
+
+    async def _reads(self, *, first: bool = False) -> None:
+        """Reads which terminals run in the environment, and what each is called."""
+        desk = self._desk
+        if desk is None:
+            return
+        try:
+            listed = await desk.asks("env.term.list")
+        except Exception as why:  # noqa: BLE001 -- said over the keys
+            self.fails(why)
+            return
+        if self._gone(desk):
+            return
+        alive = {
+            str(one.get("term")): str(one.get("title") or one.get("term"))
+            for one in listed.get("terms") or ()
+            if one.get("alive", True) and one.get("env", desk.id) == desk.id
+        }
+        shown = self._tabs[self._at] if self._at < len(self._tabs) else None
+        # One ended elsewhere that was never drawn here has nothing to show: its tab goes.
+        self._tabs = [
+            tab
+            for tab in self._tabs
+            if tab.tty is not None or not tab.term or tab.term in alive
+        ]
+        for tab in self._tabs:
+            tab.title = alive.pop(tab.term, tab.title)
+        self._tabs += [_Tab(term, title) for term, title in alive.items()]
+        self._at = self._tabs.index(shown) if shown in self._tabs else 0
+        if first:
+            within = self.has_focus_within
+            if self._tabs:
+                await self._shows(0)
+            else:
+                await self._adds()
+            if within:
+                self.focus()
+        self._draws_tabs()
+        self.draws()
+
+    async def _adds(self) -> None:
+        """Opens a new terminal in a tab of its own, and shows it."""
+        self._tabs.append(_Tab("", t("Terminal")))
+        await self._shows(len(self._tabs) - 1)
+
+    async def _shows(self, at: int) -> None:
+        """Shows one terminal, opening or coming back to it the first time it is shown."""
+        desk = self._desk
+        if desk is None or not self._tabs:
+            return
+        self._at = at % len(self._tabs)
+        tab = self._tabs[self._at]
+        for other in self._tabs:
+            if other.tty is not None:
+                other.tty.display = other is tab
+        if tab.tty is None:
+            tab.tty = Tty(desk, tab.term)
+            await self.query_one("#pane-ttys", Vertical).mount(tab.tty)
+        self._draws_tabs()
+        self.draws()
+
+    def _draws_tabs(self) -> None:
+        row = self.query_one("#pane-tabs", _Tabs)
+        held = row.has_focus
+        parts: list[str] = []
+        for at, tab in enumerate(self._tabs):
+            ended = f" {t('[exited]')}" if tab.tty is not None and tab.tty.ended else ""
+            said = escape(f"{at + 1} {tab.title}{ended}")
+            if at == self._at:
+                said = f"[b {'reverse ' if held else ''}$primary] {said} [/]"
+            else:
+                said = f" {said} "
+            parts.append(said)
+        row.update(f"[$hmz-line-strong]{humanfia.BAR}[/]".join(parts) or t("Terminals"))
+
+    def on_descendant_focus(self, _: events.DescendantFocus) -> None:
+        """Draws the row as having the keys or not, and says the keys."""
+        self._draws_tabs()
+        self.draws()
+
+    def on_descendant_blur(self, _: events.DescendantBlur) -> None:
+        """Draws the row again once the keys have settled somewhere."""
+        self.call_after_refresh(self._draws_tabs)
+        self.call_after_refresh(self.draws)
+
+    @on(Tty.Left)
+    def _left(self, event: Tty.Left) -> None:
+        event.stop()
+        self.query_one("#pane-tabs").focus()
+
+    @on(Tty.Opened)
+    def _named(self, event: Tty.Opened) -> None:
+        event.stop()
+        for tab in self._tabs:
+            if tab.tty is event.tty:
+                tab.term = event.tty.term
+        self.run_worker(self._reads(), group="list", exclusive=True)
+
+    @on(Tty.Ended)
+    def _ended(self, event: Tty.Ended) -> None:
+        event.stop()
+        if event.tty.has_focus:
+            self.query_one("#pane-tabs").focus()
+        self._draws_tabs()
+        self.draws()
+
+    def action_into(self) -> None:
+        """Gives the keys to the terminal shown."""
+        tty = self.tty
+        if tty is not None and not tty.ended:
+            tty.focus()
+
+    def action_step(self, by: int) -> None:
+        """Shows the terminal before or after the one shown."""
+        if len(self._tabs) > 1:
+            self.run_worker(self._shows(self._at + by), group="show", exclusive=True)
+
+    def action_new(self) -> None:
+        """Opens another terminal, and gives it the keys."""
+        self.run_worker(self._news(), group="show", exclusive=True)
+
+    async def _news(self) -> None:
+        if self._desk is None:
+            return
+        await self._adds()
+        self.action_into()
+
+    def action_close(self) -> None:
+        """Closes the terminal shown, once a box has asked: what runs in it is ended."""
+        if self._at < len(self._tabs):
+            self.run_worker(self._closes(self._tabs[self._at]), group="do")
+
+    async def _closes(self, tab: _Tab) -> None:
+        desk = self._desk
+        if desk is None:
+            return
+        running = tab.tty is None or not tab.tty.ended
+        if running:
+            sure = await self._host.push_screen_wait(
+                Sure(
+                    t("Close {name}? What runs in it is ended.", name=tab.title),
+                    "",
+                    t("Close terminal"),
+                )
+            )
+            if sure != "yes":
+                return
+        if tab.term:
+            try:
+                await asyncio.to_thread(
+                    desk.reach.ask, "env.term.close", {"term": tab.term}
+                )
+            except Exception as why:  # noqa: BLE001 -- said over the keys
+                if running:
+                    self.fails(why)
+                    return
+        if tab not in self._tabs:
+            return
+        if tab.tty is not None:
+            await tab.tty.remove()
+        self._tabs.remove(tab)
+        self._said = ""
+        if self._tabs:
+            await self._shows(min(self._at, len(self._tabs) - 1))
+        else:
+            self._at = 0
+        self.query_one("#pane-tabs").focus()
+        self._draws_tabs()
+        self.draws()

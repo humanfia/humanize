@@ -76,8 +76,8 @@ async def test_minutes_not_offered_are_kept_while_off() -> None:
     ("name", "url", "wrong"),
     [
         ("two words", "u", "name is one short word"),
-        ("home", "u", "another target is named home"),
-        ("lab", "", "URL is required"),
+        ("home", "u", "home is there already."),
+        ("lab", "", "URL still has to be filled in."),
     ],
 )
 async def test_a_target_that_is_not_one_is_refused(

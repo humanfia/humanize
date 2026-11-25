@@ -1,0 +1,110 @@
+{
+ "entries": [
+  {
+   "wants": "what the ctrl+o key does from anywhere in the terminal interface: opens the panel about the epic that is open, beside the log (its details, board, people and side questions)",
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, two words",
+   "text": "Epic panel"
+  },
+  {
+   "wants": "what the ctrl+s key does on the New epic page: starts the epic with what the page holds",
+   "where": "key hint in the row of keys under a form, lower case, one word",
+   "text": "start"
+  },
+  {
+   "wants": "explanation under the Folder field of the New epic page: the folder the epic works in; left empty, the epic works in a temporary directory of its own, made as it starts",
+   "where": "one short line under a form field, sentence with full stop, under 20 words",
+   "text": "Left empty, the epic works in a temporary directory made for it as it starts."
+  },
+  {
+   "wants": "explanation under an environment role's field of the New epic page: where this environment role of the flow works; left as Folder, it works in the folder the epic runs in",
+   "where": "one short line under a form field, sentence with full stop, under 20 words",
+   "text": "Where this role works; left as Folder, it works in the epic's folder."
+  },
+  {
+   "wants": "explanation under the Resume field of the New epic page while no epic is picked: an earlier epic of this flow can be picked here, and the new epic carries on from where that one stopped",
+   "where": "one short line under a form field, sentence with full stop, under 20 words",
+   "text": "Pick an earlier epic of this flow to carry on from where it stopped."
+  },
+  {
+   "wants": "refusal shown on the New epic page when Start is pressed while an epic is already going in this folder: an epic is going here; stop it or wait for it to end before starting another",
+   "where": "one sentence with full stop, shown in red under the form",
+   "text": "An epic is already running here; stop it or wait for it to end first."
+  },
+  {
+   "wants": "refusal shown on the New epic page when Start is pressed while the terminal interface is following an epic on another machine's daemon: a new epic is started from this machine's own epics; press esc to come back first",
+   "where": "one sentence with full stop, shown in red under the form",
+   "text": "Press esc to leave the remote daemon before starting an epic here."
+  },
+  {
+   "wants": "status shown under the form of the New epic page while the daemon checks what was filled in, before the epic starts",
+   "where": "one word with an ellipsis character (…), like the page's `Reading…` and `Starting…`",
+   "text": "Checking…"
+  },
+  {
+   "wants": "line said in the transcript after the New epic page started an epic in another folder than the one this terminal interface is open in: the epic was started in {folder}; it is listed under /epics. Keep {folder} and the literal `/epics`",
+   "where": "one or two short sentences with full stops, in the transcript of the terminal interface",
+   "text": "Started the epic in {folder}. It is listed under `/epics`."
+  },
+  {
+   "wants": "line said in the transcript after the New epic page started an epic in no folder (a temporary directory of its own): the epic was started in a directory of its own, {folder}; it is listed under /epics. Keep {folder} and the literal `/epics`",
+   "where": "one or two short sentences with full stops, in the transcript of the terminal interface",
+   "text": "Started the epic in its own directory, {folder}. It is listed under `/epics`."
+  },
+  {
+   "wants": "what the left and right arrow keys (and the digits 1 to 4) do in the epic panel: go to the previous or next tab (Details, Board, People, Side questions)",
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, one word",
+   "text": "Tab"
+  },
+  {
+   "wants": "shown in the Board tab of the epic panel when the epic's flow never asks a person anything and so keeps no board",
+   "where": "one short sentence with full stop, shown dim in place of the list",
+   "text": "This flow keeps no board."
+  },
+  {
+   "wants": "shown in the People tab of the epic panel when the epic's flow has no role that a person fills",
+   "where": "one short sentence with full stop, shown dim in place of the list",
+   "text": "This flow has no role for a person."
+  },
+  {
+   "wants": "shown in the Side questions tab of the epic panel when no side question has been asked yet: none yet, and which key asks one. Keep the literal `a` as the key",
+   "where": "one short sentence with full stop, shown dim in place of the list",
+   "text": "No side question yet; press `a` to ask one."
+  },
+  {
+   "wants": "shown in the Side questions tab of the epic panel when the epic has opened no conversation yet, so there is no session to ask a side question of",
+   "where": "one short sentence with full stop, shown in place of an answer",
+   "text": "No harness session is open in this epic yet."
+  },
+  {
+   "wants": "question of the box that asks before a side conversation is closed in the epic panel: close the side conversation with {name}? Keep {name}",
+   "where": "question in a confirmation box, one short question",
+   "text": "Close the side question with {name}?"
+  },
+  {
+   "wants": "explanation in the box that asks before a side conversation is closed: what was asked and answered in it is no longer shown; the epic is not touched",
+   "where": "one sentence with full stop under the question of a confirmation box",
+   "text": "What was asked and answered in it leaves this list; the epic is untouched."
+  },
+  {
+   "wants": "explanation in the box that asks before a line of the board is removed: the flow no longer reads this line",
+   "where": "one sentence with full stop under the question of a confirmation box",
+   "text": "The flow no longer reads this line."
+  },
+  {
+   "wants": "explanation under the Side question field of the form that asks a side question from the epic panel: a side question is answered by a read-only copy of the conversation picked, and never reaches the epic",
+   "where": "one or two short sentences with full stops, under a form's title",
+   "text": "A read-only copy of the chosen harness session answers this, and it never reaches the epic."
+  },
+  {
+   "wants": "label of a state on the Details tab of the epic panel for an epic that has ended (the others are the page's `Running` and `Stopping`)",
+   "where": "one word, capitalised, a status label",
+   "text": "Ended"
+  },
+  {
+   "wants": "note under a question in the transcript of the terminal interface, for a question whose flow gave it a custom view that a terminal cannot draw: the custom view of this question is in the web page{where}; Enter answers it here with the plain form. Keep {where} exactly as written, directly after the words `web page` with no space before it, and keep the key name Enter capitalised",
+   "where": "one line in the transcript under a question, one sentence, no full stop needed at the end, under 22 words; use the page's own nouns `custom view` and `plain form`",
+   "text": "The custom view is in the web page{where}; Enter answers here with the plain form"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

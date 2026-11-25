@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from pydantic import BaseModel
 
 from hmz.coganchor import gateway, providers
 from hmz.coganchor.agents import (
@@ -16,7 +19,7 @@ from hmz.coganchor.agents import (
     GrokBuildSession,
     driver,
 )
-from hmz.coganchor.agents.config import Unfenced
+from hmz.coganchor.agents.config import Unfenced, Unserved
 from hmz.coganchor.agents.event import Unrecoverable
 from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.agents.skills import Loaded
@@ -44,6 +47,30 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     for one in (*_GATEWAY, "GROK_CONFIG", "GROK_HOME"):
         monkeypatch.delenv(one, raising=False)
+
+
+#: Where an administrator locked always-approve off, as `grok inspect --json` names it, and
+#: the probe that asks: every test but those about the lock runs on a machine with none.
+_POLICY = "/etc/grok/requirements.toml"
+_PROBE = GrokBuildAgent.locks
+
+
+@pytest.fixture(autouse=True)
+def _unlocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    def locks(agent: GrokBuildAgent) -> str:
+        del agent
+        return ""
+
+    monkeypatch.setattr(GrokBuildAgent, "locks", locks)
+
+
+def _locked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Always-approve locked off for every fenced agent, as the probe finds it."""
+
+    def locks(agent: GrokBuildAgent) -> str:
+        return _POLICY if agent.config.fence is not None else ""
+
+    monkeypatch.setattr(GrokBuildAgent, "locks", locks)
 
 
 def _agent(**said: Any) -> GrokBuildAgent:
@@ -119,7 +146,8 @@ def test_grok_is_driven_by_its_own_classes() -> None:
     assert agent.backend == "grok"
     assert isinstance(agent.new(), GrokBuildSession)
     assert GrokBuildAgent.counts == {"input", "output", "cache_read", "cache_write"}
-    assert Moment.PERMISSION_REQUEST in GrokBuildAgent.moments
+    # Section 4.9.1.3 of [CORE]: no flow is served a permission request by grok.
+    assert Moment.PERMISSION_REQUEST not in GrokBuildAgent.moments
 
 
 def test_a_negative_turn_cap_is_refused() -> None:
@@ -628,3 +656,172 @@ def test_a_session_opened_on_the_model_asked_for_is_left_on_it(
 
     told = _told(spawned[0].told)
     assert "session/set_model" not in [one["method"] for one in told]
+
+
+# ------------------------------------------------------ always-approve locked off by policy
+
+
+def _inspected(enforced: object) -> str:
+    return json.dumps({"permissions": {"enforced": enforced}})
+
+
+@pytest.mark.parametrize(
+    ("said", "found"),
+    [
+        (
+            _inspected(
+                [{"setting": "alwaysApprove", "enabled": False, "source": _POLICY}]
+            ),
+            _POLICY,
+        ),
+        (
+            _inspected([{"setting": "telemetry", "enabled": False, "source": "x"}]),
+            "",
+        ),
+        (json.dumps({"permissions": {}}), ""),
+        ("not json", ""),
+    ],
+)
+def test_the_lock_is_what_grok_inspect_says_enforces_always_approve_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: str, found: str
+) -> None:
+    monkeypatch.setattr(GrokBuildAgent, "locks", _PROBE)
+    grok = str(tmp_path / "grok")
+    asked: list[list[str]] = []
+
+    def which(name: str) -> str:
+        del name
+        return grok
+
+    def run(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        asked.append(argv)
+        return subprocess.CompletedProcess(argv, 0, said, "")
+
+    monkeypatch.setattr(shutil, "which", which)
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert _agent(fence=_WRITES).locks() == found
+    assert _agent(fence=_READS).locks() == found
+    assert _agent().locks() == ""
+
+    # Asked once for the machine, and never for an agent hmz does not fence.
+    assert asked == [[grok, "inspect", "--json"]]
+
+
+def _asking(options: list[dict[str, str]]) -> str:
+    return line(
+        {
+            "jsonrpc": "2.0",
+            "id": 99,
+            "method": "session/request_permission",
+            "params": {
+                "sessionId": "g-1",
+                "toolCall": {"title": "x"},
+                "options": options,
+            },
+        }
+    )
+
+
+@pytest.mark.parametrize("fence", [_WRITES, _READS])
+def test_under_the_lock_a_fenced_agent_runs_asking_on_acp_and_is_granted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fence: Fence
+) -> None:
+    _locked(monkeypatch)
+    spawned = spawning(monkeypatch, answers=_acp([_asking(_EVERY), *_SAID]))
+    agent = _agent(fence=fence)
+    heard(agent)
+
+    first = _turn(agent.new(tmp_path))
+    again = _turn(agent.new(tmp_path))
+
+    argv = spawned[0].args
+    argv = argv[argv.index("grok") :]
+    assert argv[:2] == ["grok", "agent"]
+    assert "--always-approve" not in argv
+    assert "--tools" not in argv
+    (answer,) = [one for one in _told(spawned[0].told) if one.get("id") == 99]
+    assert answer["result"]["outcome"] == {"outcome": "selected", "optionId": "allow"}
+    # Said once for the agent, naming what locked it.
+    (notice,) = [one for one in first + again if one.kind == "notice"]
+    assert _POLICY in notice.text
+
+
+class _Word(BaseModel):
+    word: str
+
+
+def test_under_the_lock_a_shaped_turn_is_asked_for_its_shape_on_acp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _locked(monkeypatch)
+    answered = _chunk("agent_message_chunk", '{"word": "kiwi"}')
+    spawned = spawning(monkeypatch, answers=_acp([answered]))
+    agent = _agent(fence=_WRITES)
+    heard(agent)
+
+    said = agent.new(tmp_path)("hello", schema=_Word)
+
+    assert said == _Word(word="kiwi")
+    (process,) = spawned
+    assert "--json-schema" not in process.args
+    (prompt,) = [
+        one for one in _told(process.told) if one.get("method") == "session/prompt"
+    ]
+    assert '"word"' in prompt["params"]["prompt"][0]["text"]
+
+
+@pytest.mark.parametrize(
+    ("said", "flag"),
+    [
+        ({"fence": _WRITES, "web_search": False}, "--disable-web-search"),
+        ({"fence": Fence(online=False)}, "--disable-web-search"),
+        ({"fence": _WRITES, "max_turns": 3}, "--max-turns"),
+        ({"fence": _READS, "rules": "be brief"}, "--rules"),
+    ],
+)
+def test_under_the_lock_what_only_grok_p_says_is_refused_as_a_session_opens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: dict[str, Any], flag: str
+) -> None:
+    _locked(monkeypatch)
+    spawned = spawning(monkeypatch, answers=_acp())
+    agent = _agent(**said)
+
+    with pytest.raises(Unserved) as refused:
+        agent.new(tmp_path)
+
+    assert _POLICY in str(refused.value)
+    assert flag in str(refused.value)
+    assert not spawned
+
+
+def test_under_the_lock_a_conversation_is_not_forked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _locked(monkeypatch)
+    spawning(monkeypatch, answers=_acp())
+    agent = _agent(fence=_WRITES)
+    heard(agent)
+    session = agent.new(tmp_path)
+    _turn(session)
+
+    assert not session.forks
+    with pytest.raises(NotImplementedError, match=_POLICY):
+        session.fork()
+
+
+def test_a_tool_call_a_single_run_could_not_have_approved_fails_the_fenced_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    said = (
+        "grok: always-approve disabled by managed policy "
+        "([ui] disable_bypass_permissions_mode = true in requirements.toml)\n"
+        "permission required: Edit calc.py was not run, as a headless run cannot ask "
+        "for approval\n"
+    )
+    spawning(monkeypatch, opening=_SINGLE, stderr=said)
+    agent = _agent(fence=_READS)
+    heard(agent)
+
+    with pytest.raises(Unrecoverable, match=r"Edit calc\.py was not run"):
+        _turn(agent.new(tmp_path))

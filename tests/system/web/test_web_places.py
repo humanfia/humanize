@@ -8,7 +8,7 @@ workspace is opened by its path and forgotten again.
 from __future__ import annotations
 
 import re
-import tempfile
+import shutil
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +25,14 @@ if TYPE_CHECKING:
 
 #: Local is a daemon of this process, which the page reaches over `/rpc` as any other.
 pytestmark = pytest.mark.usefixtures("daemon")
+
+
+#: The control that names the folder picked, by the form it is on: a new chat keeps it on
+#: `Folder` under its box, a new epic in `Environment` in the middle of the page.
+_FOLDER = {
+    "/new/chat": "[data-hmz=start] [data-hmz=folder]",
+    "/new": "[data-hmz=setup-folder] [data-hmz=workspace-picker]",
+}
 
 
 @pytest.fixture
@@ -75,10 +83,10 @@ def test_every_workspaces_chats_are_listed_and_found_by_workspace(
             places = page.call("workspaces.list", here=str(here))
         assert places["here"] == str(here)
         assert [one["path"] for one in places["workspaces"]][:1] == [str(here)]
-        assert {one["path"]: one["epics"] for one in places["workspaces"]} == {
-            str(here): 1,
-            str(other): 1,
-        }
+        # Each counts its chat as a chat, and no epic (Section 4.17.5.1 of [DAEMON]).
+        assert {
+            one["path"]: (one["epics"], one["chats"]) for one in places["workspaces"]
+        } == {str(here): (0, 1), str(other): (0, 1)}
 
 
 def test_a_workspace_is_opened_by_its_path_and_forgotten(
@@ -125,7 +133,9 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
                 [re.compile("second task")]
             )
             second.get_by_role("button", name="New chat in other").click()
-            expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
+            expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text(
+                "other"
+            )
 
             page.keyboard.press("Control+k")
             page.locator("[data-hmz=search-filtering]").click()
@@ -143,7 +153,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new/chat")
-        page.locator("[data-hmz=workspace-picker]").click()
+        page.locator(_FOLDER["/new/chat"]).click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=workspace-path]").fill(str(other))
         # Opening it says so until the daemon answers.
@@ -152,7 +162,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         expect(page.get_by_role("button", name="Opening…")).to_be_disabled()
         wire.waits(page)
         wire.lets_through()
-        expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
+        expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text("other")
 
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
@@ -166,17 +176,113 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
 
 
 @pytest.mark.parametrize("engine", ENGINES)
-def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
-    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
+    project: Path, other: Path, tmp_path: Path, engine: str
 ) -> None:
-    scratch = tmp_path / "temporary"
-    scratch.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    """Sections 3.3.5.1, 3.5.7.1 and 3.8.2.3 of protocol/web.md."""
+    written = tmp_path / "written"
+    written.mkdir()
+    gone = "The folder other is no longer on this machine. Pick another folder."
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _ran(browser, project.resolve(), "first task")
+        # The one worked in last, and one only written down: both deleted since.
+        _ran(browser, other, "second task")
+        with browser.session() as page:
+            _writes(page, "workspaces.add", workspace=str(written.resolve()))
+        shutil.rmtree(other)
+        written.rmdir()
+
+        with opened(site, engine=engine) as page:
+            # Neither form opens on it, nor offers it.
+            for address in ("/new/chat", "/new"):
+                go(page, address)
+                chip = page.locator(_FOLDER[address])
+                expect(chip.locator("b")).to_have_text(project.name)
+                expect(page.locator("#page")).not_to_contain_text(
+                    "There is no directory"
+                )
+                expect(page.locator("#page [data-hmz=folder-gone]")).to_have_count(0)
+                chip.click()
+                expect(page.locator(".popover [data-folder]")).to_have_text(
+                    [
+                        re.compile("^No folder"),
+                        re.compile(f"^{re.escape(project.name)}"),
+                    ]
+                )
+                page.keyboard.press("Escape")
+            # The sidebar keeps the one that holds a chat, said to be missing, and starts
+            # nothing there; the one that holds nothing is not listed.
+            folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
+            expect(folder.locator("[data-hmz=folder-missing]")).to_have_text("missing")
+            expect(folder.locator("[data-hmz=group-add]")).to_have_count(0)
+            expect(
+                page.locator(f"[data-hmz=workspace][data-path='{written.resolve()}']")
+            ).to_have_count(0)
+            folder.locator(".side-folder").click(button="right")
+            menu = page.locator(".popover.context")
+            expect(menu.get_by_role("menuitem", name="Search here")).to_be_visible()
+            for label in ("New chat here", "New epic here", "Flows here"):
+                expect(menu.get_by_role("menuitem", name=label)).to_have_count(0)
+            page.keyboard.press("Escape")
+            # Named by the address, it stays picked, says so, and starts nothing.
+            for address in ("/new/chat", "/new"):
+                go(page, f"{address}?workspace={other}")
+                chip = page.locator(_FOLDER[address])
+                expect(page.locator("#page [data-hmz=folder-gone]")).to_have_text(gone)
+                expect(chip.locator("b")).to_have_text("other (missing)")
+                expect(chip).to_have_attribute("aria-invalid", "true")
+                expect(page.locator("#page")).not_to_contain_text(
+                    "There is no directory"
+                )
+                chip.click()
+                # A new chat lists the folders in its `Folder`, a new epic in `Folders`.
+                rows = page.locator(".popover[role=menu]")
+                expect(rows.locator("[data-missing]")).to_have_text("otherMissing")
+                page.keyboard.press("Escape")
+                page.locator("[data-hmz=composer-text]").fill("anything")
+                page.locator("[data-hmz=composer-text]").press("Enter")
+                expect(page.locator(".composer-said [role=alert]")).to_have_text(gone)
+            # Put back, the form reads it again by itself.
+            other.mkdir()
+            expect(page.locator("#page [data-hmz=folder-gone]")).to_have_count(
+                0, timeout=20000
+            )
+            expect(chip.locator("b")).to_have_text("other")
+            # Gone again before the form reads so, the daemon's own refusal is said the same.
+            go(page, f"/new/chat?workspace={other}")
+            chip = page.locator(_FOLDER["/new/chat"])
+            expect(chip.locator("b")).to_have_text("other")
+            page.locator("[data-hmz=composer-text]").fill("anything")
+            shutil.rmtree(other)
+            page.locator("[data-hmz=composer-text]").press("Enter")
+            expect(page.locator(".composer-said [role=alert]")).to_have_text(gone)
+            # The flows name no folder, this one neither: nothing there says it is missing.
+            go(page, f"/flows?workspace={other}")
+            expect(
+                page.locator("[data-hmz=flows] :is(.card, .empty)").first
+            ).to_be_visible()
+            expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_count(0)
+            expect(page.locator("#page [data-hmz=folder-missing]")).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_what_is_started_in_no_folder_stands_together_under_no_folder(
+    project: Path, engine: str
+) -> None:
+    del project
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
-        page.locator("[data-hmz=workspace-picker]").click()
+        page.locator(_FOLDER["/new/chat"]).click()
+        # The first of the folders on offer.
+        expect(page.locator(".popover [data-folder]").first).to_have_text(
+            re.compile("^No folder")
+        )
         page.get_by_role("menuitem", name="No folder").click()
-        expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("No folder")
+        expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text(
+            "No folder"
+        )
         page.wait_for_url(re.compile(r".*scratch=1.*"))
 
         expect(
@@ -185,11 +291,32 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
         page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
-        # Under a folder of its own, made in the temporary directory.
-        made = f"[data-hmz=workspace][data-path^='{scratch.resolve()}/hmz-']"
-        expect(page.locator(made).locator("[data-hmz=epic]")).to_contain_text(
-            "nowhere in particular"
+        # Under No folder, the last group, and under no folder named for the directory
+        # made for it, which no menu of folders offers either.
+        none = page.locator("[data-hmz=group][data-group=':nowhere']")
+        expect(none.locator(".side-label").first).to_have_text("No folder")
+        expect(none.locator("[data-hmz=epic]")).to_contain_text("nowhere in particular")
+        expect(
+            page.locator("[data-hmz=workspace][data-path*='nofolder']")
+        ).to_have_count(0)
+
+        # Its `+` starts another in no folder, which stands in the same group.
+        none.locator("[data-hmz=group-add]").click()
+        page.wait_for_url(re.compile(r".*#/new/chat\?scratch=1$"))
+        expect(page.locator(_FOLDER["/new/chat"]).locator("b")).to_have_text(
+            "No folder"
         )
+        page.locator(_FOLDER["/new/chat"]).click()
+        expect(page.locator(".popover [data-folder]")).to_have_count(2)
+        page.keyboard.press("Escape")
+        page.locator("[data-hmz=composer-text]").fill("nowhere else")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
+        expect(none.locator("[data-hmz=epic]")).to_have_count(2)
+        expect(page.locator("[data-hmz=group][data-group=':nowhere']")).to_have_count(1)
+        expect(
+            page.locator("[data-hmz=workspace][data-path*='nofolder']")
+        ).to_have_count(0)
         stop(page)
 
 
@@ -224,57 +351,92 @@ async def mine(
 
 @pytest.mark.parametrize("engine", ENGINES)
 @pytest.mark.parametrize("form", ["/new/chat", "/new"])
-def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
+def test_the_folder_is_picked_in_environment_and_not_in_the_bar(
     project: Path, other: Path, form: str, engine: str
 ) -> None:
-    """A new chat and a new epic keep the folder under the box, and neither switches kind."""
+    """A new chat and a new epic keep the folder a control of its own, and neither switches kind."""
+    chat = form == "/new/chat"
     with served() as site, opened(site, engine=engine) as page:
         go(page, f"{form}?workspace={other}")
-        chip = page.locator("[data-hmz=composer-under] [data-hmz=workspace-picker]")
-        expect(chip.locator("b")).to_have_text("other")
+        chip = page.locator(_FOLDER[form])
+        named = chip.locator("b")
+        expect(named).to_have_text("other")
         expect(
             page.locator("[data-hmz=bar] [data-hmz=workspace-picker]")
         ).to_have_count(0)
         expect(page.locator("[data-hmz=new-kind]")).to_have_count(0)
         # A new chat's bar holds nothing of the form's; a new epic's, its flow alone.
-        flows = 0 if form == "/new/chat" else 1
         expect(page.locator("[data-hmz=bar] [data-hmz=flow-picker]")).to_have_count(
-            flows
+            0 if chat else 1
         )
-        # Under the box, at its left, right after where it runs.
         box = page.locator("[data-hmz=start] .composer-box").bounding_box()
         under = chip.bounding_box()
-        runs = page.locator("[data-hmz=composer-under] [data-hmz=environment]")
-        before = runs.bounding_box()
         assert box is not None
         assert under is not None
-        assert before is not None
-        assert under["y"] >= box["y"] + box["height"]
-        # Set in from the box's edge, as its Add button is.
-        assert 0 <= before["x"] - box["x"] <= 12
-        assert 0 <= under["x"] - (before["x"] + before["width"]) < 8
+        if chat:
+            # Under the box, at its left, the first chip there, set in from the box's
+            # edge as its Add button is: it names the folder, and no daemon.
+            expect(chip).to_have_text("other")
+            assert under["y"] >= box["y"] + box["height"]
+            assert 0 <= under["x"] - box["x"] <= 12
+            expect(
+                page.locator("[data-hmz=composer-under] [data-hmz=workspace-picker]")
+            ).to_have_count(0)
+        else:
+            # In the middle of the page, over the box, the first row of what the flow is
+            # set up with: nothing of where it works is under the box, and no daemon is
+            # named or offered on the form.
+            assert under["y"] + under["height"] <= box["y"]
+            expect(
+                page.locator("[data-hmz=options] .setup-row").first
+            ).to_have_attribute("data-hmz", "setup-folder")
+            expect(page.locator("[data-hmz=new-epic] [data-hmz=daemon]")).to_have_count(
+                0
+            )
+            expect(
+                page.locator("[data-hmz=composer-under] :is(button, input)")
+            ).to_have_count(0)
 
         chip.click()
-        menu = page.get_by_role("menu", name="Folders")
-        # A chat app's folder menu: each folder one row by its name, under no heading,
-        # its path said where it is pointed at.
-        expect(menu.locator(".popover-head")).to_have_count(0)
-        expect(menu.locator(".choice-about")).to_have_count(0)
-        expect(menu.get_by_role("menuitem", name="project")).to_have_attribute(
-            "data-tip", str(project)
-        )
+        menu = page.get_by_role("menu", name="Folder" if chat else "Folders")
+        if chat:
+            # A chat app's folder menu: each folder one row by its name, its path said
+            # where it is pointed at, under no heading, and no daemon among them.
+            expect(menu.locator(".popover-head")).to_have_count(0)
+            expect(menu.locator("[data-daemon]")).to_have_count(0)
+            expect(menu.locator("[data-folder] .choice-about")).to_have_count(0)
+            expect(menu.get_by_role("menuitem", name="project")).to_have_attribute(
+                "data-tip", str(project)
+            )
+        else:
+            # Each folder a row that says its path.
+            expect(
+                menu.get_by_role("menuitem", name="project").locator(".choice-about")
+            ).to_have_text(str(project))
         expect(menu.get_by_role("menuitem", name="Open folder…")).to_be_visible()
         menu.get_by_role("menuitem", name="No folder").click()
-        expect(chip.locator("b")).to_have_text("No folder")
-        # Named, as every chip under the box is, by what it picks and what is picked.
-        expect(chip).to_have_attribute("aria-label", "Folder: No folder")
+        expect(named).to_have_text("No folder")
+        # Named, as every chip is, by what it picks and what is picked.
+        expect(chip).to_have_attribute(
+            "aria-label",
+            "Folder: No folder",
+        )
         page.wait_for_url(re.compile(r".*scratch=1.*"))
         # With no folder there are no files to name: Add says so, and offers none.
         page.locator("[data-hmz=composer-add]").click()
         files = page.get_by_role("menu", name="Add").locator("[data-add=files]")
         expect(files).to_be_disabled()
         expect(files).to_contain_text("Pick a folder first")
+        # One popup at a time: the folder menu opened by the keyboard, with no press
+        # outside the Add menu, shuts it.
+        chip.focus()
+        page.keyboard.press("Enter")
+        expect(menu).to_be_visible()
+        expect(page.get_by_role("menu", name="Add")).to_have_count(0)
+        expect(page.locator(".popover:visible")).to_have_count(1)
         page.keyboard.press("Escape")
+        expect(page.locator(".popover:visible")).to_have_count(0)
+        expect(chip).to_be_focused()
 
 
 def test_a_projects_own_flows_are_offered_in_that_project_alone(
@@ -307,9 +469,11 @@ def test_a_long_name_stays_inside_what_shows_it(
     long = "a_flow_whose_name_runs_on_and_on_with_nowhere_at_all_to_break"
     at = tmp_path / "a-workspace-whose-name-runs-on-and-on-with-nowhere-to-break"
     write_flow(at / ".hmz" / "flows", long, _OWN)
+    # The same under the user's own flows, which the flows list whatever the workspace.
+    write_flow(tmp_path / "home" / ".hmz" / "flows", long, _OWN)
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        go(page, f"/flows?workspace={at.resolve()}&flow=@local/{long}")
-        expect(page.locator(".flow-detail h2")).to_have_text(f"@local/{long}")
+        go(page, f"/flows?flow=@user/{long}")
+        expect(page.locator(".flow-detail h2")).to_have_text(f"@user/{long}")
         out = page.evaluate(
             """() => [...document.querySelectorAll(
                 '[data-hmz=bar], .card, .flow-detail'
@@ -317,9 +481,8 @@ def test_a_long_name_stays_inside_what_shows_it(
         )
         assert not out, f"run out of: {out}"
         assert page.evaluate("document.documentElement.scrollWidth") <= 390
+        expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
         # What is cut short says itself in full on hover.
-        page.locator("[data-hmz=workspace-picker]").hover()
-        expect(page.locator(".tip")).to_have_text(str(at.resolve()))
         go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
         page.locator("[data-hmz=flow-picker] b").hover()
         expect(page.locator(".tip")).to_have_text(f"@local/{long}")

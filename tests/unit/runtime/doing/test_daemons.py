@@ -14,6 +14,7 @@ import pytest
 
 from hmz.runtime import Refused
 from hmz.runtime.doing.daemons import (
+    ASKING,
     CARRIED,
     FAILED,
     LOCAL,
@@ -190,6 +191,37 @@ def test_local_stands_up_and_nothing_else_is_reached_unasked() -> None:
         remotes.close()
 
 
+def test_an_answer_to_a_daemon_nobody_asked_about_does_nothing() -> None:
+    remotes = Remotes(version="1.2.3")
+    try:
+        idle = {"state": "idle", "detail": "", "version": ""}
+        assert remotes.answer("nobody", True) == idle
+        assert remotes.answer("nobody", False) == idle
+        assert remotes.answer(LOCAL, True)["state"] == UP
+    finally:
+        remotes.close()
+
+
+@pytest.mark.parametrize("install", [False, True, None])
+def test_what_is_done_where_no_hmz_is_found_is_said_as_remotes_are_made(
+    monkeypatch: pytest.MonkeyPatch, install: bool | None
+) -> None:
+    made: list[tuple[Any, ...]] = []
+
+    class Made:
+        def __init__(self, version: str | None = None, **said: Any) -> None:
+            made.append((version, said))
+
+    monkeypatch.setattr("hmz.runtime.doing.daemons.Remotes", Made)
+    assert ASKING == "asking"
+    assert isinstance(Daemons().remotes("1.2.3", install=install), Made)
+    assert isinstance(Daemons().remotes(), Made)
+    assert made == [
+        ("1.2.3", {"install": install, "kind": "sdk"}),
+        (None, {"install": False, "kind": "sdk"}),
+    ]
+
+
 def test_a_probe_is_read_by_what_each_line_says() -> None:
     assert said(
         [
@@ -261,7 +293,7 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     sent = carried(hmz, CARRIED)
 
     assert sent == [
-        ("settings.set", {"ai_chan": "", "details": True, "reports": False}),
+        ("settings.set", {"details": True, "reports": False}),
         (
             "nous.set",
             {
@@ -435,6 +467,35 @@ def test_a_daemon_is_reached_its_id_pinned_and_its_client_called(
     assert _Peer.made[0].closed
 
 
+@pytest.mark.usefixtures("held", "reached")
+def test_a_daemon_is_reached_as_the_kind_of_client_asked_for_and_held_as_its_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hmz.rpc
+    from hmz.runtime.doing.daemons import Client
+
+    class Mine(Client):
+        """A client that does more than the runtime's, as the SDK's does."""
+
+    said: list[tuple[str, str]] = []
+
+    def hello(_peer: object, name: str, kind: str, **_: object) -> dict[str, str]:
+        said.append((name, kind))
+        return {"daemon_id": _ID, "version": "9.9.9", "device": "local"}
+
+    monkeypatch.setattr(hmz.rpc, "hello", hello)
+    Daemons().write("box", {"routes": ["stdio:local"]})
+    remotes = Daemons().remotes(kind="cli")
+    try:
+        client = remotes.client("box", Mine)
+        assert type(client) is Mine
+        assert type(remotes.client("box")) is Client
+        assert client.daemon_id == _ID
+        assert said == [("here", "cli")]
+    finally:
+        remotes.close()
+
+
 def test_a_daemon_that_answers_as_another_fails(
     held: dict[str, Any], reached: list[str]
 ) -> None:
@@ -540,7 +601,7 @@ def test_an_easytier_daemon_is_installing_while_easytier_downloads(
 
 
 def _code(routes: list[str]) -> str:
-    """A pairing code of the daemon `_ID`, as `hmz daemon pair` prints one."""
+    """A pairing code of the daemon `_ID`, as `hmz devices pair` prints one."""
     said = {"v": 1, "id": _ID, "routes": routes, "token": "t0ken", "expires": 1}
     return "hmz-pair:" + base64.urlsafe_b64encode(json.dumps(said).encode()).decode()
 

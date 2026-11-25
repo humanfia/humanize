@@ -1,313 +1,109 @@
-<script setup>
-import CtrlC from '../.vitepress/theme/components/user-prompt/CtrlC.vue'
-import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
-import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+---
+title: Stop a run
+description: Stop a running epic from any interface, force one that will not let go, and stop one turn of a chat.
+---
 
-const said = [
-  '[dim]─ reading agent ─[/]',
-  '[dim]❯[/] Run the test suite until it is green. Do not commit.',
-  '[dim]● agent is working[/]',
-]
-const agent = (mark) => ({ r: `[m]agent · claude/claude-haiku-4-5-20251001:high · ${mark} 1[/]` })
-const spent = { r: '[m]$0.02 · 28 out/s[/]' }
-const running = '[c]·|·[/] agent… [m](23s · ctrl+c twice to stop)[/]'
-const keys = '/ commands · shift+enter newline · ← monitor · '
-const below = (mark, status, last) => [
-  '',
-  agent(mark),
-  spent,
-  { rule: true },
-  { prompt: '' },
-  { rule: true },
-  { l: status, keys: keys + last },
-]
+# Stop a run
 
-const stop = [
-  {
-    label: '1 · running',
-    lines: [...said, ...below('●', running, 'ctrl+c stop[n]1[/]')],
-    caption: 'A turn is open. The last key on the status line says what the next press does.',
-  },
-  {
-    label: '2 · first press',
-    lines: [
-      ...said,
-      { t: '[dim]— press ctrl+c again to stop the flow —[/][n]2[/]', hl: true },
-      ...below('●', running, 'ctrl+c again to stop'),
-    ],
-    caption: 'The first press only warns. You have three seconds for the second.',
-  },
-  {
-    label: '3 · second press',
-    lines: [
-      ...said,
-      '[dim]— press ctrl+c again to stop the flow —[/]',
-      { t: '[dim]— stopping the flow —[/][n]3[/]', hl: true },
-      { t: '[y]●[/] [dim]cutting the turn off: interrupted[/][n]4[/]', hl: true },
-      ...below('●', running, 'ctrl+c force stop[n]5[/]'),
-    ],
-    caption: 'The flow is told to stop and winds down. A third press would not wait for it.',
-  },
-  {
-    label: '4 · stopped',
-    lines: [
-      ...said,
-      '[dim]— press ctrl+c again to stop the flow —[/]',
-      '[dim]— stopping the flow —[/]',
-      '[y]●[/] [dim]cutting the turn off: interrupted[/]',
-      '[y]●[/] [dim]turn cut off: interrupted[/]',
-      '[dim]✻ Worked for 24s · agent[/]',
-      ...below('○', '[c]◉[/] ralph_loop[m] · ~/tmp/humanize-demo[/][n]6[/]', 'ctrl+c exit'),
-    ],
-    caption: 'Stopped. The status line is back to the flow and the directory, ready for the next task.',
-  },
-]
-</script>
+Stopping an epic interrupts every open turn and cancels the flow. The flow closes every session and environment it opened, and deletes its temporary directories. If an epic takes too long to unwind, you can force it to stop.
 
-# Stopping
+![An epic goes from running to stopping to stopped; a force stop skips the wait](/diagrams/user-stopping-1.svg)
 
-Press <kbd>ctrl+c</kbd> twice, or send `/stop`. The whole flow stops, not just the turn it is
-in. Most flows are loops that never end on their own, so this, or a budget, is how they end.
+Stopping an epic stops it in every open interface. A terminal following it prints `stopping the flow`, and names the interface that stopped it when that was another one.
 
-::: info At a glance
-- **You will** end a run by hand, and know what state it leaves your files and the run in.
-- **Use it when** the work is done, the run has gone the wrong way, or it is spending more
-  than it is worth.
-- **You need** a flow running in `hmz`. [Your first run](/user/first-run) starts one.
-:::
+## In the app {#in-the-app}
 
-## Try it
+1. Open the running epic and click **Stop** in its bar.
+2. When the app asks **Stop this epic?**, click **Stop** to confirm or **Cancel** to keep it running.
 
-With nothing typed at the prompt, press <kbd>ctrl+c</kbd>, then <kbd>ctrl+c</kbd> again within
-3 seconds. Or type:
+![The Stop button of an epic, the question it asks, and the epic stopped](/shots/user-stopping-app.svg)
 
-```text
-❯ /stop
-```
+The button shows **Stopping…** for up to ten seconds until the epic begins stopping.
 
-<CtrlC />
+To stop an epic from the sidebar without opening it, open the **More options** menu on its row and select **Stop**. This stops the epic without asking for confirmation.
 
-## How it works
+![The menu of an epic's row in the sidebar, with Stop as its last item](/shots/user-stopping-app-menu.svg)
 
-<kbd>ctrl+c</kbd> always does the nearest thing there is to take back, and the last entry on
-the status line under the prompt says what that is. While you are typing, it clears your line.
-While a flow runs, it stops the flow, but only on the second press, so a key pressed by
-accident costs nothing. With nothing running, it leaves `hmz`, also on the second press.
+### Force a stop {#force-a-stop}
 
-A stop is not an undo. It ends the run where it is:
+While an epic is stopping, the button changes to **Force stop**. Click it, then click **Force stop** when asked **Close every session now?**. Every session still in a turn closes immediately, and those turns fail instead of finishing.
 
-- **The turn is cut off where it is.** The agent's CLI stops, along with anything it had
-  started. A file the agent was halfway through writing stays halfway written.
-- **The flow winds down in its own time.** A loop finishes its round and what it opened is
-  closed. Until it is done, the status line ends with `ctrl+c force stop`, and one more press
-  closes the agents without waiting.
-- **The run is recorded as stopped**, not as finished. [`/epics`](/user/tracing) lists it that
-  way, and a flow that can be picked up is marked `resumable`.
+![An epic that is stopping, with Force stop asking whether to close every session now](/shots/user-stopping-app-force.svg)
 
-## Example: stop a loop with <kbd>ctrl+c</kbd>
+### Stop one turn of a chat {#chat-turn-in-the-app}
 
-A [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) run is working on a test suite, and you have seen enough.
-Step through the four moments of stopping it:
+While a chat agent is answering, the **Send** button becomes **Stop**. Click it to interrupt the turn. The chat shows `That turn was stopped.` and waits for your next message.
 
-<TermScreen title="hmz · ralph_loop" :frames="stop" />
+![A chat whose open turn is stopped with the button of its message box](/shots/user-stopping-app-turn.svg)
 
-What to look at, by number:
+## In the terminal {#in-the-terminal}
 
-1. **`ctrl+c stop`.** The last key on the status line. It is what the next press does, and it
-   changes with what is on the screen: with something typed it reads `ctrl+c clear`.
-2. **The warning.** The first press only says what the second will do. Wait more than 3
-   seconds and the next press is a first press again.
-3. **`— stopping the flow —`.** The second press. The flow has been told to stop, for
-   everybody reading the run, not just this terminal.
-4. **The yellow `●` line.** Humanize saying what it is doing about the turn: cutting it off.
-   It shows even with [details](/user/settings#details) off.
-5. **`ctrl+c force stop`.** The flow is winding down. A third press closes every agent still in
-   a turn without waiting. You rarely need it.
-6. **The status line back at rest.** `◉` and the flow's name mean nothing is running, and
-   <kbd>enter</kbd> on a task starts the flow again. The last key is `ctrl+c exit` once more.
+<kbd>ctrl+c</kbd> does a different thing in each state. The end of the status line always says what the next press does.
 
-### Check it worked
+| State | <kbd>ctrl+c</kbd> does |
+| --- | --- |
+| Text in the prompt | Clears the text. |
+| A flow is running | The first press says `Press ctrl+c again to stop the flow`. A second press within 3 seconds stops it. |
+| The flow is stopping | Forces it. If turns were still open, it says how many: `closed 2 conversation(s) mid-turn`. |
+| Nothing is running, or a chat | The first press says `Press ctrl+c again to exit`. A second press within 3 seconds leaves `hmz`. |
 
-- The status line reads `◉ <flow> · <directory>`, with no clock after it.
-- Each agent's line above the editor shows `○`: nothing has a turn open.
-- `/epics` lists the run at the top, marked `stopped`:
+![A flow stopped with two presses of ctrl+c, then forced with a third](/shots/user-stopping-terminal.svg)
 
-  ```text
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ 2026-09-30 05:36 · ralph_loop Run the test suite until it is green. Do   │
-  │                               not commit. · 4 sessions · stopped         │
-  │ …                                                                        │
-  ╰──────────────────────────────────────────────────────────────────────────╯
-  ```
+Run `/stop` to stop the flow immediately without confirmation. If nothing is running, it fails with `no flow is running`. If a stop is already in progress, it fails with `the flow is already stopping: it is finishing the turn it was in`.
 
-- `git diff` shows what the agent changed before it was cut off. Look for half-written files.
+You can also stop an epic from the monitor:
 
-## The ways to stop
+1. Press <kbd>←</kbd> to open the monitor.
+2. Move up to the epic's row and press <kbd>enter</kbd> to open the epic's page.
+3. Press <kbd>tab</kbd> to reach **Stop**, then press <kbd>enter</kbd>.
+4. It asks `Stop this epic?` Press <kbd>enter</kbd> to stop, or <kbd>esc</kbd> to cancel.
 
-| | Where | How |
+While the epic is stopping, this button becomes **Force stop** and asks `Close every session now?`.
+
+![The epic's page in the monitor, asking whether to stop the epic](/shots/user-stopping-terminal-page.svg)
+
+### Stop one turn of a chat {#chat-turn-in-the-terminal}
+
+In a chat, `/stop` interrupts the open turn and keeps the chat. With no turn open it is refused: `No turn is open, so there is nothing to stop.` <kbd>ctrl+c</kbd> never stops a chat's turn. It only leaves.
+
+![A chat in the terminal after /stop: the turn was stopped and the prompt is ready](/shots/user-stopping-terminal-turn.svg)
+
+## From the command line {#from-the-command-line}
+
+Send a signal to `hmz exec` to stop its epic. The command waits for the epic to close everything, then exits with 128 plus the signal number.
+
+| Signal | How to send it | Exit status |
 | --- | --- | --- |
-| <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
-| `/stop` | at the prompt, on any transcript or the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping. Typed otherwise, it says why it did nothing. |
-| `Stop`, then `Force stop` | on the epic's page: <kbd>enter</kbd> on `◫ epic` on [the monitor](/user/monitor) | Each asks first. `Force stop` replaces `Stop` while the flow winds down. Not on a chat. |
-| <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
-| a budget | `-p budget.…` on `hmz exec`, or what an epic may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
+| `SIGINT` | <kbd>ctrl+c</kbd> | `130` |
+| `SIGTERM` | `kill <pid>` | `143` |
+| `SIGHUP` | closing the terminal | `129` |
 
-## What the next <kbd>ctrl+c</kbd> does
+![hmz exec interrupted with ctrl+c: the turn is cut off and the exit status is 130](/shots/user-stopping-exec.svg)
 
-| The status line ends with | The next press |
-| --- | --- |
-| `ctrl+c clear` | Clears what you have typed. Nothing else happens. |
-| `ctrl+c stop` | Warns: `— press ctrl+c again to stop the flow —` |
-| `ctrl+c again to stop` | Stops the flow. |
-| `ctrl+c force stop` | Closes the agents still in a turn, without waiting for the flow to wind down. |
-| `ctrl+c exit` | Warns: `— press ctrl+c again to exit —` |
-| `ctrl+c again to exit` | Quits `hmz`. |
+A second <kbd>ctrl+c</kbd> while the epic is stopping forces it and ends the command at once. A second `SIGTERM` or `SIGHUP` is ignored.
 
-A press more than 3 seconds after the last one starts over from the top, and so does a press
-after a `/stop`.
+Sending a signal to `hmz chat` does not stop the turn. The command detaches from the chat, leaves it running in the daemon, and exits with 128 plus the signal number.
 
-<kbd>esc</kbd> never stops anything, and neither does <kbd>←</kbd>, which goes up to
-[the monitor](/user/monitor).
+`hmz epic stop` stops an epic the command line did not start, or one started with `hmz epic start`:
 
-## Leaving `hmz`
-
-`/exit`, or <kbd>ctrl+q</kbd>, leaves. With nothing running, it just closes. With a flow
-running, it asks first:
-
-<Term title="/exit">
-
-<pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span>  <span class="p b">A flow is running.</span>                                            <span class="p">│</span> <span class="n">1</span>
-  <span class="p">│</span>  <span class="m">Detached, it keeps running: run `hmz` here to reattach.</span>       <span class="p">│</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span> <span class="n">2</span> <span class="n">3</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span>  <b>enter</b> stop   <b>esc</b> stay                                         <span class="p">│</span> <span class="n">4</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">╰────────────────────────────────────────────────────────────────╯</span></pre>
-
-</Term>
-
-1. **The question** only appears while a flow runs. With nothing running, `/exit` closes at
-   once.
-2. **Stop the flow and exit**, the button with the focus as the box opens, stops it for
-   everybody, as `/stop` and <kbd>ctrl+c</kbd> twice do, then closes this terminal's `hmz`.
-3. **Detach and exit** lets the flow carry on without your terminal, and without letting go of
-   anybody else reading it. Run `hmz` again in the same directory to get back to it, as the
-   line under the question says. See [Leaving it running](/user/leaving).
-4. **<kbd>esc</kbd> stays**, with the flow untouched, and so does a click outside the box.
-
-<kbd>←</kbd> <kbd>→</kbd> or <kbd>tab</kbd> move between the buttons, and <kbd>enter</kbd>
-presses the one with the focus. A click presses one too.
-
-## After a stop
-
-**Pick the run up** with `/resume`, or with the same `hmz exec` line plus `--resume`. This
-works for a flow that says it can be picked up, such as `stateful_ralph`. It carries on with
-the same flow, agents and task, from where the stop left it:
-
-```text
-❯ /resume
-resuming 20260930T054202.927Z-a5d31a: running stateful_ralph from saved state
-● agent is working
+```bash
+hmz epic stop                        # the epic of this directory
+hmz epic stop --force                # also close turns that are still open
+hmz hosts list --running             # find the workspace and slot of another epic
+hmz epic stop -w ~/work/app --slot exec:1f2e
 ```
 
-`ralph_loop` cannot be picked up: it keeps nothing but your files, so starting it again with
-the same task carries it on.
+`hmz hosts stop` closes the whole host instead, stopping the epic or chat it runs. `hmz epic quit` does the same as one of the host's frontends. `hmz hosts detach` stops nothing: it lets go every app, terminal and command following the host and leaves the epic running.
 
-See [Picking a run up](/user/resuming).
+## What a stop leaves {#what-a-stop-leaves}
 
-**Choose another flow once this one has stopped.** While a flow runs, `/flow <name>` and a
-`$name` line are refused. `/flow` on its own opens the agents of the running flow instead. What
-you save there is what the next run starts with; the running one keeps what it started with.
+A stopped epic is recorded as `stopped`, and its sessions and figures remain readable. Files stay as they were when interrupted, without rolling back partial writes. You cannot restart a stopped epic, so [resume it](/user/resuming) if the flow supports resuming, or start a new epic.
 
-## A chat is not ended {#a-chat-is-not-stopped}
+## Good to know {#good-to-know}
 
-A [chat](/user/chat), which `hmz` opens on, is not a flow: it is one conversation, and reads as
-Claude Code does. Its status line says `running` while the assistant answers and `done` once
-it waits for you. Its open turn can be stopped; the chat itself goes on:
-
-- <kbd>ctrl+c</kbd> clears the line. On an empty one, it says `— press ctrl+c again to exit —`,
-  and a second press leaves `hmz`.
-- `/stop` interrupts the turn the assistant is taking: `That turn was stopped.` is said in the
-  chat, which waits for your next line. With no turn open it says
-  `hmz: no turn is open, so there is nothing to stop`. There is no force stop.
-- `/clear` starts a new chat, leaving this one to fold away: the next line you type starts it.
-- `/exit`, `/quit` and <kbd>ctrl+q</kbd> leave without asking.
-
-A flow started from the chat, with `$<flow>` or `/flow <flow> <task>`, is stopped as any flow
-is; the chat waits on its own meanwhile, and `/chat` brings it back.
-
-There is no monitor, no <kbd>shift+tab</kbd> between views, and no row in `/epics` for a chat
-either, which is no epic: the transcript is the whole of it, and `/resume` in a chat goes back
-to an earlier one.
-
-## What does not stop a flow
-
-| | What it does instead |
-| --- | --- |
-| <kbd>←</kbd> | With nothing typed, goes up to [the monitor](/user/monitor). |
-| <kbd>esc</kbd> | Puts away a list or a menu, or leaves [btw mode](/user/btw). The flow keeps running. |
-| `/clear` | Clears the transcript you are reading. The flow keeps running; in a [chat](#a-chat-is-not-stopped), a new chat starts. |
-| a line you type | Goes into the running turn. See [Talking to a running turn](/user/steering). |
-| a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
-| a second `/stop` | No longer offered. Typed anyway, says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |
-
-## Variations
-
-- **Stop at a budget, not by hand.** Give the run a `duration` or `cost` in `/flow`, or
-  `-p budget.duration=` or `budget.cost=` on `hmz exec`, and it stops itself. With `graceful`
-  on, the turn that is running finishes first. See [Every run has a
-  budget](/features/allowances).
-- **Stop from another terminal.** Run `hmz` in the same directory: it opens on the running flow.
-  Then stop it there. See [Leaving it running](/user/leaving).
-- **Stop an unattended run.** One <kbd>ctrl+c</kbd> on the `hmz exec` line. See
-  [Run it unattended](/user/unattended).
-
-## Troubleshooting
-
-### It still says `ctrl+c force stop` long after I stopped it
-
-The flow is winding down: a loop finishing its round, or a backend slow to notice its turn was
-cut off. Press <kbd>ctrl+c</kbd> once more to close every agent still in a turn. The line
-`— closed 1 conversation(s) mid-turn —` says how many it closed.
-
-### `hmz: cannot resume an epic while the flow is still stopping: it is finishing the turn it was in`
-
-A run is picked up from where it wrote down it got to, and it is still writing that. Wait until
-the status line reads `◉ <flow>`, or press <kbd>ctrl+c</kbd> to end the wait, then `/resume`
-again.
-
-### `hmz: cannot resume an epic while a flow is running: press ctrl+c twice to stop it first`
-
-`/resume` picks up a run that has stopped. Stop the one that is running first.
-
-### `hmz: cannot choose a flow while one is running`
-
-`/flow <name>` and `$name` would swap the flow out from under its agents. Stop the run first,
-then choose. `/flow` on its own still opens the running flow's agents, for the next run.
-
-### `hmz: no flow is running`
-
-`/stop` was typed with nothing to stop. To leave `hmz`, use `/exit`.
-
-### The first <kbd>ctrl+c</kbd> cleared my line instead of warning
-
-With text in the editor, <kbd>ctrl+c</kbd> clears it and does nothing else; the status line said
-`ctrl+c clear`. Press it twice more with the editor empty.
-
-::: details If you write flows
-A stop reaches your flow as a cancellation, not as a failed turn. Code that catches failed
-turns does not catch it, and it should not be caught: let it through, so the run is recorded
-as stopped. To cap one turn rather than the whole run, give that turn a
-[budget of its own](/features/budgets). [Loops](/weaver/loops) shows a loop written this way.
-:::
-
-## Next steps
-
-- [Picking a run up](/user/resuming): carrying on from where a stop left it.
-- [Leaving it running](/user/leaving): walk away without stopping it.
-- [Talking to a running turn](/user/steering): when a word in its ear is enough.
-- [Being away](/user/afk): keep a run you left from waiting on you.
-- [TUI reference](/reference/tui): every key and command.
+- An epic that exhausts its [budget](/user/budgets) is also recorded as `stopped`.
+- Stopping a chat ends only its open turn; the chat stays ready for your next message. You cannot force-stop a chat turn.
+- In the terminal, running `/stop` while following [Ai-chan](/user/ai-chan) stops only her open turn.
+- Closing the browser tab or the app does not stop an epic. Leaving the terminal interface while a flow runs asks whether to stop it or leave it running; see [Leave it running and come back](/user/leaving).
+- If `hmz exec` is killed any other way, such as with `kill -9`, its epic keeps running in the daemon.
+- Any signal already ignored when `hmz exec` starts stays ignored, such as `SIGHUP` under `nohup` or `SIGINT` for a background job in a script.

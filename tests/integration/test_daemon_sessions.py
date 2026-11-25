@@ -23,6 +23,7 @@ from hmz.daemon import where
 from hmz.reach import dial
 from hmz.rpc import PROTOCOL, Code, Peer, RpcError, hello
 from hmz.trust import identity, pairing, tls
+from tests.conftest import homed
 from tests.integration import doubles_ssh
 from tests.integration.doubles_daemon import WAITS, hosting, project, until, written
 
@@ -54,12 +55,9 @@ def listens(*specs: str) -> None:
 
 def device(home: Path, monkeypatch: pytest.MonkeyPatch) -> identity.Identity:
     """The device of a home of its own: another machine's, as the daemon sees it."""
-    was = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(home))
-    try:
+    del monkeypatch
+    with homed(home):
         return identity.device()
-    finally:
-        monkeypatch.setenv("HUMANIZE_HOME", was)
 
 
 class Client:
@@ -145,6 +143,39 @@ def test_a_family_of_methods_is_served_beside_the_daemons_own(workspace: Path) -
     listens("tcp://127.0.0.1:0")
     # `settings.get` of the settings family, as the real daemon serves it.
     assert "tcp://127.0.0.1:0" in str(client.call("settings.get"))
+
+
+def test_a_host_is_still_reached_once_its_directory_is_removed(
+    workspace: Path, tmp_path: Path
+) -> None:
+    # Section 4.5.2 of daemon.md: a host is looked up, not a directory.
+    import shutil
+
+    del workspace
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    daemon.start()
+    near = local()
+    near.call("hosts.open", workspace=str(scratch))
+    shutil.rmtree(scratch)
+
+    assert near.call("hosts.status", workspace=str(scratch))["state"] == "idle"
+    assert near.call("btw.list", workspace=str(scratch), epic="") == {"asides": []}
+    with pytest.raises(RpcError) as env:
+        near.call("hosts.env.list", workspace=str(scratch))
+    assert env.value.message == "no flow is running, so no env is open"
+    assert near.call("hosts.stop", workspace=str(scratch)) == {}
+    assert until(lambda: daemon.running(scratch) is None)
+    with pytest.raises(RpcError) as nobody:
+        near.call("hosts.status", workspace=str(scratch))
+    assert (nobody.value.code, nobody.value.message) == (
+        404,
+        f"no runs are held in {where.workspace(scratch)}",
+    )
+    # One to start a host in must be there.
+    with pytest.raises(RpcError) as missing:
+        near.call("hosts.open", workspace=str(scratch))
+    assert missing.value.message == f"There is no directory {scratch}."
 
 
 def test_a_code_claimed_pairs_every_session_its_device_holds_open(

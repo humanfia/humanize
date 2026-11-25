@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import math
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
+import tomlkit
 
 from hmz.coganchor import backends, nous, prices, settings
 from hmz.coganchor.nous import ANY, Graph, Node, Nous, Run, Wait
@@ -305,10 +305,10 @@ def test_entry_is_where_a_walk_starts() -> None:
         nous.entry("ghost")
 
 
-def _hand_written(held: object) -> None:
+def _hand_written(held: dict[str, Any]) -> None:
     at = settings.where()
     at.parent.mkdir(parents=True, exist_ok=True)
-    at.write_text(yaml.safe_dump(held), encoding="utf-8")
+    at.write_text(tomlkit.dumps(held), encoding="utf-8")
 
 
 def test_the_old_fallbacks_are_read_as_then_and_dropped_at_the_next_write() -> None:
@@ -387,14 +387,13 @@ def test_edges_written_by_hand_under_a_plain_on_are_read_and_kept() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
     at.write_text(
-        "nous:\n"
-        "  smart:\n"
-        "    graph:\n"
-        "      start: first\n"
-        "      nodes:\n"
-        "        first: {use: claude/a, on: {spent: other, '*': cheap}}\n"
-        "        other: {use: codex/b, next: cheap}\n"
-        "        cheap: {use: grok/c}\n",
+        "[nous.smart.graph]\n"
+        'start = "first"\n'
+        "\n"
+        "[nous.smart.graph.nodes]\n"
+        'first = {use = "claude/a", on = {spent = "other", "*" = "cheap"}}\n'
+        'other = {use = "codex/b", next = "cheap"}\n'
+        'cheap = {use = "grok/c"}\n',
         encoding="utf-8",
     )
     graph = Graph(
@@ -413,7 +412,7 @@ def test_edges_written_by_hand_under_a_plain_on_are_read_and_kept() -> None:
 def test_an_unreadable_file_is_nothing_and_refuses_a_write() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
-    at.write_text("nous: [unclosed\n", encoding="utf-8")
+    at.write_text("nous = [unclosed\n", encoding="utf-8")
     assert nous.every() == []
     with pytest.raises(OSError, match="cannot be read"):
         nous.then("claude/a", ["codex/b"])

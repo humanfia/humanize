@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import state
 from hmz.tui import Humanize
 from tests.integration.doubles_tui import (
     RUNS,
@@ -16,6 +17,7 @@ from tests.integration.doubles_tui import (
     screen,
     shows,
     stand_in,
+    status,
     typed,
     until,
 )
@@ -42,7 +44,7 @@ async def test_it_opens_on_chat_with_the_model_the_installed_agent_says_it_runs(
 
     # The chat's agent, as its one role and at rest on the status line.
     assert f"assistant · {RUNS}" in drawn
-    assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+    assert f"◉ {RUNS}" in status(drawn)
 
 
 async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
@@ -57,10 +59,10 @@ async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
         drawn = await shows(pilot, RUNS)
 
         # The flow is held for `$` and `/flow`, and what is said starts the chat.
-        assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+        assert f"◉ {RUNS}" in status(drawn)
         assert f"◉ {OWN}" not in drawn
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
 
 
 async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run(
@@ -70,7 +72,7 @@ async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await typed(pilot, "hello")
-        await shows(pilot, "no coding agent is installed")
+        await shows(pilot, "No coding agent is installed")
 
         assert app.is_running
 
@@ -80,7 +82,7 @@ async def test_a_command_that_is_not_one_is_said_so(workspace: Path) -> None:
         # Past the chat's first turn: before it, such a line is said as text (8.9.13 of [CORE]).
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/fly")
 
         await shows(pilot, "no such command")
@@ -95,7 +97,7 @@ async def test_a_half_typed_command_is_offered_and_tab_takes_it(
 
         await pilot.press("tab")
 
-        drawn = await shows(pilot, "❯ /settings", "workspace")
+        drawn = await shows(pilot, "❯ /settings", "themes")
         assert "general" in drawn  # and now its pages are offered
 
 
@@ -124,7 +126,7 @@ async def test_what_was_typed_is_kept_and_up_brings_it_back_in_the_next_interfac
         await typed(pilot, "/flew")
         await shows(pilot, "/flew")
 
-    kept = (tmp_path / "humanize-home" / "history.jsonl").read_text().splitlines()
+    kept = (state() / "history.jsonl").read_text().splitlines()
     assert [json.loads(one)["text"] for one in kept] == ["/fly", "/flew"]
 
     async with Humanize().run_test(size=SIZE) as pilot:
@@ -141,7 +143,7 @@ async def test_clear_empties_the_transcript(workspace: Path) -> None:
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         await typed(pilot, "/fly")
         await shows(pilot, "no such command")
 
@@ -194,4 +196,4 @@ async def test_a_newer_release_is_said_as_it_opens(
     monkeypatch.setenv(releases.WHENCE, str(pypi))
     monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await shows(pilot, "hmz 99.0.0 is out: run `hmz update` to update")
+        await shows(pilot, "hmz 99.0.0 is out; run `hmz update` to update.")

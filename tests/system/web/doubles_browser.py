@@ -5,7 +5,7 @@ anything the page throws or logs as an error fails the test. Fetch both with
 `uv run playwright install chromium webkit` first.
 
 The page speaks JSON-RPC to each daemon, Local's over `/rpc`: what a test fakes it fakes on that
-wire (`Wire`), or keeps in the browser's own storage as the page would (`kept`, `noticed`); a
+wire (`Wire`), or keeps in the browser's own storage as the page would (`kept`); a
 remote daemon is a real one, under a home of its own (`another`).
 """
 
@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.runtime.epic import JOURNAL
+from tests.conftest import places, rehome
 from tests.integration.doubles_web import PATIENCE
 
 if TYPE_CHECKING:
@@ -65,6 +66,7 @@ def opened(
     height: int = 860,
     dark: bool = False,
     touch: bool = False,
+    locale: str = "en-US",
     user_agent: str | None = None,
     init: str | None = None,
     routed: Callable[[Page], object] | None = None,
@@ -78,6 +80,8 @@ def opened(
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
       touch: Whether the device is touched, with nothing to point at the page with.
+      locale: The language the browser asks for, which the page is written in where none is
+        chosen: American English, whatever the machine the test runs on speaks.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
       routed: Told the page before it is opened, to answer some of its requests itself.
@@ -99,6 +103,7 @@ def opened(
             context = browser.new_context(
                 viewport={"width": width, "height": height},
                 color_scheme="dark" if dark else "light",
+                locale=locale,
                 user_agent=user_agent,
                 has_touch=touch,
                 is_mobile=touch,
@@ -222,27 +227,6 @@ def kept(page: Page, *entries: dict[str, Any]) -> None:
           for (const one of entries) await daemons.add(one)
         }""",
         list(entries),
-    )
-    again(page)
-
-
-def noticed(page: Page, daemon: str, *notices: dict[str, Any]) -> None:
-    """Keeps notifications in the browser, as the page keeps those it heard, and opens it again.
-
-    Args:
-      page: The page.
-      daemon: Which daemon they are of.
-      notices: Each as a daemon makes one, with `read` where it is read already.
-    """
-    page.evaluate(
-        """async ([daemon, notices]) => {
-          const { kept } = await import('/notifications.js')
-          for (const { read, ...one } of notices) {
-            const made = await kept.heard(daemon, one)
-            if (read && made) await kept.read([made.key])
-          }
-        }""",
-        [daemon, list(notices)],
     )
     again(page)
 
@@ -399,7 +383,7 @@ class Another:
     def code(self) -> str:
         """A pairing code it makes, over its listener."""
         return subprocess.run(
-            [sys.executable, "-m", "hmz", "daemon", "pair"],
+            [sys.executable, "-m", "hmz", "devices", "pair"],
             env=self.env,
             capture_output=True,
             text=True,
@@ -415,7 +399,7 @@ def another(under: Path) -> Generator[Another]:
     there = dict(
         os.environ,
         HOME=str(under / "another-home"),
-        HUMANIZE_HOME=str(under / "another"),
+        **places(under / "another"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="a", dir=os.environ.get("TMPDIR")),
     )
@@ -519,9 +503,9 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """
     import subprocess
 
-    import yaml
+    import tomlkit
 
-    from hmz import home
+    from hmz import config
     from hmz.runtime.epic import every
     from tests.integration.doubles_core import AGENT, hmz_exec
 
@@ -530,9 +514,9 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     target = {"name": "t", "url": str(bare), "policies": ["end"]}
 
     def targets() -> None:
-        home().mkdir(parents=True, exist_ok=True)
+        config().mkdir(parents=True, exist_ok=True)
         said = {"backup": {"targets": [target], "defaults": []}}
-        (home() / "settings.yaml").write_text(yaml.safe_dump(said))
+        (config() / "settings.toml").write_text(tomlkit.dumps(said))
 
     targets()
     ran = hmz_exec(
@@ -548,7 +532,7 @@ def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     )
     assert ran.returncode == 0, ran.stderr
     (name,) = [one.name for one in every()]
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    rehome(monkeypatch, tmp_path / "elsewhere")
     targets()
     return name
 

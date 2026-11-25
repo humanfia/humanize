@@ -1,8 +1,10 @@
 // The pipe provider of `hmz web` (Sections 4.7 to 4.9 of protocol/web.md): the WebSocket `/rpc` to
 // the daemon of the server's machine for the route `unix:`, and `/dial?route=…&id=…` for the
 // routes the server opens for the page, which tells the page `{state, detail}` in text until the
-// carrier is up. From then on, binary messages carry the bytes each way.
+// carrier is up, and is told `{install}` in text where it asks whether to install hmz. From then
+// on, binary messages carry the bytes each way.
 
+import { t } from '../i18n.js'
 import { Pipe, onAbort } from './pipe.js'
 import { routeKind } from './routes.js'
 
@@ -18,7 +20,7 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
   const root = base ?? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
   return {
     opens: (route) => route === 'unix:' || DIALED.has(routeKind(route) ?? ''),
-    open(route, id, { state, signal }) {
+    open(route, id, { state, signal, asked }) {
       const dialed = route !== 'unix:'
       const url = dialed ? `${root}/dial?route=${encodeURIComponent(route)}&id=${encodeURIComponent(id)}` : `${root}/rpc`
       return new Promise((resolve, reject) => {
@@ -37,7 +39,7 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
         }
         const stop = onAbort(signal, () => {
           socket.close(1000)
-          reject(new Error('Given up.'))
+          reject(new Error(t('Given up.')))
         })
         socket.onopen = () => {
           if (!dialed) up()
@@ -49,7 +51,7 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
           }
           if (pipe) {
             socket.close(1000)
-            pipe.end('The server sent text.')
+            pipe.end(t('The server sent text.'))
             return
           }
           let told
@@ -61,6 +63,13 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
           said = told.detail ?? said
           if (told.state === 'up') up()
           else if (told.state === 'connecting' || told.state === 'installing') state(told.state, said)
+          else if (told.state === 'asking') {
+            // No hmz is there: the server waits to be told whether to install it (Section 4.8.8).
+            state(told.state, said)
+            asked().then((install) => {
+              if (!pipe && socket.readyState === 1) socket.send(JSON.stringify({ install }))
+            })
+          }
         }
         socket.onclose = (event) => {
           const why = event.reason || said || `${route} closed.`

@@ -244,14 +244,16 @@ async def test_env_names_a_role_it_has_not_got(host: Host) -> None:
     async with Humanize(link=_linked(host)).run_test(size=SIZE) as pilot:
         await typed(pilot, "/env nobody")
 
-        await shows(pilot, "no environment 'nobody' here; choose coder, tester")
+        await shows(
+            pilot, "/env nobody: no such environment here; choose coder, tester."
+        )
 
 
 async def test_env_with_no_environment_is_refused(host: Host) -> None:
     async with Humanize(link=_linked(host, envs=[])).run_test(size=SIZE) as pilot:
         await typed(pilot, "/env")
 
-        await shows(pilot, "hmz: no environment is open here")
+        await shows(pilot, "hmz: No environment is open here.")
 
 
 async def test_an_edit_is_saved_after_a_second_against_what_was_read(
@@ -289,7 +291,13 @@ async def test_a_file_changed_on_disk_asks_and_keeping_mine_writes_over_it(
         await pilot.press("ctrl+e", "!", "ctrl+s")
 
         await on(pilot, Conflict)
-        await shows(pilot, "changed on disk", "Keep mine", "Reload", "Show diff")
+        await shows(
+            pilot,
+            "changed in the environment since you opened it.",
+            "Keep mine",
+            "Reload",
+            "Show the diff",
+        )
         await pilot.click("#act-keep")
         await until(
             pilot,
@@ -306,7 +314,8 @@ async def test_a_binary_file_is_not_opened_in_the_editor(host: Host) -> None:
 
         await opens(pilot, "logo.png")
 
-        await shows(pilot, "logo.png is not text: e opens it in your own editor")
+        why = "logo.png is not text and cannot be opened here."
+        await shows(pilot, f"{why} Press e to open it in your own editor.")
         assert isinstance(app.screen, Files)
 
 

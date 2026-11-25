@@ -12,9 +12,9 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
-import yaml
+import tomlkit
 
-from hmz import home
+from hmz import config
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Ran, chats, read
 from hmz.tui import Humanize
@@ -65,13 +65,13 @@ async def _two(pilot: Pilot[None], workspace: Path) -> tuple[Path, Path]:
     """Has one chat, leaves it to fold away, and has a second, which is on the screen."""
     await opened(pilot)
     await typed(pilot, "first")
-    await shows(pilot, "heard first", "◉ done")
+    await shows(pilot, "heard first", "◉ Done")
     await typed(pilot, "/clear")
     await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
     (first,) = chats(workspace)
     await until(pilot, lambda: bool(_said(first).ended), "it to fold")
     await typed(pilot, "second")
-    await shows(pilot, "heard second", "◉ done")
+    await shows(pilot, "heard second", "◉ Done")
     _, second = chats(workspace)
     return first, second
 
@@ -108,7 +108,7 @@ async def test_resume_lists_the_chat_on_the_screen_too_and_renames_one(
         await pilot.click("#act-done")
 
         await on(pilot, Resumes)
-        await wrapped(pilot, "renamed the parser")
+        await wrapped(pilot, "Renamed to the parser")
         assert _said(second).title == "the parser"
 
         # Picked, the one on the screen stays there.
@@ -128,7 +128,9 @@ async def test_a_chat_archived_leaves_resume_and_is_put_back_from_settings(
 
         await _does(pilot, first, "archive")
         await on(pilot, Resumes)
-        await wrapped(pilot, "archived first; /settings workspace puts it back")
+        await wrapped(
+            pilot, "Archived first; the Workspace page of /settings puts it back"
+        )
         assert rows(app) == [second.name]
         assert _said(first).archived
         await pilot.press("escape")
@@ -139,7 +141,7 @@ async def test_a_chat_archived_leaves_resume_and_is_put_back_from_settings(
         await on(pilot, Archived)
         await until(pilot, lambda: rows(app) == [first.name], "the archived chat")
         await pilot.press("enter")
-        await wrapped(pilot, "put back first")
+        await wrapped(pilot, "Put first back")
         assert rows(app) == []
         assert not _said(first).archived
         await leaves(pilot)
@@ -159,7 +161,7 @@ async def test_the_chat_on_the_screen_archived_gives_way_to_a_new_one(
 
         await _does(pilot, second, "archive")
         await on(pilot, Resumes)
-        await wrapped(pilot, "archived second")
+        await wrapped(pilot, "Archived second")
         await pilot.press("escape")
 
         await shows(pilot, f"◉ {RUNS}")
@@ -179,7 +181,7 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
 
         await _does(pilot, first, "delete")
         await on(pilot, Deletes)
-        await shows(pilot, "Delete first?", "Permanent", "cannot be brought back")
+        await shows(pilot, "Delete first?", "permanently removes", "cannot be undone")
         # Keeping it is the answer under the cursor.
         await pilot.press("enter")
         await on(pilot, Resumes)
@@ -191,19 +193,19 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
         await on(pilot, Deletes)
         await pilot.press("right", "enter")
         await on(pilot, Resumes)
-        await wrapped(pilot, "deleted first")
+        await wrapped(pilot, "Deleted first")
         assert rows(app) == [second.name]
         assert not first.exists()
 
-        # The one going on a host is not deleted, and says why.
+        # The one a host holds between turns is deleted too: its host is ended first.
         await pilot.press("m")
         await on(pilot, Acts)
         await opens(pilot, "delete")
         await on(pilot, Deletes)
         await pilot.press("right", "enter")
         await on(pilot, Resumes)
-        await wrapped(pilot, "is going on; delete it once it rests")
-    assert chats(workspace) == [second]
+        await wrapped(pilot, "Deleted second")
+    assert chats(workspace) == []
 
 
 async def test_a_chat_forked_is_gone_on_with_as_a_chat_of_its_own(
@@ -216,7 +218,7 @@ async def test_a_chat_forked_is_gone_on_with_as_a_chat_of_its_own(
 
         await _does(pilot, first, "fork")
 
-        await shows(pilot, "say something to continue chat")
+        await shows(pilot, "Say something to continue chat")
         assert len(app.screen_stack) == 1
         fork = next(one for one in chats(workspace) if one not in (first, second))
         assert _said(fork).forked == first.name
@@ -231,9 +233,9 @@ def _target(tmp_path: Path) -> Path:
     """A bare repository of the test's own, saved as the default backup target `lab`."""
     lab = tmp_path / "lab.git"
     subprocess.run(["git", "init", "-q", "--bare", str(lab)], check=True)
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.yaml").write_text(
-        yaml.safe_dump(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.toml").write_text(
+        tomlkit.dumps(
             {
                 "backup": {
                     "targets": [{"name": "lab", "url": str(lab)}],
@@ -264,7 +266,7 @@ async def test_a_chat_uploaded_from_resume_lands_in_its_target(
 
         await _does(pilot, first, "upload")
         await on(pilot, Resumes)
-        await wrapped(pilot, "backing up to lab")
+        await wrapped(pilot, "Backing up to lab")
         await until(pilot, lambda: "lab" in _said(first).backed, "the backup")
 
     assert _said(first).backed["lab"]["ok"]

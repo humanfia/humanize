@@ -526,6 +526,7 @@ def serves(
             },
         )
         _logs(at)
+        _migrates()
         router = Router(
             at,
             listening,
@@ -562,10 +563,12 @@ def _fetches(*, verses: bool = True) -> None:
     """Fetches what the daemon tells its clients of, in the background, telling none of them.
 
     The newest release of hmz, where what is kept has got old, which `session.hello` reads,
-    and every flowverse's index, which `flowverses.list` reads (Section 3.9.8 of daemon.md).
+    every flowverse's index, which `flowverses.list` reads (Section 3.9.8 of daemon.md), and
+    what each harness installed runs, which `nous.list` reads (Section 4.18.3.6 of daemon.md).
 
     Args:
-      verses: Whether the flowverses' indexes are fetched as well, which is as it starts alone.
+      verses: Whether the flowverses' indexes are fetched and the harnesses scanned as well,
+        which is as it starts alone.
     """
     import importlib
 
@@ -575,6 +578,8 @@ def _fetches(*, verses: bool = True) -> None:
     if verses:
         # Found as the families are, above this layer.
         importlib.import_module("hmz.daemon.api.flowverses").fetches()
+        # What each harness installed runs, where nobody asked it yet (Section 4.18.3.6).
+        importlib.import_module("hmz.daemon.api.nous").scans()
 
 
 def _listened() -> list[str]:
@@ -592,6 +597,25 @@ def _listened() -> list[str]:
             continue
         found.append(str(one))
     return found
+
+
+def _migrates() -> None:
+    """Moves the chats an earlier hmz kept as epics among the chats (Section 8.7.10 of core.md).
+
+    Before anything is served, so that no client reads one as an epic; and never what keeps
+    the daemon from coming up.
+    """
+    from hmz.runtime.epic import migrated
+
+    try:
+        moved, left = migrated()
+    except Exception:  # noqa: BLE001 -- the daemon comes up whatever was left on disk
+        _log.exception("the chats an earlier hmz kept as epics could not be moved")
+        return
+    if moved:
+        _log.info("moved %d chat(s) kept as epics: %s", len(moved), ", ".join(moved))
+    for name, why in left.items():
+        _log.warning("left the chat %s among the epics: %s", name, why)
 
 
 def _logs(at: Path) -> None:

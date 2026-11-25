@@ -70,10 +70,35 @@ __all__ = [
 
 log = logging.getLogger(__name__)
 
-#: Where the shipped `coganchor` is cached on a target reached over ssh.  Written with `$HOME`
-#: rather than `~`, because the shell that expands it is the one *inside* the line -- the
-#: whole line is quoted on its way across, so a `~` would arrive as a directory of that name.
-REMOTE_CACHE = "$HOME/.cache/humanize"
+#: Where the shipped `coganchor` is cached on a target reached over ssh: Humanize's directory
+#: in that user's XDG cache directory. Written with `$HOME` rather than `~`, because the shell
+#: that expands it is the one *inside* the line -- the whole line is quoted on its way across,
+#: so a `~` would arrive as a directory of that name -- and with `XDG_CACHE_HOME` as that
+#: machine's own environment has it, which is the only one that means anything there.
+REMOTE_CACHE = "${XDG_CACHE_HOME:-$HOME/.cache}/humanize"
+
+#: A far-side script leaving `$s` naming Humanize's state directory on a target reached over
+#: ssh or Slurm: `humanize` in that user's XDG state directory, an `XDG_STATE_HOME` that is not
+#: absolute being ignored as the XDG spec says. The `envs/` every released Humanize kept there
+#: in its home instead -- `$HUMANIZE_HOME`, a relative one under `$HOME`, or else `~/.hmz`, and
+#: before that `~/.humanize` -- is moved in first, where nothing is at `$s/envs` yet: never
+#: merged into one that is there, and only where `df` puts both on one filesystem, so that the
+#: move is one rename rather than a copy a probe's deadline may cut in half. A move that fails
+#: leaves it where it was. The home it leaves empty goes, and each worktree it held is repaired,
+#: its repository having named it where it was. With `mv -T` where `mv` has it (GNU, busybox),
+#: which is one rename that fails onto a directory something appeared at since it was looked
+#: for, rather than moving the old one into it.
+REMOTE_STATE = r"""s=${XDG_STATE_HOME:-}; case $s in /*) ;; *) s=$HOME/.local/state;; esac
+s=$s/humanize; o=${HUMANIZE_HOME:-.hmz}; case $o in /*) ;; *) o=$HOME/$o;; esac
+on() { df -P "$1" | awk 'NR == 2 { $2 = $3 = $4 = $5 = ""; print }'; }
+for o in "$o" "$HOME/.humanize"; do
+  [ ! -e "$s/envs" ] && [ -d "$o/envs" ] && mkdir -p "$s" \
+    && [ "$(on "$o/envs")" = "$(on "$s")" ] && { mv -T -- "$o/envs" "$s/envs" \
+      || { [ -e "$s/envs" ] || mv -- "$o/envs" "$s/envs"; }; } || continue
+  rmdir -- "$o"
+  for w in "$s"/envs/*/worktrees/*/; do git -C "$w" worktree repair >/dev/null; done
+done 2>/dev/null
+"""
 
 #: And in a container, which may have no home directory to speak of and is one user's anyway.
 CONTAINER_CACHE = "/tmp/humanize"  # noqa: S108
@@ -87,13 +112,13 @@ APPLE = "apple-container"
 SLURM = "slurm"
 
 #: Where a harness put on another machine keeps its mirror of the workspace. *Beside* the
-#: program's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
+#: program's cache rather than inside it, and that is not a matter of taste: the cache
 #: is one of the directories a supervised turn deliberately answers from the machine the agent
 #: runs on -- it is Humanize's own state, and the whole point of naming it is that it does not
 #: cross. A mirror underneath it would be a mirror no path was ever translated through, so the
 #: agent would find the workspace empty and every command it ran there would run in the wrong
 #: directory. `path_within` is what keeps the two apart, a sibling name not being a prefix.
-REMOTE_MIRRORS = "$HOME/.cache/humanize-mirrors"
+REMOTE_MIRRORS = "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors"
 
 #: And the same, in a container.
 CONTAINER_MIRRORS = "/tmp/humanize-mirrors"  # noqa: S108
@@ -155,7 +180,7 @@ def coganchor_command(
     Returns:
       The argv to run over there.
     """
-    script = f'touch -c "{program}" 2>/dev/null; exec "{program}" "$@"'
+    script = f'touch -c -h "{program}" 2>/dev/null; exec "{program}" "$@"'
     return ["/bin/sh", "-c", _prefaced(script, setting, owned), "coganchor", *args]
 
 
@@ -194,9 +219,11 @@ def _prefaced(
 #: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
 #: Humanize on it is sure to have. A build already there under its name is touched and left:
 #: it is named by its digest, and rewriting it would be rewriting a program a live session may
-#: be running. Touched with `-c`, which sets its time by its name: a plain `touch` opens it
-#: for writing to do that, and for as long as it is open Linux refuses to run it (`Text file
-#: busy`) -- to a session which found it there a moment earlier. One that is not is read off
+#: be running. Touched with `-c -h`, which sets its time by its name: a plain `touch` opens
+#: it for writing to do that, and so does a `-c` alone in uutils' (Ubuntu's since 25.10), and
+#: for as long as it is open Linux refuses to run it (`Text file busy`) -- to a session which
+#: found it there a moment earlier. `-h` is the times of the name itself, which every `touch`
+#: from GNU's to BusyBox's and a Mac's sets without opening anything. One that is not is read off
 #: the input into `<path>.<pid>` -- two sessions shipping to one machine at once being the
 #: ordinary case -- checked to be as long as what
 #: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
@@ -206,7 +233,7 @@ def _prefaced(
 #: side's directory, the build's name there and its length in bytes.
 _SHIPPING = (
     'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
-    'if [ -f "$p" ]; then touch -c "$p"; else '
+    'if [ -f "$p" ]; then touch -c -h "$p"; else '
     't="$p.$$"; '
     'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
     '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '

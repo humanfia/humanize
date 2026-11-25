@@ -3,6 +3,8 @@
 // touches the page, so it is read the same by the sidebar and by its tests. How the list is
 // grouped and sorted is sidebar-view.js.
 
+import { t } from './i18n.js'
+
 /**
  * How a chat's row stands, from its mark: `working` while its agent answers, `asking` while it
  * waits on its person, `failed` where it failed, and '' once it only rests.
@@ -16,8 +18,26 @@ export function chatState(how) {
   return ['failed', 'refused', 'crashed'].includes(how) ? 'failed' : ''
 }
 
-/** A chat's state in the words its row says it in, as a chat app's does. */
-export const CHAT_SAID = { working: 'Running', asking: 'Awaiting input', failed: 'Failed' }
+/**
+ * How a flow's epic stands before it is marked: `stopping` while the host going with it is
+ * stopping it, which its row in `runs.list` does not say and `hosts.running` does, and otherwise
+ * as its row says.
+ *
+ * @param {{how: string, held?: boolean, workspace?: string, slot?: string}} run The epic's row.
+ * @param {{state?: string, workspace?: string, slot?: string}[]} running What each host says it runs.
+ * @returns {string}
+ */
+export function epicHow(run, running) {
+  const stops = run.held && running.some((one) => one.state === 'stopping' && one.workspace === run.workspace && String(one.slot || '') === String(run.slot || ''))
+  return stops ? 'stopping' : run.how
+}
+
+/**
+ * A chat's state in words, as a chat app's says it. The sidebar's row writes `Running` and
+ * `Failed`; one that waits on its person it marks with a dot, which says `Awaiting input` only
+ * to whoever cannot see it or points at it.
+ */
+export const CHAT_SAID = { working: t('Running'), asking: t('Awaiting input'), failed: t('Failed') }
 
 /**
  * How a flow's epic stands in the words its row says it in: its mark, as a word.
@@ -25,8 +45,39 @@ export const CHAT_SAID = { working: 'Running', asking: 'Awaiting input', failed:
  * @param {string} how The epic's mark.
  */
 export function epicSaid(how) {
-  if (how === 'budget') return 'Budget spent'
-  return how ? how[0].toUpperCase() + how.slice(1) : ''
+  return EPIC_SAID[how] || (how ? how[0].toUpperCase() + how.slice(1) : '')
+}
+
+/** Each mark an epic stands by, as its row says it; one that is none of them is said as it is. */
+const EPIC_SAID = {
+  running: t('Running'),
+  asking: t('Asking'),
+  waiting: t('Waiting'),
+  stopping: t('Stopping'),
+  done: t('Done'),
+  failed: t('Failed'),
+  refused: t('Refused'),
+  crashed: t('Crashed'),
+  stopped: t('Stopped'),
+  budget: t('Budget spent'),
+  unfinished: t('Unfinished'),
+  unknown: t('Unknown'),
+}
+
+/** The same marks as a row says them when pointed at, as a badge does (dom.js). */
+const STOOD = {
+  running: t('running'),
+  asking: t('asking'),
+  waiting: t('waiting'),
+  stopping: t('stopping'),
+  done: t('done'),
+  failed: t('failed'),
+  refused: t('refused'),
+  crashed: t('crashed'),
+  stopped: t('stopped'),
+  budget: t('budget'),
+  unfinished: t('unfinished'),
+  unknown: t('unknown'),
 }
 
 /**
@@ -48,8 +99,20 @@ export function rowSaid(how, chat) {
  * @param {{chat: boolean, state?: string, how?: string, flow?: string, began: string}} of A chat's state, or an epic's mark and its flow's name, and when it began in words.
  */
 export function rowTitle(run, { chat, state = '', how = '', flow = '', began }) {
-  const said = chat ? [CHAT_SAID[state], began] : [flow, how, began]
+  const said = chat ? [CHAT_SAID[state], began] : [flow, STOOD[how] || how, began]
   return `${run.task}\n${said.filter(Boolean).join(' · ')}`
+}
+
+/**
+ * The keys a shortcut of the sidebar is pressed with, one apiece, as the system writes them.
+ *
+ * @param {'chat' | 'search'} which Whose: a new chat's, or `Search`'s.
+ * @param {boolean} mac Whether the system is Apple's.
+ * @returns {string[]}
+ */
+export function shortcut(which, mac) {
+  if (which === 'chat') return mac ? ['⇧', '⌘', 'O'] : ['Ctrl', 'Shift', 'O']
+  return mac ? ['⌘', 'K'] : ['Ctrl', 'K']
 }
 
 /**
@@ -59,6 +122,6 @@ export function rowTitle(run, { chat, state = '', how = '', flow = '', began }) 
  */
 export function wording(chat) {
   return chat
-    ? { like: 'New chat like it', task: 'Copy first message', tasked: 'Message copied', name: 'Copy ID', named: 'ID copied' }
-    : { like: 'New epic like it', task: 'Copy task', tasked: 'Task copied', name: 'Copy name', named: 'Name copied' }
+    ? { like: t('New chat like it'), task: t('Copy first message'), tasked: t('Message copied'), name: t('Copy ID'), named: t('ID copied') }
+    : { like: t('New epic like it'), task: t('Copy task'), tasked: t('Task copied'), name: t('Copy name'), named: t('Name copied') }
 }

@@ -8,14 +8,27 @@
   --ink-2: #435058;
   --ink-3: #5d6a72;
   --on-ink: #f4f8f9;
+  --line: rgba(20, 26, 31, 0.12);
   --line-strong: rgba(20, 26, 31, 0.28);
-  --hover: rgba(31, 179, 199, 0.1);
+  --hover: rgba(20, 26, 31, 0.06);
+  --selected: color-mix(in srgb, var(--ink) 10%, transparent);
   --green: #76b900;
-  --cyan: #1fb3c7;
-  --pink: #ec6fa3;
   --link: #0b7080;
+  --focus-ring: 2px solid var(--link);
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --radius-md: 8px;
+  --radius-full: 999px;
+  --control-h: 32px;
+  --column: 360px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,10 +39,10 @@
     --ink-2: #b3c3c8;
     --ink-3: #82939a;
     --on-ink: #0f1418;
+    --line: rgba(230, 239, 241, 0.12);
     --line-strong: rgba(230, 239, 241, 0.3);
-    --hover: rgba(79, 216, 234, 0.1);
-    --cyan: #4fd8ea;
-    --pink: #ff94c2;
+    --hover: rgba(230, 239, 241, 0.08);
+    --selected: color-mix(in srgb, var(--ink) 15%, transparent);
     --link: #7fe4f1;
   }
 }
@@ -40,10 +53,10 @@
   box-sizing: border-box;
 }
 
-/* Its scrollbar is style.css's: thin, square, cyan to take hold of and pink while held. */
+/* Its scrollbar is style.css's: thin and round, darker to take hold of. */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track,
@@ -52,15 +65,14 @@
 }
 
 ::-webkit-scrollbar-thumb {
+  border: var(--space-2) solid transparent;
+  border-radius: var(--radius-full);
   background: var(--line-strong);
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--cyan);
-}
-
-::-webkit-scrollbar-thumb:active {
-  background: var(--pink);
+  background-color: var(--ink-3);
 }
 
 html,
@@ -69,23 +81,24 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 14px/1.5 var(--sans);
+  font: 14px/20px var(--sans);
   -webkit-font-smoothing: antialiased;
   -webkit-user-select: none;
   user-select: none;
   cursor: default;
 }
 
+/* One narrow column in the middle of the window, each thing a step under the last. */
 main {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: var(--space-16);
   height: 100%;
-  max-width: 560px;
+  max-width: calc(var(--column) + 2 * var(--space-32));
   margin: 0 auto;
-  padding: 32px;
+  padding: var(--space-32);
   text-align: center;
 }
 
@@ -103,14 +116,18 @@ main {
 }
 
 h1 {
-  margin: 8px 0 0;
-  font-size: 22px;
-  font-weight: 700;
+  margin: 0;
+  font: 600 18px/24px var(--sans);
 }
 
 p {
   margin: 0;
   color: var(--ink-2);
+}
+
+/* What a heading says more of stands close under it. */
+#lead {
+  margin-top: calc(-1 * var(--space-8));
 }
 
 /* Starting shows the mark alone, and says so only once it has taken a moment. */
@@ -141,22 +158,24 @@ pre:empty,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  width: min(380px, 100%);
+  gap: var(--space-8);
+  width: 100%;
 }
 
 .bar {
   position: relative;
   width: 100%;
-  height: 3px;
+  height: 4px;
   overflow: hidden;
-  background: var(--line-strong);
+  border-radius: var(--radius-full);
+  background: var(--selected);
 }
 
 .bar span {
   position: absolute;
   inset: 0 auto 0 0;
   width: 30%;
+  border-radius: var(--radius-full);
   background: var(--green);
   animation: slide 1.4s ease-in-out infinite;
 }
@@ -172,7 +191,7 @@ pre:empty,
 
 #step {
   color: var(--ink-2);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* A download whose size is known: the bar fills as it goes. */
@@ -185,8 +204,8 @@ pre:empty,
 /* The update's window: the mark beside what it is doing, as a Mac app's own updater has it. */
 main.update {
   flex-direction: row;
-  gap: 18px;
-  padding: 20px 24px;
+  max-width: none;
+  padding: var(--space-20) var(--space-24);
   text-align: left;
 }
 
@@ -199,7 +218,6 @@ main.update {
 .update .progress {
   flex: 1;
   align-items: stretch;
-  gap: 10px;
 }
 
 .update #step {
@@ -208,80 +226,95 @@ main.update {
 
 #line {
   width: 100%;
-  min-height: 1.5em;
+  min-height: 16px;
   overflow: hidden;
   color: var(--ink-3);
-  font: 12px/1.5 var(--mono);
+  font: 12px/16px var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-pre {
-  font-family: var(--mono);
-  -webkit-user-select: text;
-  user-select: text;
-}
-
+/* What went wrong, as it was said: read, selected and copied where all else is not. */
 pre {
   width: 100%;
   max-height: 40vh;
   margin: 0;
-  padding: 10px 12px;
+  padding: var(--space-12);
   overflow: auto;
-  border: 1px solid var(--line-strong);
-  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font: 12px/16px var(--mono);
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .actions {
   display: flex;
-  gap: 12px;
-  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-8);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
-  border: 2px solid var(--ink);
+  justify-content: center;
+  height: var(--control-h);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: var(--raised);
   color: var(--ink);
-  font: 600 13px var(--sans);
+  font: 500 13px/20px var(--sans);
   text-decoration: none;
-  box-shadow: 3px 3px 0 var(--ink);
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
 }
 
 .btn:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--green);
+  background: color-mix(in srgb, var(--ink) 6%, var(--raised));
 }
 
 .btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--green);
+  background: color-mix(in srgb, var(--ink) 10%, var(--raised));
 }
 
 .btn.primary {
   background: var(--ink);
   color: var(--on-ink);
+  border-color: transparent;
 }
 
+.btn.primary:hover {
+  background: color-mix(in srgb, var(--ink) 88%, var(--paper));
+}
+
+.btn.primary:active {
+  background: color-mix(in srgb, var(--ink) 80%, var(--paper));
+}
+
+/* A button with no frame of its own. */
 .btn.quiet {
-  border: 1px solid var(--line-strong);
-  box-shadow: none;
-  font-weight: 500;
+  border-color: transparent;
+  background: none;
+  color: var(--ink-2);
 }
 
 .btn.quiet:hover {
-  transform: none;
   background: var(--hover);
+  color: var(--ink);
+}
+
+.btn.quiet:active {
+  background: var(--selected);
 }
 
 :focus-visible {
-  outline: 2px solid var(--link);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 

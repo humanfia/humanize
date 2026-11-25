@@ -1,4 +1,4 @@
-"""CI restores a Rust cache `cache.yml` saves, as `docs/contributing/ci.md` says.
+"""CI restores a Rust cache `cache.yml` saves, as `CONTRIBUTING.md` says.
 
 `.github/workflows/ci.yml` writes no cache: every `Swatinem/rust-cache` step in it restores
 what `.github/workflows/cache.yml` saved on `main`. That action names a cache after its

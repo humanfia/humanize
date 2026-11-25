@@ -269,9 +269,12 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
     if reading is None:
         raise ValueError(f"{profile.name} has no way of being asked what it runs")
     held = providers.find(profile.name, provider) if provider else None
+    # Where it is written, settled before anybody is asked: an answer that takes its time
+    # is kept where it was asked for, wherever this machine's directory is by then.
+    at = where(profile.name, provider)
     if held is not None and providers.routed(held):
         found = _routed(profile, held)
-        _write(where(profile.name, provider), found)
+        _write(at, found)
         return tuple(found)
     environ, run = _asking(profile, provider, seconds)
     served = _served(profile, environ)
@@ -297,7 +300,7 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
         if model.name and model.name not in seen:
             seen.add(model.name)
             found.append(model)
-    _write(where(profile.name, provider), found)
+    _write(at, found)
     return tuple(found)
 
 

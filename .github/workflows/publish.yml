@@ -4,7 +4,7 @@
 # desktop app -- the macOS disk image, the Windows installer, and the signed updates the
 # installed apps fetch through the release's `latest.json` -- publishes the package to PyPI,
 # then publishes the GitHub release with the app's files attached. Every other push to such a branch does nothing.
-# docs/contributing/releasing.md has the rest.
+# RELEASING.md has the rest.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
 # no token is stored anywhere, so renaming this file or the environment stops releases until

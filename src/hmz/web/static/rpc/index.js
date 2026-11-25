@@ -8,18 +8,23 @@
 //
 //   const store = registry()
 //   const providers = window.__TAURI_INTERNALS__
-//     ? [tauri(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
-//     : [bridge(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
+//     ? [tauri(), webrtc({ certificate: () => store.certificate() })]
+//     : [bridge(), webrtc({ certificate: () => store.certificate() })]
 //   const here = connect(local(), providers, { client: { name: '', kind: 'web' } })
 //   const remote = connect((await store.list())[0], providers, { client: { name: '', kind: 'web' } })
 //
-// `connect(entry, providers, {client, pinned})` returns a `Client` at once and reaches the daemon
+// `connect(entry, providers, {client, pinned, install})` returns a `Client` at once and reaches the daemon
 // in the background: it races `entry.routes` 250 ms apart through the first provider that opens
 // each, says `session.hello`, keeps the first session answering the id `entry` pins, and tries
 // again after 1 s, doubling to 60 s, whenever the session drops or every route fails. Where
-// `entry.id` is '', the id answered over a trusted route is pinned and told to `pinned`.
+// `entry.id` is '', the id answered over a trusted route is pinned and told to `pinned`. Where a
+// `stdio:ssh` route finds no hmz on its machine the client is `asking` until answered, unless
+// `install` said yes beforehand; answered no, it is `failed` and tries no more.
 //
-//   client.state                          {state, detail}: idle, connecting, installing, up, failed
+//   client.state                          {state, detail}: idle, connecting, asking, installing,
+//                                         up, failed
+//   client.answer(install)                answers a client that is asking: true installs hmz, and
+//                                         is kept; false fails the routes that asked
 //   client.watch(fn)                      tells fn each change of state; returns what stops it
 //   client.hello                          what session.hello answered, while up
 //   await client.call(method, params, {timeout, signal})
@@ -37,14 +42,14 @@
 // or rejected with `Dropped` where the session closed before it was answered.
 //
 // Pipe providers: `bridge()` for `hmz web` (`unix:` over `/rpc`, other native routes over
-// `/dial`), `webrtc({certificate, iceServers})` for `webrtc:` routes, and `tauri()` for the
-// desktop application's pipes.
+// `/dial`), `webrtc({certificate})` for `webrtc:` routes, opened with the STUN and TURN servers of
+// the daemon reached (`entry.ice`), and `tauri()` for the desktop application's pipes.
 //
 // The daemons the page keeps: `local()`, Local's entry -- `unix:` in `hmz web`, `stdio:local` on
 // macOS and `stdio:wsl` on Windows in the desktop application -- and `registry()` -- `list()`,
-// `add(entry)`, `update(name, changes)`, `remove(name)`, `iceServers()`, `setIceServers(servers)`
-// and `certificate()` -- and
-// `claim(store, {name, code, device}, providers)`, which adds one from a pairing code;
+// `add(entry)`, `update(name, changes)`, `remove(name)` and `certificate()`, an entry its `name`,
+// `id`, `routes` and, where it has any, `ice`, its STUN and TURN servers -- and
+// `claim(store, {name, code, device, ice}, providers)`, which adds one from a pairing code;
 // `parsePairing(code)` reads one.
 
 export { bridge } from './bridge.js'

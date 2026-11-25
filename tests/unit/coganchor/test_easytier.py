@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import cache
 from hmz.coganchor import easytier
 
 if TYPE_CHECKING:
@@ -109,14 +109,16 @@ def test_a_named_binary_that_is_not_there_is_ignored(
     release: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(easytier.WHICH, str(tmp_path / "missing"))
-    assert easytier.binary() == home() / "easytier" / easytier.VERSION / "easytier-core"
+    assert (
+        easytier.binary() == cache() / "easytier" / easytier.VERSION / "easytier-core"
+    )
     assert release
 
 
 def test_the_release_is_downloaded_once(release: list[str]) -> None:
     said: list[str] = []
     core = easytier.binary(said.append)
-    assert core == home() / "easytier" / easytier.VERSION / "easytier-core"
+    assert core == cache() / "easytier" / easytier.VERSION / "easytier-core"
     assert core.read_bytes() == CORE
     assert core.stat().st_mode & stat.S_IXUSR
     assert sorted(path.name for path in core.parent.iterdir()) == ["easytier-core"]
@@ -143,7 +145,7 @@ def test_a_release_that_is_not_the_one_pinned_is_refused(
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     with pytest.raises(OSError, match="SHA-256"):
         easytier.binary()
-    assert not (home() / "easytier" / easytier.VERSION / "easytier-core").exists()
+    assert not (cache() / "easytier" / easytier.VERSION / "easytier-core").exists()
 
 
 @pytest.mark.usefixtures("linux")
@@ -463,3 +465,36 @@ def test_only_an_http_status_page_is_read(monkeypatch: pytest.MonkeyPatch) -> No
     with pytest.raises(OSError, match="is not an http URL"):
         easytier.community()
     assert asked == []
+
+
+def test_the_known_nodes_are_offered_where_the_page_cannot_be_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(easytier.NODES, "http://kuma.test")
+    _kuma(
+        monkeypatch, _answers("http://kuma.test", urllib.error.URLError("gone"), b"{}")
+    )
+    nodes = easytier.shared()
+    assert nodes == list(easytier.KNOWN)
+    assert {(one.up, one.uptime) for one in nodes} == {(None, None)}
+
+
+def test_a_known_node_the_page_lists_is_listed_once_as_it_says(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    known = easytier.KNOWN[0]
+    address = known.url.removeprefix("tcp://")
+    page = {
+        "publicGroupList": [{"monitorList": [{"id": 1, "name": f"Here/{address}"}]}]
+    }
+    beats = {"heartbeatList": {"1": [{"status": 1}]}, "uptimeList": {"1_24": 0.5}}
+    monkeypatch.setenv(easytier.NODES, "http://kuma.test")
+    _kuma(
+        monkeypatch,
+        _answers(
+            "http://kuma.test", json.dumps(page).encode(), json.dumps(beats).encode()
+        ),
+    )
+    nodes = easytier.shared()
+    assert [one.url for one in nodes] == [one.url for one in easytier.KNOWN]
+    assert (nodes[0].up, nodes[0].uptime) == (True, 0.5)

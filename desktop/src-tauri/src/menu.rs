@@ -16,6 +16,10 @@ const CHECK: &str = "check-for-updates";
 const CHECK_LABEL: &str = "Check for Updates…";
 const CHECKING_LABEL: &str = "Checking for Updates…";
 
+/// What the menu bar calls the app: the bundle's CFBundleName, which macOS titles the app menu by.
+#[cfg(target_os = "macos")]
+const NAME: &str = "Humanize";
+
 /// Show humanize and Quit, in the tray icon's menu.
 #[cfg(windows)]
 const SHOW: &str = "show";
@@ -78,6 +82,7 @@ fn check<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<MenuItem<R>> {
 #[cfg(target_os = "macos")]
 fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let about = AboutMetadata {
+        name: Some(NAME.into()),
         website: Some(DOCS.into()),
         website_label: Some("Documentation".into()),
         ..Default::default()
@@ -114,17 +119,18 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &Submenu::with_items(
                 app,
-                "Humanize Desktop",
+                NAME,
                 true,
                 &[
-                    &PredefinedMenuItem::about(app, Some("About Humanize Desktop"), Some(about))?,
+                    &PredefinedMenuItem::about(app, Some(&format!("About {NAME}")), Some(about))?,
                     &check(app)?,
                     &separator()?,
-                    &PredefinedMenuItem::hide(app, None)?,
+                    // By name: left to itself, each says the process's name, not the menu's.
+                    &PredefinedMenuItem::hide(app, Some(&format!("Hide {NAME}")))?,
                     &PredefinedMenuItem::hide_others(app, None)?,
                     &PredefinedMenuItem::show_all(app, None)?,
                     &separator()?,
-                    &PredefinedMenuItem::quit(app, None)?,
+                    &PredefinedMenuItem::quit(app, Some(&format!("Quit {NAME}")))?,
                 ],
             )?,
             // WKWebView copies and pastes only through these.
@@ -224,5 +230,16 @@ pub fn checking<R: Runtime>(app: &AppHandle<R>, on: bool) {
         if let Err(why) = item.set_enabled(!on).and_then(|()| item.set_text(label)) {
             log::warn!("{CHECK}: {why}");
         }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    /// The app menu's title is the bundle's name, so its items must say the same one.
+    #[test]
+    fn the_menu_names_the_app_as_the_bundle_does() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
+        assert_eq!(conf["bundle"]["macOS"]["bundleName"], super::NAME);
     }
 }

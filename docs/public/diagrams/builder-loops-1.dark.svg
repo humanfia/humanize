@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img">
+  <title>What a round remembers: fresh sessions share only the repository; one long session also keeps the conversation</title>
+  <rect width="760" height="320" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#9aa9b0"/>
+    </marker>
+    <marker id="c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#4fd8ea"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <text x="24" y="44" font-size="16" font-weight="600">What a round remembers</text>
+
+    <text x="24" y="92">Fresh session per round</text>
+    <text x="24" y="112" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">spawn() in the loop</text>
+    <g fill="#12343b" stroke="#4fd8ea" stroke-width="1.5">
+      <rect x="232" y="72" width="152" height="48" rx="8"/>
+      <rect x="408" y="72" width="152" height="48" rx="8"/>
+      <rect x="584" y="72" width="152" height="48" rx="8"/>
+    </g>
+    <g text-anchor="middle" fill="#4fd8ea">
+      <text x="308" y="101">session 1</text>
+      <text x="484" y="101">session 2</text>
+      <text x="660" y="101">session 3</text>
+    </g>
+
+    <rect x="232" y="152" width="504" height="40" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="484" y="177" text-anchor="middle" fill="#a5d84a">The repository: files and commits</text>
+    <g stroke="#9aa9b0" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)">
+      <path d="M308 124 V148"/>
+      <path d="M484 124 V148"/>
+      <path d="M660 124 V148"/>
+      <path d="M484 196 V220"/>
+    </g>
+
+    <text x="24" y="252">One long session</text>
+    <text x="24" y="272" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">spawn() before the loop</text>
+    <rect x="232" y="224" width="504" height="72" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <g fill="#0f161a" stroke="#435058" stroke-width="1.5">
+      <rect x="248" y="240" width="128" height="40" rx="8"/>
+      <rect x="420" y="240" width="128" height="40" rx="8"/>
+      <rect x="592" y="240" width="128" height="40" rx="8"/>
+    </g>
+    <g text-anchor="middle" fill="#b3c3c8">
+      <text x="312" y="265">turn 1</text>
+      <text x="484" y="265">turn 2</text>
+      <text x="656" y="265">turn 3</text>
+    </g>
+    <g stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#c)">
+      <path d="M380 260 H416"/>
+      <path d="M552 260 H588"/>
+    </g>
+  </g>
+</svg>

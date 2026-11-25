@@ -4,8 +4,11 @@
 // backend, the runtime of it, and a directory there. Each comes to what `-a` or `-e` spells.
 
 import { call, daemon, hash, onDaemon } from './api.js'
-import { offering, parted, spelled } from './chips/agent.js'
+import { nousOffered, offering, parted, spelled } from './chips/agent.js'
+import { kindSaid } from './chips/environment.js'
 import { fill, h, iconButton } from './dom.js'
+import { t } from './i18n.js'
+import { effortName, harnessName } from './names.js'
 import { pathPicker } from './paths.js'
 
 /** The CLIs here, each with its accounts and the models each runs, shared by every picker. */
@@ -20,6 +23,8 @@ const failed = new Map()
 let reading = ''
 /** Whose CLIs they are: '' for the daemon the page is on, else its name, as Settings picks. */
 let base = ''
+/** The virtual nous that daemon has, by their names, as `nous.list` answers them. */
+let virtual = []
 
 export async function readBackends(workspace = reading, from = '') {
   reading = workspace
@@ -30,16 +35,67 @@ export async function readBackends(workspace = reading, from = '') {
   if (of !== daemon()) return read
   backends = read
   for (const one of told) one()
+  // Its virtual nous beside them, which no picker waits for: one that cannot be read offers none.
+  call('nous.list', {}, { on: from || undefined }).then(
+    (answer) => {
+      if (of !== daemon() || base !== from) return
+      virtual = answer.nous.filter((one) => one.virtual).map((one) => one.name)
+      for (const one of told) one()
+    },
+    () => {},
+  )
   return backends
 }
+
+/** The virtual nous of the daemon last read, by their names. */
+export const virtualNous = () => virtual
 
 // Another daemon's CLIs and accounts are others.
 onDaemon(() => {
   backends = null
   reading = ''
+  virtual = []
   asking.clear()
   failed.clear()
 })
+
+/** Where the account, the model and the effort last picked of each harness are kept, in this browser. */
+const LAST = 'hmz.nous.last'
+/** What was last picked of each harness, so that picking it again starts from there. */
+const last = (() => {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(LAST)) || {}))
+  } catch {
+    return new Map()
+  }
+})()
+
+/** Keeps what is picked of its harness, for the next time that harness is. */
+function note({ cli, account, model, effort }) {
+  if (!cli || !model) return
+  const was = last.get(cli)
+  if (was && was.account === account && was.model === model && was.effort === effort) return
+  last.set(cli, { account, model, effort })
+  try {
+    localStorage.setItem(LAST, JSON.stringify(Object.fromEntries(last)))
+  } catch {
+    // Kept for as long as the page is, where this browser keeps nothing.
+  }
+}
+
+/**
+ * A harness as picking it starts: the account, the model and the effort last picked of it, each
+ * where the harness still has it, else its own sign-in -- or the first account that lists a
+ * model -- and no model, which settles on the first listed.
+ */
+export function harnessed(cli) {
+  const accounts = (backends && backends.clis[cli] && backends.clis[cli].accounts) || []
+  const was = last.get(cli)
+  const held = (was && accounts.find((one) => one.name === was.account)) || accounts.find((one) => !one.name && one.models.length) || accounts.find((one) => one.models.length)
+  const account = held ? held.name : ''
+  const model = was && held && was.account === account && held.models.some((one) => one.name === was.model) ? was.model : ''
+  return { cli, account, model, effort: model ? was.effort : '' }
+}
 
 /** Asks a CLI what it runs as an account, once however many pickers ask. */
 function ask(cli, account) {
@@ -58,22 +114,6 @@ function ask(cli, account) {
     )
   }
   return asking.get(key)
-}
-
-/**
- * A nous, typed or picked from those there are: every virtual one by its name, then every
- * concrete one, as `nous.list` answers them.
- *
- * @param {string} value What it holds to begin with.
- * @param {{nous: {name: string, virtual: boolean}[], concrete: string[]} | null} nous
- * @param {{label: string, hmz: string, placeholder?: string}} how
- */
-export function nousField(value, nous, { label, hmz, placeholder = 'A nous' }) {
-  const id = `nous-${Math.random().toString(36).slice(2, 10)}`
-  const named = nous ? [...nous.nous.filter((one) => one.virtual).map((one) => one.name), ...nous.concrete] : []
-  const offered = h('datalist', { id }, named.map((one) => h('option', { value: one })))
-  const input = h('input', { type: 'text', value, list: id, placeholder, 'aria-label': label, 'data-hmz': hmz, spellcheck: 'false', autocomplete: 'off' })
-  return { node: h('span', { class: 'nous-field' }, input, offered), input }
 }
 
 export { parted, spelled }
@@ -133,6 +173,7 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
   function again() {
     if (!backends) return
     const offered = offering(chosen, backends.clis, role.clis, asked)
+    note(chosen)
     draw(offered)
     if (offered.unasked) refresh()
   }
@@ -151,8 +192,11 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
     if (value() !== was) changed()
   }
 
+  /** Every nous the role's CLIs are known to run, a group a harness (`nousOffered`). */
+  const nous = () => (backends ? nousOffered(chosen, backends.clis, role.clis, asked) : [])
+
   told.add(read)
-  return { chosen, again, refresh, value, leave: () => told.delete(read) }
+  return { chosen, again, refresh, value, nous, leave: () => told.delete(read) }
 }
 
 /**
@@ -163,16 +207,16 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
  * @param {() => void} changed Told whenever the choice changes.
  */
 export function agentPicker(role, kept, changed, { effort: withEffort = true } = {}) {
-  const cli = h('select', { 'aria-label': `CLI for ${role.name}`, 'data-hmz': 'pick-cli' })
-  const account = h('select', { 'aria-label': `Account for ${role.name}`, 'data-hmz': 'pick-account' })
-  const model = h('select', { 'aria-label': `Model for ${role.name}`, 'data-hmz': 'pick-model' })
-  const effort = h('select', { 'aria-label': `Effort for ${role.name}`, 'data-hmz': 'pick-effort' })
+  const cli = h('select', { 'aria-label': t('CLI for {role}', { role: role.name }), 'data-hmz': 'pick-cli' })
+  const account = h('select', { 'aria-label': t('Account for {role}', { role: role.name }), 'data-hmz': 'pick-account' })
+  const model = h('select', { 'aria-label': t('Model for {role}', { role: role.name }), 'data-hmz': 'pick-model' })
+  const effort = h('select', { 'aria-label': t('Effort for {role}', { role: role.name }), 'data-hmz': 'pick-effort' })
   // A model nobody could list is typed instead, as `-a` takes one.
-  const typed = h('input', { type: 'text', placeholder: 'Model', 'aria-label': `Model name for ${role.name}`, 'data-hmz': 'pick-model-typed', hidden: true })
-  const again = iconButton('resume', 'Refresh models', { class: 'small' })
+  const typed = h('input', { type: 'text', placeholder: t('Model'), 'aria-label': t('Model name for {role}', { role: role.name }), 'data-hmz': 'pick-model-typed', hidden: true })
+  const again = iconButton('resume', t('Refresh models'), { class: 'small' })
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
   // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
-  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), withEffort ? field('Effort', effort) : null, again, said)
+  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field(t('CLI'), cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
   let typing = false
 
   const picked = agentChoice(role, kept, draw, { effort: withEffort, changed })
@@ -181,24 +225,25 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
 
   function draw(offered) {
     fill(cli, options(offered.clis, chosen.cli))
-    fill(account, options(offered.accounts, chosen.account), h('option', { value: '+' }, 'Add account…'))
+    fill(account, options(offered.accounts, chosen.account), h('option', { value: '+' }, t('Add account…')))
     const none = offered.asking && !offered.models.length
     fill(
       model,
-      none ? h('option', { value: chosen.model }, 'Asking…') : null,
+      none ? h('option', { value: chosen.model }, t('Asking…')) : null,
       options(offered.models, chosen.model),
-      offered.unlisted && !none ? h('option', { value: chosen.model, selected: true }, `${chosen.model} (not listed)`) : null,
-      !offered.asking ? h('option', { value: '…', selected: typing }, 'Other…') : null,
+      offered.unlisted && !none ? h('option', { value: chosen.model, selected: true }, t('{model} (not listed)', { model: chosen.model })) : null,
+      !offered.asking ? h('option', { value: '…', selected: typing }, t('Other…')) : null,
     )
     model.disabled = none
     if (offered.typed) typing = true
     model.hidden = typing && !offered.models.length
     typed.hidden = !typing
     if (typing && typed.value !== chosen.model) typed.value = chosen.model
-    fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, one)))
+    fill(effort, h('option', { value: '' }, t('Default')), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, effortName(one))))
     effort.disabled = !offered.efforts.length
     again.disabled = !chosen.cli || offered.asking
-    said.textContent = offered.asking ? `Asking ${chosen.cli} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
+    // One line, cut short where it is long: its tip says the whole of it.
+    said.textContent = said.dataset.tip = offered.asking ? t('Asking {harness} for models…', { harness: harnessName(chosen.cli) }) : offered.failed ? t('No models: {why}', { why: offered.failed }) : ''
   }
 
   cli.addEventListener('change', () => {
@@ -261,22 +306,24 @@ export function where({ backend, provider, workdir }) {
  * @param {string} kept Where it works now, as `-e` spells it.
  * @param {{envs: string[]}} offered The backends there are.
  * @param {{backend: string, name: string, workdir?: string}[]} runtimes The runtimes saved.
+ * @param {{folder?: string}} [how] The folder the epic is started in, which a directory on this
+ *   machine left blank comes to: said in that field while nothing is typed in it.
  */
-export function envPicker(role, kept, offered, runtimes) {
+export function envPicker(role, kept, offered, runtimes, { folder = '' } = {}) {
   const chosen = placed(kept)
-  const backend = h('select', { 'aria-label': `Backend for ${role.name}`, 'data-hmz': 'pick-backend' })
-  const machine = h('select', { 'aria-label': `Runtime for ${role.name}`, 'data-hmz': 'pick-runtime' })
-  const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': `Host for ${role.name}`, hidden: true })
+  const backend = h('select', { 'aria-label': t('Backend for {role}', { role: role.name }), 'data-hmz': 'pick-backend' })
+  const machine = h('select', { 'aria-label': t('Runtime for {role}', { role: role.name }), 'data-hmz': 'pick-runtime' })
+  const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': t('Host for {role}', { role: role.name }), hidden: true })
   // A directory on this machine is browsed for; one on another machine is written.
-  const here = pathPicker({ value: chosen.workdir, label: `Directory for ${role.name}`, placeholder: '~/project', changed: (to) => (chosen.workdir = to) })
+  const here = pathPicker({ value: chosen.workdir, label: t('Directory for {role}', { role: role.name }), placeholder: folder || '~/project', changed: (to) => (chosen.workdir = to) })
   here.input.dataset.hmz = 'pick-dir'
-  const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': `Directory for ${role.name} there`, 'data-hmz': 'pick-dir-there' })
+  const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': t('Directory for {role} there', { role: role.name }), 'data-hmz': 'pick-dir-there' })
   there.addEventListener('input', () => (chosen.workdir = there.value.trim()))
   const dir = h('span', { class: 'dir-holder' }, here.node, there)
-  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field('Backend', backend), field('Runtime', machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, 'Directory'), dir))
+  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field(t('Backend'), backend), field(t('Runtime'), machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, t('Directory')), dir))
 
   function draw() {
-    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, one)))
+    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, kindSaid(one)[0])))
     const mine = runtimes.filter((one) => one.backend === chosen.backend)
     const local = chosen.backend === 'local'
     machine.closest('.field').hidden = local
@@ -284,9 +331,9 @@ export function envPicker(role, kept, offered, runtimes) {
     fill(
       machine,
       mine.map((one) => h('option', { value: one.name, selected: one.name === chosen.provider }, one.name)),
-      chosen.backend === 'ssh' ? h('option', { value: '[', selected: typedHost }, 'Other host…') : null,
-      chosen.backend !== 'ssh' ? h('option', { value: '', selected: !chosen.provider }, 'This machine') : null,
-      h('option', { value: '+' }, 'Add runtime…'),
+      chosen.backend === 'ssh' ? h('option', { value: '[', selected: typedHost }, t('Other host…')) : null,
+      chosen.backend !== 'ssh' ? h('option', { value: '', selected: !chosen.provider }, t('This machine')) : null,
+      h('option', { value: '+' }, t('Add runtime…')),
     )
     if (!chosen.provider && mine.length && chosen.backend === 'ssh') chosen.provider = mine[0].name
     host.hidden = !typedHost

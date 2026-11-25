@@ -2,13 +2,14 @@
 
 The `ssh` put first on `PATH` takes what the real one is told -- its options, the destination,
 the command -- drops the options and the destination, and runs the command here, with `sh`, in
-the other machine's home: its own `HOME`, `HUMANIZE_HOME` and `TMPDIR`. A port it is told to
+the other machine's home: its own `HOME`, Humanize's directories and `TMPDIR`. A port it is told to
 forward with `-L` it forwards over TCP, for as long as it runs. A destination with `unreachable`
 in it is one it cannot reach, as `ssh` says so. Every time it is run it writes its pid and what
 it was told to `ssh.log` beside that home.
 
 The machine has an `hmz` in `~/.local/bin` which is this one, saying whichever version it is
-said to be installed at, or none, and a `uv` whose `tool install` installs the version asked.
+said to be installed at, or none, and a `uv` whose `tool install` installs the version asked,
+9.9.9 where none is, or fails as it is told to.
 """
 
 from __future__ import annotations
@@ -17,12 +18,13 @@ import json
 import os
 import sys
 import tempfile
+import tomllib
 from dataclasses import dataclass
 from importlib.metadata import version as installed
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml
+from tests.conftest import places
 
 if TYPE_CHECKING:
     import pytest
@@ -30,7 +32,7 @@ if TYPE_CHECKING:
 _SSH = """#!{python}
 import json, os, socket, subprocess, sys, threading
 
-HOME, HUMANIZE, TMP, LOG = {home!r}, {humanize!r}, {tmp!r}, {log!r}
+HOME, PLACES, TMP, LOG = {home!r}, {places!r}, {tmp!r}, {log!r}
 TAKES = set("BbcDEeFIiJLlmOopQRSWw")
 
 args, forwards, at = sys.argv[1:], [], 0
@@ -91,7 +93,7 @@ for spec in forwards:
         target=serves, args=(listening, (to, int(to_port))), daemon=True
     ).start()
 
-env = dict(os.environ, HOME=HOME, HUMANIZE_HOME=HUMANIZE, TMPDIR=TMP)
+env = dict(os.environ, HOME=HOME, TMPDIR=TMP, **PLACES)
 os.chdir(HOME)
 if not command:
     threading.Event().wait()
@@ -103,6 +105,9 @@ sys.exit(subprocess.run(["sh", "-c", command], env=env).returncode)
 _HMZ = """#!/bin/sh
 if [ ! -f "$HOME/.hmz-version" ]; then echo "sh: hmz: not found" >&2; exit 127; fi
 if [ "$1" = "--version" ]; then echo "hmz $(cat "$HOME/.hmz-version")"; exit 0; fi
+if [ -f "$HOME/.hmz-old" ] && [ "$1" = "daemon" ]; then
+  echo "hmz: error: argument COMMAND: invalid choice: 'daemon'" >&2; exit 2
+fi
 # What its interface says on stderr is also kept, a stack dumped on SIGABRT among it.
 if [ "$1" = "web" ]; then exec {python} -X faulthandler -m hmz "$@" 2>>"$HOME/web.err"; fi
 exec {python} -m hmz "$@"
@@ -110,11 +115,16 @@ exec {python} -m hmz "$@"
 
 #: What is put before `hmz`, so that it reaches no daemon and says why as the real one does.
 _REFUSING = """#!/bin/sh
-if [ "$2" = "connect" ]; then echo "hmz: the daemon cannot be reached: {why}" >&2; exit 1; fi
+if [ "$2" = "connect" ] && [ "$3" != "--help" ]; then
+  echo "hmz: the daemon cannot be reached: {why}" >&2; exit 1
+fi
 """
 
 _UV = """#!/bin/sh
 echo "$@" >> "$HOME/uv.log"
+if [ "$2" = "uninstall" ]; then rm -f "$HOME/.hmz-version"; exit 0; fi
+if [ -f "$HOME/.uv-fails" ]; then cat "$HOME/.uv-fails"; exit 2; fi
+version=9.9.9
 for said; do case "$said" in hmz==*) version="${said#hmz==}";; esac; done
 echo "Resolved 1 package in 3ms"
 printf '%s' "$version" > "$HOME/.hmz-version"
@@ -128,7 +138,7 @@ class Host:
 
     Attributes:
       home: Its `HOME`.
-      humanize: Its `HUMANIZE_HOME`.
+      humanize: What its Humanize's directories are under (`tests.conftest.places`).
       tmp: Its `TMPDIR`.
       log: Where each `ssh` run writes its pid and what it was told.
     """
@@ -145,6 +155,14 @@ class Host:
             held.unlink(missing_ok=True)
         else:
             held.write_text(version)
+
+    def predates_daemons(self) -> None:
+        """Has its `hmz`, the one there or one installed, know no `hmz daemon`."""
+        (self.home / ".hmz-old").touch()
+
+    def cannot_install(self, why: str) -> None:
+        """Has its `uv` fail saying `why`, installing nothing."""
+        (self.home / ".uv-fails").write_text(why + "\n")
 
     def cannot_connect(self, why: str) -> None:
         """Has its `hmz daemon connect` fail saying `why`, its version answered as before."""
@@ -206,7 +224,7 @@ def faked(
             _SSH.format(
                 python=sys.executable,
                 home=str(host.home),
-                humanize=str(host.humanize),
+                places=places(host.humanize),
                 tmp=str(host.tmp),
                 log=str(host.log),
             ),
@@ -238,4 +256,4 @@ def written(*daemons: dict[str, object]) -> None:
     from hmz.coganchor import settings
 
     settings.changes(lambda held: held.__setitem__("daemons", list(daemons)))
-    assert yaml.safe_load(settings.where().read_text())["daemons"]
+    assert tomllib.loads(settings.where().read_text())["daemons"]

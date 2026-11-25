@@ -126,14 +126,28 @@ def test_it_keeps_what_was_typed_here_before(humanize: Humanize) -> None:
 
 
 @pytest.mark.parametrize(
-    ("asked", "theme"),
-    [(None, "terminal"), ("nord", "nord"), ("no-such-theme", "terminal")],
+    ("environ", "theme"),
+    [
+        ({}, "humanfia-dark"),
+        ({"COLORFGBG": "0;15"}, "humanfia-light"),
+        ({"COLORFGBG": "15;0"}, "humanfia-dark"),
+        ({"NO_COLOR": "1"}, "terminal"),
+        ({"TEXTUAL_THEME": "nord"}, "nord"),
+        ({"TEXTUAL_THEME": "terminal"}, "terminal"),
+        ({"TEXTUAL_THEME": "nord", "NO_COLOR": "1"}, "nord"),
+        ({"TEXTUAL_THEME": "no-such-theme"}, "humanfia-dark"),
+    ],
 )
-def test_it_is_drawn_in_the_terminals_colours_unless_asked_otherwise(
-    opened: _Opened, monkeypatch: pytest.MonkeyPatch, asked: str | None, theme: str
+def test_it_is_drawn_in_humanfias_colours_unless_asked_otherwise(
+    opened: _Opened,
+    monkeypatch: pytest.MonkeyPatch,
+    environ: dict[str, str],
+    theme: str,
 ) -> None:
-    if asked is not None:
-        monkeypatch.setenv("TEXTUAL_THEME", asked)
+    for name in ("TEXTUAL_THEME", "NO_COLOR", "COLORFGBG"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environ.items():
+        monkeypatch.setenv(name, value)
 
     assert Humanize().theme == theme
 
@@ -146,9 +160,9 @@ def test_it_is_drawn_in_the_terminals_colours_unless_asked_otherwise(
         (Humanize.in_btw, False),
         (Humanize.leaves_btw, False),
         # On a chat with no turn open, as its host would refuse it.
-        (Humanize.refused_stop, "no turn is open, so there is nothing to stop"),
+        (Humanize.refused_stop, "No turn is open, so there is nothing to stop."),
         (Humanize.refused_resume, ""),
-        (Humanize.refused_chat, "the chat is already on the screen"),
+        (Humanize.refused_chat, "The chat is already open."),
         (Humanize.refused_prefer, ""),
     ],
 )

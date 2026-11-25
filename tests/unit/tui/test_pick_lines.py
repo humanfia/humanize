@@ -91,7 +91,7 @@ def test_switched_opens_on_the_side_it_is_not(current: str, cursor: str) -> None
 
     assert drop == pick.Drop(
         "details",
-        (Value("on", "on", "shown"), Value("off", "off", "hidden")),
+        (Value("on", "On", "shown"), Value("off", "Off", "hidden")),
         current,
         cursor=cursor,
     )
@@ -195,10 +195,10 @@ def priced(monkeypatch: pytest.MonkeyPatch) -> None:
             Budget(duration=datetime.timedelta(seconds=90), output_tokens=10, cost=1),
             "1m30s, 10 out, $1.0",
         ),
-        (Budget(cost=3, graceful=False), "$3.0, even mid-turn"),
+        (Budget(cost=3, graceful=False), "$3.0, cut off at once"),
         (
             Budget(output_tokens=10, cost=3, graceful=Graceful(cost=False)),
-            "10 out, $3.0 even mid-turn",
+            "10 out, $3.0 cut off at once",
         ),
     ],
 )

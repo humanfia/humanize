@@ -84,7 +84,7 @@ __all__ = [
 ]
 
 #: What a container is started from where neither the role nor the runtime says: small, and
-#: holding the `/bin/sh` and the Python the serving half needs.
+#: holding the `/bin/sh` the serving half needs.
 IMAGE = "python:3.12-slim"
 
 #: The runtime docker's default here is named by, where no runtime is written down under it.
@@ -458,14 +458,15 @@ class _Attached:
 def _mirrors(name: str) -> Path:
     """Where the agents working in a container keep their mirrors of it, on this machine.
 
-    Under Humanize's home rather than the system's temporary directory, so that nobody else
-    here can have made it first; nothing is made here, and it goes with the container.
+    Under Humanize's state directory rather than the system's temporary directory, so that
+    nobody else here can have made it first; nothing is made here, and it goes with the
+    container.
     """
-    from hmz import home
+    from hmz import state
 
     from .environing import ENVS
 
-    return home() / ENVS / "mirrors" / name
+    return state() / ENVS / "mirrors" / name
 
 
 def _called(provider: str, role: str, prefix: str = "") -> str:

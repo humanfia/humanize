@@ -32,6 +32,8 @@
 //
 // A span is named by its id (`track.first + index`); `locate(model, id)` finds it again.
 
+import { t } from '../../i18n.js'
+
 /** The timeline's version this page draws. */
 export const VERSION = 1
 
@@ -40,7 +42,7 @@ export const CATEGORIES = ['flow', 'session', 'turn', 'llm', 'tool', 'message', 
 
 /** Reads a timeline document into the model; throws on a version this page does not know. */
 export function load(doc) {
-  if (doc.version !== VERSION) throw new Error(`This page draws timelines of version ${VERSION}, not ${doc.version}.`)
+  if (doc.version !== VERSION) throw new Error(t('This page draws timelines of version {ours}, not {theirs}.', { ours: VERSION, theirs: doc.version }))
   const strings = doc.strings
   const said = (index) => strings[index] || ''
   const tracks = doc.tracks.map((one, id) => {
@@ -136,16 +138,31 @@ export function locate(model, id) {
   return null
 }
 
-/** The first position in `row` (indices into `ends`) whose span ends at or after `t`. */
-export function firstEnding(row, ends, t) {
+/** The first position in `row` (indices into `ends`) whose span ends at or after `time`. */
+export function firstEnding(row, ends, time) {
   let low = 0
   let high = row.length
   while (low < high) {
     const mid = (low + high) >> 1
-    if (ends[row[mid]] < t) low = mid + 1
+    if (ends[row[mid]] < time) low = mid + 1
     else high = mid
   }
   return low
+}
+
+/**
+ * The span of one depth of a track at a moment, by its id, or null: the one going on then, or
+ * else the first to end or start within `slack` of it -- so that a span narrower than a pixel
+ * can be pointed at, and never in place of the one the pointer is on.
+ */
+export function spanAt(track, depth, time, slack) {
+  const row = track.rows[depth]
+  if (!row) return null
+  for (const reach of [0, slack]) {
+    const at = firstEnding(row, track.end, time - reach)
+    if (at < row.length && track.start[row[at]] <= time + reach) return track.first + row[at]
+  }
+  return null
 }
 
 /**
@@ -179,18 +196,18 @@ export function within(model, from, to) {
 }
 
 /** A moment, µs from the start, said to the precision a step between moments asks for. */
-export function clock(t, step = 1) {
-  const sign = t < 0 ? '-' : ''
-  t = Math.abs(t)
+export function clock(time, step = 1) {
+  const sign = time < 0 ? '-' : ''
+  time = Math.abs(time)
   if (step >= 60e6) {
-    const minutes = Math.round(t / 60e6)
+    const minutes = Math.round(time / 60e6)
     const hours = Math.floor(minutes / 60)
     return sign + (hours ? `${hours}h${minutes % 60 ? ` ${String(minutes % 60).padStart(2, '0')}m` : ''}` : `${minutes}m`)
   }
   const digits = step >= 1e6 ? 0 : Math.min(6, Math.ceil(-Math.log10(step / 1e6) - 1e-9))
   // Rounded first, so that 59.9996s at a millisecond's step is 1m 00.000s rather than 60.000s.
   const unit = 1e6 / 10 ** digits
-  const seconds = (Math.round(t / unit) * unit) / 1e6
+  const seconds = (Math.round(time / unit) * unit) / 1e6
   const minutes = Math.floor(seconds / 60)
   let rest = (seconds - minutes * 60).toFixed(digits)
   if (!minutes) return `${sign}${rest}s`

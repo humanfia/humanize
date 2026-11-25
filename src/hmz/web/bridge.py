@@ -16,7 +16,7 @@ import contextlib
 import json
 import socket
 import threading
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, cast
 
 from websockets.datastructures import Headers
 from websockets.exceptions import InvalidState
@@ -209,14 +209,30 @@ def _back(socket_: WebSocket, pipe: Pipe) -> None:
     threading.Thread(target=carries, daemon=True, name="hmz-web-back").start()
 
 
-def _forth(socket_: WebSocket, pipe: Callable[[], Pipe | None]) -> None:
+def _forth(
+    socket_: WebSocket,
+    pipe: Callable[[], Pipe | None],
+    answer: Callable[[bool], None] | None = None,
+) -> None:
     """Carries every binary message of the page to a daemon's end, until either closes.
 
     A text message closes both (Sections 4.7.2 and 4.8.5 of web.md), as does a binary one
-    before the end is open.
+    before the end is open; but `{"install": <boolean>}` before it is open is given to
+    `answer` (Section 4.8.8 of web.md).
     """
     for said in socket_.messages():
         held = pipe()
+        if held is None and answer is not None and isinstance(said, str):
+            with contextlib.suppress(ValueError):
+                given: object = json.loads(said)
+                install = (
+                    cast("dict[str, object]", given).get("install")
+                    if isinstance(given, dict)
+                    else None
+                )
+                if isinstance(install, bool):
+                    answer(install)
+                    continue
         if isinstance(said, str) or held is None:
             return
         try:
@@ -290,7 +306,7 @@ def dials(socket_: WebSocket, route: str, pinned: str, held: Dials) -> None:
 
     threading.Thread(target=opens, daemon=True, name="hmz-web-dial").start()
     try:
-        _forth(socket_, lambda: opened[0] if opened else None)
+        _forth(socket_, lambda: opened[0] if opened else None, dialing.answer)
     finally:
         # However it ended, what was started for it is stopped (Section 4.8.6 of web.md).
         for pipe in opened:

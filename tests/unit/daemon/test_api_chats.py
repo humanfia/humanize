@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.daemon import reach
+from hmz.daemon import hosts, reach, where
 from hmz.daemon.api import chats, runs, workspaces
 from hmz.rpc import RpcError
 
@@ -19,7 +19,9 @@ ROW = {
     "id",
     "title",
     "workspace",
+    "folderless",
     "workdir",
+    "env",
     "agent",
     "model",
     "began",
@@ -78,6 +80,7 @@ def _ran(name: str = "20260101-abc", **said: Any) -> Any:
         "permission": "",
         "archived": False,
         "workdir": "",
+        "env": "",
         "forked": "",
         "adopted": "",
     }
@@ -123,6 +126,7 @@ def test_every_method_that_names_a_chat_is_served() -> None:
             "list",
             "get",
             "rename",
+            "agent",
             "fork",
             "archive",
             "unarchive",
@@ -174,8 +178,10 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
         "id": "20260101-abc",
         "title": "fix the parser",
         "workspace": WORKSPACE,
+        "folderless": False,
         # Where its assistant works: the workspace, for one in no worktree.
         "workdir": WORKSPACE,
+        "env": f"local/{WORKSPACE.lstrip('/')}",
         "agent": "claude@work/opus:high",
         "model": "opus",
         "began": "2026-01-01T00:00:00.000Z",
@@ -188,6 +194,32 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
         "archived": False,
         "spent": None,
     }
+
+
+def test_a_chat_its_host_says_was_moved_reads_as_where_it_now_works() -> None:
+    # Moved while carried on with nothing said: its record says nothing of it yet.
+    moved = chats.row(_ran(how=""), _status(env="ssh@gpu/srv/repo"))
+    assert (moved["env"], moved["workdir"]) == ("ssh@gpu/srv/repo", "/srv/repo")
+    # A host that says no env leaves what the record says, as does no host at all.
+    kept = chats.row(_ran(how="", env="local/srv/there"), _status(env=""))
+    assert (kept["env"], kept["workdir"]) == ("local/srv/there", "/srv/there")
+    assert chats.row(_ran(env="local/srv/there"))["env"] == "local/srv/there"
+
+
+def test_a_row_says_a_chat_started_in_no_folder_is_folderless(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Section 4.25.5.2 of daemon.md: told by the daemon, which made its directory.
+    asked: list[str] = []
+
+    def folderless(workspace: str) -> bool:
+        asked.append(workspace)
+        return True
+
+    monkeypatch.setattr(where, "folderless", folderless)
+
+    assert chats.row(_ran())["folderless"] is True
+    assert asked == [WORKSPACE]
 
 
 def test_a_row_says_the_worktree_the_permission_the_spending_and_the_host() -> None:
@@ -216,6 +248,17 @@ def test_a_row_says_the_worktree_the_permission_the_spending_and_the_host() -> N
         "read-only",
         True,
     )
+    assert said["env"] == "local/home/envs/w/worktrees/x"
+    # Moved to a runtime, it works in the directory there, whatever worktree it began in.
+    moved = chats.row(
+        _ran(workdir="/home/envs/w/worktrees/x", env="ssh@gpu-box/~/repo")
+    )
+    assert (moved["env"], moved["workdir"], moved["workspace"]) == (
+        "ssh@gpu-box/~/repo",
+        "~/repo",
+        WORKSPACE,
+    )
+    assert chats.row(_ran(env="docker/srv/repo"))["workdir"] == "/srv/repo"
     assert (said["state"], said["slot"], said["asking"]) == (
         "asking",
         "chat:1a",
@@ -529,30 +572,28 @@ def test_an_ai_chan_conversation_is_read_by_chat_get_and_nothing_else(
 ) -> None:
     from hmz.daemon.api import runs
 
-    earlier = _Chats(_ran("old", at=Path("/epics/-w/old")))
-    monkeypatch.setattr(runs, "RUNS", earlier)
+    epics = _Chats(_ran("old", at=Path("/epics/-w/old")))
+    monkeypatch.setattr(runs, "RUNS", epics)
     held.held = [_ran("hers", task="what is going on?", title="what is going on?")]
     cast("Any", held).kept.hers = {"hers", "old"}
 
     assert _call("chat.get", chat="hers")["task"] == "what is going on?"
-    # One an earlier hmz began for her is kept as an epic, and read all the same.
-    assert _call("chat.get", chat="old")["at"] == str(Path("/epics/-w/old"))
     for method, more in (
         ("chat.rename", {"title": "mine"}),
+        ("chat.agent", {"agent": "claude@work/haiku"}),
         ("chat.fork", {}),
         ("chat.archive", {}),
         ("chat.unarchive", {}),
         ("chat.backup", {}),
         ("chat.delete", {}),
     ):
-        for name in ("hers", "old"):
-            assert _refused(method, chat=name, **more) == (
-                404,
-                f"There is no chat {name}.",
-            )
-    # An epic that is none of hers is no chat for `chat.get` to read.
-    earlier.held.append(_ran("e1"))
-    assert _refused("chat.get", chat="e1") == (404, "There is no chat e1.")
+        assert _refused(method, chat="hers", **more) == (
+            404,
+            "There is no chat hers.",
+        )
+    # An epic is no chat for `chat.get` to read, were it named as one of hers: one an
+    # earlier hmz began for her is a chat once the daemon has moved it, and none before.
+    assert _refused("chat.get", chat="old") == (404, "There is no chat old.")
 
 
 @pytest.fixture
@@ -595,6 +636,80 @@ def test_a_chat_is_renamed_to_a_title_that_says_something(
         404,
         "There is no chat none.",
     )
+
+
+def test_a_chat_no_host_holds_is_written_as_carried_on_with_another_model(
+    held: _Chats, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hmz.runtime.chatting
+    import hmz.runtime.epic
+    from hmz.runtime.epic import Drove
+
+    now = Drove("assistant", "claude", "opus", "high", "work", "NeiKos496")
+    ran = _ran("c1", agents=(now,))
+    held.held = [ran]
+    written: list[tuple[Any, ...]] = []
+    asked: list[tuple[Drove, str]] = []
+
+    def note(at: Path, event: str, **said: Any) -> None:
+        written.append((at, event, said))
+
+    def carried_as(had: Drove, agent: str) -> Drove:
+        asked.append((had, agent))
+        if agent.startswith("codex/"):
+            raise hmz.runtime.chatting.KeptAs("a chat keeps its harness")
+        if "/" not in agent:
+            raise ValueError(f"{agent} is not an agent")
+        model, _, effort = agent.partition("/")[2].partition(":")
+        return had._replace(model=model, effort=effort)
+
+    monkeypatch.setattr(hmz.runtime.epic, "note", note)
+    monkeypatch.setattr(hmz.runtime.chatting, "carried_as", carried_as)
+
+    said = _call("chat.agent", chat="c1", agent="claude@work/haiku:low")
+
+    # Its record says so, under the name its sessions are written down by; nothing else.
+    assert asked == [(now, "claude@work/haiku:low")]
+    assert written == [
+        (
+            ran.at,
+            "set",
+            {"agents": [now._replace(model="haiku", effort="low")._asdict()]},
+        )
+    ]
+    assert set(said) == ROW
+    # What it runs already writes nothing.
+    _call("chat.agent", chat="c1", agent="claude@work/opus:high")
+    assert len(written) == 1
+    # What a chat keeps is a conflict, what is no agent a bad request, and neither is written.
+    assert _refused("chat.agent", chat="c1", agent="codex/gpt-5") == (
+        409,
+        "a chat keeps its harness",
+    )
+    assert _refused("chat.agent", chat="c1", agent="nope") == (
+        400,
+        "nope is not an agent",
+    )
+    # Not under a process that is no host, nor of a chat that names none.
+    held.goes.add("c1")
+    assert _refused("chat.agent", chat="c1", agent="claude@work/haiku") == (
+        409,
+        "Chat c1 has a turn open; change its model once it is done.",
+    )
+    assert _refused("chat.agent", chat="none", agent="claude/haiku") == (
+        404,
+        "There is no chat none.",
+    )
+    assert len(written) == 1
+    # One a host holds was given it by that host: its row is answered, and nothing written.
+    _hosts(held)["/w\0chat:c1"] = {
+        "chat": "c1",
+        "state": "running",
+        "slot": "chat:c1",
+    }
+    said = _call("chat.agent", chat="c1", agent="claude@work/haiku:low")
+    assert (set(said), said["slot"]) == (ROW, "chat:c1")
+    assert len(written) == 1
 
 
 def test_a_chat_is_archived_and_unarchived_once_each(
@@ -686,6 +801,12 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
         return at in held_elsewhere
 
     monkeypatch.setattr(hmz.runtime.epic, "going", going)
+    swept: list[tuple[str, set[str]]] = []
+
+    def sweeps(workspace: str, held: set[str]) -> None:
+        swept.append((workspace, held))
+
+    monkeypatch.setattr(hosts, "swept", sweeps)
     worktree = tmp_path / "envs" / "worktrees" / "x"
     worktree.mkdir(parents=True)
     made: dict[str, Path] = {}
@@ -704,12 +825,17 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
     for name in ("c2", "c3"):
         assert _refused("chat.delete", chat=name) == (
             409,
-            f"Chat {name} is going on; delete it once it rests.",
+            f"Chat {name} has a turn open; delete it once it is done.",
         )
     assert _refused("chat.delete", chat="none") == (404, "There is no chat none.")
     assert all(one.is_dir() for one in made.values())
+    assert swept == []
 
     assert _call("chat.delete", chat="c1") == {}
+
+    # Its workspace is swept, which removes the directory of a folderless one alone, where
+    # no host stands in it: the hosts standing are said with it.
+    assert swept == [(WORKSPACE, {WORKSPACE})]
 
     # Its record and the sessions kept beside it; the worktree it worked in stays.
     assert not made["c1"].exists()

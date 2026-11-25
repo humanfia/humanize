@@ -440,6 +440,39 @@ def test_a_session_kept_in_another_machines_home_is_kept_in_the_epic(
     assert (back / SESSIONS / "claude" / "projects" / "p" / "s9.jsonl").is_file()
 
 
+def test_a_chat_an_earlier_humanize_kept_as_an_epic_reads_back_in_as_a_chat(
+    world: World, tmp_path: Path
+) -> None:
+    from hmz.runtime.epic import CHATTED, JOURNAL, chats, every
+
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    # As an earlier Humanize began one, when a chat was an epic: of kind `chat`.
+    with Epic("ralph", "hi", workspace) as one:
+        pass
+    written = (
+        (one.path / JOURNAL).read_text().replace('"kind": "flow"', '"kind": "chat"')
+    )
+    assert '"kind": "chat"' in written
+    (one.path / JOURNAL).write_text(written)
+    landed = _away(one.path, tmp_path)
+
+    back = unbundle(landed)
+
+    # Among the chats of its workspace, by its name, its record as it was under a chat's.
+    assert back == one.path.parents[2] / "chats" / one.path.parent.name / one.path.name
+    assert (chats(), every()) == ([back], [])
+    assert not (back / JOURNAL).exists()
+    assert (back / CHATTED).read_text().startswith(written)
+    ran = read(back)
+    assert ran is not None
+    assert (ran.kind, ran.flow, ran.task) == ("chat", "", "hi")
+    # And is here already, read in a second time.
+    with pytest.raises(ValueError, match=f"{back.name} is already here, at {back}"):
+        unbundle(landed)
+    assert not one.path.parent.exists()
+
+
 def test_a_run_whose_workspace_is_not_here_cannot_be_picked_up(
     world: World, ran: Path, tmp_path: Path
 ) -> None:

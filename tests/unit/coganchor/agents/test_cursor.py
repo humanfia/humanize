@@ -21,6 +21,7 @@ from hmz.coganchor.agents import (
     CursorSession,
     Failed,
     Unfenced,
+    Unrecoverable,
     Unserved,
 )
 from hmz.coganchor.agents.cursor import spelled
@@ -218,6 +219,47 @@ def test_a_fenced_turn_is_asked_nothing_and_an_unfenced_one_is_told_nothing(
     at = argv.index(str(tmp_path)) + 1
     assert argv[at : argv.index("--trust")] == flags
     assert "--mode" not in argv
+
+
+@pytest.mark.parametrize(
+    ("said", "named"),
+    [
+        (
+            (
+                "Error: Your team administrator has disabled the 'Run Everything' option.\n"
+                "Please run without '--force' to approve commands individually, or contact "
+                "your administrator to enable this feature."
+            ),
+            "Run Everything",
+        ),
+        (
+            (
+                "Error: Your team administrator has disabled headless Cursor CLI usage.\n"
+                "Please run without '--print' or '-p' to use Cursor Agent interactively, or "
+                "contact your administrator to enable this feature."
+            ),
+            "headless use",
+        ),
+    ],
+)
+def test_a_turn_its_team_admin_forbids_fails_for_good_naming_the_setting(
+    monkeypatch: pytest.MonkeyPatch,
+    spawner: Spawner,
+    tmp_path: Path,
+    said: str,
+    named: str,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    held = Fence.of(
+        rules=[(".", "write")], online=True, workdir=str(tmp_path), home=str(tmp_path)
+    )
+    spawner.answering([], err=said, code=1)
+
+    with pytest.raises(Unrecoverable, match=named) as failed:
+        _cursor(fence=held).new(tmp_path)("go")
+
+    assert "cursor-agent: this Cursor team's admin" in str(failed.value)
+    assert "run without" not in str(failed.value)
 
 
 def test_its_own_settings_reach_the_command_line(

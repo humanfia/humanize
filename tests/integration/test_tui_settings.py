@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import sys
+import tomllib
 from typing import TYPE_CHECKING
 
 import pytest
-import yaml
 from textual.widgets import OptionList
 
+from hmz import config
 from hmz.runtime.epic import Epic
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
@@ -50,8 +51,8 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 def kept(tmp_path: Path) -> dict[str, object]:
     """The settings file, as read back, or nothing where none was written."""
-    at = tmp_path / "humanize-home" / "settings.yaml"
-    return dict(yaml.safe_load(at.read_text()) or {}) if at.exists() else {}
+    at = config() / "settings.toml"
+    return tomllib.loads(at.read_text()) if at.exists() else {}
 
 
 async def into_settings(pilot: Pilot[None], page: str = "") -> Adjusts:
@@ -61,26 +62,34 @@ async def into_settings(pilot: Pilot[None], page: str = "") -> Adjusts:
     return await on(pilot, Adjusts)
 
 
-async def test_settings_opens_on_its_seven_pages_and_esc_closes_it(
+async def test_settings_opens_on_its_pages_in_their_groups_and_esc_closes_it(
     workspace: Path,
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await into_settings(pilot)
 
-        assert rows(app) == list(PAGES)
-        await shows(
+        # A card per page, in the order they are named; a heading is no page.
+        assert [row for row in rows(app) if row != "None"] == list(PAGES)
+        drawn = await shows(
             pilot,
-            "General",
-            "Notifications",
+            "APP",
+            "Themes",
             "Daemons",
+            "Notifications",
+            "Language",
+            "DAEMON",
+            "General",
             "Accounts",
             "Nous",
             "Runtimes",
             "Backup",
-            "Workspace",
             "Usage",
+            "WORKSPACE",
         )
+        # What is this person's stands over what the daemon keeps, and the folder is last.
+        assert drawn.index("APP") < drawn.index("Themes") < drawn.index("DAEMON")
+        assert drawn.index("DAEMON") < drawn.index("General") < drawn.index("WORKSPACE")
 
         await pilot.press("escape")
         await shows(pilot, f"◉ {RUNS}")
@@ -92,19 +101,22 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
+        await shows(pilot, "Display and reporting", "Details Off")
         await opens(pilot, "general")
-        await shows(pilot, "show every tool call and all of the thinking")
+        drawn = await shows(pilot, "Tool calls and thinking")
+        # Her nous is the one last used, which `/ai` asks: nothing here sets it.
+        assert "Ai-chan" not in drawn
 
         await picks(pilot, "details", "on")
-        await shows(pilot, "● on")
+        await shows(pilot, "● On")
         await leaves(pilot)
 
-        await shows(pilot, "showing details")
+        await shows(pilot, "Details are on")
     assert kept(tmp_path)["details"] is True
 
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "details on")
+        await shows(pilot, "Details On")
 
 
 async def test_a_change_discarded_on_the_way_out_is_not_written(
@@ -114,7 +126,7 @@ async def test_a_change_discarded_on_the_way_out_is_not_written(
         await into_settings(pilot)
         await opens(pilot, "general")
         await picks(pilot, "details", "on")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
 
         await leaves(pilot, saving=False)
 
@@ -127,10 +139,10 @@ async def test_what_dollar_prefers_in_a_chat_is_saved_for_this_machine(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "general")
-        await shows(pilot, "Chat prefers for $")
+        await shows(pilot, "When $name is both", "What $name starts in a chat")
 
         await picks(pilot, "prefer", "flow")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
 
     assert kept(tmp_path)["chat"] == {"prefer": "flow"}
@@ -141,10 +153,14 @@ async def test_listing_harness_sessions_is_saved_for_this_machine(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "general")
-        await shows(pilot, "Harness sessions", "to continue as chats")
+        await shows(
+            pilot,
+            "Harness sessions",
+            "/resume in a chat lists the sessions each harness had of its own",
+        )
 
         await picks(pilot, "harness_sessions", "on")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
 
     assert kept(tmp_path)["harness_sessions"] is True
@@ -155,7 +171,9 @@ async def test_the_chat_agent_set_up_on_the_workspace_page_is_remembered_there(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "workspace")
-        await shows(pilot, "Chat agent", "the agent a new chat here talks to")
+        await shows(
+            pilot, "Default agent", "The agent a new chat in this folder talks to"
+        )
 
         await opens(pilot, "chat-agent")
         await on(pilot, Agent)
@@ -214,7 +232,7 @@ async def test_a_page_named_on_the_command_opens_on_that_page(workspace: Path) -
         await shows(
             pilot,
             trail("/settings", "Workspace"),
-            f"What {workspace.parent.name}/workspace remembers",
+            f"{workspace.parent.name}/workspace · What this folder was last set up",
         )
 
 
@@ -229,10 +247,52 @@ async def test_a_page_that_is_not_one_is_said_so(workspace: Path) -> None:
 async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "0 accounts", "0 machines")
+        await shows(pilot, "0 accounts", "0 runtimes", "1 daemon", "0 targets")
 
         await opens(pilot, "accounts")
-        await shows(pilot, "no accounts yet", "Add an account")
+        await shows(pilot, "No account yet.", "Add account")
+
+
+async def test_the_accounts_page_says_what_the_page_says_in_chinese(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz import words
+    from hmz.coganchor import providers
+
+    providers.add("claude", "work", env={"ANTHROPIC_API_KEY": "key"})
+    for name in ("LC_ALL", "LC_MESSAGES"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LANG", "zh_CN.UTF-8")
+    try:
+        app = Humanize()
+        async with app.run_test(size=SIZE) as pilot:
+            await into_settings(pilot, "accounts")
+            # What the page says of accounts, its row of one made here, its buttons and
+            # the keys under them: each as the page says it in Chinese.
+            drawn = await shows(
+                pilot,
+                "在设置智能体时为其指定账户",
+                "cli@account/model",
+                "work",
+                "通过",
+                "创建",
+                "ANTHROPIC_API_KEY",
+                "添加账户",
+                "搜索",
+                "保存",
+                "打开",
+                "返回",
+            )
+            for english in ("Add account", "made by", "Search", "Save", "Back"):
+                assert english not in drawn
+
+            # And the form an account is made on: its title and the rows the page has.
+            await pilot.click("#act-add")
+            made = await shows(pilot, "新建账户", "运行框架", "登录方式", "名称")
+            for english in ("New account", "Sign-in method", "Name"):
+                assert english not in made
+    finally:
+        words.speak("en")
 
 
 async def test_an_account_that_cannot_be_removed_is_said_on_saving(
@@ -250,7 +310,7 @@ async def test_an_account_that_cannot_be_removed_is_said_on_saving(
             await into_settings(pilot, "accounts")
             await opens(pilot, "claude/work")
             await pilot.click("#act-remove")
-            await shows(pilot, "will be removed when this menu is saved")
+            await shows(pilot, "is removed when saved")
             await leaves(pilot)
 
             await shows(pilot, "Permission denied")
@@ -271,7 +331,7 @@ async def test_the_ways_through_the_gateway_are_dropped_under_one_heading(
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot, "accounts")
         await pilot.click("#act-add")
-        await shows(pilot, "Add an account")
+        await shows(pilot, "New account")
         await opens(pilot, "way")
         dropped = await on(pilot, Dropdown)
 
@@ -321,7 +381,7 @@ async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
         await onto(pilot, "slurm", "OptionList")
         await pilot.press("enter")
         await on(pilot, Slurming)
-        await shows(pilot, "Add a Slurm cluster")
+        await shows(pilot, "New runtime · Slurm cluster")
 
         await onto(pilot, "partition")
         await pilot.press(*"gpu", "enter")
@@ -333,7 +393,7 @@ async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
             pilot,
             "slurm/gpu answers: slurm 23.02.7; 2 nodes: gpu-01, gpu-02; "
             "128 CPUs, 1000G all told",
-            "partition gpu · no limits · max 4 jobs",
+            "Partition: gpu · no limit · at most 4 jobs",
         )
     saved = kept(tmp_path)["runtimes"]
     assert isinstance(saved, dict)
@@ -355,19 +415,24 @@ async def test_usage_says_what_the_epics_spent_by_day_and_by_flow(
             epic.write("usage", cost=cost, output_tokens=2000, seconds=90)
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
-        await shows(pilot, "last 30 days")
+        await shows(pilot, "30d")
         await opens(pilot, "usage")
 
-        await shows(pilot, "$2.00", "2 epics · 4.0k output tokens", "By day", "75%")
         await shows(
-            pilot, "chat", "ralph", "1 epic · 2.0k output tokens · worked 1m30s"
+            pilot, "$2.00", "over 2 epics · 4.0k output tokens", "COST BY DAY", "75%"
+        )
+        await shows(
+            pilot,
+            "chat",
+            "ralph",
+            "over 1 epic · 2.0k output tokens · 1m30s agent time",
         )
 
-        await picks(pilot, "scope", "every directory")
-        await shows(pilot, "$4.00", "3 epics")
-        await picks(pilot, "range", "7 days")
-        await shows(pilot, "7 days", "$4.00")
+        await picks(pilot, "scope", "every")
+        await shows(pilot, "Every folder", "$4.00", "over 3 epics")
+        await picks(pilot, "range", "7")
+        await shows(pilot, "7d", "$4.00")
         await pilot.press("escape")
-        await shows(pilot, "$4.00 in 7 days")
+        await shows(pilot, "$4.00 · 7d")
         await pilot.press("escape")
         await shows(pilot, f"◉ {RUNS}")

@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from hmz import home
-from hmz.web import kept_port, serve
+from hmz import state
+from hmz.web import is_origin, kept_port, serve
 from tests.integration.doubles_daemon import WAITS, written
 from tests.integration.doubles_web import PATIENCE, Browser, served
 
@@ -79,13 +79,45 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
         assert proxied.get("/here").status == 200
         assert proxied.get("/").status == 200
         assert proxied.get("/here", Origin="http://hmz.example").status == 200
+        # One that serves the page over HTTPS and hands on the `Host` it was asked is the
+        # page's own too, a port left out being its scheme's (Section 4.4.6 of web.md).
+        for came in (
+            "https://hmz.example",
+            "https://hmz.example:443",
+            "https://HMZ.example",
+            "http://hmz.example:80",
+        ):
+            assert proxied.get("/here", Origin=came).status == 200, came
+        ported = Browser(site, host="hmz.example:8443", cookie=browser.cookie)
+        assert ported.get("/here", Origin="https://hmz.example:8443").status == 200
+        assert ported.get("/here", Origin="https://hmz.example").status == 403
+        # Another site is not, whatever it is served over, nor one that says no origin.
+        for came in (
+            "https://evil.example",
+            "https://hmz.example:8443",
+            "https://hmz.example.evil.example",
+            "https://evil.example@hmz.example",
+            "https://hmz.example/",
+            "ftp://hmz.example",
+            "null",
+            "",
+        ):
+            assert proxied.get("/here", Origin=came).status == 403, came
+        # One that rewrites `Host` is not this server's own page to a browser that says
+        # only where its page came from: nothing a proxy adds is believed.
+        assert proxied.get("/here", Origin="http://public.example").status == 403
+        forwarded = {"X-Forwarded-Host": "public.example", "X-Forwarded-Proto": "https"}
+        assert (
+            proxied.get("/here", Origin="https://public.example", **forwarded).status
+            == 403
+        )
 
         # Only this server's own page is admitted, as the browser says it.
         for came in ("same-site", "cross-site", "none"):
             assert browser.get("/here", **{"Sec-Fetch-Site": came}).status == 403
         assert browser.get("/here", Origin="http://127.0.0.1:3000").status == 403
         assert (
-            browser.get("/here", Origin=f"https://127.0.0.1:{site.port}").status == 403
+            browser.get("/here", Origin=f"https://127.0.0.1:{site.port}").status == 200
         )
         assert browser.get("/here", **{"Sec-Fetch-Site": "same-origin"}).status == 200
         with pytest.raises(InvalidStatus) as elsewhere:
@@ -93,6 +125,60 @@ def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
                 "/rpc", Origin="http://evil.example", **{"Sec-Fetch-Site": "cross-site"}
             )
         assert elsewhere.value.response.status_code == 403
+
+
+def test_a_proxy_that_rewrites_host_is_admitted_only_for_the_origin_it_was_told(
+    project: Path,
+) -> None:
+    del project
+    with served(origin="https://Public.example") as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        for came in ("https://public.example", "https://public.example:443"):
+            assert browser.get("/here", Origin=came).status == 200, came
+        # Its own page is still its own, and every other site still another.
+        assert (
+            browser.get("/here", Origin=f"http://127.0.0.1:{site.port}").status == 200
+        )
+        for came in (
+            "http://public.example",
+            "https://public.example:8443",
+            "https://other.example",
+            "null",
+        ):
+            assert browser.get("/here", Origin=came).status == 403, came
+        # What the browser itself says is believed before any origin.
+        said = {"Sec-Fetch-Site": "cross-site"}
+        assert (
+            browser.get("/here", Origin="https://public.example", **said).status == 403
+        )
+        # And the key is asked of it as of anybody.
+        assert Browser(site).get("/here", Origin="https://public.example").status == 401
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["public.example", "ftp://public.example", "https://public.example/x", "https://"],
+)
+def test_an_origin_that_is_not_one_is_refused_before_anything_listens(
+    origin: str,
+) -> None:
+    assert not is_origin(origin)
+    with pytest.raises(ValueError, match="is not an origin"), served(origin=origin):
+        pass
+
+
+def test_hmz_web_refuses_an_origin_that_is_not_one_as_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from hmz.cli.web import web
+
+    with pytest.raises(SystemExit) as refused:
+        web(["--origin", "public.example"])
+
+    assert refused.value.code == 2
+    assert "public.example is not an origin" in capsys.readouterr().err
 
 
 def _policy() -> str:
@@ -134,6 +220,25 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
             ).status
             == 304
         )
+
+        # The language is set by a script of its own, before the page's: nothing is drawn in
+        # another. The catalogs of every language are the page's files, a fragment an area.
+        scripts = re.findall(r'<script[^>]*src="([^"]+)"', page.body.decode())
+        assert scripts.index("/lang.js") < scripts.index("/app.js")
+        for path in (
+            "/lang.js",
+            "/i18n.js",
+            "/i18n/en.js",
+            "/i18n/zh-Hans.js",
+            "/i18n/zh-Hant.js",
+            "/i18n/zh-Hans/core.js",
+            "/i18n/zh-Hant/settings.js",
+            "/views/settings/language.js",
+        ):
+            catalog = browser.get(path)
+            assert catalog.status == 200, path
+            assert catalog.headers["content-type"].startswith("text/javascript"), path
+            assert catalog.headers["cache-control"] == "no-cache", path
 
         for nothing in (
             "/../pyproject.toml",
@@ -212,7 +317,9 @@ def test_a_picture_of_the_page_is_served_as_one(
 
     package = tmp_path / "web"
     (package / "static" / "ai-chan").mkdir(parents=True)
-    (package / "static" / "ai-chan" / "avatar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (package / "static" / "ai-chan" / "avatar.webp").write_bytes(
+        b"RIFF\x04\x00\x00\x00WEBP"
+    )
 
     def files(_: str) -> Path:
         return package
@@ -220,10 +327,10 @@ def test_a_picture_of_the_page_is_served_as_one(
     # The page's own files alone are looked for in `package`.
     monkeypatch.setattr(serving, "resources", SimpleNamespace(files=files))
     with served() as site:
-        avatar = Browser(site).get("/ai-chan/avatar.png")
+        avatar = Browser(site).get("/ai-chan/avatar.webp")
         assert avatar.status == 200
-        assert avatar.headers["content-type"] == "image/png"
-        assert avatar.body == b"\x89PNG\r\n\x1a\n"
+        assert avatar.headers["content-type"] == "image/webp"
+        assert avatar.body == b"RIFF\x04\x00\x00\x00WEBP"
 
 
 def test_a_face_is_framed_by_the_page_alone_and_reaches_nothing(
@@ -395,8 +502,8 @@ def test_a_text_message_on_rpc_closes_it(project: Path) -> None:
 def test_the_port_listened_on_is_kept_and_listened_on_again(project: Path) -> None:
     del project
     assert kept_port() == 0
-    (home()).mkdir(parents=True, exist_ok=True)
-    (home() / "web-port").write_text("70000")
+    state().mkdir(parents=True, exist_ok=True)
+    (state() / "web-port").write_text("70000")
     assert kept_port() == 0
 
     said: list[str] = []
@@ -411,13 +518,13 @@ def test_the_port_listened_on_is_kept_and_listened_on_again(project: Path) -> No
     assert port > 0
     assert said == [said[0]]
     assert f":{port}/?key=" in said[0]
-    assert (home() / "web-port").read_text() == str(port)
-    written_at = (home() / "web-port").stat().st_mtime_ns
+    assert (state() / "web-port").read_text() == str(port)
+    written_at = (state() / "web-port").stat().st_mtime_ns
 
     with pytest.raises(KeyboardInterrupt):
         serve(shown=shown)
     assert f":{port}/?key=" in said[1]
-    assert (home() / "web-port").stat().st_mtime_ns == written_at
+    assert (state() / "web-port").stat().st_mtime_ns == written_at
 
     # The port kept taken, any free one is listened on.
     with socket.create_server(("127.0.0.1", port)), pytest.raises(KeyboardInterrupt):

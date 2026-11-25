@@ -16,7 +16,9 @@ import logging
 import os
 import pkgutil
 import socket
-import tempfile
+import threading
+import time
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -88,6 +90,12 @@ _TERMINAL = ("env.term.open", "env.term.input")
 _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
 
 
+#: The states of a host whose chat is going.
+_GOING = ("running", "stopping")
+
+#: How long, in seconds, a chat ended to be deleted is waited for.
+_ENDING = 10.0
+
 #: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
 _FOLDED = "this chat has folded away; carry it on with chat.start"
 
@@ -114,8 +122,13 @@ def _unanswered(call: Call, said: dict[str, Any]) -> None:
     del call, said
 
 
-def workspace(said: object) -> str:
+def workspace(said: object, *, made: bool = False) -> str:
     """A `workspace` parameter, as the daemon knows a workspace (Section 4.5.2).
+
+    Args:
+      said: As the call says it, `~` and all.
+      made: Whether a directory that is not there may still be named: the call looks up a
+        host already held, whose directory may have been removed under it.
 
     Raises:
       RpcError: 400 for a path that is not absolute, 404 for one naming no directory.
@@ -123,8 +136,11 @@ def workspace(said: object) -> str:
     path = Path(str(said)).expanduser()
     if not path.is_absolute():
         raise _refused(400, f"Say the workspace as a whole path, not {said}.")
-    if not path.is_dir():
-        raise _refused(404, f"There is no directory {path}.")
+    if not made and not path.is_dir():
+        if not where.folderless(where.workspace(path)):
+            raise _refused(404, f"There is no directory {path}.")
+        # The machine cleans its temporary directory: a folderless workspace is made again.
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
     return where.workspace(path)
 
 
@@ -162,6 +178,10 @@ class _Methods:
     def __init__(self, router: Router, families: Mapping[str, Handler]) -> None:
         self._router = router
         self._families = families
+        #: Held, one of each chat, while that chat is carried on, so that two who ask at
+        #: once are answered the one host.
+        self._carrying: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._carried = threading.Lock()
 
     # -- sessions and pairing
 
@@ -317,7 +337,7 @@ class _Methods:
         return {**hosted.keys, "slot": hosted.slot}
 
     def _held(self, call: Call) -> Hosted:
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         slotted = slot(call.params.get("slot"))
         hosted = self._router.hosts.get(named, slotted)
         if hosted is None:
@@ -339,36 +359,57 @@ class _Methods:
     # -- epics
 
     def attach(self, call: Call) -> dict[str, Any]:
-        from hmz.daemon.hosts import Subscription
+        from hmz.daemon.hosts import CLOSED, Subscription
+        from hmz.rpc import RpcError
 
         router = self._router
         session = router.session(call)
         params = call.params
         if params.get("scratch"):
-            named = where.workspace(tempfile.mkdtemp(prefix="hmz-"))
+            named = where.nofolder()
         elif "workspace" in params:
-            named = workspace(params["workspace"])
+            # A host already held is attached to whatever became of its directory; one
+            # is started only in a directory that is there (Section 4.5.2).
+            named = workspace(params["workspace"], made=True)
+            if router.hosts.get(named, slot(params.get("slot"), new=True)) is None:
+                named = workspace(params["workspace"])
         else:
             raise _refused(-32602, "epic.attach needs workspace.")
-        hosted = router.hosts.opened(named, slot(params.get("slot"), new=True))
-        sub = Subscription(
-            session, session.named(), hosted, figures=params.get("figures") is True
-        )
-        with session.lock:
-            session.subs[sub.sub] = sub
+        slotted = slot(params.get("slot"), new=True)
         since = params.get("since")
-        try:
-            sub.client = hosted.attach(
-                sub,
-                replay=params.get("replay", True) is not False,
-                since=cast("dict[str, Any]", since)
-                if isinstance(since, dict)
-                else None,
+        while True:
+            hosted = router.hosts.opened(named, slotted)
+            sub = Subscription(
+                session, session.named(), hosted, figures=params.get("figures") is True
             )
-        except BaseException:
             with session.lock:
-                session.subs.pop(sub.sub, None)
-            raise
+                session.subs[sub.sub] = sub
+            try:
+                sub.client = hosted.attach(
+                    sub,
+                    replay=params.get("replay", True) is not False,
+                    since=cast("dict[str, Any]", since)
+                    if isinstance(since, dict)
+                    else None,
+                )
+            except BaseException as why:
+                with session.lock:
+                    session.subs.pop(sub.sub, None)
+                # Her host going as it is attached to is gone once its link has closed, and
+                # is then started again (Section 4.22.5.2).
+                if (
+                    slotted.startswith("ai:")
+                    and isinstance(why, RpcError)
+                    and why.message == CLOSED
+                    and router.hosts.outwaited(hosted)
+                ):
+                    continue
+                raise
+            break
+        if sub.gone:
+            # Ended as it attached -- the session fell behind before the host named its
+            # client -- so nothing let the host's frontend go yet.
+            hosted.detach(sub.client)
         if session.closed:
             sub.dropped()
             raise _refused(409, "the frontend went while it was saying hello")
@@ -413,7 +454,7 @@ class _Methods:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
             409 where its chat has folded away and its host gone with it.
         """
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         slotted = slot(call.params.get("slot"))
         if not slotted.startswith(("chat:", "ai:")):
             raise _refused(400, f"{slotted or '(the workspace)'} is not a chat slot.")
@@ -447,6 +488,100 @@ class _Methods:
         resumed = Path(checked["resume"] or "").name
         if resumed in self._router.links.kept.epics():
             raise _refused(404, f"{resumed} is not a chat of {named}.")
+        if not resumed:
+            return self._chat_started(call, named, slotted, checked, resumed)
+        with self._carried:
+            carrying = self._carrying[resumed]
+        # Carried on by one caller at a time, so that two who ask at once are answered the
+        # one host (Section 4.25.1.9).
+        with carrying:
+            holding = self._holding(resumed)
+            if holding is not None and checked["task"]:
+                # Said to the host standing by with it, nothing said yet, as its first turn;
+                # one of another agent ends as it was first.
+                first = {key: checked[key] for key in ("agent", "prefer", "permission")}
+                # Where it is carried on, before anything is said there.
+                self._moved_first(call, holding, checked["env"])
+                said = {"do": "say", "text": checked["task"], "first": first}
+                if not self._chatted(call, holding[0], said).get("ended"):
+                    return {"slot": holding[0].slot, "chat": resumed}
+                self._let_go(resumed)
+            elif holding is not None:
+                # Nothing to say, and somewhere to be: the host that holds it is moved there
+                # (Section 4.25.1.10), never answered as though it were.
+                self._moved_first(call, holding, checked["env"])
+                return {"slot": holding[0].slot, "chat": resumed}
+            return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _moved_first(
+        self, call: Call, holding: tuple[Hosted, dict[str, Any]], env: str
+    ) -> None:
+        """Moves the chat a host holds to the env a `chat.start` names, where it is not there.
+
+        Raises:
+          RpcError: As `chat.move` is refused, the chat left where it was.
+        """
+        if env and env != holding[1].get("env"):
+            self._chatted(call, holding[0], {"do": "move", "env": env})
+
+    def _let_go(self, chat: str) -> None:
+        """Waits a while for the host that held a chat to have ended."""
+        ended = time.monotonic() + _ENDING
+        while self._holding(chat) is not None and time.monotonic() < ended:
+            time.sleep(0.05)
+
+    def _holding(self, chat: str) -> tuple[Hosted, dict[str, Any]] | None:
+        """The host going with a chat, by the chat's name, and how it stands; else None."""
+        for hosted in self._router.hosts.listed():
+            if not hosted.slot.startswith("chat:"):
+                continue
+            with contextlib.suppress(Exception):
+                status = hosted.status()
+                if status.get("chat") == chat and status.get("state") in _GOING:
+                    return hosted, status
+        return None
+
+    def chat_delete(self, call: Call) -> dict[str, Any]:
+        """Deletes a chat, ending first the host that holds it between turns (4.25.7.6).
+
+        Ended as an empty next message ends it, and waited for a while; one with a turn
+        open is left, and refused as the family refuses it.
+        """
+        name = str(call.params.get("chat"))
+        holding = self._holding(name)
+        if holding is not None and holding[1].get("turn") == "done":
+            with contextlib.suppress(Exception):
+                holding[0].chat({"do": "say", "text": ""})
+            self._let_go(name)
+        return self._families["chat.delete"](call)
+
+    def chat_agent(self, call: Call) -> dict[str, Any]:
+        """Carries a chat on with another model or effort, held or not (Section 4.25.7.7).
+
+        Asked of the host that holds it, which takes it up ahead of the chat's next turn;
+        written in its record by the family where none does, which answers its row either
+        way, one caller at a time with those who carry it on.
+        """
+        name = str(call.params.get("chat"))
+        with self._carried:
+            carrying = self._carrying[name]
+        with carrying:
+            holding = self._holding(name)
+            if holding is not None:
+                agent = str(call.params.get("agent") or "")
+                self._chatted(call, holding[0], {"do": "agent", "agent": agent})
+            return self._families["chat.agent"](call)
+
+    def _chat_started(
+        self,
+        call: Call,
+        named: str,
+        slotted: str,
+        checked: Mapping[str, Any],
+        resumed: str,
+    ) -> dict[str, Any]:
+        """Starts a chat checked on a host of its own, and answers its slot and its name."""
+        params = call.params
         hosted = self._router.hosts.opened(named, slotted)
         started = self._chatted(
             call,
@@ -459,6 +594,7 @@ class _Methods:
                 "prefer": checked["prefer"],
                 "permission": checked["permission"],
                 "worktree": checked["worktree"],
+                "env": checked["env"],
                 "remember": params.get("remember") is True,
             },
         )
@@ -490,6 +626,16 @@ class _Methods:
             raise _refused(400, refused)
         self._chatted(call, self._chat_held(call), {"do": "set", **said})
         return {}
+
+    def chat_move(self, call: Call) -> dict[str, Any]:
+        """Moves a chat to another env, between turns (Section 4.25.9)."""
+        from hmz.runtime.chatting import env_spec
+
+        try:
+            env = env_spec(call.params.get("env"))
+        except ValueError as why:
+            raise _refused(400, str(why)) from why
+        return self._chatted(call, self._chat_held(call), {"do": "move", "env": env})
 
     def chat_stop(self, call: Call) -> dict[str, Any]:
         """Stops a chat's open turn, leaving the chat between turns (Section 4.25.6)."""
@@ -626,7 +772,10 @@ class _Methods:
             "chat.say": self.chat_say,
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
+            "chat.move": self.chat_move,
             "chat.stop": self.chat_stop,
+            "chat.delete": self.chat_delete,
+            "chat.agent": self.chat_agent,
         }
 
 

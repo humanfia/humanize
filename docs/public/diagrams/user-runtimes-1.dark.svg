@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 456" role="img">
+  <title>The three places a runtime's harness setting can put the agent's CLI: on the runtime itself, on this machine, or on another saved runtime</title>
+  <rect width="760" height="456" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 8 4 0 8z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <text x="24" y="46" font-size="16" font-weight="600">Harness runs on</text>
+    <text x="24" y="106" font-weight="600" fill="#ff94c2">Inside the</text>
+    <text x="24" y="124" font-weight="600" fill="#ff94c2">environment</text>
+    <text x="24" y="144" font-size="12" fill="#9aa9b0">the default</text>
+    <rect x="184" y="64" width="224" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="200" y="90" font-weight="600">This machine</text>
+    <rect x="200" y="108" width="88" height="32" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="244" y="129" text-anchor="middle" fill="#b3c3c8">Humanize</text>
+    <line x1="408" y1="112" x2="470" y2="112" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="440" y="102" text-anchor="middle" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+    <rect x="472" y="64" width="264" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="488" y="90" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpu-box</text>
+    <rect x="488" y="108" width="92" height="32" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="534" y="129" text-anchor="middle" fill="#4fd8ea" font-weight="600">harness</text>
+    <rect x="592" y="108" width="128" height="32" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="656" y="129" text-anchor="middle" fill="#b3c3c8">your project</text>
+    <line x1="24" y1="176" x2="736" y2="176" stroke="#435058" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <text x="24" y="244" font-weight="600" fill="#ff94c2">This machine</text>
+    <rect x="184" y="192" width="224" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="200" y="218" font-weight="600">This machine</text>
+    <rect x="200" y="236" width="88" height="32" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="244" y="257" text-anchor="middle" fill="#b3c3c8">Humanize</text>
+    <rect x="300" y="236" width="92" height="32" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="346" y="257" text-anchor="middle" fill="#4fd8ea" font-weight="600">harness</text>
+    <line x1="408" y1="240" x2="470" y2="240" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="440" y="230" text-anchor="middle" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+    <rect x="472" y="192" width="264" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="488" y="218" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpu-box</text>
+    <rect x="488" y="236" width="128" height="32" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="552" y="257" text-anchor="middle" fill="#b3c3c8">your project</text>
+    <line x1="24" y1="304" x2="736" y2="304" stroke="#435058" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <text x="24" y="362" font-weight="600" fill="#ff94c2">Another</text>
+    <text x="24" y="380" font-weight="600" fill="#ff94c2">runtime</text>
+    <rect x="184" y="320" width="136" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="200" y="346" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">build-1</text>
+    <rect x="200" y="364" width="104" height="32" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="252" y="385" text-anchor="middle" fill="#4fd8ea" font-weight="600">harness</text>
+    <line x1="376" y1="368" x2="322" y2="368" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="348" y="358" text-anchor="middle" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+    <rect x="376" y="320" width="136" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="392" y="346" font-weight="600">This machine</text>
+    <rect x="392" y="364" width="104" height="32" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="444" y="385" text-anchor="middle" fill="#b3c3c8">Humanize</text>
+    <line x1="512" y1="368" x2="566" y2="368" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="540" y="358" text-anchor="middle" font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+    <rect x="568" y="320" width="168" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="584" y="346" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpu-box</text>
+    <rect x="584" y="364" width="136" height="32" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="652" y="385" text-anchor="middle" fill="#b3c3c8">your project</text>
+  </g>
+</svg>

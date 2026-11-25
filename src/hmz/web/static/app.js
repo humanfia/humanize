@@ -6,14 +6,17 @@
 // them. An address names the daemon it is of first, `#/@<name>/<view>…`, or names none and is of
 // Local.
 
-import { daemon, hash, hello, started } from './api.js'
+import { daemon, hash, hashOn, hello, movedTo, started } from './api.js'
 import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
+import { pieces, t } from './i18n.js'
+import { dismiss, windowStrip } from './layers.js'
 import { mountSidebar } from './sidebar.js'
-import { dragged, kept, toggleSidebar } from './shell.js'
+import { bar, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
+import './installs.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {
@@ -31,12 +34,17 @@ const DIALOGS = {
   search: () => import('./views/search.js'),
   download: () => import('./views/download.js'),
   settings: () => import('./views/settings.js'),
+  workspace: () => import('./views/workspace.js'),
   delete: () => import('./views/chatdelete.js'),
 }
 
-// The strip kept across its top for the window's traffic lights moves the window, as a title bar.
-const page = dragged(document.getElementById('page'), '')
+const page = document.getElementById('page')
 const overlay = document.querySelector('.overlay')
+// What index.html says before any script runs is English: said here in the page's language,
+// which lang.js set before anything was drawn.
+document.querySelector('.skip').textContent = t('Skip to the page')
+document.getElementById('sidebar').setAttribute('aria-label', t('Chats and epics'))
+for (const opening of page.querySelectorAll('.loading')) opening.textContent = t('Opening Humanize…')
 /** The view drawn, what it was loaded by, and how it is left or moved within. */
 let mounted = null
 let closing = null
@@ -57,6 +65,14 @@ let shown = ''
  * dialog's address, with no view before it.
  */
 let over = 0
+/**
+ * How many of those steps lead back to the dialog this one was opened from, which closing it
+ * goes back to (Section 3.6.6.26 of protocol/web.md): 0 where it was opened over a view, and
+ * for a page of the same dialog as the one before it, which closes as that one does.
+ */
+let up = 0
+/** Which dialog the address routed last named, or none. */
+let last = ''
 /** Whether the dialog open is being stepped back from, until the page is where that leads. */
 let leaving = false
 /** What held the focus as the dialog opened, which has it back once the dialog closes over the same view. */
@@ -84,6 +100,19 @@ export function where() {
 /** Goes to another view of the page, on the daemon it is on. */
 export function go(path) {
   location.hash = hash(path)
+}
+
+/**
+ * Switches the page to another daemon from the dialog open, which stays open on it: that
+ * daemon's new chat takes the dialog's step in the history and the dialog opens a step past
+ * it, so that closing it leads to that daemon's page and never back to the daemon left.
+ */
+export function onto(name) {
+  const dialog = `/${where().parts.map(encodeURIComponent).join('/')}`
+  history.replaceState(null, '', hashOn(name, '/new/chat'))
+  over = 0
+  last = ''
+  location.hash = hashOn(name, dialog)
 }
 
 /** Puts the query of the view the page is on in the address, without a step in its history. */
@@ -162,31 +191,37 @@ export function focusing() {
 }
 
 /**
- * Closes the dialog open, going back to the view under it: by the steps of the history the
- * dialog took, so that it leaves none behind and Back goes on to what was open before the view,
- * as from a dialog that was never an address.
+ * Closes the dialog open, going back to what it was opened over -- the dialog it was opened
+ * from, or the view under it: by the steps of the history the dialog took, so that it leaves
+ * none behind and Back goes on to what was open before, as from a dialog that was never an
+ * address.
  */
 export function shut() {
   if (leaving) return
   if (over > 0) {
     leaving = true
-    history.go(-over)
+    history.go(-(up || over))
   } else go(behind || '/new/chat')
 }
 
 async function route(event) {
   if (out) return
-  // Told before anything of the address is drawn: a menu open closes, and gives its focus back.
+  // Told before anything of the address is drawn: whatever floats closes and gives its focus
+  // back, and the drawer the sidebar is on a narrow window closes.
   window.dispatchEvent(new CustomEvent('hmz:route'))
   const mine = ++routed
   routedTo = location.hash
   asked = document.activeElement
   leaving = false
-  // A dialog's entry is kept with how far it is past the view: one come back to says so itself.
-  if (covered()) {
-    if (!history.state || typeof history.state.over !== 'number') history.replaceState({ over: event ? over + 1 : 0 }, '')
+  // A dialog's entry is kept with how far it is past the view, and past the dialog it was
+  // opened from: one come back to says so itself.
+  const kind = covered() ? where().parts[0] : ''
+  if (kind) {
+    if (!history.state || typeof history.state.over !== 'number') history.replaceState({ over: event ? over + 1 : 0, up: !event || !last ? 0 : kind !== last ? 1 : up && up + 1 }, '')
     over = history.state.over
-  } else over = 0
+    up = history.state.up || 0
+  } else over = up = 0
+  last = kind
   // Busy until every address asked for is drawn: the view left stands until then, and is not
   // what the address names.
   drawing++
@@ -202,6 +237,10 @@ async function routing(mine) {
   const { parts, query } = where()
   // An epic's log of every session is no more: its old address opens the epic, in its place.
   if (parts[0] === 'epics' && parts[2] === 'logs' && !parts[3]) return location.replace(location.hash.replace(/\/logs\/?(?=$|\?)/, ''))
+  // An address written before a folder's settings left Settings, or one that picks a daemon for
+  // itself alone, opens what it is now.
+  const moved = movedTo(parts, query)
+  if (moved) return location.replace(moved)
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
     if (!shown) await view(mine, ['new', 'chat'], new URLSearchParams(), '/new/chat')
@@ -256,7 +295,8 @@ async function view(mine, parts, query, key) {
   } catch (error) {
     // Said where it happened, and to the console, where whoever is debugging the page looks.
     console.error(error)
-    fill(page, h('div', { class: 'view' }, problem(`This view failed to open: ${error.message}`)))
+    // Under a bar, as every view is: the window is moved by it, and Ai-chan's button ends it.
+    fill(page, h('div', { class: 'view' }, bar(), h('div', { class: 'view-scroll' }, problem(t('This view failed to open: {why}', { why: error.message })))))
   }
 }
 
@@ -275,15 +315,18 @@ async function open(mine, load, parts, query) {
   try {
     const module = await load()
     if (mine !== routed) return
+    // Nothing is left floating over it: what was opened while it loaded closes first.
+    dismiss('dialog')
     if (overlay.hidden) focused = document.activeElement
-    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), dialog)
+    // The scrim is over the page's top row: the app's window is moved by a strip over the scrim.
+    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), windowStrip(), dialog)
     overlay.hidden = false
     document.body.classList.add('dialog-open')
     closing = module.mount(dialog, { parts, query }) || null
-    dialog.querySelector('[autofocus], input, button, a')?.focus()
+    ;(dialog.querySelector('[autofocus]') || dialog.querySelector('input, button, a'))?.focus()
   } catch (error) {
     console.error(error)
-    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), h('div', { class: 'dialog' }, problem(error)))
+    fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), windowStrip(), h('div', { class: 'dialog' }, problem(error)))
     overlay.hidden = false
   }
 }
@@ -333,6 +376,15 @@ function held(event) {
   stops[at < 0 ? (step > 0 ? 0 : stops.length - 1) : (at + step + stops.length) % stops.length].focus()
 }
 
+/**
+ * Goes where a shortcut leads: asked for where the page already is, it is a going there all the
+ * same, at which whatever floats closes and the drawer the sidebar is on a narrow window shuts.
+ */
+function jump(path) {
+  if (location.hash === hash(path)) window.dispatchEvent(new CustomEvent('hmz:route'))
+  else go(path)
+}
+
 // What is opened from a dialog -- a chat found, a new chat -- takes the dialog's place in the
 // history, so that Back from it goes to the view the dialog was over and never to the dialog.
 document.addEventListener('click', (event) => {
@@ -347,25 +399,37 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('keydown', (event) => {
   const mod = event.metaKey || event.ctrlKey
-  if (event.key === 'Tab' && !overlay.hidden) return held(event)
+  // A dialog of the browser's own over the page -- a confirmation -- is modal: Escape is its
+  // own, and the page under it is not folded or closed by a key.
+  const modal = Boolean(document.querySelector('dialog[open]'))
+  if (event.key === 'Tab' && !overlay.hidden) return modal || held(event)
   if (mod && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    go('/search')
+    jump('/search')
   } else if (mod && event.shiftKey && event.key.toLowerCase() === 'o') {
     event.preventDefault()
-    go('/new/chat')
+    jump('/new/chat')
   } else if (mod && event.key === '.') {
     event.preventDefault()
-    toggleSidebar()
-  } else if (event.key === 'Escape' && !overlay.hidden) {
+    if (!modal) toggleSidebar()
+  } else if (event.key !== 'Escape' || modal || event.defaultPrevented) {
+    return
+  } else if (!overlay.hidden) {
+    event.preventDefault()
     shut()
-  } else if (event.key === 'Escape' && document.querySelector('.app').classList.contains('side-open')) {
+  } else if (document.querySelector('.app').classList.contains('side-open')) {
     // The drawer the sidebar is on a narrow window closes as a dialog does.
+    event.preventDefault()
     toggleSidebar(false)
+  } else if (settlePanel()) {
+    // And so does the panel that is over the view there.
+    event.preventDefault()
   }
 })
 
 document.querySelector('.scrim').addEventListener('click', () => toggleSidebar(false))
+// Beside the drawer the sidebar is on a narrow window, the scrim is over the bar the app's window is moved by.
+if (windowStrip()) document.querySelector('.scrim').after(windowStrip())
 if (kept('hmz-sidebar', '') === 'folded') document.querySelector('.app').classList.add('side-folded')
 
 // The chosen theme's pictures, after its colours, which theme.js painted before the page was.
@@ -382,13 +446,12 @@ window.addEventListener('hmz:out', () => {
     h(
       'div',
       { class: 'view' },
+      bar(),
       h(
         'div',
         { class: 'empty' },
-        h('strong', {}, 'This browser is not let in.'),
-        'Open the address ',
-        h('code', {}, 'hmz web'),
-        ' printed when it started: it carries the key that lets a browser in.',
+        h('strong', {}, t('This browser is not let in.')),
+        pieces('Open the address {command} printed when it started: it carries the key that lets a browser in.', { command: h('code', {}, 'hmz web') }),
       ),
     ),
   )

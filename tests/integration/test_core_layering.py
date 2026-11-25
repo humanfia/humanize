@@ -1,10 +1,10 @@
-"""The layers of `src/hmz`, as `docs/contributing/architecture.md` draws them.
+"""The layers of `src/hmz`, as `ARCHITECTURE.md` draws them.
 
 Read off the source with `ast`, and then checked again against what an interpreter actually
 loads: a module imports only what its layer may, no two layers name each other but the one
 pair `hmz.flows` hands its calls through, and a layer's front door costs no other layer.
 
-`ALLOWED` is the table `docs/.vitepress/theme/components/HmzStack.vue` draws; change both at
+`ALLOWED` is the table `ARCHITECTURE.md` lists; change both at
 once.
 """
 
@@ -151,7 +151,11 @@ ALLOWED: dict[str, set[str]] = {
         # session this machine's is called over.
         "hmz.reach.routes",
         "hmz.rpc",
+        # Every text it says, which is the page's.
+        "hmz.words",
     },
+    # What the command line and the terminal interface say: texts, and nothing that runs.
+    "hmz.words": set(),
     # A client of a daemon: its socket and JSON-RPC, the flow API's budget, the settings.
     "hmz.sdk": {"hmz.daemon", "hmz.flows", "hmz.reach", "hmz.rpc", "hmz.runtime"},
     # The page's server: its files, and bridges to daemons over `daemon`'s socket and routes.

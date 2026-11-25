@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" role="img">
+  <title>How a turn walks the graph of a virtual nous: each node is retried, a fault follows an edge to the next node, the first answer ends the walk</title>
+  <rect width="760" height="304" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <text x="24" y="44" font-size="16" font-weight="600">A turn at the virtual nous careful</text>
+
+    <rect x="24" y="112" width="88" height="64" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+    <text x="68" y="149" text-anchor="middle" fill="#b83a72">Turn</text>
+
+    <rect x="168" y="112" width="208" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="184" y="138">n1, the start</text>
+    <text x="184" y="160" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">codex/gpt-6.1-sol</text>
+
+    <rect x="464" y="112" width="208" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="480" y="138">n2</text>
+    <text x="480" y="160" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude/claude-opus-4-1</text>
+
+    <rect x="168" y="240" width="320" height="40" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="328" y="265" text-anchor="middle" fill="#5a8f00">The first answer ends the walk</text>
+
+    <rect x="520" y="240" width="216" height="40" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+    <text x="628" y="265" text-anchor="middle" fill="#80590c">Then graph, or the turn fails</text>
+
+    <g fill="none" stroke="#5d6a72" stroke-width="1.5">
+      <path d="M112 144H166" marker-end="url(#a)"/>
+      <path d="M376 144H462" marker-end="url(#a)"/>
+      <path d="M304 112C304 80 240 80 240 110" marker-end="url(#a)"/>
+      <path d="M600 112C600 80 536 80 536 110" marker-end="url(#a)"/>
+      <path d="M272 176V238" marker-end="url(#a)"/>
+      <path d="M480 176V238" marker-end="url(#a)"/>
+      <path d="M628 176V238" marker-end="url(#a)"/>
+    </g>
+
+    <g font-size="12" fill="#5d6a72">
+      <text x="320" y="84">retried here first</text>
+      <text x="616" y="84">retried here first</text>
+      <text x="420" y="134" text-anchor="middle">fault</text>
+      <text x="420" y="164" text-anchor="middle">edge *</text>
+      <text x="284" y="212">answers</text>
+      <text x="492" y="212">answers</text>
+      <text x="640" y="212">no edge</text>
+    </g>
+  </g>
+</svg>

@@ -154,7 +154,7 @@ class Frame(NamedTuple):
 
 
 class Profiler:
-    """Samples the programs running under this process, and writes down what it saw.
+    """Samples the programs a run starts under this process, and writes down what it saw.
 
     Started by the run it is a profile of and stopped when that run ends. What it writes is
     one line per program -- when it started, when it was last seen, what it was and what
@@ -188,6 +188,8 @@ class Profiler:
         self._seen: dict[tuple[int, float], Process] = {}
         #: Which of those have been written down as gone.
         self._left: set[tuple[int, float]] = set()
+        #: What was already running under the root when sampling began, named the same way.
+        self._before: set[tuple[int, float]] = set()
 
     def start(self) -> None:
         """Begins sampling, on a thread of its own.
@@ -195,9 +197,15 @@ class Profiler:
         A thread rather than the run's: the run is a flow taking turns, and a sampler that
         only looked between them would be a sampler that saw nothing -- what it is watching
         is exactly what happens while a turn is under way.
+
+        What is under the root already is looked at first, here, before the run has started
+        anything: none of it is the run's.
         """
         if self._thread is not None:
             return
+        for one in self._under():
+            with contextlib.suppress(psutil.Error, OSError):
+                self._before.add((one.pid, one.create_time()))
         self._thread = threading.Thread(
             target=self._sampling, name="humanize-profile", daemon=True
         )
@@ -256,19 +264,35 @@ class Profiler:
         self._gone()
 
     def _under(self) -> list[psutil.Process]:
-        """Every program running under the root now, deepest last.
+        """Every program the run started that is running under the root now, deepest last.
 
         Returns:
           The descendants of the process the run is happening in, which is every program an
           agent of it started -- and the agents themselves, which are started the same way.
           The root is not among them: it is Humanize, which is what the trace is of rather
-          than something in it.
+          than something in it. Nor is what was under the root before the run, or anything
+          one of those has started since: a program the process held already -- an earlier
+          run's, or the program's own where the run is held in somebody's program -- is not
+          one this run's agents started, and began before anything in the run did.
         """
         try:
-            root = psutil.Process(self._root)
-            return root.children(recursive=True)
+            held = psutil.Process(self._root).children(recursive=True)
         except (psutil.Error, OSError):
             return []
+        if not self._before:
+            return held
+        ours: list[psutil.Process] = []
+        others: set[int] = set()
+        for one in held:  # each after what started it, so its parent is settled by now
+            try:
+                known = (one.pid, one.create_time()) in self._before
+                if known or one.ppid() in others:
+                    others.add(one.pid)
+                else:
+                    ours.append(one)
+            except (psutil.Error, OSError):
+                continue  # gone while it was being read
+        return ours
 
     def _threads(self, one: psutil.Process, now: float) -> tuple[Thread, ...]:
         """The threads of one program, as they stand.

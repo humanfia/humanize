@@ -4,6 +4,10 @@ Opened from the backup page of `/settings`, as the web's Download is: what the t
 fetched afresh as it opens, off the event loop since that is a `git fetch`, and listed by the
 machine it was backed up from and then by the directory it ran in, newest first, those already
 here marked. Enter downloads the one under the cursor as an import would land it.
+
+What reads a target and what brings one epic here -- :func:`held`, :func:`pull` -- are the
+Download page's too (`hmz.tui.views.transfers`), so that the sheet and the page list and land
+the same things and say the same of them.
 """
 
 # The sheet is one of `pick`'s, and what it shares is that module's own.
@@ -17,6 +21,8 @@ from rich.markup import escape
 from textual import on, work
 from textual.widgets import Button, Label, OptionList
 from textual.widgets.option_list import Option
+
+from hmz.words import t
 
 from .dropdown import Dropdown, Value
 from .pick import (
@@ -35,9 +41,8 @@ from .pick import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
-__all__ = ["Stored"]
+__all__ = ["Held", "Stored", "about", "held", "named", "pull", "then"]
 
 
 class Held(Protocol):
@@ -67,9 +72,89 @@ class Held(Protocol):
 _ACT_TARGET = "target"
 
 
-def _opened(one: Held) -> str:
+def then(one: Held) -> str:
     """Where what was downloaded is opened: an epic on `/epics`, a chat from `/resume`."""
-    return "carry it on with /resume in a chat" if one.chat else "open it on /epics"
+    if one.chat:
+        return t("carry it on with /resume in a chat")
+    return t("open it from /epics")
+
+
+def held(target: str) -> tuple[list[Held], set[str]]:
+    """What one target holds, and which of it is here: a `git fetch`, so off the loop.
+
+    Args:
+      target: The target, by name.
+
+    Returns:
+      Every epic and chat it holds -- each machine, then each directory on it, in the order
+      their newest came, newest first -- and the keys of the ones this machine has.
+
+    Raises:
+      OSError, ValueError: If the target could not be read, saying why.
+    """
+    from hmz.runtime.epic import chats, under
+
+    found: Sequence[Held] = _hmz().backups.listed(target)
+    # Here as a download would land it: that epic, under the directory it ran in, or that
+    # chat among the chats of the directory it was had in.
+    here = {
+        one.key
+        for one in found
+        if (
+            any(each.name == one.epic for each in chats(one.workspace))
+            if one.chat
+            else (under(one.workspace) / one.epic).is_dir()
+        )
+    }
+    newest: list[Held] = [*reversed(found)]
+    first: dict[object, int] = {}
+    for place, one in enumerate(newest):
+        first.setdefault(one.machine, place)
+        first.setdefault((one.machine, one.workspace), place)
+    ordered = sorted(
+        newest, key=lambda one: (first[one.machine], first[one.machine, one.workspace])
+    )
+    return ordered, here
+
+
+def pull(target: str, one: Held) -> str:
+    """Downloads one epic or chat a target holds, as an import would land it.
+
+    Args:
+      target: The target, by name.
+      one: What to download.
+
+    Returns:
+      Where it landed and how it is opened, and why it cannot be resumed here where it
+      cannot.
+
+    Raises:
+      OSError, ValueError: If it could not be downloaded, saying why.
+    """
+    hmz = _hmz()
+    landed = hmz.backups.pulled(target, one.key)
+    why = hmz.epics.foreign(landed)
+    said = t(
+        "Downloaded {name} into {folder}; {then}",
+        name=landed.name,
+        folder=_homed(one.workspace),
+        then=then(one),
+    )
+    if why and not one.chat:
+        said += "; " + t("it cannot be resumed here: {why}", why=why)
+    return said
+
+
+def named(one: Held) -> str:
+    """What a row calls one epic a target holds: when it began, and its flow or `chat`."""
+    return f"{_when(one.began)}{_DOT}{t('chat') if one.chat else one.flow}"
+
+
+def about(one: Held, *, here: bool) -> str:
+    """What a row says of one epic a target holds: its task, how it ended, whether it is here."""
+    said = _asked_for(one.task) if one.task else t("no task")
+    said += f"{_DOT}{one.how or t('unfinished')}"
+    return f"{said}{_DOT}{t('Here')}" if here else said
 
 
 class Stored(Sheet[tuple[str, ...]]):
@@ -97,13 +182,15 @@ class Stored(Sheet[tuple[str, ...]]):
 
     def crumb(self) -> str:
         """Where it was opened from."""
-        return "Download"
+        return t("Download")
 
     def _ask(self) -> None:
         """Says what this is, and fetches the target."""
         self.query_one("#about", Label).update(
-            "Every epic and chat the target holds, by machine and directory, newest "
-            "first; enter downloads one here, as an import does."
+            t(
+                "Every epic and chat the backup target holds, by machine and folder, "
+                "newest first. Enter downloads one here, as an import does."
+            )
         )
         self._fetches()
 
@@ -112,53 +199,37 @@ class Stored(Sheet[tuple[str, ...]]):
         """Fetches what the target holds and which epics are here, off the event loop."""
         import asyncio
 
-        target, self._held, self._said = self._target, None, f"fetching {self._target}…"
+        target, self._held = self._target, None
+        self._said = escape(t("Fetching {target}…", target=target))
         self._fill()
-
-        def fetched() -> tuple[Sequence[Held], set[str]]:
-            from hmz.runtime.epic import chats, under
-
-            held = _hmz().backups.listed(target)
-            # Here as a download would land it: that epic, under the directory it ran in,
-            # or that chat among the chats of the directory it was had in.
-            return held, {
-                one.key
-                for one in held
-                if (
-                    any(each.name == one.epic for each in chats(one.workspace))
-                    if one.chat
-                    else (under(one.workspace) / one.epic).is_dir()
-                )
-            }
-
         try:
-            held, here = await asyncio.to_thread(fetched)
+            found, here = await asyncio.to_thread(held, target)
         except (OSError, ValueError) as why:
             said = _hmz().verses.plain(str(why))
             self._held, self._said = [], bad(escape(f"{target}: {said}"))
         else:
-            # Each machine, then each directory on it, in the order their newest epic came.
-            newest = held[::-1]
-            first: dict[object, int] = {}
-            for at, one in enumerate(newest):
-                first.setdefault(one.machine, at)
-                first.setdefault((one.machine, one.workspace), at)
-            self._held = sorted(
-                newest,
-                key=lambda one: (first[one.machine], first[one.machine, one.workspace]),
-            )
-            self._here, self._said = here, ""
+            self._held, self._here, self._said = found, here, ""
         self._fill()
 
     def actions(self) -> list[Action]:
         """Searching, fetching again, and another target where there is one."""
         acts = [
             self._searches(),
-            Action(_ACT_AGAIN, "fetch", f"fetch {self._target} again", self._fetches),
+            Action(
+                _ACT_AGAIN,
+                t("Fetch"),
+                t("fetches {target} again", target=self._target),
+                self._fetches,
+            ),
         ]
         if len(self._targets) > 1:
             acts.append(
-                Action(_ACT_TARGET, "target…", "another backup target", self._picks)
+                Action(
+                    _ACT_TARGET,
+                    t("Target"),
+                    t("picks another backup target"),
+                    self._picks,
+                )
             )
         return acts
 
@@ -171,7 +242,7 @@ class Stored(Sheet[tuple[str, ...]]):
         try:
             picked = await self._interface().push_screen_wait(
                 Dropdown(
-                    "target",
+                    t("Target"),
                     [Value(one, one) for one in self._targets],
                     self._target,
                     at=button.region.offset,
@@ -185,7 +256,9 @@ class Stored(Sheet[tuple[str, ...]]):
 
     def _fill(self) -> None:
         """Puts each machine up, each directory under it, and each epic under that."""
-        self.query_one("#asked", Label).update(f"Download from {escape(self._target)}")
+        self.query_one("#asked", Label).update(
+            t("Download from {target}", target=escape(self._target))
+        )
         listing = self.query_one("#choices", OptionList)
         at = listing.highlighted
         if at is not None and 0 <= at < listing.option_count:
@@ -221,16 +294,12 @@ class Stored(Sheet[tuple[str, ...]]):
                     )
                 )
                 place = (one.machine, one.workspace)
-            about = _asked_for(one.task) if one.task else "no task"
-            about += f"{_DOT}{one.how or 'unfinished'}"
-            if one.key in self._here:
-                about += f"{_DOT}here"
             options.append(
                 Option(
                     self._row(
                         0,
-                        f"{_when(one.began)}{_DOT}{'chat' if one.chat else one.flow}",
-                        about,
+                        named(one),
+                        about(one, here=one.key in self._here),
                         here=f"={one.key}" == landing,
                         inforce=one.key in self._here,
                     ),
@@ -246,12 +315,19 @@ class Stored(Sheet[tuple[str, ...]]):
         said = self._said or (
             ""
             if self._held is None or shown
-            else f"{escape(self._target)} holds no epic"
+            else t("No epic here yet.")
+            + escape(
+                t(
+                    " {target} holds none: an epic is backed up to it as its policies "
+                    "say, or by Upload.",
+                    target=self._target,
+                )
+            )
         )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "download"), Key("esc", "back"))
+        self._footed(Key("enter", t("Download")), Key("esc", t("Back")))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -261,7 +337,11 @@ class Stored(Sheet[tuple[str, ...]]):
         if one is None:
             return
         if one.key in self._here:
-            self._said = f"{escape(one.epic)} is here already: {_opened(one)}"
+            self._said = t(
+                "{name} is here already; {then}",
+                name=escape(one.epic),
+                then=then(one),
+            )
             self._fill()
             return
         self._pulls(one)
@@ -275,15 +355,9 @@ class Stored(Sheet[tuple[str, ...]]):
             return
         target = self._target
         try:
-            self._said = f"downloading {escape(one.epic)}…"
+            self._said = escape(t("Downloading {name}…", name=one.epic))
             self._fill()
-            hmz = _hmz()
-
-            def pulled() -> tuple[Path, str]:
-                at = hmz.backups.pulled(target, one.key)
-                return at, hmz.epics.foreign(at)
-
-            at, why = await asyncio.to_thread(pulled)
+            said = await asyncio.to_thread(pull, target, one)
         except (OSError, ValueError) as why:
             self._said = bad(escape(_hmz().verses.plain(str(why))))
             self._fill()
@@ -291,9 +365,6 @@ class Stored(Sheet[tuple[str, ...]]):
         finally:
             self.opened()
         self._here.add(one.key)
-        said = f"downloaded {at.name} into {_homed(one.workspace)}; {_opened(one)}"
-        if why and not one.chat:
-            said += f"; it cannot be resumed here: {why}"
         self._said = escape(said)
         self._told.append(f"[dim]{escape(said)}[/dim]")
         self._fill()

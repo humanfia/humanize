@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 224" role="img">
+<title>The daemon holds the epic: the terminal or the app attaches to it and detaches from it, while the daemon keeps giving the coding agent its turns</title>
+<rect width="760" height="224" rx="12" fill="#f4f8f9"/>
+<style>
+.you{animation:you 8s infinite both}
+.run{stroke-dasharray:6 6;animation:run 8s linear infinite}
+@keyframes you{0%,22%{opacity:1}32%,66%{opacity:.2}76%,100%{opacity:1}}
+@keyframes run{from{stroke-dashoffset:96}to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#5d6a72"/></marker>
+<marker id="b" viewBox="0 0 8 8" refX="1" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M8 0L0 4L8 8z" fill="#5d6a72"/></marker>
+<marker id="c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#0b7080"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+<text x="32" y="48" font-size="16" font-weight="600">The daemon holds the epic</text>
+
+<g class="you">
+<rect x="32" y="72" width="176" height="72" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+<text x="120" y="104" text-anchor="middle">Terminal or app</text>
+<text x="120" y="124" text-anchor="middle" font-size="12" fill="#435058">you watch and steer</text>
+<path d="M212 108H292" fill="none" stroke="#5d6a72" stroke-width="1.5" marker-start="url(#b)" marker-end="url(#a)"/>
+<text x="252" y="96" text-anchor="middle" font-size="12" fill="#5d6a72">attach</text>
+<text x="252" y="130" text-anchor="middle" font-size="12" fill="#5d6a72">detach</text>
+</g>
+
+<rect x="296" y="72" width="176" height="72" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+<text x="384" y="104" text-anchor="middle">Daemon</text>
+<text x="384" y="124" text-anchor="middle" font-size="12" fill="#435058">runs the epic</text>
+
+<path class="run" d="M472 108H550" fill="none" stroke="#0b7080" stroke-width="1.5" marker-end="url(#c)"/>
+<text x="512" y="96" text-anchor="middle" font-size="12" fill="#0b7080">turns</text>
+
+<rect x="552" y="72" width="176" height="72" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="640" y="104" text-anchor="middle">Coding agent</text>
+<text x="640" y="124" text-anchor="middle" font-size="12" fill="#435058">does the work</text>
+
+<text x="32" y="188" font-size="12" fill="#5d6a72">Close the terminal or the app and the epic keeps running. Open it again to reattach.</text>
+</g>
+</svg>

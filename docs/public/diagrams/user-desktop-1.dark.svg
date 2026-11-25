@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 288" role="img">
+  <title>Humanize Desktop carries the page and reaches each daemon through a pipe; the daemons hold the epics</title>
+  <rect width="760" height="288" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L8 4L0 8z" fill="#4fd8ea"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="40" width="200" height="184" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="124" y="124" text-anchor="middle" font-weight="600">Humanize Desktop</text>
+    <text x="124" y="148" text-anchor="middle" font-size="12" fill="#b3c3c8">the page, built in</text>
+
+    <rect x="456" y="40" width="280" height="72" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="596" y="72" text-anchor="middle" font-weight="600">Local daemon</text>
+    <text x="596" y="94" text-anchor="middle" font-size="12" fill="#b3c3c8">holds your chats and epics</text>
+
+    <rect x="456" y="152" width="280" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="596" y="184" text-anchor="middle" font-weight="600">Daemons on other machines</text>
+    <text x="596" y="206" text-anchor="middle" font-size="12" fill="#b3c3c8">each holds its own</text>
+
+    <path d="M224 76H454" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="340" y="64" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz daemon connect --stdio</text>
+
+    <path d="M224 188H454" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="340" y="176" text-anchor="middle" font-size="12" fill="#b3c3c8">ssh, tcp, ws, relay, EasyTier</text>
+
+    <text x="380" y="260" text-anchor="middle" font-size="12" fill="#9aa9b0">Quitting the app closes the pipes. The daemons and their epics keep running.</text>
+  </g>
+</svg>

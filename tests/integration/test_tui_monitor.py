@@ -92,7 +92,7 @@ async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
         drawn = await shows(pilot, "◫ epic · running · 1 of 1 working · 1 turn")
         # No node reads every agent at once: the cursor starts on the agent being read.
         assert "all agents" not in drawn
-        assert re.search(r"❯ │ ▸ ● \S+", drawn)
+        assert re.search(r"❯ ┃█ ▸ ● \S+", drawn)
         assert RUNS in drawn
 
         await pilot.press("right")
@@ -117,7 +117,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
         await pilot.press("left")
         await on(pilot, Monitoring)
 
-        await shows(pilot, "1 turn · 1.2k tok", "1.0k", "200")
+        await shows(pilot, "1 turn · 1.2k to", "1.0k", "200")
 
 
 async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(
@@ -134,7 +134,7 @@ async def test_a_node_opened_on_the_monitor_is_the_view_the_prompt_then_reads(
         await pilot.press("enter")
 
         await until(pilot, lambda: len(app.screen_stack) == 1, "the prompt")
-        await shows(pilot, "reading outworlder human")
+        await shows(pilot, "Reading outworlder human")
 
 
 async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
@@ -146,14 +146,14 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
         assert "all agents" not in screen(app)
 
         await pilot.press("tab")
-        await shows(pilot, "reading outworlder human")
+        await shows(pilot, "Reading outworlder human")
         assert "still on it" not in screen(app)
 
         await pilot.press("shift+tab")
         await shows(pilot, "· conversation 1 ─", "still on it")
 
         await pilot.press("shift+tab")
-        await shows(pilot, "reading outworlder human")
+        await shows(pilot, "Reading outworlder human")
 
 
 async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
@@ -162,7 +162,7 @@ async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await working(pilot)
         await pilot.press("tab")
-        await shows(pilot, "reading outworlder human")
+        await shows(pilot, "Reading outworlder human")
         await pilot.press("shift+tab")
         await shows(pilot, "· conversation 1 ─")
 
@@ -174,7 +174,7 @@ async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
             "the side copy to be asked",
         )
         await pilot.press("escape")
-        await shows(pilot, "btw: exited")
+        await shows(pilot, "btw: Side questions ended")
 
         await typed(pilot, "carry on")
         await shows(pilot, "heard wait a moment then carry on")
@@ -194,7 +194,7 @@ async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
 
         await typed(pilot, "/btw hey")
 
-        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
+        await shows(pilot, "`/btw` is only available on an agent's", "`/ai` asks")
 
 
 async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
@@ -211,7 +211,7 @@ async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
 
         await typed(pilot, "/btw what is it doing")
 
-        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
+        await shows(pilot, "`/btw` is only available on an agent's", "`/ai` asks")
     assert _asides(workspace) == []
 
 
@@ -262,12 +262,12 @@ async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(
         # Stopping, or over already: the stand-in lets its turn go the moment it is told.
         await until(
             pilot,
-            lambda: "Stopping." in screen(app) or "Over." in screen(app),
+            lambda: "Stopping" in screen(app) or "Ended" in screen(app),
             "the epic to stop",
         )
         await pilot.press("escape")
         await on(pilot, Monitoring)
-        await shows(pilot, "stopping the flow")
+        await shows(pilot, "topping the flow")
 
 
 class _Holding(App[None]):
@@ -299,6 +299,6 @@ async def test_an_epic_stopping_is_forced_from_its_page_once_asked() -> None:
         assert "Close every session now?" in screen(app)
         await pilot.press("enter")
 
-        await until(pilot, lambda: "Over." in screen(app), "the epic to be over")
+        await until(pilot, lambda: "Ended" in screen(app), "the epic to be over")
         assert app.forced == [True]
         assert "Force stop" not in screen(app)

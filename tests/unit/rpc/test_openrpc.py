@@ -29,7 +29,7 @@ NAMESPACES = (
     "|notices|nous|pair|paths|rpc|runs|runtimes|session|settings|workspaces"
 )
 NAMED = re.compile(rf"`((?:{NAMESPACES})\.[a-z_]+)`")
-NOT_METHODS = re.compile(r"\.(md|json|jsonl|yaml|yml|py)$")
+NOT_METHODS = re.compile(r"\.(md|json|jsonl|yaml|yml|toml|py)$")
 
 
 def load(path: Path) -> dict[str, Any]:

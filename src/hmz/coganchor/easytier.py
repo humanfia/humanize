@@ -13,7 +13,7 @@ Humanize runs one `easytier-core` on each end -- :func:`serving` beside a daemon
 on `easytier:<name>`, :func:`joining` beside whoever opens it -- and neither needs anything
 installed: :func:`binary` downloads the release pinned here from EasyTier's own GitHub
 releases, checks it against the SHA-256 pinned beside it, and keeps it under
-`~/.hmz/easytier/<VERSION>/`.
+`~/.cache/humanize/easytier/<VERSION>/`.
 
 Neither end makes a TUN device, which is what would need root. With `--no-tun` the serving end
 still answers the fixed virtual address it is given, and what reaches it there on a TCP port is
@@ -60,7 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, cast
 
-from hmz import home
+from hmz import cache
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -210,6 +210,39 @@ def community(timeout: float = 10) -> list[Node]:
     return list(nodes.values())
 
 
+#: The public shared nodes EasyTier's docs name, offered whether or not a status page is read.
+KNOWN: tuple[Node, ...] = (
+    Node("tcp://public.easytier.top:11010", "EasyTier public node", "", None, None),
+    Node(
+        "tcp://easytier.public.kkrainbow.top:11010",
+        "kkRainbow public node",
+        "",
+        None,
+        None,
+    ),
+)
+
+
+def shared(timeout: float = 10) -> list[Node]:
+    """The shared nodes to offer: the community's, where its status page is read, then KNOWN.
+
+    A node of KNOWN the status page lists is listed once, as the page says it stands; where
+    the page cannot be read, KNOWN alone is offered, how each stands unknown.
+
+    Args:
+      timeout: How long each read of the status page may take, in seconds.
+
+    Returns:
+      Each node, the status page's first.
+    """
+    try:
+        read = community(timeout)
+    except OSError:
+        read = []
+    listed = {one.url for one in read}
+    return [*read, *(one for one in KNOWN if one.url not in listed)]
+
+
 def checked(secret: str) -> str:
     """A secret, where it is long enough to be one.
 
@@ -261,7 +294,7 @@ def binary(say: Callable[[str], object] | None = None) -> Path:
       say: What is told, as it happens, that a download is under way.
 
     Returns:
-      What `HUMANIZE_EASYTIER` names, or else the one kept under Humanize's home.
+      What `HUMANIZE_EASYTIER` names, or else the one kept in Humanize's cache.
 
     Raises:
       OSError: If there is none and one cannot be downloaded: this machine is one EasyTier
@@ -271,7 +304,7 @@ def binary(say: Callable[[str], object] | None = None) -> Path:
     said = os.environ.get(WHICH)
     if said and (named := Path(said).expanduser()).is_file():
         return named
-    kept = home() / "easytier" / VERSION
+    kept = cache() / "easytier" / VERSION
     core = kept / ("easytier-core.exe" if sys.platform == "win32" else "easytier-core")
     if core.is_file():
         return core

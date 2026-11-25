@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" role="img">
+  <title>What hmz exec gives a script: the answer on stdout, progress on stderr, and an exit status</title>
+  <rect width="760" height="280" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="32" y="104" width="176" height="72" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="120" y="136" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#ff94c2">hmz exec</text>
+    <text x="120" y="158" text-anchor="middle" font-size="12" fill="#b3c3c8">your script runs it</text>
+
+    <path d="M208 122 C 260 122, 268 60, 318 60" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M208 140 L 318 140" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M208 158 C 260 158, 268 220, 318 220" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <rect x="320" y="32" width="408" height="56" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="340" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#4fd8ea">stdout</text>
+    <text x="340" y="76" font-size="12" fill="#b3c3c8">each turn's answer, or one JSON object per event</text>
+
+    <rect x="320" y="112" width="408" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="340" y="136" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">stderr</text>
+    <text x="340" y="156" font-size="12" fill="#b3c3c8">progress, notices and errors</text>
+
+    <rect x="320" y="192" width="408" height="56" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="340" y="216" fill="#e8f0f2">Exit status</text>
+    <text x="340" y="236" font-size="12" fill="#b3c3c8">0 done · 1 failed · 2 refused · 128 + N stopped by a signal</text>
+  </g>
+</svg>

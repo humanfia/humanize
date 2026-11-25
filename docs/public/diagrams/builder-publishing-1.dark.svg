@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" role="img">
+  <title>A flowverse index holds one flow.yaml per release, listed bare or under a user; each names a commit in the flow's own repository</title>
+  <rect width="760" height="304" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L8 4L0 8z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="24" width="320" height="256" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="40" y="50" font-weight="600">Flowverse index</text>
+    <text x="40" y="70" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">alex/flowverse</text>
+    <g font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="40" y="104">flows/</text>
+      <text x="56" y="128">review/0.1.0/flow.yaml</text>
+      <text x="56" y="152">review/0.2.0/flow.yaml</text>
+      <text x="56" y="212">alex/kernel/1.2.0/flow.yaml</text>
+    </g>
+    <text x="56" y="172" font-size="12" fill="#9aa9b0">listed bare</text>
+    <text x="56" y="232" font-size="12" fill="#9aa9b0">listed under a user</text>
+    <text x="40" y="264" font-size="12" fill="#b3c3c8">Manifests only, no code</text>
+
+    <rect x="448" y="24" width="288" height="136" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="464" y="50" font-weight="600">Flow repository</text>
+    <text x="464" y="70" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">alex/review-flow</text>
+    <rect x="464" y="84" width="256" height="24" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="476" y="100" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v0.1.0 · commit 356837f…</text>
+    <rect x="464" y="120" width="256" height="24" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="476" y="136" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v0.2.0 · commit 7c22857…</text>
+
+    <rect x="448" y="176" width="288" height="104" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="464" y="202" font-weight="600">Flow repository</text>
+    <text x="464" y="222" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">alex/kernel-flow</text>
+    <rect x="464" y="236" width="256" height="24" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="476" y="252" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v1.2.0 · commit 9a1c04e…</text>
+
+    <line x1="224" y1="124" x2="462" y2="97" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+    <line x1="224" y1="148" x2="462" y2="133" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+    <line x1="260" y1="208" x2="462" y2="247" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+    <text x="396" y="84" font-size="12" fill="#9aa9b0" text-anchor="middle">repo + commit</text>
+  </g>
+</svg>

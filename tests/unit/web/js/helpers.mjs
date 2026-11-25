@@ -114,12 +114,16 @@ export function daemon({ id = 'a'.repeat(52), methods = {} } = {}) {
   return state
 }
 
-/** A provider opening every route as a pipe to `served`, telling `opened` each route it opens. */
-export function provider(served, opened = []) {
+/**
+ * A provider opening every route as a pipe to `served`, telling `opened` each route it opens and
+ * `servers` the STUN and TURN servers it was given to open it with.
+ */
+export function provider(served, opened = [], servers = []) {
   return {
     opens: () => true,
-    async open(route) {
+    async open(route, id, { iceServers } = {}) {
       opened.push(route)
+      servers.push(iceServers)
       const [mine, theirs] = duplex()
       served.serve(theirs)
       return mine
@@ -127,22 +131,30 @@ export function provider(served, opened = []) {
   }
 }
 
-/** An IndexedDB held in memory: as much of it as the registry uses. */
+/**
+ * An IndexedDB held in memory: as much of it as the registry uses. A base opened at a version
+ * above the one it is at is upgraded first, in a transaction over every store of it, and is open
+ * once that is over.
+ */
 export function fakeIndexedDB() {
   const bases = new Map()
   return {
-    open(name) {
+    open(name, version = 1) {
       const asked = /** @type {any} */ ({})
       setTimeout(() => {
-        let base = bases.get(name)
-        if (!base) {
-          base = new FakeBase()
-          bases.set(name, base)
-          asked.result = base
-          asked.onupgradeneeded?.()
-        }
+        const base = bases.get(name) ?? new FakeBase()
+        bases.set(name, base)
         asked.result = base
-        asked.onsuccess?.()
+        const opened = () => {
+          asked.transaction = null
+          asked.onsuccess?.()
+        }
+        if (base.version >= version) return opened()
+        const oldVersion = base.version
+        base.version = version
+        asked.transaction = new FakeTransaction(base)
+        asked.transaction.oncomplete = opened
+        asked.onupgradeneeded?.({ oldVersion, newVersion: version })
       })
       return asked
     },
@@ -150,28 +162,36 @@ export function fakeIndexedDB() {
 }
 
 class FakeBase {
+  version = 0
   stores = new Map()
   createObjectStore(name, { keyPath } = {}) {
     this.stores.set(name, { keyPath, data: new Map() })
   }
-  transaction(name) {
-    return new FakeTransaction(this.stores.get(name))
+  deleteObjectStore(name) {
+    this.stores.delete(name)
+  }
+  get objectStoreNames() {
+    return [...this.stores.keys()]
+  }
+  transaction() {
+    return new FakeTransaction(this)
   }
 }
 
 class FakeTransaction {
-  #store
-  #before
+  #base
+  /** What each store it touched held before, to put back where it is aborted. */
+  #before = new Map()
   #pending = 0
   #over = false
   error = null
-  constructor(store) {
-    this.#store = store
-    this.#before = new Map(store.data)
+  constructor(base) {
+    this.#base = base
     this.#settle()
   }
-  objectStore() {
-    const store = this.#store
+  objectStore(name) {
+    const store = this.#base.stores.get(name)
+    if (!this.#before.has(store)) this.#before.set(store, new Map(store.data))
     const ask = (work) => {
       const asked = /** @type {any} */ ({})
       this.#pending++
@@ -201,7 +221,7 @@ class FakeTransaction {
   abort() {
     if (this.#over) return
     this.#over = true
-    this.#store.data = this.#before
+    for (const [store, data] of this.#before) store.data = data
     setTimeout(() => this.onabort?.())
   }
   #settle() {

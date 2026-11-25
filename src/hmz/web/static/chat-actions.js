@@ -8,6 +8,7 @@ import { call, hash, refresh } from './api.js'
 import { covered, go } from './app.js'
 import { TITLE_MOST, pathOf, titled } from './chats.js'
 import { h } from './dom.js'
+import { t } from './i18n.js'
 import { toast } from './ui.js'
 
 /** How long a refusal is said for, in milliseconds: a sentence, read whole. */
@@ -27,10 +28,13 @@ const refused = (error) => toast(error.message, REFUSED)
  *
  * @param {HTMLElement} shown What shows the title, and has the focus back once the field is done with.
  * @param {{name: string, title: string}} chat The chat.
+ * @param {object} [how] Where it is not a chat's title: an Ai-chan conversation's.
+ * @param {(title: string) => Promise<unknown>} [how.saves] What records the title.
+ * @param {HTMLElement} [how.back] What has the focus back, where `shown` takes none.
  */
-export function retitling(shown, chat) {
+export function retitling(shown, chat, { saves = (title) => call('chat.rename', { chat: chat.name, title }).then(chatsChanged), back: focused = shown } = {}) {
   if (shown.hidden) return
-  const field = h('input', { class: 'title-edit', type: 'text', 'aria-label': 'Chat title', maxlength: TITLE_MOST, value: chat.title, 'data-hmz': 'title-edit' })
+  const field = h('input', { class: 'title-edit', type: 'text', 'aria-label': t('Chat title'), maxlength: TITLE_MOST, value: chat.title, 'data-hmz': 'title-edit' })
   let over = false
   let saving = false
   const end = (back) => {
@@ -38,7 +42,7 @@ export function retitling(shown, chat) {
     over = true
     field.remove()
     shown.hidden = false
-    if (back) shown.focus()
+    if (back) focused.focus()
   }
   const save = async (back) => {
     if (over || saving) return
@@ -48,8 +52,7 @@ export function retitling(shown, chat) {
     saving = true
     field.readOnly = true
     try {
-      await call('chat.rename', { chat: chat.name, title })
-      chatsChanged()
+      await saves(title)
       end(back)
     } catch (error) {
       refused(error)
@@ -77,7 +80,7 @@ export function retitling(shown, chat) {
   field.select()
 }
 
-/** Forks a chat and opens the fork, which rests until something is said in it. */
+/** Forks a chat and opens the fork, a chat as any other. */
 export async function forking(chat) {
   try {
     const { chat: fork } = await call('chat.fork', { chat: chat.name })
@@ -91,15 +94,15 @@ export async function forking(chat) {
   }
 }
 
-/** Archives a chat, or puts it back among the others, on the daemon shown or another. */
-export async function archiving(chat, archived, { on = '' } = {}) {
-  await call(archived ? 'chat.archive' : 'chat.unarchive', { chat: chat.name }, on ? { on } : {})
+/** Archives a chat, or puts it back among the others. */
+export async function archiving(chat, archived) {
+  await call(archived ? 'chat.archive' : 'chat.unarchive', { chat: chat.name })
   chatsChanged()
 }
 
-/** The address of the dialog that deletes a chat, of the daemon shown or another the page keeps. */
-export function deletingAt(chat, { on = '' } = {}) {
-  return hash(`/delete/${encodeURIComponent(chat.name)}${on ? `?daemon=${encodeURIComponent(on)}` : ''}`)
+/** The address of the dialog that deletes a chat. */
+export function deletingAt(chat) {
+  return hash(`/delete/${encodeURIComponent(chat.name)}`)
 }
 
 /**
@@ -111,11 +114,11 @@ export function deletingAt(chat, { on = '' } = {}) {
  */
 export function chatActions(chat, { rename = null } = {}) {
   return {
-    rename: rename ? { label: 'Rename', glyph: 'compose', act: rename } : null,
-    fork: { label: 'Fork', glyph: 'fork', act: () => forking(chat) },
+    rename: rename ? { label: t('Rename'), glyph: 'compose', act: rename } : null,
+    fork: { label: t('Fork'), glyph: 'fork', act: () => forking(chat) },
     archive: chat.archived
-      ? { label: 'Unarchive', glyph: 'archive', act: () => archiving(chat, false).then(() => toast('Unarchived'), refused) }
-      : { label: 'Archive', glyph: 'archive', act: () => archiving(chat, true).then(() => toast('Archived'), refused) },
-    delete: { label: 'Delete', glyph: 'trash', danger: true, href: deletingAt(chat) },
+      ? { label: t('Unarchive'), glyph: 'archive', act: () => archiving(chat, false).then(() => toast(t('Unarchived')), refused) }
+      : { label: t('Archive'), glyph: 'archive', act: () => archiving(chat, true).then(() => toast(t('Archived')), refused) },
+    delete: { label: t('Delete'), glyph: 'trash', danger: true, href: deletingAt(chat) },
   }
 }

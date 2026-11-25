@@ -1,6 +1,8 @@
-/* An environment's terminals (views/envs/terminal.js): a row of tabs over the shell shown. */
+/* An environment's terminals (views/envs/terminal.js): a row of tabs over the shell shown. The
+   row stands --strip-h tall over its hairline, as the other panels' strips do. */
 
 .term-panel {
+  --strip-h: 36px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -10,35 +12,50 @@
   color: var(--ink);
 }
 
+/* The strip of tabs: as tall as a tab and the room around it, whatever a tab holds, its tabs on
+   the edge the panel's tabs over them stand on and its tool 8px from the panel's edge, where the
+   other panels' tools end. */
 .term-head {
   display: flex;
-  align-items: stretch;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  background: var(--paper);
+  align-items: center;
+  flex: none;
+  gap: var(--space-4);
+  min-height: calc(var(--strip-h) + var(--border-w));
+  padding: var(--space-4) var(--space-8);
+  border-bottom: var(--border);
+  background: var(--surface);
 }
 
 .term-tabs {
   display: flex;
   flex: 1;
+  gap: var(--space-4);
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.term-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .term-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  flex: none;
+  gap: var(--space-6);
+  height: var(--control-h-sm);
   max-width: 220px;
-  padding: 0 4px 0 10px;
-  border-right: 1px solid var(--line);
-  border-bottom: 2px solid transparent;
-  color: var(--ink-2);
-  font: 500 12px var(--sans);
+  padding: 0 var(--space-2) 0 var(--space-8);
+  border-radius: var(--radius-md);
+  color: var(--ink-3);
+  font: 500 var(--text-md)/20px var(--sans);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
 }
 
 .term-tab:hover {
@@ -47,22 +64,21 @@
 }
 
 .term-tab.active {
-  border-bottom-color: var(--cyan);
-  background: var(--surface);
+  background: var(--selected);
   color: var(--ink);
 }
 
 .term-tab:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: var(--focus-ring);
   outline-offset: -2px;
 }
 
 .term-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   flex: none;
-  border-radius: 50%;
-  background: var(--done);
+  border-radius: var(--radius-full);
+  background: var(--live);
 }
 
 .term-tab.exited .term-dot {
@@ -78,24 +94,25 @@
   text-overflow: ellipsis;
 }
 
-.term-rename {
+/* The name being changed: a field where the name stood, no taller than the tab. */
+input.term-rename {
   width: 120px;
-  padding: 1px 4px;
-  border: 1px solid var(--cyan);
-  background: var(--field);
-  color: var(--ink);
-  font: 500 12px var(--sans);
+  height: var(--control-h-xs);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  font: 500 var(--text-md) var(--sans);
 }
 
 .term-tab .term-close {
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
   visibility: hidden;
 }
 
 .term-tab .term-close .icon {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .term-tab.active .term-close,
@@ -104,41 +121,64 @@
   visibility: visible;
 }
 
-.term-new {
-  align-self: center;
-  margin-right: 4px;
+/* Under a finger nothing is pointed at: every tab's is there already. */
+@media (hover: none) {
+  .term-tab .term-close {
+    visibility: visible;
+  }
 }
 
+.term-head .term-new {
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
+}
+
+.term-new .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+/* What the panel has to say, across its width over the shell: plain, or washed in what it warns of. */
 .term-notice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  background: var(--raised);
+  gap: var(--space-4) var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: var(--border);
   color: var(--ink-2);
-  font: 13px/1.45 var(--sans);
+  font: var(--text-md)/20px var(--sans);
 }
 
 .term-notice[hidden] {
   display: none;
 }
 
-.term-notice[data-kind='paired'],
-.term-notice[data-kind='error'] {
-  border-left: 3px solid var(--fail);
+.term-notice:is([data-kind='paired'], [data-kind='error'], [data-kind='closed']) {
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
   color: var(--ink);
 }
 
+.term-notice:is([data-kind='paired'], [data-kind='error']) {
+  --tone: var(--fail);
+}
+
 .term-notice[data-kind='closed'] {
-  border-left: 3px solid var(--ink-3);
+  --tone: var(--budget);
 }
 
 .term-notice code {
-  font: 12px var(--mono);
-  padding: 0 3px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
   background: var(--hover);
+  font: var(--text-sm) var(--mono);
+}
+
+.term-notice .btn,
+.term-exit .btn {
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
 }
 
 .term-body {
@@ -155,7 +195,6 @@
 .term-host {
   position: absolute;
   inset: 0;
-  padding: 6px 0 0 10px;
   background: var(--surface);
 }
 
@@ -163,43 +202,55 @@
   display: none;
 }
 
+/* The room around the shell's text is the terminal's own, so that it is measured to fit inside it. */
 .term-host .xterm {
   height: 100%;
+  padding: var(--space-8) 0 0 var(--space-12);
 }
 
 .term-host .xterm-viewport {
   scrollbar-width: thin;
 }
 
+/* A shell that has ended says so in a strip under it, which the terminal makes room for: nothing
+   is drawn over its last line. */
+.term-stack:has(> .term-host:not([hidden]) > .term-exit:not([hidden])) {
+  bottom: calc(var(--control-h-sm) + var(--border-w));
+}
+
 .term-exit {
   position: absolute;
-  right: 16px;
-  bottom: 12px;
-  z-index: 5;
+  top: 100%;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px 6px 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--raised);
-  color: var(--ink-2);
-  font: 13px var(--sans);
+  gap: var(--space-8);
+  height: calc(var(--control-h-sm) + var(--border-w));
+  padding: 0 var(--space-8) 0 var(--space-12);
+  border-top: var(--border);
+  background: var(--surface);
+  color: var(--ink-3);
+  font: var(--text-sm) var(--sans);
 }
 
 .term-exit[hidden] {
   display: none;
 }
 
+/* The find bar floats in the shell's top corner, and narrows with the panel. */
 .term-find {
   position: absolute;
-  top: 6px;
-  right: 16px;
-  z-index: 6;
+  top: var(--space-8);
+  right: var(--space-8);
+  z-index: var(--z-float);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line-strong);
+  gap: var(--space-4);
+  max-width: calc(100% - 2 * var(--space-8));
+  padding: var(--space-4);
+  border: var(--border-strong);
+  border-radius: var(--radius-md);
   background: var(--raised);
 }
 
@@ -207,71 +258,57 @@
   display: none;
 }
 
+.term-find:focus-within {
+  border-color: var(--link);
+}
+
 .term-find .icon-btn {
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
 }
 
 .term-find .icon-btn .icon {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .term-find-case {
-  font: 600 11px var(--sans);
+  font: 600 var(--text-xs)/16px var(--sans);
 }
 
-.term-find-input {
+/* The field stands bare in the bar, whose edge is the one it has. */
+input.term-find-input {
+  flex: 1 1 180px;
   width: 180px;
-  padding: 3px 6px;
-  border: 1px solid var(--line-strong);
-  background: var(--field);
-  color: var(--ink);
-  font: 13px var(--sans);
+  min-width: 0;
+  height: var(--control-h-xs);
+  border: 0;
+  background: none;
+  font-size: var(--text-md);
+  outline: none;
 }
 
-.term-find-input:focus {
-  outline: 1px solid var(--cyan);
+/* The bar has a button of its own that shuts it: the browser's cross in the field is not drawn. */
+input.term-find-input::-webkit-search-cancel-button {
+  display: none;
 }
 
 .term-find-count {
+  flex: none;
   min-width: 64px;
-  padding: 0 6px;
+  padding: 0 var(--space-4);
   color: var(--ink-3);
-  font: 12px var(--sans);
+  font: var(--text-sm)/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .term-panel.closed .term-host {
   opacity: 0.85;
 }
 
-@media (max-width: 600px) {
-  .term-find {
-    left: 8px;
-    right: 8px;
-  }
-
-  .term-find-input {
-    flex: 1;
-    width: auto;
-    min-width: 0;
-  }
-
-  .term-host {
-    padding-left: 4px;
-  }
-}
-
-/* The terminal takes focus through a hidden field: its tab, not an outline, says it has it. And
-   xterm marks a terminal with focus `.focus`, which the page's own `.focus` card would frame. */
+/* The terminal takes focus through a hidden field: its tab, not an outline, says it has it. */
 .term-host :focus-visible,
 .term-host .xterm:focus {
   outline: none;
-}
-
-.term-host .xterm.focus {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
 }

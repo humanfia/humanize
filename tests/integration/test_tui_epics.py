@@ -66,7 +66,7 @@ async def ran(pilot: Pilot[None]) -> None:
     """Runs the workspace's own flow on `hello`, to its end."""
     await set_up_own_flow(pilot)
     await typed(pilot, f"${OWN} hello")
-    await shows(pilot, "the flow is done")
+    await shows(pilot, "Flow done")
 
 
 def kept_as_an_epic(workspace: Path, task: str) -> Path:
@@ -100,7 +100,7 @@ async def test_with_no_runs_epics_and_resume_say_there_is_nothing(
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "no flow has been run in this directory yet")
+        await shows(pilot, "No epic here yet.")
 
 
 async def test_a_run_ended_is_listed_with_its_task_and_what_it_came_to(
@@ -130,7 +130,7 @@ async def test_a_run_another_process_holds_is_listed_as_still_going(
             await typed(pilot, "/epics")
             await on(pilot, Epics)
 
-            await shows(pilot, "elsewhere · 0 sessions · is still going")
+            await shows(pilot, "elsewhere · 0 sessions · still going")
 
 
 async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
@@ -142,7 +142,7 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
         await on(pilot, Epics)
         await wrapped(pilot, "1 session")
         await pilot.press("enter")
-        await shows(pilot, "resume epic", "export epic")
+        await shows(pilot, "Resume epic", "Export")
 
         await opens(pilot, "export")
         await on(pilot, Exporting)
@@ -165,7 +165,7 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} make it so")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
 
         await typed(pilot, "/resume")
 
@@ -193,21 +193,23 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await opened(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "Every epic in this directory", "ctrl+t this machine")
+        await shows(pilot, "Every epic in this folder", "ctrl+t This machine")
         assert listed(app) == [here.path.name]
 
         await pilot.press("ctrl+t")
-        await shows(pilot, "Every epic on this machine", "ctrl+t this directory")
+        await shows(pilot, "Every epic on this machine", "ctrl+t This folder")
         await until(pilot, lambda: len(listed(app)) == 2, "both epics")
         assert listed(app) == [there.path.name, here.path.name]
         await shows(pilot, "~/elsewhere · there")
 
         # Another directory's epic is read and exported from here, but not carried on.
         await pilot.press("up", "enter")
-        await shows(pilot, "resume epic")
+        await shows(pilot, "Resume epic")
         await pilot.press("enter")
         await on(pilot, Epics)
-        await shows(pilot, "this epic ran in ~/elsewhere; resume it from hmz there")
+        await shows(
+            pilot, "this epic ran in the folder ~/elsewhere; resume it from hmz there"
+        )
 
         await pilot.press("escape")
         await typed(pilot, "/epics")
@@ -223,7 +225,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
         await set_up_own_flow(pilot)
         began = time.time()
         await typed(pilot, f"${OWN} make it so")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         (epic,) = epics(workspace)
         (session,) = Kept(workspace).sessions(epic)
         claude_logged(tmp_path / "claude-home", workspace, session.ident, began)
@@ -234,7 +236,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
 
         await pilot.press("enter")
         await on(pilot, Does)
-        await shows(pilot, "graph", "Exomyth")
+        await shows(pilot, "Graph", "Exomyth")
         await opens(pilot, "graph")
         await on(pilot, Graph)
         # Its agent as the monitor draws one, its turn read back, its one session under it.
@@ -264,12 +266,12 @@ async def test_a_chat_is_not_among_the_epics(workspace: Path) -> None:
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
-        await shows(pilot, "heard hello", "◉ done")
+        await shows(pilot, "heard hello", "◉ Done")
         assert len(chats(workspace)) == 1
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "no flow has been run in this directory yet")
+        await shows(pilot, "No epic here yet.")
         assert listed(app) == []
 
 
@@ -282,7 +284,7 @@ async def test_what_an_earlier_hmz_kept_of_a_chat_is_an_epic_read_and_never_carr
         await opened(pilot)
         # No chat to carry on, though it reads as one had here.
         await typed(pilot, "/resume")
-        await shows(pilot, "no chat has been had here")
+        await shows(pilot, "No chat has been had here")
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
@@ -290,9 +292,9 @@ async def test_what_an_earlier_hmz_kept_of_a_chat_is_an_epic_read_and_never_carr
         await shows(pilot, " · chat")
 
         await pilot.press("enter")
-        await shows(pilot, "graph", "export epic", "cannot be carried on")
+        await shows(pilot, "Graph", "Export", "cannot be carried on")
         assert "continue" not in screen(app)
-        assert "resume epic" not in screen(app)
+        assert "Resume epic" not in screen(app)
         assert "Exomyth" not in screen(app)
         await opens(pilot, "graph")
         await on(pilot, Graph)
@@ -357,7 +359,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         await opened(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "no flow has been run in this directory yet", "Import…")
+        await shows(pilot, "No epic here yet.", "Import…")
 
         await _imports(pilot, "a.hmzepic")
         await until(pilot, lambda: listed(app) == [here.path.name], "the epic imported")
@@ -365,7 +367,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         assert _cursor(app) == here.path.name
 
         await pilot.press("enter")
-        await shows(pilot, "graph", "export epic")
+        await shows(pilot, "Graph", "Export")
         await pilot.press("escape")
         await on(pilot, Epics)
 
@@ -398,7 +400,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await pilot.press("enter")
-        await shows(pilot, "export epic")
+        await shows(pilot, "Export")
         await opens(pilot, "export")
         await on(pilot, Exporting)
         await shows(pilot, "~/Downloads/")
@@ -417,7 +419,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
         # Taken in, whichever line of the row the path wraps onto.
         await until(
             pilot,
-            lambda: "myepics" in re.sub(r"[\s│]", "", screen(app)),
+            lambda: "myepics" in re.sub(r"[\s│┃]", "", screen(app)),
             "the path pasted",
         )
         await pilot.click("#act-done")
@@ -445,7 +447,7 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         # A page of fifty, newest first, under the rows it is found by.
-        await shows(pilot, "status", "all ▾", "1\N{EN DASH}50 of 51", "Older")
+        await shows(pilot, "State", "All ▾", "1\N{EN DASH}50 of 51", "Older")
         assert rows(app)[:2] == ["status", "flow"]
         assert listed(app) == [stopped.path.name, *many[:0:-1]]
 
@@ -459,7 +461,7 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
         await until(pilot, lambda: listed(app) == [stopped.path.name], "the stopped")
         await shows(pilot, "stopped ▾")
         await picks(pilot, "status", "failed")
-        await shows(pilot, "no epic is like that")
+        await shows(pilot, "Nothing is like that.")
         await picks(pilot, "status", "")
         await picks(pilot, "flow", OWN)
         await until(pilot, lambda: len(listed(app)) == 50, "those of one flow")

@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 import socket
 import sys
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import config, data
 from hmz.coganchor.fence import BWRAP, able
 from hmz.daemon import where
 from hmz.reach.pipes import SocketPipe
@@ -47,10 +48,8 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     at = install(tmp_path, monkeypatch)
     if sys.platform == "linux":
         # Landlock cannot keep her off the daemon's socket (Section 14.5.5 of core.md).
-        (tmp_path / "humanize-home").mkdir(exist_ok=True)
-        (tmp_path / "humanize-home" / "settings.yaml").write_text(
-            "sandbox:\n  backend: bwrap\n"
-        )
+        config().mkdir(parents=True, exist_ok=True)
+        (config() / "settings.toml").write_text('sandbox = {backend = "bwrap"}\n')
     with hosting():
         yield at
 
@@ -75,6 +74,14 @@ def _pending(user: Peer, made: dict[str, Any]) -> list[dict[str, Any]]:
         timeout=30,
     )
     return list(status.get("pending") or [])
+
+
+def _heard(user: Peer, made: dict[str, Any]) -> str:
+    """What she waits between turns on, her last answer, or "" while her turn is open."""
+    return next(
+        (str(one["text"]) for one in _pending(user, made) if one["mode"] == "listen"),
+        "",
+    )
 
 
 def _said(user: Peer, made: dict[str, Any]) -> str:
@@ -146,9 +153,9 @@ def test_ai_chan_calls_the_daemon_through_her_tools_over_her_link(
     )
     hers = status["chat"]
     assert (bool(hers), status["epic"], status["epic_kind"]) == (True, "", "chat")
-    (kept,) = (home() / "chats").rglob("chat.jsonl")
+    (kept,) = (data() / "chats").rglob("chat.jsonl")
     assert kept.parent.name == hers
-    assert not list(home().rglob("epic.jsonl"))
+    assert not list(data().rglob("epic.jsonl"))
 
     def refusals() -> set[tuple[int, str]]:
         """What each `chat.*` that names a chat to change it answers for hers."""
@@ -257,8 +264,20 @@ def test_an_ai_chan_conversation_is_said_to_and_asked_as_a_chat_is(
         "aichan.create", {"scope": "daemon", "nous": AGENT, "task": "hello"}, timeout=60
     )
     host = {"workspace": made["workspace"], "slot": made["slot"]}
+
+    def latest() -> str:
+        (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        assert len(listed["latest"]) <= 120
+        return listed["latest"]
+
+    # What was last said in it is what it was made with, until she answers.
+    assert latest() in ("hello", " ".join(_heard(user, made).split())[:120])
     assert until(lambda: _pending(user, made), 120), _said(user, made)
     (waiting,) = _pending(user, made)
+    # And then what she answered, written down as she did.
+    answered = " ".join(str(waiting["text"]).split())[:120]
+    assert answered
+    assert until(lambda: latest() == answered, 30), latest()
 
     # Her catalogue, with no permission of a chat's: she keeps her role's.
     read = user.call("chat.commands", host, timeout=30)
@@ -287,6 +306,33 @@ def test_an_ai_chan_conversation_is_said_to_and_asked_as_a_chat_is(
         120,
     ), _said(user, made)
     assert "said as to a chat" in _said(user, made)
+
+    # Answered again in the same words, it is said in again: its `updated` is that answer's.
+    def listed() -> dict[str, Any]:
+        (one,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        return one
+
+    def preview(text: object) -> str:
+        return " ".join(str(text).split())[:120]
+
+    def answer(after: str) -> dict[str, Any]:
+        assert until(
+            lambda: any(one["question"] != after for one in _pending(user, made)),
+            120,
+        ), _said(user, made)
+        (now,) = _pending(user, made)
+        return now
+
+    first = answer(waiting["question"])
+    assert until(lambda: listed()["latest"] == preview(first["text"]), 30), listed()
+    was = listed()["updated"]
+    # Stamped to the second: the next answer is in a later one.
+    time.sleep(1.1)
+    user.call("chat.say", {**host, "text": "said as to a chat"}, timeout=30)
+    second = answer(first["question"])
+    assert preview(second["text"]) == preview(first["text"])
+    assert until(lambda: listed()["updated"] > was, 30), (was, listed())
+    assert listed()["latest"] == preview(first["text"])
 
     # Stopping her is stopping her open turn, by `chat.stop` or `epic.stop`: refused in her
     # own words while she is not answering, and leaving her between turns where she is.
@@ -409,7 +455,7 @@ def test_ai_chan_keeps_her_nous_and_the_workspaces_chat_agent(
     assert "make another conversation" in _said(user, made)
     events = [
         json.loads(one)["event"]
-        for chat in (tmp_path / "humanize-home").rglob("chat.jsonl")
+        for chat in data().rglob("chat.jsonl")
         for one in chat.read_text().splitlines()
     ]
     assert events
@@ -419,3 +465,75 @@ def test_ai_chan_keeps_her_nous_and_the_workspaces_chat_agent(
     assert settings["chat"] == remembered
     (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
     assert listed["nous"] == AGENT
+
+
+@pytest.mark.parametrize("restarted", [False, True])
+def test_a_conversation_whose_host_went_is_carried_on_by_attaching_to_it_again(
+    project: Path, restarted: bool
+) -> None:
+    """Opened again from the list: its host starts, waits, and takes what is said next."""
+    from hmz import daemon
+
+    del project
+    daemon.start()
+    user = _session()
+    made = user.call(
+        "aichan.create", {"scope": "daemon", "nous": AGENT, "task": "hello"}, timeout=60
+    )
+    host = {"workspace": made["workspace"], "slot": made["slot"]}
+    assert until(lambda: _pending(user, made), 120), _said(user, made)
+
+    def listed() -> dict[str, Any]:
+        (one,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        return one
+
+    # Her host goes, as one left idle does: the conversation is kept, folded away.
+    assert until(lambda: bool(_recorded(made)), 30)
+    if restarted:
+        # The daemon goes, and every host with it; the next client starts another.
+        user.close()
+        pid = int(where.held(where.at())["pid"])
+        with hosting():
+            pass
+        assert until(lambda: not where.alive(pid), 30)
+        daemon.start()
+        user = _session()
+        assert listed()["state"] == "folded"
+    else:
+        # Attached to as it goes, not a moment after: it is waited out, and started again.
+        user.call("hosts.stop", host, timeout=60)
+
+    # Attached to again, it is carried on: it waits between turns, on a host of its slot.
+    sub = user.call("epic.attach", {**host, "replay": True}, timeout=60)["sub"]
+    assert until(lambda: listed()["state"] == "waiting", 120), (
+        listed(),
+        user.call("hosts.status", host, timeout=30),
+    )
+    assert until(lambda: _pending(user, made), 60)
+    (waiting,) = _pending(user, made)
+    assert waiting["mode"] == "listen"
+    # And what is said next is her next turn, in the chat it was.
+    was = _recorded(made)
+    user.call(
+        "epic.answer",
+        {"sub": sub, "question": waiting["question"], "text": "and again"},
+        timeout=30,
+    )
+    assert until(lambda: "and again" in _said(user, made), 120), _said(user, made)
+    assert _recorded(made) == was
+    # What she had said before it went is still what was last said in it, until she answers.
+    assert until(lambda: "and again" in listed()["latest"], 20), (
+        listed()["latest"],
+        _pending(user, made),
+    )
+
+
+def _recorded(made: dict[str, Any]) -> str:
+    """The chat her conversation is written in, as its entry names it."""
+    from hmz.daemon.reach import Conversations
+
+    return next(
+        str(one.get("record") or "")
+        for one in Conversations().all()
+        if one["id"] == made["id"]
+    )

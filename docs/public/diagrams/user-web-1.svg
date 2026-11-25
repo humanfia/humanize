@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 216" role="img">
+  <title>A browser on this machine opens the address hmz web printed; hmz web carries the page to the daemon, which holds the chats and epics</title>
+  <rect width="760" height="216" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L8 4L0 8z" fill="#0b7080"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f" transform="translate(0 -14)">
+    <rect x="24" y="56" width="168" height="96" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+    <text x="108" y="100" text-anchor="middle" font-weight="600">Your browser</text>
+    <text x="108" y="122" text-anchor="middle" font-size="12" fill="#435058">on this machine</text>
+
+    <rect x="296" y="56" width="168" height="96" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="380" y="100" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz web</text>
+    <text x="380" y="122" text-anchor="middle" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">127.0.0.1:8420</text>
+
+    <rect x="568" y="56" width="168" height="96" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="652" y="100" text-anchor="middle" font-weight="600">Daemon</text>
+    <text x="652" y="122" text-anchor="middle" font-size="12" fill="#435058">holds chats and epics</text>
+
+    <path d="M192 104H294" stroke="#0b7080" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="243" y="76" text-anchor="middle" font-size="12" fill="#435058">key, then</text>
+    <text x="243" y="92" text-anchor="middle" font-size="12" fill="#435058">a cookie</text>
+
+    <path d="M464 104H566" stroke="#0b7080" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="515" y="76" text-anchor="middle" font-size="12" fill="#435058">everything</text>
+    <text x="515" y="92" text-anchor="middle" font-size="12" fill="#435058">you do</text>
+
+    <text x="380" y="192" text-anchor="middle" font-size="12" fill="#5d6a72">Stopping hmz web closes the page. The daemon and its runs carry on.</text>
+  </g>
+</svg>

@@ -12,7 +12,6 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 from __future__ import annotations
 
 import json
-import shutil
 import signal
 import subprocess
 import sys
@@ -180,121 +179,6 @@ def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
         main(["exec", *argv])
     assert stopped.value.code == 2
     return capsys.readouterr().err
-
-
-def _chat(*argv: str) -> subprocess.CompletedProcess[str]:
-    """Runs `hmz chat` as a program, in the working directory, and answers with how it went."""
-    return subprocess.run(
-        [sys.executable, "-m", "hmz", "chat", *argv],
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        timeout=120,
-        check=False,
-    )
-
-
-def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
-    tmp_path: Path, project: Path
-) -> None:
-    ran = _chat("-a", f"{AGENT}:high", "hello there")
-
-    assert ran.returncode == 0, ran.stderr
-    assert ran.stdout.strip() == "did: hello there"
-    (start,) = started(tmp_path)
-    assert start["cwd"] == str(project.resolve())
-    assert start["argv"][start["argv"].index("--model") + 1] == MODEL
-    assert start["argv"][start["argv"].index("--effort") + 1] == "high"
-    assert (project / "landed.txt").read_text() == "hello there\n"
-    # Written down as a chat, and as no epic of the project.
-    epics = Hmz(project).epics
-    (chat,) = epics.chats()
-    assert epics.all() == []
-    ran_as = epics.read(chat)
-    assert ran_as is not None
-    assert (ran_as.task, ran_as.chat) == ("hello there", True)
-    (session,) = ran_as.sessions
-    assert session.backend == "claude"
-    assert session.ident == start["session"]
-
-
-def test_a_chat_carried_on_by_its_name_goes_on_in_its_own_record_and_conversation(
-    tmp_path: Path, project: Path
-) -> None:
-    first = _chat("-a", AGENT, "hello")
-    assert first.returncode == 0, first.stderr
-    (chat,) = Hmz(project).epics.chats()
-
-    then = _chat("--resume", chat.name, "and then?")
-
-    assert then.returncode == 0, then.stderr
-    assert then.stdout.strip() == "did: and then?"
-    assert Hmz(project).epics.chats() == [chat]
-    assert Hmz(project).epics.all() == []
-    # The same conversation, carried on from where the first left it.
-    first_start, then_start = started(tmp_path)
-    assert (
-        then_start["argv"][then_start["argv"].index("--resume") + 1]
-        == (first_start["session"])
-    )
-
-
-def test_a_chat_whose_conversation_is_gone_says_so_and_answers_in_a_new_one(
-    tmp_path: Path, project: Path
-) -> None:
-    first = _chat("-a", AGENT, "hello")
-    assert first.returncode == 0, first.stderr
-    (chat,) = Hmz(project).epics.chats()
-    shutil.rmtree(chat / "sessions")
-
-    then = _chat("--resume", chat.name, "and then?")
-
-    assert then.returncode == 0, then.stderr
-    assert then.stdout.strip() == "did: and then?"
-    assert "hmz chat: This conversation could not be carried on" in then.stderr
-    assert Hmz(project).epics.chats() == [chat]
-    assert "--resume" not in started(tmp_path)[-1]["argv"]
-
-
-def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
-    tmp_path: Path,
-) -> None:
-    ran = _chat("-a", AGENT, "--", "!echo hi-from-bang")
-
-    assert ran.returncode == 0, ran.stderr
-    assert ran.stdout == "hi-from-bang\n"
-    assert "echo hi-from-bang" in ran.stderr
-    assert started(tmp_path) == []
-
-
-def test_a_failed_first_turn_fails_the_chat_with_what_the_cli_said() -> None:
-    ran = _chat("-a", AGENT, "--", "fail: it broke")
-
-    assert ran.returncode == 1
-    assert "it broke" in ran.stderr
-
-
-def test_a_chat_with_no_agent_given_or_remembered_is_refused(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as stopped:
-        main(["chat", "hello"])
-
-    assert stopped.value.code == 2
-    assert "give one with -a" in capsys.readouterr().err
-    assert not started(tmp_path)
-
-
-@pytest.mark.parametrize("message", ["/clear", "$goal win"])
-def test_a_chat_line_hmz_keeps_or_naming_a_flow_is_refused(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], message: str
-) -> None:
-    with pytest.raises(SystemExit) as stopped:
-        main(["chat", "-a", AGENT, message])
-
-    assert stopped.value.code == 2
-    assert message.split(maxsplit=1)[0] in capsys.readouterr().err
-    assert not started(tmp_path)
 
 
 def test_goal_says_the_task_as_a_goal() -> None:

@@ -17,7 +17,7 @@ run's.
 
 One epic is one run, and one directory::
 
-    ~/.hmz/epics/<workspace>/<when>-<which>/
+    ~/.local/share/humanize/epics/<workspace>/<when>-<which>/
         epic.jsonl                      what happened, a line at a time
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
         resume.jsonl                    the engine's journal, for a flow that can be picked up
@@ -47,12 +47,14 @@ another run, with sessions of its own, and so another epic -- which is what a fl
 can be picked up again is picked up as.
 
 A chat (:mod:`hmz.runtime.chatting`) is no epic, and is written down the same way, in a
-directory of its own -- `~/.hmz/chats/<workspace>/<when>-<which>/`, its record `chat.jsonl` and
-its sessions beside it -- by the same code: one assistant and one conversation, and so no
-flow, params, envs or budget written down. It is the one record that is opened again: a chat
-carried on is the same conversation, and so the same directory, which says it was `reopened`
-rather than beginning twice, and says it was `set` each time something of it is. A chat an
-earlier Humanize wrote as an epic of kind `chat` still reads back as that epic. What a
+directory of its own -- `~/.local/share/humanize/chats/<workspace>/<when>-<which>/`, its record
+`chat.jsonl` and its sessions beside it -- by the same code: one assistant and one
+conversation, and so no flow, params, envs or budget written down. It is the one record that
+is opened again: a chat carried on is the same conversation, and so the same directory, which
+says it was `reopened` rather than beginning twice, and says it was `set` each time something
+of it is. A chat an
+earlier Humanize wrote as an epic of kind `chat` is moved among the chats, as it stands, by
+:func:`migrated`. What a
 resumable flow keeps is the engine's journal
 (:mod:`hmz.runtime.flowing.journaling`), written into the epic of the run keeping it; a run
 picking it up is handed a copy of it in an epic of its own, which the engine compacts and goes
@@ -75,7 +77,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Self, cast
 
-from hmz import home
+from hmz import data
 from hmz.coganchor import backends
 
 if TYPE_CHECKING:
@@ -111,6 +113,7 @@ __all__ = [
     "adopted",
     "called",
     "chats",
+    "chatted",
     "ending",
     "epics",
     "foreign",
@@ -121,6 +124,7 @@ __all__ = [
     "harnessed",
     "journal",
     "logs",
+    "migrated",
     "note",
     "opened",
     "picks_up",
@@ -189,7 +193,8 @@ ENDINGS = (RUNNING, "done", "failed", "stopped", UNFINISHED)
 #: The kind of an epic a flow runs, and of every epic whose record says no kind.
 FLOW = "flow"
 
-#: The kind of an epic an earlier Humanize wrote for a chat, and of every chat's record.
+#: The kind of every chat's record, and of the epic an earlier Humanize wrote for a chat, which
+#: :func:`migrated` moves among the chats.
 CHAT = "chat"
 
 #: The file a chat's record is written to, inside the chat's directory (Section 8 of [CORE]).
@@ -332,8 +337,7 @@ class Ran(NamedTuple):
 
     Attributes:
       at: The epic's directory, which is what everything about it is under.
-      flow: The flow that was run, as it was named; "" for a chat, but for one an earlier
-        Humanize wrote, which was of the flow `chat`.
+      flow: The flow that was run, as it was named; "" for a chat.
       task: What its agents were asked to do.
       workspace: Where it ran.
       began: When it started.
@@ -371,8 +375,9 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
-      kind: :data:`FLOW`, or :data:`CHAT` for a chat's record and for an epic an earlier
-        Humanize wrote for a chat: one whose record says so, or one of the flow `chat`.
+      kind: :data:`FLOW`, or :data:`CHAT` for a chat's record, and for the record of an epic
+        an earlier Humanize wrote for a chat -- one that says so, or one of the flow `chat` --
+        wherever it is.
       prefer: A chat's own preference (Section 8.9.10 of [CORE]), as it was last set, or ""
         where it goes by the person's.
       permission: A chat's permission (Section 8.3.9 of [CORE]), as it was last set, or ""
@@ -380,6 +385,8 @@ class Ran(NamedTuple):
       title: A chat's title, as it was last set, else the first line of its first message.
       archived: Whether a chat was last set archived.
       workdir: Where a chat's assistant works, where that is not its workspace, or "".
+      env: The env a chat was last moved to, as `-e` spells one after `<role>=` (Section
+        8.3.15 of [CORE]), or "" for a chat that works where it began.
       forked: The chat a chat was forked from, by its name, or "".
       adopted: The session of a harness's own a chat was made from, as `<harness>:<id>`, or
         "".
@@ -415,13 +422,14 @@ class Ran(NamedTuple):
     title: str = ""
     archived: bool = False
     workdir: str = ""
+    env: str = ""
     forked: str = ""
     adopted: str = ""
     updated: str = ""
 
     @property
     def chat(self) -> bool:
-        """Whether this is a chat's record, or an epic an earlier Humanize wrote for one."""
+        """Whether this is a chat's record, as it is written now or as an earlier Humanize did."""
         return self.kind == CHAT
 
     @property
@@ -798,7 +806,7 @@ class Uncarried(Exception):  # noqa: N818 -- named for what happened, as Refused
 class Epic:
     """One run of one flow, or one chat: the directory it is written to, and what happened to it.
 
-    A chat is written under `chats/` of Humanize's home, into :data:`CHATTED`; a run under
+    A chat is written under `chats/` of Humanize's data directory, into :data:`CHATTED`; a run under
     `epics/`, into :data:`JOURNAL`.
     """
 
@@ -824,6 +832,7 @@ class Epic:
         prefer: str | None = None,
         permission: str | None = None,
         workdir: str = "",
+        env: str = "",
     ) -> None:
         """Opens an epic, or a chat's record, and writes down what it is a run of.
 
@@ -860,6 +869,8 @@ class Epic:
           prefer: A chat's own preference, where it has one, or None.
           permission: A chat's permission, where it is not `workspace-write`, or None.
           workdir: Where a chat's assistant works, where that is not its workspace, or "".
+          env: The env a chat begins in, as `-e` spells one, where that is not a directory
+            of this machine `workdir` names, or "".
 
         Raises:
           Uncarried: Where the journal of the epic picked up is there and cannot be copied.
@@ -868,7 +879,7 @@ class Epic:
         self._begin(
             picked_up
             if picked_up is not None and reopened
-            else home()
+            else data()
             / ("chats" if kind == CHAT else "epics")
             / _PLAIN.sub("-", str((workspace or Path.cwd()).resolve()))
             # The moment names it and six hex say which, since two processes may start flows
@@ -877,10 +888,7 @@ class Epic:
             # sort in: which run a flow is picked up from is the last of them, and two named
             # alike would otherwise be ordered by the hex, which is to say at random.
             / f"{_stamp()}-{uuid.uuid4().hex[:6]}",
-            # As the directory carried on has it: one an earlier Humanize wrote is an epic's.
-            (journal(picked_up).name if reopened and picked_up else CHATTED)
-            if kind == CHAT
-            else JOURNAL,
+            CHATTED if kind == CHAT else JOURNAL,
             (workspace or Path.cwd()).resolve(),
             flow,
         )
@@ -925,6 +933,7 @@ class Epic:
                 **({"prefer": prefer} if prefer else {}),
                 **({"permission": permission} if permission else {}),
                 **({"workdir": workdir} if workdir else {}),
+                **({"env": env} if env else {}),
             )
             return
         from hmz.coganchor.machines.store import SPELLING
@@ -1293,7 +1302,7 @@ def under(workspace: Path | str | None = None) -> Path:
       whatever writes there is what makes it.
     """
     return (
-        home() / "epics" / _PLAIN.sub("-", str(Path(workspace or Path.cwd()).resolve()))
+        data() / "epics" / _PLAIN.sub("-", str(Path(workspace or Path.cwd()).resolve()))
     )
 
 
@@ -1316,7 +1325,7 @@ def chats(workspace: Path | str | None = None) -> list[Path]:
     Returns:
       One directory per chat, ordered by the moment it began, which is what each is named.
     """
-    kept = home() / "chats"
+    kept = data() / "chats"
     found: list[Path] = []
     with contextlib.suppress(OSError):
         for under in (
@@ -1327,6 +1336,102 @@ def chats(workspace: Path | str | None = None) -> list[Path]:
             with contextlib.suppress(OSError):
                 found += (one for one in under.iterdir() if (one / CHATTED).is_file())
     return sorted(found, key=lambda one: one.name)
+
+
+def chatted(at: Path) -> bool:
+    """Whether the record one directory holds is a chat's, wherever the directory is.
+
+    Args:
+      at: A chat's directory, or an epic's.
+
+    Returns:
+      True for one whose record is :data:`CHATTED`, and for one whose record is an epic's
+      that an earlier Humanize began for a chat (Section 6.5.19 of [FILES]).
+    """
+    record = journal(at)
+    if record.name == CHATTED:
+        return record.is_file()
+    try:
+        with record.open(encoding="utf-8", errors="replace") as lines:
+            for line in lines:
+                try:
+                    said = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(said, dict):
+                    continue
+                began = cast("dict[str, Any]", said)
+                if began.get("event") == "began":
+                    return _kind(began) == CHAT
+    except OSError:
+        pass
+    return False
+
+
+def migrated() -> tuple[list[str], dict[str, str]]:
+    """Moves every chat an earlier Humanize wrote as an epic among the chats (Section 6.12.14).
+
+    Each is the directory it was, under `chats/` of the same workspace and by the same name,
+    and its record the file it was, named :data:`CHATTED`: nothing in it is rewritten. One a
+    process holds is left for the next time, as is one whose name a chat already has. A move
+    cut short -- the record renamed and the directory not yet moved -- is finished by the
+    next, and a second one finds nothing to move.
+
+    Returns:
+      The names of the chats moved, in the order their directories sort, and why each one
+      left was, by its name.
+    """
+    moved: list[str] = []
+    left: dict[str, str] = {}
+    kept = data() / "epics"
+    try:
+        workspaces = sorted(kept.iterdir())
+    except OSError:
+        return moved, left
+    for workspace in workspaces:
+        try:
+            # Not what is staged there (Section 6.11.4 of [FILES]), which is dotted.
+            found = sorted(
+                one
+                for one in workspace.iterdir()
+                if not one.name.startswith(".") and one.is_dir()
+            )
+        except OSError:
+            continue
+        for at in found:
+            if at.is_symlink() or not chatted(at):
+                continue
+            into = data() / "chats" / workspace.name / at.name
+            if into.exists():
+                left[at.name] = f"a chat is already at {into}"
+                continue
+            # Held for the move, as a run holds it: one going is never moved under its host.
+            held = _hold(at / _HELD)
+            if held is None:
+                left[at.name] = "it is going"
+                continue
+            own = at / JOURNAL
+            renamed = False
+            try:
+                if own.is_file():
+                    if (at / CHATTED).exists():
+                        left[at.name] = f"it holds both {JOURNAL} and {CHATTED}"
+                        continue
+                    own.rename(at / CHATTED)
+                    renamed = True
+                into.parent.mkdir(parents=True, exist_ok=True)
+                at.rename(into)
+            except OSError as why:
+                left[at.name] = why.strerror or str(why)
+                if renamed:
+                    # As it was, and so an epic to move the next time.
+                    with contextlib.suppress(OSError):
+                        (at / CHATTED).rename(own)
+                continue
+            finally:
+                os.close(held)
+            moved.append(at.name)
+    return moved, left
 
 
 def forked(chat: Path) -> Path:
@@ -1375,6 +1480,7 @@ def forked(chat: Path) -> Path:
             **({"prefer": ran.prefer} if ran.prefer else {}),
             **({"permission": ran.permission} if ran.permission else {}),
             **({"workdir": ran.workdir} if ran.workdir else {}),
+            **({"env": ran.env} if ran.env else {}),
         },
         # Each session it kept, as it was opened: what carrying the copy on goes on from.
         *(
@@ -1419,7 +1525,7 @@ def adopted(
       ValueError: Where a file of the session cannot be copied.
     """
     at = (
-        home()
+        data()
         / "chats"
         / _PLAIN.sub("-", str(workspace.resolve()))
         / f"{_stamp()}-{uuid.uuid4().hex[:6]}"
@@ -1485,7 +1591,7 @@ def every() -> list[Path]:
     """
     found: list[Path] = []
     with contextlib.suppress(OSError):
-        for workspace in (home() / "epics").iterdir():
+        for workspace in (data() / "epics").iterdir():
             with contextlib.suppress(OSError):
                 found += (
                     one for one in workspace.iterdir() if (one / JOURNAL).is_file()
@@ -1747,7 +1853,8 @@ def read(epic: Path) -> Ran | None:
     backup = None if _here(events) else began.get("backup")
     return Ran(
         at=epic,
-        flow=str(began.get("flow") or ""),
+        # A chat is of no flow, whatever an earlier Humanize wrote one as.
+        flow="" if kind == CHAT else str(began.get("flow") or ""),
         task=task,
         workspace=str(began.get("workspace") or ""),
         began=str(began.get("at") or ""),
@@ -1804,6 +1911,11 @@ def read(epic: Path) -> Ran | None:
             False,
         ),
         workdir=str(began.get("workdir") or ""),
+        env=str(
+            next((one["env"] for one in reversed(said_so) if "env" in one), "") or ""
+        )
+        if kind == CHAT
+        else "",
         forked=str(began.get("forked") or ""),
         adopted=str(began.get("adopted") or ""),
         updated=str(events[-1].get("at") or ""),

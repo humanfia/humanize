@@ -75,8 +75,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -97,8 +97,8 @@
   "port": 2201,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -121,8 +121,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -143,8 +143,8 @@
   "port": 22,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -167,8 +167,8 @@
   "port": 22,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -191,8 +191,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -213,8 +213,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -235,8 +235,8 @@
   "port": 22,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -259,8 +259,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -281,8 +281,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -303,8 +303,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -325,8 +325,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -352,8 +352,8 @@
     "/etc/ssh/cfg"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -385,8 +385,8 @@
     "me@jump:2222"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -416,8 +416,8 @@
     "a b"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -445,8 +445,8 @@
     "a b"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -474,8 +474,8 @@
     "ssh -W %h:%p jump"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -503,8 +503,8 @@
     "café"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -532,8 +532,8 @@
     "�"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -561,8 +561,8 @@
     "x%zz"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -594,8 +594,8 @@
     "c"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -649,8 +649,8 @@
     "a=b"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -678,8 +678,8 @@
     "x#frag"
    ]
   ],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -702,8 +702,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "ssh",
@@ -1381,8 +1381,8 @@
   "port": 0,
   "path": "",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "srun",
@@ -1407,8 +1407,8 @@
   "port": 0,
   "path": "/opt/py/bin/python3",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "srun",
@@ -1433,8 +1433,8 @@
   "port": 0,
   "path": "~/py/bin/python3",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "srun",
@@ -1463,8 +1463,8 @@
   "port": 0,
   "path": "/a b/python",
   "options": [],
-  "cache": "$HOME/.cache/humanize",
-  "mirrors": "$HOME/.cache/humanize-mirrors",
+  "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize",
+  "mirrors": "${XDG_CACHE_HOME:-$HOME/.cache}/humanize-mirrors",
   "owned": false,
   "line": [
    "srun",

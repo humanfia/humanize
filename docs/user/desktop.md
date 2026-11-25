@@ -1,248 +1,185 @@
+---
+title: Humanize Desktop
+description: Know what the desktop app adds to the page, how its window, menus, files and notifications behave, and what to do when it does not start.
+---
+
 # Humanize Desktop
 
-Humanize Desktop is the page of [`hmz web`](/user/web) in a window of its own, on macOS and on
-Windows: the same page, every epic of every daemon you reach, with no terminal to keep open and
-no browser tab to find. The page is built into the app, and the app serves it itself: no
-`hmz web` runs.
+Humanize Desktop runs the `hmz web` page in its own window on macOS and Windows. It works the same way as [the browser page](/user/web); this guide covers only what the app adds. To install or update it, see [Install and update](/user/install).
 
-To install it, see [Installation](/user/installation#desktop).
+![Humanize Desktop on macOS: a chat is open, and the window's close, minimize and full-screen lights sit in the page's top row beside the sidebar buttons](/shots/user-desktop-window.svg)
 
-::: info At a glance
-- **You will** know what the app does for you, how it reaches your daemons, how it keeps itself
-  and `hmz` up to date, and what to do when it does not start.
-- **Use it when** you would rather open an app than run `hmz web` and keep its terminal.
-- **You need** macOS 11 or newer (Apple silicon or Intel), with `hmz`
-  [installed](/user/installation#cli); or Windows 10 or 11 on x64 with WSL 2.
+## What the app adds
+
+The app bundles the page from its release. It runs no `hmz web` server and holds no epics itself.
+
+![Humanize Desktop reaches the Local daemon by running hmz daemon connect --stdio, and daemons on other machines over ssh, tcp, ws, a relay or EasyTier; quitting the app leaves the daemons and their epics running](/diagrams/user-desktop-1.svg)
+
+**Local** is this machine's daemon. The app connects to it by running `hmz daemon connect --stdio`, which starts the daemon if needed. On macOS, it uses the `hmz` from your login shell. On Windows, it uses the `hmz` installed in the default WSL distribution.
+
+The app connects directly to daemons on other machines without `hmz web` in between. See [Connect to other machines](/user/daemons).
+
+When an SSH machine has no `hmz`, the app installs nothing there until you agree. It asks `hmz is not installed on <name>. Install it?`: **Install** installs `hmz` on that machine and connects; **Not now** leaves the machine untouched and the daemon `failed` until you click **Connect** again. A machine that has another release of `hmz` is not asked about.
+
+On Windows, the app reaches an SSH daemon with the `ssh` inside the default WSL distribution. The **Host** list under **Settings → Daemons → New daemon** comes from WSL's `~/.ssh/config`, and keys, `known_hosts`, and any **Identity file** are WSL paths; the app does not read `%UserProfile%\.ssh`.
+
+The app stores your preferences and daemon list in its own storage, separate from any browser. Its menus, launch window, and update windows are always in English, regardless of the page language.
+
+## Manage the window
+
+The window has no title bar; the page extends to the top edge.
+
+| | macOS | Windows |
+| --- | --- | --- |
+| Window controls | Three lights at the top left of the page | **Minimize**, **Maximize** (or **Restore Down**), and **Close** at the top right |
+| Move the window | Drag an empty part of the top row | Same |
+| Zoom or maximize | Double-click an empty part of the top row | Same |
+| Close | The red light or <kbd>⌘W</kbd> hides the window; the app stays in the Dock | Hides the window; the app stays in the tray |
+| Reopen | Click the Dock icon or open the app again | Click the tray icon or open the app again |
+
+Only one instance and one window run at a time. Opening the app again brings the existing window forward. Closing the window stops nothing: the app, its connections, and all epics keep running. In full screen, the window controls are hidden.
+
+The app remembers its size, position, and maximized state between launches. It first opens at 1280 by 820, and its minimum size is 640 by 480. While loading, the window matches your system's light or dark appearance; once loaded, the page's theme applies. See [Themes and language](/user/themes).
+
+## Use the menus
+
+### macOS menu bar
+
+| Menu | Items |
+| --- | --- |
+| **Humanize** | **About Humanize**, **Check for Updates…**, **Hide Humanize**, **Hide Others**, **Show All**, **Quit Humanize** |
+| **Edit** | **Undo**, **Redo**, **Cut**, **Copy**, **Paste**, **Select All** |
+| **View** | **Reload**, **Actual Size**, **Zoom In**, **Zoom Out**, full screen |
+| **Window** | **Minimize**, **Zoom**, **Close Window** |
+| **Help** | **Documentation** |
+
+The menus do not capture page shortcuts, so keys like <kbd>⌘K</kbd> go straight to the page.
+
+### Windows tray icon
+
+Windows has no menu bar. Left-click the tray icon to show the window, or right-click it for the menu:
+
+| Item | Action |
+| --- | --- |
+| **Show Humanize Desktop** | Brings the window forward |
+| **Check for Updates…** | Checks for a newer release (see [Install and update](/user/install)) |
+| **Documentation** | Opens the documentation in your browser |
+| **Quit** | Quits the app |
+
+## Reload and zoom the page
+
+On macOS, use the **View** menu:
+
+| Item | Key | Action |
+| --- | --- | --- |
+| **Reload** | <kbd>⌘R</kbd> | Reloads the page, closing and reconnecting all connections |
+| **Zoom In** | <kbd>⌘=</kbd> | Scales the page by 1.1x, up to 300% |
+| **Zoom Out** | <kbd>⌘-</kbd> | Scales the page down by 1.1x, down to 50% |
+| **Actual Size** | <kbd>⌘0</kbd> | Resets zoom to 100% |
+
+Zoom resets when you quit. On Windows, use the standard WebView2 shortcuts: <kbd>ctrl+r</kbd> or <kbd>F5</kbd> to reload, and <kbd>ctrl+=</kbd>, <kbd>ctrl+-</kbd>, and <kbd>ctrl+0</kbd> to zoom.
+
+## Open links, files, and downloads
+
+A link that leads outside the page opens in your default browser, and only if it is an `http`, `https`, or `mailto` link.
+
+Double-click a `.hmzepic` file, choose **Open With**, or drop it onto the window to import and open it in the current daemon. If you open multiple files at once, the app imports only the last one. Opening a file does not modify it. See [Export and import a run](/user/export).
+
+Files you download from the page, such as exported epics, save to your Downloads folder and are then shown in Finder or File Explorer. Downloads never overwrite existing files: `epic.hmzepic` becomes `epic (1).hmzepic`.
+
+## Receive notifications
+
+Notifications appear as native macOS notifications or Windows toasts. Click a notification to bring the window forward to that chat or epic.
+
+macOS asks once for permission to show notifications. Choose which events notify you in **Settings → Notifications**, where the page displays `Shown by macOS.` or `Shown by Windows.` See [Notifications](/user/notifications).
+
+![Settings, Notifications in Humanize Desktop: the kinds Done, Failed, Stopped, Questions and Waiting, and under System the switch On with the line Shown by macOS](/shots/user-desktop-notifications.svg)
+
+## Quit the app
+
+| | How |
+| --- | --- |
+| macOS | **Humanize → Quit Humanize**, or <kbd>⌘Q</kbd> |
+| Windows | Right-click the tray icon, then click **Quit** |
+
+Quitting closes all connections and stops any processes the app started, killing any that remain after 3 seconds. Epics keep running in their daemons. See [Leave it running and come back](/user/leaving).
+
+::: warning
+On Windows, epics run in WSL. After you quit the app, WSL may shut down an idle distribution and stop your epics. To keep the distribution running, set `instanceIdleTimeout` to `-1` under `[general]` in `%UserProfile%\.wslconfig`.
 :::
 
-## How it works
+## Start the app
 
-The app is a window, not a second Humanize. It holds no epic: every epic is held by a
-[daemon](/user/leaving), and the page in the window speaks to each daemon it shows, as the page
-in a browser does.
+The window opens showing `Starting`. On macOS, the page loads right away.
 
-- **The page comes with the app.** It is the page of the same release, and the app shows it at
-  once; nothing is started to serve it.
-- **Local is this machine's daemon.** On macOS, the app reaches it by running
-  `hmz daemon connect --stdio` -- the `hmz` your login shell finds, `~/.local/bin` included --
-  which starts the daemon where it is not running. Where there is no `hmz`, the page still opens,
-  and says Local cannot be reached until you [install it](/user/installation#cli). On Windows,
-  Local is the daemon in WSL, and the app installs `hmz` there: see [On Windows](#windows).
-- **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
-  and P2P daemons -- are reached from the app itself: ssh with your ssh config, WSL's
-  [on Windows](#windows), and every route but ssh and Local inside mutual TLS, as the app's own
-  device, paired as a browser is.
-- **It uses your login shell's environment**, so `hmz` and the coding agent CLIs are found as a
-  terminal finds them.
-- **Closing the window is not quitting.** On macOS the app stays in the Dock; on Windows, in
-  the tray. Clicking the icon brings the window back. Quitting -- <kbd>cmd+q</kbd> on macOS,
-  **Quit** in the tray icon's menu on Windows -- closes the app's connections to its daemons.
-- **Your epics outlive it**: they are held by the daemons, so quitting the app leaves an epic
-  going. See [Leaving it running](/user/leaving), and on Windows,
-  [Your epics and WSL](#your-epics-and-wsl).
-- **The page is the whole window**, up to its top edge. Drag the window by any empty part of
-  the top row, and double-click it to zoom or maximize.
-- **Ai-chan is in the window too**: her avatar, at the right of every view's bar, opens the
-  [drawer](/user/web#ai-chan) of your conversations with [Ai-chan](/user/ai-chan).
-- **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
-  in the Finder or Explorer.
+On Windows, the app checks the default WSL distribution for a matching `hmz` version and installs or updates it if needed. The window shows `Installing Humanize CLI` or `Updating Humanize CLI`, the current step (`Getting uv`, `Getting Python`, `Installing hmz`), and the latest line of installer output before opening the page.
 
-## On Windows: WSL {#windows}
-
-Humanize needs Linux or macOS, so on Windows `hmz` runs in
-[WSL](https://learn.microsoft.com/windows/wsl/), in your default distribution. That
-distribution is **Local**: your epics, your repositories, uv, `hmz` and the coding agent CLIs
-all live there. The window, the tray icon, notifications and downloads stay on Windows. The app
-reaches Local by running `hmz daemon connect --stdio` through `wsl.exe`.
-
-- **It installs `hmz` in WSL for you, at its own version.** Humanize Desktop 0.5.0 runs Humanize
-  CLI 0.5.0, since both come from the same release. Where there is none, or one of another
-  version, it runs `uv tool install --force hmz==<its version>` in WSL, keeping any extras you
-  installed with, and says **Installing Humanize CLI** or **Updating Humanize CLI** while it does.
-  That is the same `~/.local/bin/hmz` a terminal in WSL finds, so the `hmz` you type there is the
-  app's version too.
-- **It brings uv only where you have none.** It uses WSL's -- on your `PATH`, or in
-  `~/.local/bin` or `~/.cargo/bin` -- and otherwise downloads uv into `~/.local/bin`, checked
-  against a checksum it carries. uv gets Python where it needs to. Your shell profile is never
-  touched.
-- **It never updates under running epics.** While WSL's daemon runs, the `hmz` there keeps
-  running it, and the app updates it on a later launch, once the daemon has gone. See
-  [`Update waiting`](#update-waiting).
-- **Local is your WSL distribution.** The sidebar and **Settings → Daemons** name Local's host
-  as `<distro> (WSL)`, `Ubuntu (WSL)` say.
-- **Coding agent CLIs go in WSL.** The daemon finds what a login shell in WSL finds; a CLI
-  installed on Windows is not seen.
-- **Your ssh hosts are WSL's.** The hosts **New daemon** offers are those of `~/.ssh/config` in
-  WSL, and the app reaches an [SSH daemon](/user/web#daemons) with WSL's `ssh`, run through
-  `wsl.exe`: its config, its keys and its `known_hosts`, as `ssh <host>` in a WSL terminal
-  uses them. An identity file is a path in WSL. What Windows' own `ssh` has in
-  `%UserProfile%\.ssh` is not read. That `ssh` asks for no passphrase and is not started by
-  your login shell, so an ssh agent your shell's startup files set is not seen: name its
-  socket with `IdentityAgent` in `~/.ssh/config`, or use a key without a passphrase.
-- **Keep your repositories in WSL**, under your Linux home -- `~/src/project`, not
-  `/mnt/c/Users/you/project`. Files on a Windows drive are reached from WSL through a slow
-  share, and locks and permissions there do not behave as Linux's do, which Humanize relies on.
-  From Windows, Explorer reaches your WSL files under **Linux** in its sidebar, or at
-  `\\wsl.localhost\<distro>`.
-
-On macOS the app installs nothing: install `hmz` as [Installation](/user/installation#cli) says,
-and update it with `uv tool upgrade hmz`.
-
-### Your epics and WSL {#your-epics-and-wsl}
-
-An epic is held in WSL, not by the app, so quitting the app leaves it going -- but only while
-WSL keeps your distribution running. While the app is open, its connection to Local keeps the
-distribution running. Once you quit, WSL may shut the distribution down when it is idle, and
-whatever runs there stops with it, your epics included. `wsl --shutdown`, or a restart of
-Windows, stops them too.
-
-How long WSL waits is `instanceIdleTimeout`, in the `[general]` section of
-`%UserProfile%\.wslconfig`: 15000 milliseconds by default, and `-1` turns the shutdown off. To
-leave epics running after you quit the app:
-
-```ini
-[general]
-instanceIdleTimeout=-1
-```
-
-Then, with nothing running in WSL, run `wsl --shutdown` once so that WSL reads the file again.
-Microsoft's [WSL configuration](https://learn.microsoft.com/windows/wsl/wsl-config) has the
-rest. Otherwise, keep the app open, minimized or in the tray, while epics run.
-
-## Opening a `.hmzepic` {#opening-a-hmzepic}
-
-The app is what a `.hmzepic` -- an [exported epic](/user/export) -- opens with. Double-click one
-in the Finder or Explorer, choose **Open With → Humanize Desktop**, or drop one on the window:
-the page reads it from the app and imports it into the daemon it shows, as **Import** on the
-page does, and opens it on its [Exomyth](/user/web#exomyth). Opened while the app is still
-starting, it is imported once the page is there. Of several opened or dropped at once, the last
-is imported; anything but a `.hmzepic` is left alone. The page can read only a file you opened
-with the app this way.
-
-One you already have is refused, with **Open** to go to it; one that cannot be picked up on this
-machine says why on its own page, as any [imported epic](/user/web#importing-an-epic) does.
-
-## Notifications {#notifications}
-
-The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a question
-for you, a [chat](/user/chat) waiting for your next line, on any daemon -- show in the window's bell and toasts
-as in a browser, and, while the window is hidden or not in front, as system notifications from
-Humanize Desktop. Click one: the window comes to the front, on the epic it is about.
-
-The kinds that appear are set in **Settings → Notifications**; the app needs no permission asked
-there, as a browser does. On macOS, the first one asks whether Humanize Desktop may send them:
-choose **Allow**. After that, the system's own settings decide how they are shown, or silence
-them: **System Settings → Notifications → Humanize Desktop** on macOS, **Settings → System →
-Notifications → Humanize Desktop** on Windows.
-
-## Updates {#updates}
-
-The app looks for a new release a few seconds after it opens, and every 6 hours after. It
-downloads one in the background, checks that it was signed by Humanize's release, and then asks
-once, naming the version:
-
-- **Restart** installs it, and opens Humanize Desktop again on it.
-- **Later** leaves it until you quit Humanize Desktop, which installs it then.
-
-To look now, choose **Check for Updates…** -- from the **Humanize Desktop** menu on macOS, from
-the tray icon's menu on Windows. A small window shows it looking, then how far the download is.
-Then it offers the new release, or says Humanize Desktop is up to date, or why it could not
-look. Only releases are offered, never a pre-release, unless the app you run is a pre-release
-itself: then the newest release or pre-release is.
-
-On Windows, once the new app opens, it updates `hmz` in WSL to its own version too, as it would
-at any launch: at once where WSL's daemon is not running, and otherwise once it has gone.
+![The launch window on Windows: Starting, then Installing Humanize CLI with a progress bar through Getting uv, Getting Python and Installing hmz](/shots/user-desktop-install.svg)
 
 ## Troubleshooting {#troubleshooting}
 
-### Local cannot be reached
+### Launch errors on Windows
 
-The page opened, but says Local cannot be reached. On macOS, `hmz` is not installed, or not where
-your login shell finds it: [install it](/user/installation#cli), then reconnect from **Settings →
-Daemons**. Either way, the app's log has what `hmz daemon connect` said:
+Every error screen includes a **Documentation** button that opens this page.
 
-::: code-group
+| Heading | Cause | Fix |
+| --- | --- | --- |
+| `WSL missing` | WSL or a Linux distribution is not installed, or WSL did not start within 60 seconds. | Run `wsl --install` in PowerShell, then click **Retry**. |
+| `Install failed` or `Update failed` | The installation failed. The window shows the last 12 lines of output. | Check your connection and click **Retry**. If a compatible `hmz` is already installed, click **Continue** to use it. |
+| `Update waiting` | Epics are running in an older, incompatible `hmz`. | Wait for the epics to finish so the app can update, or click **Update now** to update immediately (this may stop them). |
+| `Not found` | The app installs no `hmz` (a development build, or `HUMANIZE_HMZ` is set) and found none to run in WSL. | Install `hmz` in WSL, or point `HUMANIZE_HMZ` at one that exists, then click **Retry**. |
 
-```sh [macOS]
+![The launch window saying WSL missing, with the installer's reason and the buttons Retry and Documentation](/shots/user-desktop-wsl-missing.svg)
+
+![The launch window saying Update failed, with what the installer said and the buttons Retry, Continue and Documentation](/shots/user-desktop-update-failed.svg)
+
+![The launch window saying Update waiting, with the buttons Update now and Documentation](/shots/user-desktop-update-waiting.svg)
+
+![The launch window saying Not found, with the buttons Retry and Documentation](/shots/user-desktop-not-found.svg)
+
+### Local cannot be reached on macOS
+
+On macOS, the app does not install `hmz`. If your login shell cannot find `hmz`, the page opens and shows `hmz is not installed on this machine.` under Local. [Install the CLI](/user/install), then quit the app and open it again.
+
+### Read the log
+
+Open `Humanize Desktop.log` to see connection events, installer output, and update checks. The log contains no secrets and resets when it exceeds 40,000 bytes.
+
+macOS:
+
+```sh
 open ~/Library/Logs/ai.humanfia.humanize/"Humanize Desktop.log"
 ```
 
-```powershell [Windows]
+Windows (PowerShell):
+
+```powershell
 notepad "$env:LOCALAPPDATA\ai.humanfia.humanize\logs\Humanize Desktop.log"
 ```
 
-:::
+### Use a custom `hmz` binary
 
-### `Install failed` or `Update failed`
+Set `HUMANIZE_HMZ` to run a specific `hmz` binary for Local. The app then skips looking for or installing any other `hmz`. On Windows, provide a path inside WSL.
 
-Windows only. uv could not install `hmz` in WSL: most often you are offline, or a proxy is in
-the way. The window shows what uv said; press **Retry** once you are connected. Where an `hmz`
-of another version is already installed and can serve the app, **Continue** opens the page with
-it as it is, and the app tries again next time. uv takes the proxy and index your WSL login
-shell sets (`HTTPS_PROXY`, `UV_INDEX_URL`).
+macOS:
 
-### `Update waiting` {#update-waiting}
-
-Windows only. Epics are running in an `hmz` too old for the app to use, and updating it now
-could stop them. The app waits, and updates as soon as WSL's daemon has gone. **Update now**
-updates at once, if you would rather not wait.
-
-### `WSL missing`
-
-Windows only. Windows has no WSL, or WSL has no distribution. Run `wsl --install` in PowerShell,
-restart if it asks, open the distribution once to make your Linux user, then **Retry**.
-`wsl --list --verbose` shows what you have; the app uses the default one, marked `*`.
-
-### My epics stopped after I quit the app
-
-Windows only. WSL shut the distribution down: see [Your epics and WSL](#your-epics-and-wsl).
-
-### No system notifications
-
-They come only while the window is hidden or not in front. Check that **Settings →
-Notifications** in the app has them switched on, and that the system's notification settings
-allow Humanize Desktop.
-
-### Using an `hmz` of your own
-
-To have the app run another `hmz` for Local -- a checkout you are working on, say -- name it in
-`HUMANIZE_HMZ` and open the app from that shell. It then installs nothing. On Windows it is a
-path in WSL, set in Windows:
-
-::: code-group
-
-```sh [macOS]
+```sh
 HUMANIZE_HMZ=~/src/humanize/.venv/bin/hmz "/Applications/Humanize Desktop.app/Contents/MacOS/humanize"
 ```
 
-```powershell [Windows]
+Windows (PowerShell):
+
+```powershell
 $env:HUMANIZE_HMZ = '/home/you/src/humanize/.venv/bin/hmz'
 & "$env:LOCALAPPDATA\Humanize Desktop\humanize.exe"
 ```
 
-:::
+For more fixes, see [Troubleshooting](/user/troubleshooting).
 
-## Uninstall
+## Good to know
 
-Quit Humanize Desktop first.
-
-- **macOS:** move it from Applications to the Trash. To forget what it kept as well -- its
-  device identity and window, what the page remembers, and its log:
-
-  ```sh
-  rm -rf ~/Library/{Application\ Support,WebKit,Caches,Logs}/ai.humanfia.humanize
-  ```
-
-- **Windows:** remove it in **Settings → Apps → Installed apps**. Its own data is in
-  `%APPDATA%\ai.humanfia.humanize` and `%LOCALAPPDATA%\ai.humanfia.humanize`; delete both to
-  forget it.
-
-Forgetting its device identity means pairing the app again with every daemon it reached
-inside mutual TLS. `hmz`, and your epics, stay as they are; `uv tool uninstall hmz` -- in WSL,
-on Windows -- removes `hmz` too.
-
-## Next steps
-
-- [In a browser (`hmz web`)](/user/web): the page itself, and what it refuses.
-- [Leaving it running](/user/leaving): what goes on after the window closes.
-- [Installation](/user/installation): the app, `hmz`, and the coding agent CLIs it drives.
+- On Windows, clicking a notification opens its chat or epic only if it arrived since the app started. On macOS, older notifications work too.
+- The app suppresses notifications for the chat or epic currently shown in a focused window.
+- If you open a `.hmzepic` file before the page finishes loading, the app imports it once the page is ready.
+- On Windows, store your repositories inside the WSL Linux home directory, not under `/mnt/c`.
+- For file paths, commands, and environment variables, see the [Desktop app reference](/reference/desktop).

@@ -210,6 +210,78 @@ def test_directory_read_from_a_turns_own_environment(home: Path) -> None:
     assert profile.directory({}) == home / ".x"
 
 
+def test_litellm_keeps_its_conversations_in_the_state_home(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    litellm = backends.named("litellm")
+    assert litellm is not None
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    assert litellm.directory() == home / ".local/state/humanize/litellm"
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / "st"))
+    assert litellm.directory() == home / "st/humanize/litellm"
+    # A relative one is no XDG directory at all.
+    monkeypatch.setenv("XDG_STATE_HOME", "st")
+    assert litellm.directory() == home / ".local/state/humanize/litellm"
+
+
+def test_a_home_kept_elsewhere_before_is_moved_once(home: Path) -> None:
+    old = home / ".cache/humanize"
+    (old / "litellm/sessions").mkdir(parents=True)
+    (old / "litellm/sessions/a.jsonl").write_text("{}\n", encoding="utf-8")
+    (old / "displaced/box").mkdir(parents=True)
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=(
+            (".cache/humanize/litellm", "litellm"),
+            (".cache/humanize/displaced", "displaced"),
+        ),
+    )
+
+    at = profile.directory()
+
+    assert (at / "sessions/a.jsonl").read_text(encoding="utf-8") == "{}\n"
+    assert (home / "state/displaced/box").is_dir()
+    assert not (old / "litellm").exists()
+    assert not (old / "displaced").exists()
+
+
+def test_a_home_kept_elsewhere_before_is_moved_to_this_users_own(
+    home: Path, tmp_path: Path
+) -> None:
+    (home / ".cache/humanize/litellm/sessions").mkdir(parents=True)
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=((".cache/humanize/litellm", "litellm"),),
+    )
+
+    at = profile.directory({"HOME": str(tmp_path / "turn")})
+
+    assert at == tmp_path / "turn/state/litellm"
+    assert (home / "state/litellm/sessions").is_dir()
+    assert not (tmp_path / "turn").exists()
+
+
+def test_a_home_kept_elsewhere_before_is_never_merged(home: Path) -> None:
+    old = home / ".cache/humanize/litellm/sessions"
+    old.mkdir(parents=True)
+    (old / "a.jsonl").write_text("old\n", encoding="utf-8")
+    new = home / "state/litellm/sessions"
+    new.mkdir(parents=True)
+    (new / "b.jsonl").write_text("new\n", encoding="utf-8")
+    profile = _profile(
+        home_var="",
+        home_dir="state/litellm",
+        formerly=((".cache/humanize/litellm", "litellm"),),
+    )
+
+    profile.directory()
+
+    assert sorted(one.name for one in new.iterdir()) == ["b.jsonl"]
+    assert (old / "a.jsonl").exists()
+
+
 def test_configuration(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert Profile.configuration() == home / ".config"
     monkeypatch.setenv("XDG_CONFIG_HOME", "/cfg")
@@ -732,10 +804,71 @@ def test_speaking_reads_a_hand_edited_file_forgivingly(clis: object) -> None:
     assert backends.speaking() == {}
 
 
+def test_speaking_fixes_a_mistyped_key_and_a_lone_host_in_the_file(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings.changes(
+        lambda held: held.update(
+            clis={
+                "my-agent": {
+                    "comand": ["my-agent", "--acp"],
+                    "host": "api.mine",
+                    "state": "~/.mine",
+                }
+            }
+        )
+    )
+    assert backends.speaking() == {"my-agent": ("my-agent", "--acp")}
+    assert backends.declared("my-agent") == (("api.mine",), ("~/.mine",))
+    assert backends.broken("my-agent") is None
+    assert settings.read()["clis"]["my-agent"] == {
+        "command": ["my-agent", "--acp"],
+        "hosts": ["api.mine"],
+        "state": ["~/.mine"],
+    }
+    assert "'host' renamed to 'hosts'" in caplog.text
+    assert "'~/.mine' made a list" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("entry", "why"),
+    [
+        ("my-agent --acp", r"expected a command as a list"),
+        (
+            {"command": "my-agent --acp"},
+            r"command must be a list, such as \['my-agent', '--acp'\]",
+        ),
+        ({"command": []}, "command must be a non-empty list"),
+        ({"hosts": ["api.mine"]}, "command must be a non-empty list"),
+        ({"command": ["my-agent"], "notes": "x"}, "unknown key 'notes'"),
+        ({"command": ["my-agent"], "hosts": {"a": 1}}, "hosts must be a list"),
+    ],
+)
+def test_an_entry_that_cannot_be_fixed_is_ignored_and_refused_by_name(
+    entry: object, why: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    settings.changes(lambda held: held.update(clis={"my-agent": entry}))
+    assert backends.speaking() == {}
+    said = backends.broken("my-agent")
+    assert said is not None
+    assert said.startswith(f"clis.my-agent in {settings.where()}: ")
+    assert re.search(why, said)
+    assert re.search(why, caplog.text)
+    with pytest.raises(ValueError, match=why):
+        backends.read("my-agent/m")
+    assert settings.read()["clis"]["my-agent"] == entry
+
+
+def test_broken_is_none_for_a_name_nothing_was_written_under() -> None:
+    assert backends.broken("my-agent") is None
+    backends.remember("my-agent", ["my-agent"])
+    assert backends.broken("my-agent") is None
+
+
 def test_speaking_reads_an_unreadable_file_as_nothing_added() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
-    at.write_text("clis: [unclosed\n", encoding="utf-8")
+    at.write_text("clis = [unclosed\n", encoding="utf-8")
     assert backends.speaking() == {}
 
 
@@ -743,7 +876,7 @@ def test_speaking_sees_a_change_made_since_it_last_read() -> None:
     backends.remember("my-agent", ["my-agent"])
     assert "my-agent" in backends.speaking()
     settings.where().write_text(
-        "clis:\n  their-agent: [their-agent, --x]\n", encoding="utf-8"
+        'clis.their-agent = ["their-agent", "--x"]\n', encoding="utf-8"
     )
     assert backends.speaking() == {"their-agent": ("their-agent", "--x")}
 
@@ -751,16 +884,16 @@ def test_speaking_sees_a_change_made_since_it_last_read() -> None:
 def test_speaking_reads_another_homes_file_afresh(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    said = {"one": "clis:\n  aaa-agent: [aaa]\n", "two": "clis:\n  bbb-agent: [bbb]\n"}
+    said = {"one": 'clis.aaa-agent = ["aaa"]\n', "two": 'clis.bbb-agent = ["bbb"]\n'}
     for name, text in said.items():
-        at = tmp_path / name / "settings.yaml"
-        at.parent.mkdir()
+        at = tmp_path / name / "humanize" / "settings.toml"
+        at.parent.mkdir(parents=True)
         at.write_text(text, encoding="utf-8")
         # The same size and the same moment: only the path tells the two apart.
         os.utime(at, ns=(1_000_000_000, 1_000_000_000))
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "one"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "one"))
     assert backends.speaking() == {"aaa-agent": ("aaa",)}
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "two"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "two"))
     assert backends.speaking() == {"bbb-agent": ("bbb",)}
 
 

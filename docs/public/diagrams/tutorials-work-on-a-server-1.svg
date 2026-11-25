@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img">
+  <title>Where the harness runs: on the server by default, or on this machine while the project stays on the server</title>
+  <rect width="760" height="320" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 8 4 0 8z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <!-- row 1: inside the environment -->
+    <text x="24" y="60" font-size="12" fill="#5d6a72">Harness runs on</text>
+    <text x="24" y="82" font-weight="600" fill="#b83a72">Inside the</text>
+    <text x="24" y="100" font-weight="600" fill="#b83a72">environment</text>
+    <text x="24" y="120" font-size="12" fill="#5d6a72">the default</text>
+
+    <rect x="184" y="32" width="224" height="96" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="200" y="58" font-weight="600">This machine</text>
+    <rect x="200" y="76" width="88" height="32" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="244" y="97" text-anchor="middle" fill="#435058">Humanize</text>
+
+    <line x1="408" y1="80" x2="470" y2="80" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="440" y="68" text-anchor="middle" font-size="12" fill="#5d6a72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+
+    <rect x="472" y="32" width="264" height="96" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="488" y="58" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpu-box</text>
+    <rect x="488" y="76" width="92" height="32" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="534" y="97" text-anchor="middle" fill="#0b7080" font-weight="600">harness</text>
+    <rect x="592" y="76" width="128" height="32" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="656" y="97" text-anchor="middle" fill="#435058">your project</text>
+
+    <line x1="24" y1="160" x2="736" y2="160" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+    <!-- row 2: this machine -->
+    <text x="24" y="232" font-size="12" fill="#5d6a72">Harness runs on</text>
+    <text x="24" y="254" font-weight="600" fill="#b83a72">This machine</text>
+
+    <rect x="184" y="192" width="224" height="96" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="200" y="218" font-weight="600">This machine</text>
+    <rect x="200" y="236" width="88" height="32" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="244" y="257" text-anchor="middle" fill="#435058">Humanize</text>
+    <rect x="300" y="236" width="92" height="32" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="346" y="257" text-anchor="middle" fill="#0b7080" font-weight="600">harness</text>
+
+    <line x1="408" y1="240" x2="470" y2="240" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="440" y="228" text-anchor="middle" font-size="12" fill="#5d6a72" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ssh</text>
+
+    <rect x="472" y="192" width="264" height="96" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="488" y="218" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gpu-box</text>
+    <rect x="488" y="236" width="128" height="32" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="552" y="257" text-anchor="middle" fill="#435058">your project</text>
+  </g>
+</svg>

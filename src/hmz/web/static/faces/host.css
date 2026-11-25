@@ -4,22 +4,17 @@
 
 .face {
   display: grid;
-  gap: 8px;
+  gap: var(--space-8);
   min-width: 0;
 }
 
 .face-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   min-height: var(--control-h-sm);
   color: var(--ink-3);
-  font: 600 12px var(--sans);
-  letter-spacing: 0.02em;
-}
-
-.face-mark {
-  color: var(--cyan-ink);
+  font: 500 var(--text-sm)/16px var(--sans);
 }
 
 .face-title {
@@ -32,13 +27,15 @@
   flex: 1;
 }
 
+/* Why the plain form is shown in the face's place: a wash of gold, as what waits on a person. */
 .face-note {
+  --tone: var(--gold);
   margin: 0;
-  padding: 8px 10px;
-  border-left: 3px solid var(--gold);
-  background: color-mix(in srgb, var(--gold) 10%, transparent);
-  color: var(--ink-2);
-  font-size: 13px;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+  color: var(--ink);
+  font-size: var(--text-md);
 }
 
 .face-stage {
@@ -52,7 +49,9 @@
   border: 0;
   background: transparent;
   opacity: 0;
-  transition: opacity 0.18s ease-out, height 0.12s ease-out;
+  transition:
+    opacity var(--dur-slow) var(--ease),
+    height var(--dur) var(--ease);
 }
 
 .face[data-state='ready'] .face-frame {
@@ -64,8 +63,8 @@
   position: absolute;
   inset: 0 0 auto;
   display: grid;
-  gap: 10px;
-  padding: 4px 0;
+  gap: var(--space-8);
+  padding: var(--space-4) 0;
   pointer-events: none;
 }
 
@@ -78,6 +77,7 @@
   display: block;
   width: 72%;
   height: 14px;
+  border-radius: var(--radius-xs);
   background: var(--line);
   animation: face-breathe 1.6s ease-in-out infinite;
 }

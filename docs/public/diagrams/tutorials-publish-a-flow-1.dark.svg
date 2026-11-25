@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 288" role="img">
+  <title>A flowverse index names a flow repository and a commit; adding the index and installing the flow copies that commit onto your machine</title>
+  <rect width="760" height="288" rx="12" fill="#172026"/>
+  <style>
+    .a1 { animation: a1 8s infinite }
+    .a2 { animation: a2 8s infinite }
+    .a3 { animation: a3 8s infinite }
+    @keyframes a1 { 0%, 8% { opacity: 1 } 10%, 16% { opacity: 0 } 24%, 100% { opacity: 1 } }
+    @keyframes a2 { 0%, 8% { opacity: 1 } 10%, 38% { opacity: 0 } 46%, 100% { opacity: 1 } }
+    @keyframes a3 { 0%, 8% { opacity: 1 } 10%, 60% { opacity: 0 } 68%, 100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+  <defs>
+    <marker id="h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L8 4L0 8z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="32" width="240" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="40" y="58" font-weight="600">Flow repository</text>
+    <text x="40" y="80" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">alex/review-flow</text>
+    <text x="40" y="98" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">review/__init__.py</text>
+    <text x="40" y="116" font-size="12" fill="#b3c3c8">tagged <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v0.1.0</tspan></text>
+
+    <rect x="496" y="32" width="240" height="96" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="512" y="58" font-weight="600">Flowverse index</text>
+    <text x="512" y="80" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">alex/flowverse</text>
+    <text x="512" y="98" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">flows/review/0.1.0/flow.yaml</text>
+    <text x="512" y="116" font-size="12" fill="#b3c3c8">one manifest per release</text>
+
+    <rect x="200" y="192" width="360" height="72" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="216" y="218" font-weight="600">Your machine</text>
+    <text x="216" y="240" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">…/humanize/flowverses/team/installed/review</text>
+
+    <g class="a1">
+      <line x1="496" y1="80" x2="266" y2="80" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+      <text x="380" y="70" font-size="12" fill="#9aa9b0" text-anchor="middle">names the repo and commit</text>
+    </g>
+    <g class="a2">
+      <line x1="616" y1="128" x2="482" y2="191" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+      <text x="568" y="172" font-size="12" fill="#ff94c2">1. Add the index</text>
+    </g>
+    <g class="a3">
+      <line x1="144" y1="128" x2="278" y2="191" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#h)"/>
+      <text x="48" y="172" font-size="12" fill="#ff94c2">2. Install the flow</text>
+    </g>
+  </g>
+</svg>

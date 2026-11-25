@@ -185,7 +185,10 @@ def test_a_workspace_is_a_whole_path_and_one_to_write_is_there(
         call("settings.get", workspace="here")
     assert relative.value.message == "Say the workspace as a whole path, not here."
     with pytest.raises(RpcError) as missing:
-        call("settings.forget", workspace=str(tmp_path / "gone"))
+        call("settings.set", workspace=str(tmp_path / "gone"))
     assert missing.value.code == 404
+    assert missing.value.message == f"There is no directory {tmp_path / 'gone'}."
     assert call("settings.get", workspace=str(tmp_path / "gone"))["flow"] == "ralph"
-    assert made == [(tmp_path / "gone").resolve()]
+    # What a workspace since removed was set up with is still forgotten.
+    assert call("settings.forget", workspace=str(tmp_path / "gone"))["forgot"] is True
+    assert made == [(tmp_path / "gone").resolve()] * 2

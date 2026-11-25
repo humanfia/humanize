@@ -6,6 +6,7 @@
 
 import { hash } from './api.js'
 import { flowName, h, iconButton, lasting, svg, when } from './dom.js'
+import { t } from './i18n.js'
 import { copy, menuOn } from './ui.js'
 
 /** The measures the graph is laid out in, in pixels. */
@@ -20,6 +21,8 @@ const LABEL = 34
 const ACROSS = 4
 /** The least a graph is shrunk to fit its height as it opens: past it, it is dragged through. */
 const SMALLEST = 0.55
+/** A view too short to stand two nodes one over another is a strip: what is in it is seen whole, or not read. */
+const STRIP = 2 * (HEAD + ROW + FOOT) + DOWN
 /** How far it zooms out and in. */
 const LEAST = 0.2
 const MOST = 3
@@ -28,25 +31,58 @@ const SLOP = 4
 const BOW = 42
 
 /**
+ * How many agents stand side by side: as many as the view is wide enough for, at most four, and
+ * two however narrow it is where it is shorter than it is wide, which has the room beside a node
+ * that it has not under it.
+ *
+ * @param {{width: number, height: number}} view The canvas.
+ * @returns {number}
+ */
+export function abreast(view) {
+  const fits = Math.min(ACROSS, Math.floor((view.width + APART) / ((WIDE + APART) * 0.75)) || ACROSS)
+  return Math.max(view.height < view.width ? 2 : 1, fits)
+}
+
+/**
+ * How near a graph is drawn as it opens: as wide as the view and, where the view is tall enough,
+ * with the room round its frames, never so small it cannot be read -- one taller than that is
+ * dragged through. A strip is no view to drag through: however short it is, every frame is whole
+ * in it and clear of the controls in its corners -- between their columns or between their rows,
+ * whichever leaves the frames larger.
+ *
+ * @param {{width: number, height: number}} view The canvas.
+ * @param {{width: number, height: number}} stage The frames with the room round them.
+ * @param {{width: number, height: number}} frames The frames alone, in the stage's middle.
+ * @param {{width: number, height: number}} corner What a control in a corner takes of the view, its margins counted.
+ * @returns {number} The scale.
+ */
+export function fit(view, stage, frames, corner) {
+  const roomy = Math.min(1, (view.width - 32) / stage.width, Math.max(SMALLEST, (view.height - 32) / stage.height))
+  if (view.height >= STRIP) return Math.max(LEAST, roomy)
+  const clear = Math.max((view.width - 2 * corner.width) / frames.width, (view.height - 2 * corner.height) / frames.height)
+  return Math.max(LEAST, Math.min(roomy, (view.height - 32) / frames.height, clear))
+}
+
+/**
  * @param {{open: (name: string) => void}} handlers What picking an agent does.
  * @returns {{node: HTMLElement, draw: (model: object, focus: string, epic: string) => void}}
  */
 export function graph({ open }) {
   const stage = h('div', { class: 'stage' })
-  const canvas = h('div', { class: 'canvas', 'data-hmz': 'graph', role: 'group', 'aria-label': 'The agents of the epic and who handed to whom' }, stage)
+  const canvas = h('div', { class: 'canvas', 'data-hmz': 'graph', role: 'group', 'aria-label': t('The agents of the epic and who handed to whom') }, stage)
   const zoomed = h('span', { class: 'zoom-said', 'aria-live': 'polite' }, '100%')
   const zoom = h(
     'div',
-    { class: 'zoom', role: 'group', 'aria-label': 'Zoom' },
-    iconButton('minus', 'Zoom out', { onclick: () => scale(at / 1.2) }),
+    { class: 'zoom', role: 'group', 'aria-label': t('Zoom') },
+    iconButton('minus', t('Zoom out'), { onclick: () => scale(at / 1.2) }),
     zoomed,
-    iconButton('plus', 'Zoom in', { onclick: () => scale(at * 1.2) }),
-    iconButton('recenter', 'Recenter', { onclick: () => recenter() }),
+    iconButton('plus', t('Zoom in'), { onclick: () => scale(at * 1.2) }),
+    iconButton('recenter', t('Recenter'), { onclick: () => recenter() }),
   )
   const node = h('div', { class: 'graph' }, canvas, zoom)
   menuOn(canvas, () => [
-    { label: 'Recenter', glyph: 'recenter', act: () => recenter() },
-    { label: 'Actual size', glyph: 'plus', act: () => scale(1) },
+    { label: t('Recenter'), glyph: 'recenter', act: () => recenter() },
+    { label: t('Actual size'), glyph: 'plus', act: () => scale(1) },
   ])
   // The paper has no edge: the view is where on it the canvas's corner is, and how near.
   let at = 1
@@ -55,6 +91,8 @@ export function graph({ open }) {
   // Until it is moved, the graph keeps to the middle of a view that grows or shrinks.
   let moved = false
   let size = { width: 0, height: 0 }
+  // The frames stand in the stage's middle, with room round them for the bows.
+  let framed = { width: 0, height: 0 }
   let shape = ''
   let fitted = false
   let placing = []
@@ -78,14 +116,16 @@ export function graph({ open }) {
     show()
   }
 
-  /** The graph as it opens: as wide as the view, not so small it cannot be read, in its middle. */
+  /** The graph as it opens: fitted to the view, in its middle. */
   function recenter() {
     if (!canvas.clientWidth || !size.width) return
     const width = canvas.clientWidth
     const height = canvas.clientHeight
-    at = Math.min(1, (width - 32) / size.width, Math.max(SMALLEST, (height - 32) / size.height))
+    // The zoom control keeps to one corner, as far from the edges as what stands in the others.
+    at = fit({ width, height }, size, framed, { width: zoom.offsetWidth + 2 * zoom.offsetLeft, height: 2 * (height - zoom.offsetTop) - zoom.offsetHeight })
     x = (width - size.width * at) / 2
-    y = Math.max(16, (height - size.height * at) / 2)
+    // One too tall for the view opens on its top, to be dragged down through.
+    y = framed.height * at > height - 32 ? 16 : (height - size.height * at) / 2
     moved = false
     show()
   }
@@ -180,13 +220,12 @@ export function graph({ open }) {
       const long = Math.max(0, (turn.end ?? to) - turn.start)
       capsule.style.left = pct(turn.start)
       capsule.style.width = `max(3px, ${(long / span) * 100}%)`
-      capsule.title = `${said}: ${when(turn.start)}, ${turn.end === null ? 'still going' : lasting(long)}`
+      capsule.title = t('{what}: {when}, {long}', { what: said, when: when(turn.start), long: turn.end === null ? t('still going') : lasting(long) })
     }
     for (const now of nows) now.style.left = pct(to)
   }
 
-  /** How many agents stand side by side: as many as the view is wide enough for, at most four. */
-  const across = () => Math.max(1, Math.min(ACROSS, Math.floor((canvas.clientWidth + APART) / ((WIDE + APART) * 0.75)) || ACROSS))
+  const across = () => abreast({ width: canvas.clientWidth, height: canvas.clientHeight })
   let last = null
   new ResizeObserver(() => {
     if (last && across() !== laidAcross) {
@@ -245,7 +284,8 @@ export function graph({ open }) {
     // Stacked one over another, they bow out to the sides instead.
     const room = INSET + Math.min(200, widest * 0.16)
     const aside = INSET + (laidAcross === 1 ? WIDE * 0.4 : 0)
-    size = { width: widest + 2 * aside, height: Math.max(y - DOWN * 0.6, HEAD) + 2 * room }
+    framed = { width: widest, height: Math.max(y - DOWN * 0.6, HEAD) }
+    size = { width: framed.width + 2 * aside, height: framed.height + 2 * room }
     for (const box of Object.values(boxes)) {
       box.x += aside
       box.y += room
@@ -265,7 +305,7 @@ export function graph({ open }) {
     )
     stage.replaceChildren(
       ...frames.map((frame, index) =>
-        h('div', { class: ['frame', index === 0 && 'root'], style: { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.w}px`, height: `${frame.h}px` } }, h('span', { class: 'frame-label', title: frame.flow }, index === 0 ? 'flow' : 'called', h('b', {}, flowName(frame.flow)))),
+        h('div', { class: ['frame', index === 0 && 'root'], style: { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.w}px`, height: `${frame.h}px` } }, h('span', { class: 'frame-label', title: frame.flow }, index === 0 ? t('flow') : t('called'), h('b', {}, flowName(frame.flow)))),
       ),
       edges,
       ...model.agents.filter((one) => boxes[one.name]).map((one) => agentNode(one, boxes[one.name], focus === one.name, epic, model.live)),
@@ -288,20 +328,20 @@ export function graph({ open }) {
   function agentNode(agent, box, focused, epic, going) {
     const base = hash(`/epics/${encodeURIComponent(epic)}`)
     // The role an agent fills is said after its name, beside what it runs as; a person's is its name.
-    const about = [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ')
+    const about = [agent.role !== agent.name && agent.role, agent.said].filter(Boolean).join(' · ')
     const head = h(
       'button',
       { class: 'node-head', type: 'button', 'aria-pressed': String(focused) },
-      h('span', { class: 'node-name' }, h('i', { class: 'swatch', 'aria-hidden': 'true' }), agent.name, agent.person ? h('span', { class: 'node-tag' }, 'person') : null),
-      h('span', { class: 'node-spec mono' }, about || '—'),
-      h('span', { class: 'node-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
+      h('span', { class: 'node-name' }, h('i', { class: 'swatch', 'aria-hidden': 'true' }), agent.name, agent.person ? h('span', { class: 'node-tag' }, t('person')) : null),
+      h('span', { class: 'node-spec', 'data-tip': agent.spec || null }, about || '—'),
+      h('span', { class: 'node-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? t('{count} tokens', { count: agent.tokens }) : ''].filter(Boolean).join(' · ')),
     )
     head.addEventListener('click', () => open(agent.name))
     const sessions = agent.sessions.map((one) => {
       const track = h('span', { class: 'track', 'aria-hidden': 'true' })
       one.turns.forEach((turn, index) => {
         const capsule = h('span', { class: ['capsule', turn.end === null && 'open'] })
-        placing.push({ capsule, turn, said: `${one.key}, turn ${index + 1}` })
+        placing.push({ capsule, turn, said: t('{session}, turn {turn}', { session: one.key, turn: index + 1 }) })
         track.append(capsule)
       })
       if (going) {
@@ -311,14 +351,14 @@ export function graph({ open }) {
       }
       return menuOn(h(
         'a',
-        { class: ['node-session', one.working && 'working'], href: `${base}/sessions/${encodeURIComponent(one.key)}`, title: [one.key, one.about, `${one.turns.length} turn${one.turns.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '), 'data-hmz': 'graph-session' },
-        h('span', { class: 'session-key mono' }, one.working ? '●' : '○', ' ', one.key.split('/').pop(), one.unread ? h('i', { class: 'unread', title: 'Unread' }) : null),
+        { class: ['node-session', one.working && 'working'], href: `${base}/sessions/${encodeURIComponent(one.key)}`, title: [one.key, one.about, t('{n} turns', { n: one.turns.length })].filter(Boolean).join(' · '), 'data-hmz': 'graph-session' },
+        h('span', { class: 'session-key mono' }, one.working ? '●' : '○', ' ', one.key.split('/').pop(), one.unread ? h('i', { class: 'unread', title: t('Unread') }) : null),
         track,
-        h('span', { class: 'sr-only' }, `${one.key}: ${one.turns.length} turns${one.working ? ', working' : ''}`),
+        h('span', { class: 'sr-only' }, one.working ? t('{session}: {count} turns, working', { session: one.key, count: one.turns.length }) : t('{session}: {count} turns', { session: one.key, count: one.turns.length })),
       ), () => [
         { head: one.key },
-        { label: 'Open', glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` },
-        { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(one.key)}`, 'Link copied') },
+        { label: t('Open'), glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` },
+        { label: t('Copy link'), glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(one.key)}`, t('Link copied')) },
       ])
     })
     const made = h(
@@ -333,17 +373,17 @@ export function graph({ open }) {
       h(
         'div',
         { class: 'node-sessions' },
-        h('a', { class: 'node-session node-log', href: `${base}/logs/${encodeURIComponent(agent.name)}`, 'data-hmz': 'graph-log' }, h('span', { class: 'session-key mono' }, '≡ log'), h('span', { class: 'dim' }, agent.person ? 'asked and answered' : 'every session')),
+        h('a', { class: 'node-session node-log', href: `${base}/logs/${encodeURIComponent(agent.name)}`, 'data-hmz': 'graph-log' }, h('span', { class: 'session-key mono' }, t('≡ log')), h('span', { class: 'dim' }, agent.person ? t('asked and answered') : t('every session'))),
         sessions,
       ),
     )
     return menuOn(made, () => [
       { head: [agent.name, about].filter(Boolean).join(' · ') },
-      agent.person ? null : { label: focused ? 'Shown' : 'Pick out', glyph: 'agent', act: () => open(agent.name), disabled: focused },
-      { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
-      ...agent.sessions.slice(0, 8).map((one) => ({ label: `Open ${one.key}`, glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` })),
+      agent.person ? null : { label: focused ? t('Shown') : t('Pick out'), glyph: 'agent', act: () => open(agent.name), disabled: focused },
+      { label: t('Open log'), glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
+      ...agent.sessions.slice(0, 8).map((one) => ({ label: t('Open {name}', { name: one.key }), glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` })),
       '-',
-      agent.spec && !agent.person ? { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.spec, 'Agent copied') } : null,
+      agent.spec && !agent.person ? { label: t('Copy agent'), glyph: 'copy', act: () => copy(agent.spec, t('Agent copied')) } : null,
     ])
   }
 
@@ -381,7 +421,7 @@ function edge(from, to, one, latest) {
   return svg(
     'g',
     { class: ['edge', last && 'latest'].filter(Boolean).join(' ') },
-    svg('title', {}, `${one.from} handed to ${one.to} ${one.count} time${one.count === 1 ? '' : 's'}`),
+    svg('title', {}, t('{from} handed to {to} {n} times', { from: one.from, to: one.to, n: one.count })),
     svg('path', { d: `M${start.x} ${start.y} Q${control.x} ${control.y} ${end.x} ${end.y}`, 'marker-end': `url(#${last ? 'arrow-latest' : 'arrow'})` }),
     svg('rect', { x: mid.x - wide / 2, y: mid.y - 10, width: wide, height: 20 }),
     svg('text', { x: mid.x, y: mid.y + 4, 'text-anchor': 'middle' }, said),

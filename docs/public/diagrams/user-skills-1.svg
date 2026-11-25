@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 288" role="img">
+  <title>A session's home holds links to your skills and to the flow's, and the coding agent is started in it</title>
+  <rect width="760" height="288" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <text x="24" y="40" font-size="16" font-weight="600">One home for each session</text>
+
+    <rect x="24" y="84" width="216" height="64" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+    <text x="40" y="110">Your skills</text>
+    <text x="40" y="132" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">~/.claude/skills/</text>
+
+    <rect x="24" y="164" width="216" height="64" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+    <text x="40" y="190">The flow's skills</text>
+    <text x="40" y="212" font-size="12" fill="#435058" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">rlar/skills/</text>
+
+    <rect x="304" y="56" width="232" height="184" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="320" y="82">Session home</text>
+    <rect x="320" y="96" width="200" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="332" y="121" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">skills/release-notes</text>
+    <rect x="320" y="176" width="200" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="332" y="201" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">skills/review-notes</text>
+
+    <rect x="600" y="116" width="136" height="64" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+    <text x="668" y="144" text-anchor="middle">Coding agent</text>
+    <text x="668" y="164" text-anchor="middle" font-size="12" fill="#5d6a72">reads both</text>
+
+    <g stroke="#5d6a72" stroke-width="1.5" fill="none">
+      <path d="M240 116 H318" marker-end="url(#a)"/>
+      <path d="M240 196 H318" marker-end="url(#a)"/>
+      <path d="M536 148 H598" marker-end="url(#a)"/>
+    </g>
+    <g font-size="12" fill="#435058" text-anchor="middle">
+      <text x="278" y="108">linked</text>
+      <text x="278" y="188">linked</text>
+      <text x="567" y="140">starts in</text>
+    </g>
+    <text x="24" y="266" font-size="12" fill="#5d6a72">Removed when the session's process stops. Your skills and your project stay as they were.</text>
+  </g>
+</svg>

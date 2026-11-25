@@ -1,260 +1,126 @@
-<script setup>
-import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+---
+title: Talk to a running flow
+description: Say a line to an agent while a flow runs, see where the line waits and when it is taken, and tell who said what when several interfaces follow one epic.
+---
 
-const working = [
-  '[dim]─ reading actor ─[/]',
-  '',
-  '[dim]● actor is working[/]',
-  '',
-  "[g]●[/] Starting with the retry in charge(), then I'll run the suite.",
-]
-const agents = [
-  { r: '[m]actor · claude/claude-opus-5-5:high · ● 1[/]' },
-  { r: '[m]reviewer · codex/gpt-5.6-sol:high · ○ 1[/]' },
-  { r: '[m]input 41.2k · output 18.9k · cache_read 1.71M · cache_write 72.4k[/]' },
-]
-const spent = '[m]$4.12 · 38 out/s[/]'
-const status = '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]'
-const keys = 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop'
+# Talk to a running flow
 
-const steer = [
-  {
-    label: '1 · type',
-    lines: [
-      ...working,
-      '',
-      { r: '[m]actor · claude/claude-opus-5-5:high · ● 1[/][n]1[/]' },
-      agents[1],
-      agents[2],
-      { r: spent },
-      { rule: true },
-      { prompt: 'and fix the tests too[n]2[/]' },
-      { rule: true },
-      {
-        l: status,
-        keys: 'enter send · shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c clear',
-      },
-    ],
-    caption:
-      'The actor is in the middle of a turn. You type as you would to start one; the status line offers <kbd>enter</kbd> send.',
-  },
-  {
-    label: '2 · pinned',
-    lines: [
-      ...working,
-      '',
-      ...agents,
-      { l: '[m]❯ and fix the tests too · with actor[/][n]3[/]', r: spent, hl: true },
-      { rule: true },
-      { prompt: '' },
-      { rule: true },
-      { l: status, keys },
-    ],
-    caption:
-      'Sent. The line is pinned above the editor, saying which agent has it, until that agent says the words are in front of it.',
-  },
-  {
-    label: '3 · taken',
-    lines: [
-      ...working,
-      '',
-      { t: '[dim]❯[/] and fix the tests too[n]4[/]', hl: true },
-      '',
-      '[g]●[/] Will do. Two of the tests still assert three retries; updating them too.[n]5[/]',
-      '',
-      ...agents,
-      { r: spent },
-      { rule: true },
-      { prompt: '' },
-      { rule: true },
-      { l: status, keys },
-    ],
-    caption:
-      'Taken. The line moves into the transcript, and the same turn carries on with it in mind.',
-  },
-]
+Send a line to an agent while an epic runs. The agent takes the line into its current or next turn without stopping or restarting.
 
-const refused = [
-  {
-    label: 'cursor-agent',
-    lines: [
-      '[dim]─ reading actor ─[/]',
-      '',
-      '[dim]● actor is working[/]',
-      '[r]hmz: CursorSession cannot be talked to mid-turn[/][n]1[/]',
-      '',
-      { r: '[m]actor · cursor-agent/composer-2.5:auto · ● 1[/]' },
-      { r: '[m]reviewer · codex/gpt-5.6-sol:high · ○ 1[/]' },
-      { r: '[m]input 22.8k · output 6.3k · cache_read 402.1k · cache_write 18.0k[/]' },
-      { l: '[m]❯ and fix the tests too[/][n]2[/]', r: '[m]$0.91 · 52 out/s[/]', hl: true },
-      { rule: true },
-      { prompt: '' },
-      { rule: true },
-      { l: status, keys },
-    ],
-  },
-]
-</script>
+![Humanize Desktop: a line is typed into the box of an agent's session, it waits, and the agent's next turn takes it and answers](/shots/user-steering-say.svg)
 
-# Talking to a running turn
+## Where a line goes
 
-While an agent is working, type a line and press <kbd>enter</kbd>. The line goes into the turn
-that is running, and the agent takes it into account without starting over. There is no mode
-to switch into and no key to hold.
+![A line goes into the agent's open turn, or it waits until that agent's next turn starts](/diagrams/user-steering-1.svg)
 
-::: info At a glance
-- **You will** add to, correct or redirect what an agent is doing, without stopping the run.
-- **Use it when** the agent has gone the wrong way, missed part of the task, or needs a fact
-  only you have.
-- **You need** a flow running in `hmz`. [Your first run](/user/first-run) starts one.
-:::
+Each line targets one agent. If the agent has an open turn, the line enters that turn. Otherwise, the line waits until the agent's next turn starts. Waiting lines are never dropped while the epic runs.
 
-## Try it
+The agent's harness determines whether a line can enter a running turn:
 
-While a turn is running, type at the prompt and press <kbd>enter</kbd>:
+| Harness | A line said mid-turn |
+| --- | --- |
+| Claude Code, Codex, Kimi Code, Pi, Oh My Pi | goes into the running turn |
+| every other harness | is refused, waits, and goes into the next turn |
 
-```text
-❯ and fix the tests too
+Agents take lines one at a time. The next line waits until the agent takes the previous one.
+
+## In the app
+
+Humanize Desktop and the web page work the same way.
+
+1. Open the running epic. The box under the graph says **Message the epic**.
+2. Choose a recipient in the **To** chip.
+3. Type the line and press <kbd>enter</kbd>.
+
+![The box under a running epic, with the To chip set to Next turn](/shots/user-steering-box.svg)
+
+| **To** | The line goes |
+| --- | --- |
+| **Next turn** | into the first session that has a turn open or, with none open, into the next turn any agent starts. If a question you may answer is waiting for a typed line, the line answers it instead. |
+| an agent's name | into that agent's newest session with a turn open |
+| a session: an agent's name and a number | into that session. A session in the middle of a turn is marked `(working)`. |
+| a role followed by `(person)` | to no agent: it answers that role's question once one waits for a typed line. If another interface holds the role, the line is refused. |
+
+To skip the chip, select an agent or session in the sidebar. The box changes to `Message` followed by that name, and sends every line there. If that session is asking you a question, your line answers it.
+
+Once a turn takes the line, it appears in the session thread labeled with the sender, such as `alex@web said`. If a line cannot be sent, the reason appears under the box.
+
+## In the terminal
+
+Type a line at the `hmz` prompt and press <kbd>enter</kbd>.
+
+The line goes to the agent whose transcript is on screen. Press <kbd>shift+tab</kbd> to switch to another agent first. When you view an agent, the line goes to its newest session with an open turn.
+
+![The terminal interface: a line is typed, it is pinned above the prompt, and the agent's next turn takes it into the transcript](/shots/user-steering-terminal.svg)
+
+Untaken lines stay pinned above the prompt behind `❯`.
+
+![Three lines pinned above the prompt: one with an agent, one waiting, and one said from another interface](/shots/user-steering-pinned.svg)
+
+| On the pin | Meaning |
+| --- | --- |
+| `· with` and an agent's name | The line has been put into that agent's running turn. The agent has not confirmed it yet. |
+| no `with` | The line waits for a turn to start. |
+| `· by` and a name | Another interface said the line. |
+| `… 2 more waiting` | The pin shows at most 5 rows. The lines that do not fit are counted, here two. |
+
+When a turn takes the line, it leaves the pin and joins the transcript. A line can also end in one of these ways:
+
+| The terminal says | What happened |
+| --- | --- |
+| a red line with the harness's reason | The harness refused the line mid-turn. The line goes back to the front of the waiting lines. |
+| `sent to` the agent, `which ended its turn without acknowledging it` | The turn ended before the agent confirmed the line. It may or may not have reached the model. Say it again if it matters. |
+| `Never sent` | The epic ended while the line still waited. |
+| `sent to the agent, not acknowledged` | The epic ended while an agent held the line unconfirmed. |
+
+If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`, or with `to answer, not yours.` when another interface holds that role.
+
+## From the command line
+
+`hmz epic say` says a line to the epic of the current directory, from a script or another shell:
+
+```bash
+hmz epic say 'use the staging database'
+hmz epic say --to NeiKos 'skip the migration'
 ```
 
-## How it works
+Without `--to`, the line goes where a line typed in the app's message box goes. `--to` takes an agent's name, a session such as `NeiKos/2`, or `outworlder:<role>`. `hmz epic attach` follows the epic and shows the line when a session takes it. See [`hmz epic`](/reference/cli#hmz-epic) for `-w` and `--slot`, which name an epic elsewhere.
 
-A **turn** is one exchange with an agent: it is given something, works with its tools, and
-answers. A flow is a loop of turns, and most of the time one of them is open. What you type at
-the prompt while it is open is not a new task. It is something said to the agent in the middle
-of its work, the way you would lean over and say it to a colleague.
+## Follow one epic from several interfaces
 
-Three things happen to the line, in order:
+Connect any number of windows, web pages, and terminals to the same epic to talk to its agents. Open the epic panel and check **Frontends** to see every connected interface.
 
-1. **It is pinned.** It appears above the editor, dim, with the agent that has it. Nothing is
-   lost if the agent is busy: the pin is a queue.
-2. **It is taken.** Once the agent's CLI confirms the words are in front of the model, the line
-   leaves the pin and appears in the transcript, where the agent's own words are.
-3. **The turn carries on.** The agent keeps what it has done so far and works your line in. It
-   does not start the turn again, and nothing it has already written is undone.
+![The Frontends section of the epic panel, listing this page and a terminal](/shots/user-steering-frontends.svg)
 
-Which turn gets the line depends on the transcript you are reading, and whether the agent's CLI
-can take words mid-turn at all. Both are below.
+Each interface uses your login name and its type, such as `alex@tui` or `alex@web`. Set the environment variable `HUMANIZE_NAME` to replace the login name. Duplicate names get a number, such as `#2` or `#3`.
 
-## Example: add to the task four minutes in
+Every interface sees every line. A line, an answer or an epic started from another interface carries that interface's name. Each question takes one answer: the first answer wins, and other interfaces see who answered. Stopping the epic stops it everywhere.
 
-An [`rlar`](https://humanfia.ai/flows/rlar) run has an **actor** fixing a flaky payment test and a **reviewer**
-that checks each of its turns. Four minutes into the actor's turn, you remember that the tests
-assert the old retry count, and want them fixed in the same turn. Step through what the screen
-does:
+## Hold a role, or step away
 
-<TermScreen title="hmz · rlar" :frames="steer" />
+A role a person fills can be held by one interface, so that only it answers that role's questions.
 
-What to look at, by number:
+- In the app, open the epic panel and select **People**. Click **Claim**, **Take over** or **Release** beside a role, **Away** or **Back** to say whether anybody is there for it, and **Away for all** for every role.
+- In the terminal, press <kbd>ctrl+o</kbd> and then <kbd>3</kbd>. <kbd>enter</kbd> claims, takes over or releases the role under the cursor, <kbd>w</kbd> sets it away or back, and <kbd>shift+w</kbd> does so for every role. `/claim` and `/afk` do the same from the prompt.
 
-1. **`● 1` on the actor's line.** `●` means the agent has a turn open, so a line sent now goes
-   into that turn. The reviewer's `○` means it is between turns. The number is how many
-   conversations the agent holds.
-2. **The editor.** You type exactly as you would to start a task. The status line changes its
-   last keys to `enter send` and `ctrl+c clear`: <kbd>ctrl+c</kbd> now clears what you typed
-   rather than stopping anything.
-3. **The pin, `· with actor`.** Sent, but not yet in front of the model. The name says which
-   agent holds it; where two agents are working, that is the half worth knowing. A pin with no
-   `with` is still waiting for a turn to go into.
-4. **The line in the transcript.** The agent's CLI has confirmed it. From here on it is part of
-   the conversation, and the [trace](/user/tracing) records it where it landed.
-5. **The agent's answer, in the same turn.** No new turn started, and the work it had done on
-   `charge()` is kept.
+While a role is away, a question asked of it is answered at once with nothing, and the epic carries on.
 
-### Check it worked
+## Use the board
 
-- The pin above the editor is gone, and your line is in the transcript with a dim `❯` in front.
-- The agent's next words respond to it.
-- On the [monitor](/user/monitor) the agent's turn count has not gone up: the same turn took
-  the line.
+Some runs keep a board of key-value pairs that both you and the run can edit. Nothing waits on the board. It appears only when the run uses one.
 
-## Where your line goes
+- In the app, open the epic panel and select **Board**. Click **Edit** then **Save** to change a value, or **Remove** twice to delete a line. Fill in **Key** and **Value** and click **Add** to create a line.
+- In the terminal, press <kbd>ctrl+o</kbd> and then <kbd>2</kbd> to open **Board** beside the log. Press <kbd>a</kbd> to add a line, <kbd>enter</kbd> to edit the line under the cursor and <kbd>d</kbd> to remove it; removing asks first. The monitor (<kbd>←</kbd> at an empty prompt) shows the same board under the graph.
 
-To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that is; see
-[Many conversations at once](/user/conversations).
+- From the command line, `hmz epic board` prints the board, `hmz epic board KEY VALUE` writes a line, and `hmz epic board KEY --remove` removes it.
 
-| You are reading | Your line goes |
-| --- | --- |
-| a conversation with a turn open | into that turn |
-| an agent, which is where a run lands | into whichever of its conversations has a turn open |
-| a conversation between turns, or nothing is working | onto the pin, then into the next turn to start |
-| a [chat](/user/chat) between turns, or no flow going | the chat's next message, which starts its next turn |
-| an outworlder, or any view where a [question](/user/questions) is up | the answer to it |
+Lines tagged **Flow** in the app or `flow's` in the terminal belong to the run and are read-only.
 
-Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
-before it, so three lines typed in a row are three things said, each answered in turn.
+## Good to know
 
-A line typed between turns is never dropped. It stays on the pin and goes into the next turn
-to start.
-
-Where [somebody else reads the same run](/features/daemon#several-people-on-one-run), their
-lines wait on the same pin and land in the same transcripts, marked ` · by <name>`. Anybody may
-say anything to any agent.
-
-## Which agents take a line mid-turn
-
-| Your line goes into | Backends |
-| --- | --- |
-| <Badge type="tip" text="this turn" /> | Claude Code, Codex, Kimi Code, Oh My Pi, pi |
-| <Badge type="warning" text="next turn" /> | Antigravity, Cursor, DeepSeek Harness, Grok Build, MiMo Code, MiniMax Code, opencode, Qwen Code, and any CLI you add on the Accounts page of `/settings` |
-
-The backends in the second row cannot be talked to while they work. Your line is refused, and
-goes back on the pin, where the next turn to start takes it:
-
-<TermScreen title="hmz · rlar" :frames="refused" />
-
-1. **The red `hmz:` line** names the backend that refused. Nothing is wrong with the run.
-2. **The pin keeps your line**, now without `with actor`: it waits for the next turn to start.
-
-An agent working on [another machine](/user/remote-execution) takes a line during a turn the
-same way it would locally. Between its turns, your line waits on the pin like any other.
-
-## Variations
-
-- **Ask without steering.** To ask how the run is going without the agent hearing it, use
-  [`/btw`](/user/btw). To have the line said for you, ask [Ai-chan](/user/ai-chan).
-- **Several lines at once.** <kbd>shift+enter</kbd> starts a new line in the editor, so a
-  paragraph goes as one message rather than as several.
-- **Steer one agent of several.** Press <kbd>shift+tab</kbd> until that agent's conversation is
-  on the screen, then type. On an agent's own transcript, a line goes to whichever of its
-  conversations has a turn open.
-
-## Troubleshooting
-
-### My line stays on the pin and never goes
-
-You were reading a conversation that will not take another turn. A line typed on one
-conversation's transcript waits for *that* conversation, and a Ralph loop opens a fresh one
-every round, so an old round's conversation never starts again. The pin shows no `with`.
-
-Press <kbd>shift+tab</kbd> onto the conversation that is running, or read the agent itself from
-the [monitor](/user/monitor), and type the line again. The one
-still pinned goes into the transcript as `never sent` when the flow ends.
-
-### `sent to actor, which ended its turn without acknowledging it`
-
-The turn ended before the CLI confirmed your words were in front of the model. The line goes
-into the transcript either way. It may or may not have reached the agent, so say it again if it
-matters.
-
-### Lines marked `never sent` or `sent to the agent, not acknowledged`
-
-The flow ended with lines still pinned. `never sent` never left the pin.
-`sent to the agent, not acknowledged` was handed to the agent, which never confirmed it: it may
-have reached the model.
-
-### I want it to stop, not change course
-
-A line never stops a run. Type `/stop` or press <kbd>ctrl+c</kbd> twice. See
-[Stopping](/user/stopping).
-
-## Next steps
-
-- [Side questions (`/btw`)](/user/btw): ask about the run without the agents hearing it.
-- [Many conversations at once](/user/conversations): choose which agent you are talking to.
-- [Questions](/user/questions): when the agent asks you instead.
-- [A line typed mid-turn](/features/steering): how it works, drawn.
-- [TUI reference](/reference/tui): every key at the prompt.
-
-A flow can put words into its own agents' turns as well. See
-[Writing a flow](/weaver/writing-a-flow).
+- Flows written with `hmz.flows` keep no board, so their epics show no **Board** tab and no board in the monitor.
+- The app does not show waiting lines. Check the terminal pins to see lines that have not been taken yet.
+- Sending a line never stops a run. To stop a run, see [Stop a run](/user/stopping).
+- To ask about a run without an agent hearing, [ask a side question](/user/side-questions). To answer a flow, see [Answer a flow's questions](/user/questions).
+- `hmz exec` has no prompt and takes no lines.
+- A flow can send a line into its own agent's running turn. See [Sessions and turns](/builder/turns).

@@ -239,11 +239,20 @@ has its own file systems and its own temporary directory.
 
 **2.3.4** **This machine** is the machine on which the hmz process being described runs.
 
-**2.3.5** The **home** is the directory named by the environment variable `HUMANIZE_HOME` where that
-variable is set and non-empty, and the directory `.hmz` in the user's home directory otherwise.
+**2.3.5** The **home** is the four directories in which hmz keeps what it keeps for the user of a
+machine: the **config directory**, the **data directory**, the **state directory** and the **cache
+directory**, each the directory `humanize` in the base directory that the environment variable
+`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` or `XDG_CACHE_HOME` respectively names where it
+is set to an absolute path, and in `~/.config`, `~/.local/share`, `~/.local/state` or `~/.cache`
+respectively otherwise (Section 4 of [FILES]).
 
 **2.3.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
+
+**2.3.6.1** A **folderless workspace** is a workspace hmz made for one epic or one chat that was
+started in no directory of the user's (Section 4.7.1.3 of [DAEMON]). It is a workspace as any
+other, save that a frontend MUST NOT show it as a folder: it MUST show every epic and chat of every
+folderless workspace together, as those of no folder.
 
 **2.3.7** A distribution of the Windows Subsystem for Linux (WSL) is a machine apart from the
 Windows that runs it.
@@ -316,7 +325,7 @@ epics apart from every frontend, and serves every frontend over the sessions of 
 **2.6.2** A **frontend** is a way for a user to start, watch and steer epics: the command line, the
 terminal interface (TUI), the web interface, or the desktop application for macOS or for Windows.
 
-**2.6.3** The **settings file** is the file `settings.yaml` in the home (Section 3 of [FILES]).
+**2.6.3** The **settings file** is the file `settings.toml` in the home (Section 3 of [FILES]).
 
 **2.6.4** Every frontend, `hmz exec` and every program using the software development kit is a
 client of a daemon, and runs and holds every epic through one (Section 3.3.8 of [DAEMON]).
@@ -383,10 +392,11 @@ host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
-**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, an epic an earlier hmz
-recorded for a chat, when a chat was an epic (Section 8.7.10). Where this section speaks of an
-epic's flow, roles, parameters, budget, stopping or picking up, it speaks of epics of kind `flow`
-alone; a chat is no epic, and is started, limited and ended as Section 8 states.
+**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow. An earlier hmz recorded each chat
+as an epic of kind `chat`, when a chat was an epic; such an epic is made a chat (Section 8.7.10).
+Where this section speaks of an epic's flow, roles, parameters, budget, stopping or picking up, it
+speaks of epics of kind `flow` alone; a chat is no epic, and is started, limited and ended as
+Section 8 states.
 
 ### 3.3. Lifecycle
 
@@ -582,8 +592,7 @@ other than a stop or a budget exhaustion.
 **3.3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
 this machine holds it.
 
-**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except the epic an earlier hmz
-recorded for an Ai-chan conversation, where that conversation is carried on (Section 14.8.5).
+**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end.
 
 **3.3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
 epic refused before its flow was called, an epic ended by its budget, an error the flow raised and
@@ -720,7 +729,7 @@ Out of scope:
 - The flow-facing API through which a flow declares roles, permissions, hooks, tools and budgets:
   Section 3 of [PYTHON].
 - The `-a` command-line option and exit statuses: [CLI].
-- The `nous` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
+- The `nous` and `clis` keys of `settings.toml`: Section 3 of [FILES].
 - Where an epic keeps the sessions of its agents: Section 3.
 - How usage and cost are displayed while an epic runs: Section 10.
 
@@ -1175,28 +1184,73 @@ nothing. Each harness MUST be launched as the table states:
 | `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
 | `omp` | `yolo` | `yolo` |
 | `pi` | `edit` and `write` withheld | nothing withheld |
-| `qwen` | `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | nothing withheld |
+| `qwen` | `yolo`, `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | `yolo` |
 | `dsh`, ACP | every request granted | every request granted |
 | `litellm` | nothing said | nothing said |
 
 **4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
 permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
-`untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
-MUST run at `yolo` where the table says `auto`.
+`untrusted` where the table says `never` (Section 4.9.3.3), or `on-request` where its requirements
+forbid `untrusted` (Section 4.6.2.6). While a permission-request hook or an ask-user hook is hung, `kimi`
+MUST run at `yolo` where the table says `auto`. Where Kimi Code refuses the mode it is told, or
+holds the session at another, hmz MUST fail the session before the prompt is sent, naming the mode.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
 root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
-withheld, and MUST say so once per agent.
+withheld, and MUST say so once per agent. hmz MUST read the managed settings of the machine it runs
+`claude` on before launching it, without running it: where they forbid `bypassPermissions`, the
+agent MUST be launched at `acceptEdits` from its first turn; where they keep hooks off its command
+line, the pre-tool-use hook (Section 4.9.2.1) MUST be registered over its stream instead; and where
+they drop the flow's callbacks, or the allowed tools of an agent hmz does not confine, hmz MUST
+refuse the agent before launching it, naming the setting and where it is set.
 
-**4.6.2.6** Where Codex refuses `danger-full-access` on the harness machine, hmz MUST run that agent
-with sandbox `workspace-write` and the approval policy `on-request`, granting every request, and
-MUST say so once per agent.
+**4.6.2.6** hmz MUST read the requirements Codex runs under on the harness machine before it opens a
+thread. Where they forbid the sandbox or the approval policy Section 4.6.2.3, Section 4.6.2.4 or
+Section 4.6.4.19 names, hmz MUST run that agent at the allowed sandbox nearest it, wider only where
+confinement and not Codex's own sandbox holds the grant, and at `never` where allowed, else
+`on-request`, else `untrusted`, with requests reviewed by the user; it MUST grant every request,
+except one to leave a sandbox that alone holds the grant, which it MUST refuse unless a
+permission-request hook decides it; and it MUST say so once per agent. Where no allowed combination
+runs the agent within its grant, with any write the grant permits, with a hung permission-request
+hook asked, and with no model reviewing requests, opening the thread MUST fail, naming what the
+requirements allow.
 
 **4.6.2.7** hmz MUST NOT write what it tells a harness into any configuration file of the user.
 
 **4.6.2.8** A fake command line ruled out of Codex's sandbox (Section 4.10.2.8) MUST NOT widen the
 sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
 cut unless confinement (Section 4.6.4) permits it.
+
+**4.6.2.9** Where a Cursor team's admin has switched off Run Everything or headless use, no
+`cursor-agent` launch of the table is unattended and granted, so hmz MUST fail the agent's turn as
+one no retry changes, naming the harness, the team's admin and the setting.
+
+**4.6.2.10** No managed or system policy can forbid `dsh`, `mcode` or `omp` the mode the table gives
+it, and hmz MUST launch each at that mode without reading any policy first. Where a `dsh` agent is
+confined, hmz MUST hold its sessions at that mode whatever default preset the person's own settings
+name, without writing to those settings.
+
+**4.6.2.11** Where `grok inspect` reports always-approve locked off on the harness machine, hmz MUST
+run that agent without always-approve, every turn over `grok agent` with no tools withheld, every
+request granted and a schema asked for in the prompt, and MUST say so once per agent. An agent with
+web search off, or with a setting only `grok -p` carries, MUST be refused as its session opens, and
+a fork of its conversation MUST be refused, each naming the lock's source.
+
+**4.6.2.12** Before `agy` runs a confined agent on the machine hmz runs on, hmz MUST read, without
+writing, the admin settings agy reads there. Where they hold every command for review, or every
+command outside agy's terminal sandbox on a machine that cannot start it, hmz MUST refuse the
+agent when it is configured, naming the file and the setting. Where they run commands in that
+sandbox or keep agy's file tools inside its workspace, hmz MUST run the agent and say so once per
+agent. Where they turn off plugins or MCP servers, hmz MUST refuse to offer that agent tools. hmz
+MUST say what agy reports it refused a confined agent.
+
+**4.6.2.13** Where Qwen Code's folder trust is on and the agent's folder is not trusted, hmz MUST run
+that agent at `default` where the table says `yolo`, with `run_shell_command`, `monitor`, `edit` and
+`write_file` allowed, MUST grant every request it then makes, and MUST say so once per agent.
+
+**4.6.2.14** Where the system settings of `qwen`, or those of a folder it trusts, turn its hooks off
+while a pre-tool-use hook is hung, hmz MUST refuse the turn before starting `qwen`, naming the file
+and the setting.
 
 #### 4.6.3. Web search
 
@@ -1341,13 +1395,13 @@ answer validated afterwards.
 #### 4.7.3. Forks
 
 **4.7.3.1** The following harnesses MUST fork a conversation: `claude`, `codex`, `kimi`, `grok`,
-`opencode`, `mimo`, `pi`, `omp`, `qwen`, and an ACP harness that advertises forking.
+`opencode`, `mimo`, `pi`, `omp`, `qwen`, `litellm`, and an ACP harness that advertises forking.
 
-**4.7.3.2** `claude`, `codex` and `kimi` MUST additionally fork a conversation into another
-directory of the same machine.
+**4.7.3.2** `claude`, `codex`, `kimi` and `litellm` MUST additionally fork a conversation into
+another directory of the same machine.
 
-**4.7.3.3** Forking on `agy`, `cursor-agent`, `dsh`, `mcode`, `litellm` and an ACP harness that does
-not advertise it MUST be refused with `UnsupportedOperation`.
+**4.7.3.3** Forking on `agy`, `cursor-agent`, `dsh`, `mcode` and an ACP harness that does not
+advertise it MUST be refused with `UnsupportedOperation`.
 
 **4.7.3.4** A fork MUST carry the conversation's history as of the fork, its effort, its skills and
 its fake tools, and MUST have a session id of its own.
@@ -1459,8 +1513,8 @@ pre-tool-use, notification, stop and session end.
 
 **4.9.1.2** On `litellm`, which reaches for no tool, the pre-tool-use hook MUST never fire.
 
-**4.9.1.3** The permission-request hook MUST be served by `claude`, `codex`, `kimi` and `grok`, and
-by no other harness.
+**4.9.1.3** The permission-request hook MUST be served by `claude`, `codex` and `kimi`, and by no
+other harness.
 
 **4.9.1.4** The subagent start and subagent stop hooks MUST be served by `claude`, `codex`,
 `cursor-agent` and `mcode`, and by no other harness.
@@ -1801,7 +1855,7 @@ removed.
 
 **4.14.1.1** The user MUST be able to add as a harness any command that speaks the Agent Client
 Protocol, under the name of the program it runs, and hmz MUST record it under `clis` in
-`settings.yaml`, as Section 3 of [FILES] states.
+`settings.toml`, as Section 3 of [FILES] states.
 
 **4.14.1.2** hmz MUST refuse to add a command whose program is a built-in harness under any alias, a
 command that is empty, and a name other than the program's own.
@@ -1856,7 +1910,7 @@ Out of scope:
 
 - The harness kinds, agent specs, retries and nous: Section 4.
 - The LiteLLM gateway's lifecycle: Section 4.13.2.
-- The layout of `<home>/providers/` and of the machine cache as files: Section 4 of [FILES] and
+- The layout of `<data>/providers/` and of the machine cache as files: Section 4 of [FILES] and
   Section 7 of [FILES].
 - Where a harness runs relative to its env: Section 6.
 - The account pages of the terminal and web frontends: [TUI] and Section 3 of [WEB].
@@ -1936,7 +1990,7 @@ found it, with no account variable added or removed and no credential file subst
 
 #### 5.4.1. Layout
 
-**5.4.1.1** Each account MUST be one directory `<home>/providers/<cli>/<name>/`, as Section 4 of
+**5.4.1.1** Each account MUST be one directory `<data>/providers/<cli>/<name>/`, as Section 4 of
 [FILES] states.
 
 **5.4.1.2** The account's directory MUST hold a file `provider.json` stating the harness kind, the
@@ -3319,7 +3373,8 @@ pseudo-terminal.
 the host it is attached to -- every root env of its roles, the workspace of a chat, and every
 derived env, until its flow destroys it -- while that env is open: browse, read and write its files,
 open terminals in it, and see and work its git repository, through the calls of Section 4.24 of
-[DAEMON].
+[DAEMON]. A frontend MUST let the user reach the workspace of a chat whether or not a host holds
+the chat when it is asked for, by carrying the chat on with nothing said (Section 8.7.4).
 
 **7.13.3** What the user can do in an env MUST be what the env serves (Section 7.3.2.3 and Section
 7.3.2.4), whatever its role declares: its files where it serves `FilesEnvMixin`, terminals where it
@@ -3412,7 +3467,9 @@ and a flow: `native` or `flow`.
 **8.3.1** A chat MUST have exactly one role, the assistant, filled by an agent with every capability
 that its **harness** offers, the web included.
 
-**8.3.2** A chat MUST work in one workspace on this machine.
+**8.3.2** A chat MUST be of one workspace on this machine, and its assistant MUST work in one env
+at a time: that workspace, unless the chat is started in a worktree (Section 8.3.13) or in another
+env, or is moved to one (Section 8.3.15).
 
 **8.3.3** A chat MUST take no params and MUST NOT be given a budget, and MUST run with no limit on
 its spending.
@@ -3421,8 +3478,8 @@ its spending.
 
 **8.3.5** hmz MUST record a chat in a chat record (Section 6.12 of [FILES]) and MUST NOT record it
 as an epic; hmz MUST record every epic with kind `flow`, and MUST read an epic record that gives
-kind `chat`, or that gives no kind and whose flow is `chat`, as an epic of kind `chat` (Section
-8.7.10, Section 6.5 of [FILES]).
+kind `chat`, or that gives no kind and whose flow is `chat`, as the record of a chat an earlier hmz
+recorded as an epic (Section 8.7.10, Section 6.5 of [FILES]).
 
 **8.3.6** The name `chat` MUST NOT be reserved: a flow named `chat` MUST be an ordinary flow, and an
 epic of it MUST be of kind `flow`.
@@ -3471,6 +3528,51 @@ for the chats it holds too: a chat listed MUST state that it is a chat, its flow
 chat downloaded MUST be placed among this machine's chats (Section 6.12.13 of [FILES]) and never
 among its epics.
 
+**8.3.15** A chat MAY be started in an env other than its workspace (`env` of `chat.start` in
+Section 4 of [DAEMON]), and MAY be moved to another env at any time between its turns (`chat.move`,
+and `env` of a `chat.start` that carries it on): an env as Section 7 states one, written as `-e`
+writes one after `<role>=` -- a directory of this machine, or a directory of a runtime. The chat's
+assistant MUST then work there in place of where it worked. The chat MUST still be a chat of its
+workspace; its record MUST say where it works, and carrying it on MUST return there. hmz MUST NOT
+fall a chat's env back to another runtime (Section 7.11), and MUST NOT remove anything of the env
+it leaves.
+
+**8.3.16** A move MUST be refused, saying why, while a turn of the chat is open, for an env that
+cannot be read, reached or made, and for one the assistant's harness cannot be put in (Section 6.4);
+a move refused MUST leave the chat working where it worked. A move made MUST be recorded in the
+chat's record, and ahead of the chat's next turn the chat MUST close its conversation and carry it
+on in one opened in the new env, as Section 8.7.5 and Section 8.7.6 state for a chat carried on:
+where the conversation cannot be carried on there (Section 6.8), the chat MUST say so in the
+conversation with the reason and MUST answer in a new conversation. A chat carried on with nothing
+said (Section 8.7.4) MAY be moved, and MUST then record the move once something is said.
+
+**8.3.17** Section 8.3.15 and Section 8.3.16 MUST NOT apply to an Ai-chan conversation, which
+works where it was made.
+
+**8.3.18** A chat MAY be given another model, another effort, or both at any time, whether or not a
+host holds it (`chat.agent` in Section 4 of [DAEMON]): an agent of the harness the chat is had with,
+as the account it runs as. hmz MUST refuse, saying why and that a new chat is started for it, an
+agent of another harness, an agent that runs as another account, and, where the model or the effort
+differs, a chat whose harness cannot carry a conversation on (Section 6.8) or is told no model and no
+effort, which every ACP harness is; the refusal MUST name that harness, and a chat refused MUST be
+left as it was. The agent given MUST be recorded in the chat's record at once, a chat carried on
+with nothing said (Section 8.7.4) included, MUST be the chat's agent from then on, under the name
+its sessions are recorded by, and MUST NOT be remembered as Section 8.3.8 states.
+
+**8.3.19** An agent so given MUST leave a turn that is open as it is and MUST hold from the chat's
+next turn. Ahead of that turn, where the catalogue of the chat's conversation holds as `call` each of
+`/model` and `/effort` that the change needs and the effort given is not the harness's default, the
+chat MUST have them change the conversation (Section 8.9.5), closing nothing; otherwise, and where
+they do not leave the conversation at the model and the effort given, the chat MUST close its
+conversation and carry it on in one its harness opens as the same account at that model and effort,
+as Section 8.7.5 states for a chat carried on. Where no conversation can be opened so that carries
+the chat's conversation on, the chat MUST NOT start a new one for it: it MUST say so in the
+conversation with the reason, MUST record the agent it had again, and MUST go on with that one. A
+chat no host holds MUST be carried on with the agent its record gives (Section 8.7).
+
+**8.3.20** Section 8.3.18 and Section 8.3.19 MUST NOT apply to an Ai-chan conversation, whose nous
+is that of Section 14.3.1 and never changes.
+
 ### 8.4. Turns
 
 **8.4.1** The task of a chat MUST be the first message of its conversation.
@@ -3510,8 +3612,11 @@ the terminal interface says where its turn is instead (Section 11.4 of [TUI]).
 
 **8.5.3** A chat that has ended MUST be reported as resting, or as failed where Section 8.4.9
 applies; a chat MUST NOT be reported as `done`. A frontend MAY mark a chat, in place of any of
-these, while it waits on a reply a person has not yet seen, and MAY say going and resting in the
-words it says an epic's state in, as Section 3.5 of [WEB] does.
+these, while it waits on a reply a person has not yet seen. Going and resting say only whether a
+host holds the chat: a frontend MUST NOT show a chat as going or as resting, and MUST NOT
+withhold from a chat that rests anything it offers one that is going -- saying something in it
+and reaching its workspace (Section 7.13.2) among them -- except where Section 8.7.7 applies or
+its workspace is gone, which it MUST then say.
 
 **8.5.4** A frontend MUST offer a way to stop the open turn of a chat (`chat.stop` in Section 4 of
 [DAEMON]). Stopping MUST interrupt that turn, MUST say in the conversation that the turn was
@@ -3549,7 +3654,12 @@ period Section 3 of [DAEMON] states.
 its conversation drawn from its first message.
 
 **8.7.4** A chat that has folded away MUST, when opened from a list of chats, be drawn with what was
-said in it, and the next message the user says in it MUST carry it on.
+said in it, and the next message the user says in it MUST carry it on. Reaching its workspace
+(Section 7.13.2) MUST carry it on with nothing said: a chat carried on with nothing said MUST hold
+its workspace open and wait, between turns, for what is said next; MUST NOT open a conversation,
+record that it was opened again, or write anything else into its record until something is said;
+and MUST end as it was where nothing is. What is then said MUST carry it on as Section 8.7.5
+states.
 
 **8.7.5** Carrying on a chat MUST continue the same chat record, MUST continue the same
 conversation, and MUST take the message that carried it on as the next turn.
@@ -3562,15 +3672,22 @@ message that carried it on in that new conversation.
 saying that the chat cannot be continued here.
 
 **8.7.8** A chat MUST NOT be carried on by resuming the workspace's last epic; it MUST be carried on
-only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat --resume`
-in [CLI]) or by saying something in it.
+only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat say` in
+[CLI]) or by saying something in it.
 
-**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as going
+**8.7.9** A chat that is carried on MUST record that it was opened again, once something is said
+in it (Section 8.7.4), MUST read back as going
 until it ends again, and MUST read back as having spent the sum of what each opening spent.
 
-**8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST NOT be made a chat: it
-MUST stay where it is, MUST be listed and read as an epic of no flow, as any other epic that has
-ended is, and MUST NOT be carried on; a request to carry it on MUST be refused as naming no chat.
+**8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST be made a chat: the
+daemon MUST, each time it starts and before it serves any client, move every such epic that no
+process holds among the chats of its workspace (Section 6.12.14 of [FILES]), under the name it has
+and with its record as it was written. From then on it MUST be a chat as any other, by that name:
+listed, read, carried on, forked, archived, backed up and deleted as one. One that a process holds,
+or whose name a chat already has, MUST be left as it is for a later start; until it is moved the
+daemon MUST NOT list or read it, as an epic or as a chat, and it MUST NOT be carried on: a request
+to carry it on MUST be refused as naming no chat. Such an epic imported, or held by a backup
+target, MUST be listed there as a chat and placed among this machine's chats likewise.
 
 ### 8.8. Drawing a chat
 
@@ -3691,9 +3808,11 @@ workspace MUST be listable apart (`chat.list` with `archived`), and an archived 
 back among the others by `chat.unarchive`.
 
 **8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
-included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be
-refused while the chat is going -- a host or any other process holding it -- and what is deleted
-MUST NOT be recoverable through hmz.
+included, and nothing else but the directory of its folderless workspace (Section 2.3.6.1) where no
+other chat and no epic is of it: no epic directory, and no worktree the chat worked in. It MUST be
+refused while a turn of the chat is open or a process that is no host holds it; a host that holds
+it between turns MUST be ended first, as an empty next message ends it. What is deleted MUST NOT
+be recoverable through hmz.
 
 **8.10.5** Section 8.10.2 to Section 8.10.4 MUST NOT apply to an Ai-chan conversation, which is
 forgotten as Section 14 states.
@@ -4430,18 +4549,18 @@ with, else to the default targets.
 **11.3.4.2** A backup by hand MUST be refused for a target settings does not hold, and for an epic
 with no target to go to.
 
-**11.3.4.3** `hmz backup <epic>` MUST wait for the backup to finish, MUST state for each target
-whether it succeeded, naming the target's URL with any credential removed where it succeeded and the
-error where it failed, and MUST exit 0 where every target succeeded, 1 where any failed, and 2 for
-an epic or a target that does not exist or where there is no target.
+**11.3.4.3** `hmz backup run <epic>` MUST wait for the backup to finish unless it is told not to
+wait, MUST state for each target whether it succeeded, naming the target and when it was uploaded
+where it succeeded and the error where it failed, and MUST exit 0 where every target succeeded and
+1 where any failed, and for an epic or a target that does not exist or where there is no target,
+which the daemon refuses (Section 10.2 of [CLI]).
 
 **11.3.4.4** A frontend offering a backup by hand MUST return at once, and MUST then show how the
 backup went as the epic records it.
 
 **11.3.4.5** While `hmz backup` waits on a target -- backing up to it, listing it, or downloading
-from it -- and standard error is a terminal and escapes are allowed (Section 4.2 of [CLI]), it MUST
-draw a transient spinner there saying what it is doing and to which target, and MUST take it down
-before it states how that went.
+from it -- it MUST write nothing: what it states is stated once the daemon has answered, as a
+declared command states it (Section 16 of [CLI]).
 
 #### 11.3.5. Content and delivery
 
@@ -4492,8 +4611,10 @@ backup, and MUST read the list from the manifests there alone.
 in, its epic name, its flow, its task, when it began, when it ended, how it ended (empty where it
 had not ended when backed up) and the commit its manifest states (Section 11.4.2.3).
 
-**11.3.6.3** `hmz backup --list` MUST state, for each target named, else for every target, each epic
-it holds on one line: machine, workspace, epic name, ending (`unfinished` where none) and task.
+**11.3.6.3** `hmz backup list --target <target>` MUST state each epic the target named holds on one
+line: its epic key, which names its machine, its workspace and its epic name, then its ending
+(`unfinished` where none), its flow, whether this machine holds it and its task. Without `--target`
+it MUST state the backup targets instead (Section 10.3 of [CLI]).
 
 **11.3.6.4** Downloading an epic MUST import it exactly as importing a bundle does (Section 11.4.5),
 with the same refusals, an epic this machine backed up and still holds counting as an epic already
@@ -4505,14 +4626,15 @@ naming the target's URL with any credential removed.
 **11.3.6.6** hmz MUST refuse to download an epic key that is not three non-empty path segments, none
 starting with `.` and none containing `\`.
 
-**11.3.6.7** `hmz backup --pull <epic>` MUST download the epic, named by epic name or epic key, from
-the first target named, else from the first target, that holds it, and MUST print where it now is.
+**11.3.6.7** `hmz backup pull <epic> --target <target>` MUST download the epic, named by epic name
+or epic key, from the target named, and MUST print the name it now has here.
 
-**11.3.6.8** `hmz backup --pull` MUST state every target that cannot be reached, and MUST exit 1
-unless the epic was downloaded from another target; an epic already here MUST exit 1.
+**11.3.6.8** `hmz backup pull` MUST state why where the target cannot be reached, and MUST then
+exit 1; an epic already here MUST exit 1.
 
-**11.3.6.9** `hmz backup --pull` MUST be a usage error where every target answered and none holds
-the epic, or where a target holds epics of that name from more than one machine.
+**11.3.6.9** `hmz backup pull` MUST be refused, exiting 1 and downloading nothing, where the target
+does not hold the epic, or holds epics of that name from more than one machine, in which case it
+MUST name their epic keys.
 
 ### 11.4. Export and import
 
@@ -4966,7 +5088,7 @@ methods of Section 4 of [DAEMON], as a frontend of kind `ai-chan`.
 the daemon; `workspace`, one workspace and its epics; or `epic`, one epic of one workspace.
 
 **14.2.4** **Permission**: what one Ai-chan conversation may change: its **preset**, `read-only` or
-`danger-full-access`, and its **network**, whether her harness may reach the network.
+`danger-full-access`.
 
 **14.2.5** **Reach**: the scope and the permission of an Ai-chan conversation together, as the
 daemon holds her session to them (Section 4.21 of [DAEMON]).
@@ -4979,15 +5101,15 @@ harness works (Section 4.16 of [FILES]).
 
 ### 14.3. Making a conversation
 
-**14.3.1** An Ai-chan conversation MUST be made with a scope, a nous, a preset and a network, none
-of which MUST change while the conversation lasts; to change one, the user makes another
-conversation.
+**14.3.1** An Ai-chan conversation MUST be made with a scope, a nous and a preset, none of which
+MUST change while the conversation lasts; to change one, the user makes another conversation.
 
-**14.3.2** The nous of a conversation MUST default to the `ai_chan` setting (Section 3.4.3 of
-[FILES]); where that setting names none, a frontend MUST ask the user for one and MUST NOT make the
-conversation without one.
+**14.3.2** A frontend MUST let the user pick the nous of a conversation as it is made, and the
+nous MUST default to the one the last conversation was made with, the `ai_chan` setting (Section
+3.4.3 of [FILES]); where that setting names none, a frontend MUST ask the user for one and MUST NOT
+make the conversation without one.
 
-**14.3.3** The preset MUST default to `read-only`, and the network to off.
+**14.3.3** The preset MUST default to `read-only`.
 
 **14.3.4** The scope MUST default to what the frontend shows: `epic`, of the epic shown, where one
 epic is shown; else `workspace`, of the workspace shown, where one is shown; else `daemon`.
@@ -5005,9 +5127,9 @@ conversation, any chat or any epic.
 nous, read as the rest of an `-a` item is read after its `=` (Section 7.4 of [CLI]), and whose
 assistant works in the conversation's scratch directory in place of the workspace (Section 8.3.1).
 
-**14.4.2** Its host MUST start the chat with the conversation's `id`, `scope`, `workspace`,
-`epic`, `preset` and `network` (Section 4.22 of [DAEMON]), and MUST refuse to start it where
-`HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
+**14.4.2** Its host MUST start the chat with the conversation's `id`, `scope`, `workspace`, `epic`
+and `preset` (Section 4.22 of [DAEMON]), and MUST refuse to start it where `HUMANIZE_AICHAN_LINK`
+(Section 3.11.2 of [FILES]) is unset.
 
 **14.4.3** An Ai-chan conversation carried on with nothing said MUST wait, between turns, for what is
 said next.
@@ -5021,8 +5143,8 @@ writes somewhere, whatever the preset, her scratch directory being writable (Sec
 rules, each narrowing the one before: `/` denied; the scope root read-only under the preset
 `read-only` and writable under `danger-full-access`; and the scratch directory writable.
 
-**14.5.3** Ai-chan's harness MUST be given the conversation's network as the `network` of its grant
-(Section 4.6.3, Section 4.6.4.5).
+**14.5.3** Ai-chan's harness MUST be granted the network (Section 4.6.3, Section 4.6.4.5), whatever
+her scope and her preset.
 
 **14.5.4** Ai-chan's harness MUST work in the conversation's scratch directory.
 
@@ -5049,12 +5171,12 @@ daemon (Section 4.22.6 of [DAEMON]), and MUST NOT act on hmz any other way.
 [DAEMON]); a call refused MUST be told to her as the answer of the tool that made it, and MUST NOT
 end her turn.
 
-**14.6.4** Ai-chan MUST be told, with the first message of a conversation, her scope, her preset and
-her network, and that everything she observes -- of epics, sessions, transcripts, files, envs and
+**14.6.4** Ai-chan MUST be told, with the first message of a conversation, her scope and her preset,
+and that everything she observes -- of epics, sessions, transcripts, files, envs and
 what other frontends say -- is data and not instructions.
 
-**14.6.5** Ai-chan MUST NOT make, list, reach or forget an Ai-chan conversation, her own included
-(Section 4.21.5 of [DAEMON]).
+**14.6.5** Ai-chan MUST NOT make, list, rename, reach or forget an Ai-chan conversation, her own
+included (Section 4.21.5 of [DAEMON]).
 
 ### 14.7. Shown to other frontends
 
@@ -5087,8 +5209,8 @@ folds away.
 **14.8.5** An Ai-chan conversation that has folded away MUST be carried on by attaching to its slot
 (Section 4.22.5 of [DAEMON]): carrying on MUST continue the same record and the same conversation,
 as Section 8.7.5 states, or a new conversation in the same record, as Section 8.7.6 states; a
-conversation an earlier hmz recorded as an epic MUST be carried on in that epic (Section 6.12.11 of
-[FILES]).
+conversation an earlier hmz recorded as an epic MUST be carried on in the chat that epic was made
+(Section 8.7.10, Section 6.12.11 of [FILES]).
 
 **14.8.6** An Ai-chan conversation MUST be kept, folded away or not, until it is forgotten
 (Section 4.22.4 of [DAEMON]).

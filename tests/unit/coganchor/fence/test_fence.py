@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import config
 from hmz.coganchor import binary
 from hmz.coganchor import fence as fencing
 from hmz.coganchor.fence import (
@@ -699,14 +700,14 @@ def test_wrapper_passes_the_backend_the_settings_choose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
-    _settings("sandbox: {backend: bwrap}")
+    _settings('sandbox = {backend = "bwrap"}')
 
     assert wrapper(Fence())[4] == "--sandbox=bwrap"
 
 
 def _settings(said: str) -> None:
     """This machine's settings file, holding what is said."""
-    where = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    where = config() / "settings.toml"
     where.parent.mkdir(parents=True, exist_ok=True)
     where.write_text(said, encoding="utf-8")
 
@@ -715,11 +716,11 @@ def _settings(said: str) -> None:
     ("said", "chose"),
     [
         ("", AUTO),
-        ("sandbox: bwrap", AUTO),
-        ("sandbox: {backend: 3}", AUTO),
-        ("sandbox: {backend: firejail}", AUTO),
-        ("sandbox: {backend: landlock}", LANDLOCK),
-        ("sandbox: {backend: bwrap}", BWRAP),
+        ('sandbox = "bwrap"', AUTO),
+        ("sandbox = {backend = 3}", AUTO),
+        ('sandbox = {backend = "firejail"}', AUTO),
+        ('sandbox = {backend = "landlock"}', LANDLOCK),
+        ('sandbox = {backend = "bwrap"}', BWRAP),
     ],
 )
 def test_chosen_reads_anything_else_as_auto(said: str, chose: str) -> None:
@@ -732,8 +733,8 @@ def test_chosen_reads_anything_else_as_auto(said: str, chose: str) -> None:
     ("said", "named"),
     [
         ("", set[str]()),
-        ("sandbox: {native: codex}", set[str]()),
-        ("sandbox: {native: [codex, 3, grok]}", {"codex", "grok"}),
+        ('sandbox = {native = "codex"}', set[str]()),
+        ('sandbox = {native = ["codex", 3, "grok"]}', {"codex", "grok"}),
     ],
 )
 def test_natives_are_the_kinds_the_settings_name(said: str, named: set[str]) -> None:
@@ -747,8 +748,13 @@ def test_natives_are_the_kinds_the_settings_name(said: str, named: set[str]) -> 
     [
         ("", False, ("Landlock (Linux 5.13", "bubblewrap"), ()),
         ("", True, ("Landlock ABI 4", "network namespace"), ()),
-        ("sandbox: {backend: landlock}", True, ("Landlock ABI 4",), ("bubblewrap",)),
-        ("sandbox: {backend: bwrap}", False, ("bubblewrap",), ("Landlock",)),
+        (
+            'sandbox = {backend = "landlock"}',
+            True,
+            ("Landlock ABI 4",),
+            ("bubblewrap",),
+        ),
+        ('sandbox = {backend = "bwrap"}', False, ("bubblewrap",), ("Landlock",)),
     ],
 )
 def test_needs_names_what_the_chosen_backend_needs(
@@ -759,12 +765,29 @@ def test_needs_names_what_the_chosen_backend_needs(
     unwanted: tuple[str, ...],
 ) -> None:
     monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr(binary, "found", lambda: Path("/opt/coganchor"))
     _settings(said)
 
     told = needs(net=net)
 
     assert all(one in told for one in wanted)
     assert not any(one in told for one in unwanted)
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_needs_names_coganchor_where_none_is_built_here(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    monkeypatch.setattr("sys.platform", platform)
+    monkeypatch.setattr(binary, "found", lambda: None)
+
+    told = needs(net=False)
+
+    # Not a sandbox this process is in, nor a kernel's lack: the program is not here.
+    assert "a coganchor built for this machine" in told
+    assert "HUMANIZE_COGANCHOR" in told
+    assert "Seatbelt" not in told
+    assert "Landlock" not in told
 
 
 @pytest.fixture
@@ -818,7 +841,7 @@ def test_enforceable_asks_of_the_backend_the_settings_choose_and_landlocked_of_l
     monkeypatch: pytest.MonkeyPatch, asked: list[list[str]]
 ) -> None:
     monkeypatch.setattr("sys.platform", "linux")
-    _settings("sandbox: {backend: bwrap}")
+    _settings('sandbox = {backend = "bwrap"}')
     answering(monkeypatch, asked, b'{"fs":true,"net":true}')
 
     assert enforceable(net=True)

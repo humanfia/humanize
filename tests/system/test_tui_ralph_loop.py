@@ -81,7 +81,7 @@ async def _watches(screen: Screen, model: str) -> None:
     assert "Flow:" in shown
     assert "ralph_loop" in shown
     await screen.press("right")
-    await screen.waits(" is working", "ctrl+c stop")
+    await screen.waits(" is working", "ctrl+c Stop")
 
 
 @pytest.mark.timeout(20 * 60)
@@ -99,7 +99,7 @@ async def test_a_task_typed_at_the_prompt_is_done_by_the_flow_set_up_there(
 
         await _watches(screen, model)
 
-        shown = await screen.waits("— the flow is done —", seconds=RUN)
+        shown = await screen.waits("— Flow done —", seconds=RUN)
         assert "hmz: stopped --" in shown
         assert "◉ ralph_loop" in shown
     _passes(here)
@@ -166,6 +166,6 @@ async def test_a_run_left_going_is_found_again_by_the_next_interface(
         # Read from the top: what it was started on, and the agent still at it.
         await screen.waits(TASK)
         await _watches(screen, model)
-        shown = await screen.waits("— the flow is done —", seconds=RUN)
+        shown = await screen.waits("— Flow done —", seconds=RUN)
         assert "hmz: stopped --" in shown
     _passes(hosted)

@@ -4,6 +4,20 @@
 
 The agent flow system for token maxxing.
 
+Humanize is infrastructure, not a flow. A flow is a Python program that says what to ask and of
+whom; Humanize is what it runs on. It schedules the many different nous a flow asks for -- a
+nous is a harness, an account, a model and an effort -- gives each agent an environment to work
+in, on this machine, over SSH, in a container or on a cluster, holds the whole run to one
+budget, and keeps the record it can be resumed and traced from.
+
+## Background
+
+Where Humanize is going, which is not a measurement of where it is: one flow driving a million
+agents in a million environments for a month, on one task. A task of that size is not
+done by one model in one session, so what Humanize is built around is the scheduling: many
+different nous, with retries and fallback from one to the next, on as many machines as the work
+needs. It ships no flow of its own.
+
 ## Install
 
 ### Humanize Desktop
@@ -13,7 +27,7 @@ Humanize Desktop is the page of `hmz web` in a window of its own. Download it fr
 `humanize-<version>-macos-universal.dmg` on macOS, where you install Humanize CLI as below
 too, or `humanize-<version>-windows-x64-setup.exe` on Windows, where the app installs `hmz`
 itself, in WSL 2 (`wsl --install`).
-[Installation](https://humanfia.ai/humanize/user/installation#desktop) says how to open it the
+[Install and update](https://humanfia.ai/humanize/user/install) says how to open it the
 first time.
 
 ### Humanize CLI
@@ -59,7 +73,7 @@ hmz web
 Or say one thing to an agent from your shell:
 
 ```sh
-hmz chat -a claude/claude-opus-5:high "What does this repository do?"
+hmz chat start -a claude/claude-opus-5:high "What does this repository do?"
 ```
 
 Humanize ships no flow: install one from the official
@@ -77,8 +91,15 @@ hmz exec -f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop \
     -a agent=claude/claude-opus-5:high -p budget.cost=5 "Make the tests pass"
 ```
 
+Or teach your coding agents the `hmz` command line, as a skill in each one's own folder:
+
+```sh
+hmz skills add
+```
+
 Agents run with approvals bypassed, so start in a scratch repository. The
-[documentation](https://humanfia.ai/humanize/) walks through a first run.
+[documentation](https://humanfia.ai/humanize/) starts with a
+[first task in the terminal](https://humanfia.ai/humanize/tutorials/first-task-terminal).
 
 ## Contributing
 

@@ -189,6 +189,7 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
                 "permission": None,
                 "remember": False,
                 "worktree": False,
+                "env": None,
             },
         ),
         (
@@ -210,6 +211,7 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
                 "permission": "read-only",
                 "remember": True,
                 "worktree": False,
+                "env": None,
             },
         ),
         (
@@ -225,7 +227,31 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
                 "permission": None,
                 "remember": False,
                 "worktree": True,
+                "env": None,
             },
+        ),
+        (
+            "chat",
+            ["", "go on there"],
+            # Carried on in another env, which moves it.
+            {"resume": "20260101T000000.000Z-abcdef", "env": "ssh@gpu-box/srv/repo"},
+            {
+                "do": "chat.start",
+                "agent": "",
+                "task": "go on there",
+                "resume": "20260101T000000.000Z-abcdef",
+                "prefer": None,
+                "permission": None,
+                "remember": False,
+                "worktree": False,
+                "env": "ssh@gpu-box/srv/repo",
+            },
+        ),
+        (
+            "chat_move",
+            ["local/srv/repo"],
+            {},
+            {"do": "chat.move", "env": "local/srv/repo"},
         ),
         ("chat_say", ["/compact"], {}, {"do": "chat.say", "text": "/compact"}),
         ("chat_stop", [], {}, {"do": "chat.stop"}),

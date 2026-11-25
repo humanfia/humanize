@@ -3,6 +3,7 @@
 // the one pinned, the session tried again with backoff whenever it drops or fails, every
 // subscription attached again with `since` once it is back, and every write given an `idem`.
 
+import { t } from '../i18n.js'
 import { Dropped, ERRORS, Peer, RpcError } from './peer.js'
 import { onAbort, toBase64url } from './pipe.js'
 import { race, routeKind, trusted } from './routes.js'
@@ -11,7 +12,7 @@ import { WRITES } from './writes.js'
 /** The protocol version this client speaks (Section 6.5.1). */
 export const PROTOCOL = '3.0.0'
 
-/** How long a carrier and its `session.hello` may take, but while hmz is installed (Section 3.4.9). */
+/** How long a carrier and its `session.hello` may take, but while hmz is asked about or installed (Section 3.4.9). */
 const OPENING = 30000
 
 /** The first wait before trying a daemon again, and the longest (Section 3.6.4). */
@@ -29,13 +30,19 @@ export class NotPinned extends Error {}
  * @property {string} name
  * @property {string} id The daemon id pinned, '' until first reached over a trusted carrier.
  * @property {string[]} routes In the order they are tried.
+ * @property {RTCIceServer[]} [ice] The STUN and TURN servers its `webrtc:` routes are opened
+ *   with (Section 3.13.21 of protocol/web.md); none where absent.
  *
  * @typedef {object} Provider What opens carriers of some routes for the page.
  * @property {(route: string) => boolean} opens Whether it opens this route.
  * @property {(route: string, id: string, options: {state: (state: string, detail: string) => void,
- *   signal: AbortSignal}) => Promise<import('./pipe.js').Pipe>} open Opens one, telling `state`
- *   `connecting` or `installing` and what was said last until it is open; closes it and rejects
- *   once `signal` aborts.
+ *   asked: () => Promise<boolean>, signal: AbortSignal, iceServers: RTCIceServer[]}) =>
+ *   Promise<import('./pipe.js').Pipe>} open
+ *   Opens one, telling `state` `connecting`, `asking` or `installing` and what was said last until
+ *   it is open; closes it and rejects once `signal` aborts. Having told `asking` -- no hmz is on
+ *   the route's machine (Section 3.8.3.7 of protocol/daemon.md) -- it gives its carrier what
+ *   `asked` resolves with: whether to install it. `iceServers` are the daemon's own STUN and TURN
+ *   servers, which a provider of `webrtc:` routes alone uses.
  *
  * @typedef {object} Session
  * @property {Peer} peer
@@ -56,19 +63,23 @@ export function idem() {
  * @param {DaemonEntry} entry
  * @param {Provider[]} providers
  * @param {{client?: {name: string, kind: string}, state?: (state: string, detail: string) => void,
- *   handlers?: Session['handlers']}} [options]
+ *   handlers?: Session['handlers'], asked?: (gone: AbortSignal) => Promise<boolean>,
+ *   signal?: AbortSignal}} [options] `asked`, whether to install hmz on a machine that has none:
+ *   no, where there is nobody to ask; `gone` aborts once the route that asked has failed by
+ *   itself, and waits on no answer. `signal` gives every route up once it aborts.
  * @returns {Promise<Session>}
  */
-export function reach(entry, providers, { client = { name: '', kind: 'web' }, state = () => {}, handlers } = {}) {
-  return race(entry.routes, attempt, (session) => session.peer.close('Another route was reached first.'))
+export function reach(entry, providers, { client = { name: '', kind: 'web' }, state = () => {}, handlers, asked = async () => false, signal: closed } = {}) {
+  return race(entry.routes, attempt, (session) => session.peer.close(t('Another route was reached first.')))
 
   /** @param {string} route @param {AbortSignal} signal */
   async function attempt(route, signal) {
-    if (!routeKind(route)) throw new Error(`${route} is not a route.`)
+    if (closed?.aborted) throw new Error(t('Given up.'))
+    if (!routeKind(route)) throw new Error(t('{route} is not a route.', { route }))
     const provider = providers.find((one) => one.opens(route))
-    if (!provider) throw new Error(`${route} cannot be reached from here.`)
+    if (!provider) throw new Error(t('{route} cannot be reached from here.', { route }))
     // An id is pinned from a trusted carrier alone (Section 3.5.6 and 4.4.7 of protocol/wire.md).
-    if (!entry.id && !trusted(route)) throw new Error(`${route} needs the id of the daemon it reaches.`)
+    if (!entry.id && !trusted(route)) throw new Error(t('{route} needs the id of the daemon it reaches.', { route }))
     const late = new AbortController()
     let timer
     const arm = () => {
@@ -76,33 +87,41 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
       timer = setTimeout(() => late.abort(), OPENING)
     }
     arm()
-    const both = AbortSignal.any([signal, late.signal])
-    let installing = false
+    const given = AbortSignal.any([signal, late.signal, ...(closed ? [closed] : [])])
+    const gone = new AbortController()
+    let held = false
     let stop = () => {}
     /** @type {Peer | null} */
     let peer = null
     try {
       const pipe = await provider.open(route, entry.id, {
-        signal: both,
+        signal: given,
+        iceServers: entry.ice ?? [],
+        // A route given up says nothing more, and nobody is asked about it.
+        asked: () => (given.aborted ? new Promise(() => {}) : asked(gone.signal)),
         state: (now, detail) => {
-          // The 30 seconds wait while hmz is installed, and start afresh after.
-          if (now === 'installing') clearTimeout(timer)
-          else if (installing) arm()
-          installing = now === 'installing'
+          if (given.aborted) return
+          // The 30 seconds wait while hmz is asked about and installed, and start afresh after.
+          const holds = now === 'asking' || now === 'installing'
+          if (holds) clearTimeout(timer)
+          else if (held) arm()
+          held = holds
           state(now, detail)
         },
       })
       peer = new Peer(pipe, handlers ?? {})
       const opened = peer
-      stop = onAbort(both, () => opened.close('Given up.'))
-      if (installing) arm()
+      stop = onAbort(given, () => opened.close(t('Given up.')))
+      if (held) arm()
       const hello = /** @type {{daemon_id: string}} */ (await peer.call('session.hello', { protocol: PROTOCOL, client }))
       if (entry.id && hello.daemon_id !== entry.id) throw new NotPinned()
       return { peer, hello, route, handlers: handlers ?? {} }
     } catch (error) {
-      peer?.close('Not reached.')
-      if (error instanceof NotPinned) throw new Error(`${entry.name} is not the daemon it was paired with.`)
-      if (late.signal.aborted) throw new Error(`${route} did not open within 30 seconds.`)
+      peer?.close(t('Not reached.'))
+      // Failed by itself, it waits on no answer any more.
+      if (!given.aborted) gone.abort()
+      if (error instanceof NotPinned) throw new Error(t('{name} is not the daemon it was paired with.', { name: entry.name }))
+      if (late.signal.aborted) throw new Error(t('{route} did not open within 30 seconds.', { route }))
       throw error
     } finally {
       clearTimeout(timer)
@@ -116,9 +135,10 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
  *
  * @param {DaemonEntry} entry
  * @param {Provider[]} providers
- * @param {{client?: {name: string, kind: string}, pinned?: (id: string) => void}} [options]
+ * @param {{client?: {name: string, kind: string}, pinned?: (id: string) => void, install?: boolean}} [options]
  *   `client` as `session.hello` says it; `pinned`, told the daemon id first answered over a
- *   trusted carrier where `entry` pins none, to keep it.
+ *   trusted carrier where `entry` pins none, to keep it; `install`, true where the user has said
+ *   already to install hmz on this daemon's machine, which is then not asked again.
  */
 export function connect(entry, providers, options = {}) {
   return new Client(entry, providers, options)
@@ -145,16 +165,27 @@ export class Client {
   #subs = new Set()
   #closed = false
   #wake = () => {}
+  /** Whether the user has said to install hmz on the daemon's machine (Section 3.8.3.8 of protocol/daemon.md). */
+  #install
+  /** Each route waiting to be told whether to. */
+  #asks = new Set()
+  /** What the route that asked last said. */
+  #asked = ''
+  /** Whether the user said not to, in the reach going. */
+  #declined = false
+  /** Aborted once this is closed: every route being opened is given up. */
+  #gone = new AbortController()
 
   /**
    * @param {DaemonEntry} entry
    * @param {Provider[]} providers
-   * @param {{client?: {name: string, kind: string}, pinned?: (id: string) => void}} options
+   * @param {{client?: {name: string, kind: string}, pinned?: (id: string) => void, install?: boolean}} options
    */
   constructor(entry, providers, options) {
     this.#entry = { ...entry }
     this.#providers = providers
     this.#options = options
+    this.#install = options.install === true
     this.#run()
   }
 
@@ -166,6 +197,11 @@ export class Client {
   /** What `session.hello` answered on the session up now, or null. */
   get hello() {
     return this.#session?.hello ?? null
+  }
+
+  /** The routes it is reached over. */
+  get routes() {
+    return this.#entry.routes
   }
 
   /**
@@ -228,14 +264,35 @@ export class Client {
     return this.#subscribe({ kind: 'notices', params, told, ended: undefined, last: params.after ?? null })
   }
 
+  /**
+   * Answers a daemon that is `asking`, every route of it that waits: yes is kept for as long as
+   * this client is; no fails those routes, and every route that finds no hmz in the reach going,
+   * and is not kept. Does nothing where it is not asking.
+   *
+   * @param {boolean} install
+   * @returns {boolean} Whether it was asking.
+   */
+  answer(install) {
+    if (!this.#asks.size) return false
+    if (install) this.#install = true
+    else this.#declined = true
+    const asks = [...this.#asks]
+    this.#asks.clear()
+    this.#set('connecting', this.#state.detail)
+    for (const told of asks) told(install)
+    return true
+  }
+
   /** Closes the session and stops reaching the daemon. */
   close() {
     if (this.#closed) return
     this.#closed = true
+    this.#gone.abort()
+    this.#asks.clear()
     this.#wake()
-    this.#session?.peer.close('Closed.')
+    this.#session?.peer.close(t('Closed.'))
     this.#session = null
-    for (const waiter of this.#waiting) waiter.reject(new Dropped('Closed.'))
+    for (const waiter of this.#waiting) waiter.reject(new Dropped(t('Closed.')))
     this.#waiting.clear()
     this.#subs.clear()
     this.#set('idle', '')
@@ -244,6 +301,7 @@ export class Client {
   async #run() {
     let wait = FIRST
     while (!this.#closed) {
+      this.#declined = false
       this.#set('connecting', this.#state.detail)
       /** @type {Session['handlers'] & {subs: Map<string, object>, early: Map<string, object[]>}} */
       const handlers = { subs: new Map(), early: new Map() }
@@ -251,11 +309,31 @@ export class Client {
       try {
         const session = await reach(this.#entry, this.#providers, {
           client: this.#options.client,
-          state: (state, detail) => this.#set(state, detail),
+          signal: this.#gone.signal,
+          // While a route asks, the daemon is `asking`, whatever its other routes say meanwhile.
+          state: (state, detail) => {
+            if (state === 'asking') this.#asked = detail
+            else if (!this.#asks.size) this.#set(state, detail)
+          },
+          asked: (gone) => {
+            if (this.#install) return Promise.resolve(true)
+            // A no stands for the reach it was said in: its other routes are not asked about.
+            if (this.#declined) return Promise.resolve(false)
+            this.#set('asking', this.#asked)
+            return new Promise((resolve) => {
+              this.#asks.add(resolve)
+              // The route that asked failed by itself: nothing waits on its question.
+              onAbort(gone, () => {
+                if (this.#asks.delete(resolve) && !this.#asks.size) this.#set('connecting', '')
+              })
+            })
+          },
           handlers,
         })
+        // Reached over another route, nothing is asked any more (Section 3.8.3.11 of protocol/daemon.md).
+        this.#asks.clear()
         if (this.#closed) {
-          session.peer.close('Closed.')
+          session.peer.close(t('Closed.'))
           return
         }
         if (!this.#entry.id) {
@@ -274,12 +352,16 @@ export class Client {
         this.#set('connecting', why)
       } catch (error) {
         if (this.#closed) return
+        this.#asks.clear()
         this.#set('failed', error.message)
         const refused = new RpcError(ERRORS.UNAVAILABLE, error.message)
         for (const waiter of this.#waiting) waiter.reject(refused)
         this.#waiting.clear()
         // A client refused for its version calls nothing more (Section 6.5.7).
         if (error instanceof RpcError && error.code === ERRORS.PROTOCOL) return
+        // Nor is a daemon whose machine the user said not to install hmz on reached again by
+        // itself (Section 3.8.3.9 of protocol/daemon.md).
+        if (this.#declined) return
       }
       await new Promise((resolve) => {
         const timer = setTimeout(resolve, wait)
@@ -291,7 +373,7 @@ export class Client {
 
   /** @param {AbortSignal} [signal] @returns {Promise<Session>} */
   #ready(signal) {
-    if (this.#closed) return Promise.reject(new Dropped('Closed.'))
+    if (this.#closed) return Promise.reject(new Dropped(t('Closed.')))
     if (this.#session?.peer.open) return Promise.resolve(this.#session)
     if (this.#state.state === 'failed') return Promise.reject(new RpcError(ERRORS.UNAVAILABLE, this.#state.detail))
     return new Promise((resolve, reject) => {
@@ -301,7 +383,7 @@ export class Client {
       }
       const stop = onAbort(signal, () => {
         this.#waiting.delete(waiter)
-        reject(new RpcError(ERRORS.CANCELLED, 'The call was cancelled.'))
+        reject(new RpcError(ERRORS.CANCELLED, t('The call was cancelled.')))
       })
       this.#waiting.add(waiter)
     })

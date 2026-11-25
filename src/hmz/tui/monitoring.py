@@ -38,7 +38,9 @@ from textual.widgets.option_list import Option
 from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
 from hmz.runtime.watching.monitor import Shape, lasting, short, tallied, thousands
+from hmz.words import t
 
+from . import humanfia
 from .pick import (
     _DOT,
     _FIELD,
@@ -93,13 +95,17 @@ __all__ = [
 #: what the flow says to them in, and answers it from.
 OUTWORLDER = "outworlder:"
 
-#: What the diagram draws one agent's box with, and what it joins two of them by. Light
-#: box-drawing, which is what a terminal has for a box that is a label rather than a frame.
-_BOX = ("┌", "┐", "└", "┘", "─", "│")
+#: What the diagram draws one agent's block with, and what it joins two of them by: heavy
+#: rules and square corners, as everything the interface draws of its own is.
+_BOX = ("┏", "┓", "┗", "┛", humanfia.RULE, humanfia.BAR)
 
 #: What says a handover went down the diagram and what says it came back up it, and what
 #: stands between two agents the flow never handed between directly.
-_DOWN, _UP, _NEITHER = "↓", "↑", "┆"
+_DOWN, _UP, _NEITHER = "↓", "↑", "┇"
+
+#: How many lanes there are: the colours agents are told apart by, given out in the order
+#: the flow takes them, as the web page gives them out.
+_LANES = 6
 
 #: How wide one agent's box is drawn, at most, and how narrow it is allowed to get. Wide
 #: enough for what an agent runs beside how long it has been running it, and narrow enough
@@ -117,7 +123,7 @@ _IDLED = "idle"
 #: not an agent of the flow -- nobody chose what it runs, nothing can be said to it, and it
 #: has no transcript to read -- so it is drawn as a thing the agent above it is doing, and a
 #: box would say it was another agent to attach to.
-_UNDER, _LAST_UNDER = "├╴", "└╴"
+_UNDER, _LAST_UNDER = "┣╸", "┗╸"
 _FLEET_WORKING, _FLEET_DONE = "◆", "◇"
 
 #: How many of a fleet are drawn under one agent before the rest are counted rather than
@@ -171,6 +177,15 @@ _FOLDS = 8
 
 #: What the two ways of drawing the run are called, on the switch above it and the status line.
 _VIEWS = {False: "graph", True: "list"}
+
+#: What the meter of each limit of a budget is called.
+_LIMITS = {"cost": "cost", "output": "output tokens", "time": "time"}
+
+
+def _viewed(*, listed: bool) -> str:
+    """What one of the two ways of drawing the run is called, as the page calls it."""
+    return t("List") if listed else t("Graph")
+
 
 #: The mark against a line of the board. One mark, one kind of thing: whose a line is is said
 #: in words beside it and in the colour it is drawn, which is what a reader actually reads --
@@ -294,6 +309,16 @@ class Drawn(NamedTuple):
     env: str = ""
 
 
+def _lane(at: int) -> str:
+    """The colour the agent at one place in the flow's order is told apart by."""
+    return f"$hmz-lane-{at % _LANES + 1}"
+
+
+def _inked(one: Drawn) -> str:
+    """What a node's name is drawn in: cyan while it works, and the text's own otherwise."""
+    return "$primary" if one.working else "$foreground"
+
+
 class Placed(NamedTuple):
     """One environment of a run -- a workdir on a machine -- as the monitor draws it.
 
@@ -361,7 +386,7 @@ def _harnessed(place: Placed) -> str:
       place: The environment.
 
     Returns:
-      The row, as `env: on this environment's machine, with the CLI installed there`.
+      The row, as `env: on the environment's machine`.
     """
     # By what each went as, a session working here being one whose harness is here too.
     went: dict[str, list[str]] = {}
@@ -374,17 +399,16 @@ def _harnessed(place: Placed) -> str:
             ).append(key)
     if len(went) > 1:
         return _DOT.join(
-            f"{where} for {', '.join(keys)}" for where, keys in went.items()
+            t("{where} for {sessions}", where=where, sessions=", ".join(keys))
+            for where, keys in went.items()
         )
     where = next(iter(went), _LOCAL)
     said = {
-        _LOCAL: "on this machine; what it runs lands here"
+        _LOCAL: t("on this machine, running in this environment")
         if place.anchored
-        else "on this machine, in this workdir",
-        _NATIVE: "on this environment's machine, with the CLI installed there",
-    }.get(
-        where, "on a runtime of its own, reaching this environment through the anchor"
-    )
+        else t("on this machine, in this folder"),
+        _NATIVE: t("on the environment's machine"),
+    }.get(where, t("on its own runtime, through the anchor"))
     return f"{where}: {said}"
 
 
@@ -443,12 +467,14 @@ def needs(role: EnvRole) -> tuple[str, ...]:
     return tuple(
         said
         for said in (
-            f"{role.cpu_count} CPUs" if role.cpu_count > 1 else "",
-            f"{role.memory / _GIB:g} GiB memory" if role.memory else "",
-            f"{role.gpu_count} GPU{'' if role.gpu_count == 1 else 's'}"
-            if role.gpu_count
+            t("{n} CPUs", n=role.cpu_count) if role.cpu_count > 1 else "",
+            t("{size} memory", size=f"{role.memory / _GIB:g} GiB")
+            if role.memory
             else "",
-            f"{role.gpu_memory / _GIB:g} GiB per GPU" if role.gpu_memory else "",
+            t("{n} GPUs", n=role.gpu_count) if role.gpu_count else "",
+            t("{size} per GPU", size=f"{role.gpu_memory / _GIB:g} GiB")
+            if role.gpu_memory
+            else "",
         )
         if said
     )
@@ -490,8 +516,10 @@ def _marked(*, here: bool) -> str:
     return f" [$primary]{_HERE}[/] " if here else _INDENT
 
 
-def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str]:
-    """One agent, drawn as a box the width of the diagram.
+def _boxed(
+    said: Sequence[_Said], width: int, *, here: bool = False, lane: int = 0
+) -> list[str]:
+    """One agent, drawn as a flat block the width of the diagram, ruled heavily.
 
     Args:
       said: The lines to put in it, each as the colour to draw it in and the plain words to
@@ -502,13 +530,16 @@ def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str
       here: Whether the cursor is on this box, which is said in the colour of its sides. The
         rows of this list are pictures rather than lines of text, and a highlight that
         recoloured the row would be one the markup inside the picture painted straight over.
+      lane: Where the agent is in the flow's order, which is the colour of the plane down
+        its left side.
 
     Returns:
       The box, a line at a time, each exactly as wide as the last.
     """
     left, right, under_left, under_right, across, side = _BOX
-    edge = "$primary" if here else "$text-muted"
-    room = width - 4
+    edge = "$block-cursor-background" if here else "$hmz-line-strong"
+    stripe = f"[{_lane(lane)}]{humanfia.BLOCK}[/]"
+    room = width - 5
     lines = [f"[{edge}]{left}{across * (width - 2)}{right}[/]"]
     for one in said:
         # The right half first and whole: it is the shorter of the two and the one that
@@ -517,7 +548,7 @@ def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str
         head = _fits(one.said, room - len(tail) - (1 if tail else 0))
         pad = " " * max(0, room - len(head) - len(tail))
         lines.append(
-            f"[{edge}]{side}[/] [{one.colour}]{escape(head)}[/]{pad}"
+            f"[{edge}]{side}[/]{stripe} [{one.colour}]{escape(head)}[/]{pad}"
             + (f"[{one.tailing}]{escape(tail)}[/]" if tail else "")
             + f" [{edge}]{side}[/]"
         )
@@ -555,15 +586,16 @@ def _joins(down: int, up: int, *, live: bool = False) -> list[str]:
     Returns:
       The one line between the two boxes.
     """
-    ways = _DOT.join(
-        said
+    ways = "".join(
+        f" {humanfia.CUT} {said}"
         for said, often in ((f"{_DOWN} {down}", down), (f"{_UP} {up}", up))
         if often
     )
     # A spine down the left, so the boxes read as one run rather than as a stack of cards:
-    # solid where the flow has gone between these two, dotted where it never has.
+    # solid where the flow has gone between these two, dotted where it never has. Each way
+    # the work went is cut off it by the one diagonal.
     spine = _BOX[5] if ways else _NEITHER
-    return [f"[{'$secondary' if live else '$text-muted'}]{spine}   {ways}[/]"]
+    return [f"[{'$primary' if live else '$text-muted'}]{spine}{ways}[/]"]
 
 
 def _across(width: int) -> int:
@@ -582,7 +614,7 @@ def _flagged(one: Drawn) -> tuple[str, str]:
     if one.reading:
         return "reading", "$primary"
     if one.unread:
-        return "unread", "$secondary"
+        return "unread", "$accent"
     return "", "$text-muted"
 
 
@@ -653,14 +685,14 @@ def diagram(
         tail, tailing = _flagged(one)
         said = [
             _Said(
-                "$secondary" if one.working else "$foreground",
+                _inked(one),
                 f"{_OPEN if one.who in opened else _SHUT} "
                 f"{_WORKING if one.working else _IDLE} "
                 # What the flow calls it, or the id cut down where it calls it nothing: one
                 # name, since two for the same thing is one said twice.
                 + (one.named or short(one.who)),
                 _clock(shape, one.who, working=one.working),
-                "$secondary" if one.working else "$text-muted",
+                "$primary" if one.working else "$text-muted",
             ),
             _Said(
                 "$text-muted",
@@ -668,8 +700,8 @@ def diagram(
                     part
                     for part in (
                         one.runs,
-                        f"{taken} turn{'' if taken == 1 else 's'}" if taken else "",
-                        f"{held} sessions" if held > 1 else "",
+                        t("{n} turns", n=taken) if taken else "",
+                        t("{n} sessions", n=held) if held > 1 else "",
                         _spent(shape, one.who),
                     )
                     if part
@@ -694,7 +726,7 @@ def diagram(
             )
         block = (
             arrows
-            + _boxed(said, across, here=one.who == here)
+            + _boxed(said, across, here=one.who == here, lane=at)
             # Under the box, where its sessions do not hang under it: opened out, each
             # subagent is under the session that started it.
             + ([] if one.who in opened else fleet(shape.under.get(one.who, ()), across))
@@ -737,13 +769,15 @@ def fleet(under: Sequence[Under], width: int) -> list[str]:
     for at, one in enumerate(shown):
         last = at == len(shown) - 1 and not rest
         mark = _FLEET_WORKING if one.working else _FLEET_DONE
-        colour = "$secondary" if one.working else "$text-muted"
+        colour = "$primary" if one.working else "$text-muted"
         lines.append(
             f"[$text-muted]{'  ' + (_LAST_UNDER if last else _UNDER)}[/]"
             f"[{colour}]{mark}[/] [$text-muted]{escape(_fits(one.about, room))}[/]"
         )
     if rest:
-        lines.append(f"[$text-muted]  {_LAST_UNDER}{_FLEET_DONE} and {rest} more[/]")
+        lines.append(
+            f"[$text-muted]  {_LAST_UNDER}{_FLEET_DONE} {t('{n} more', n=rest)}[/]"
+        )
     return lines
 
 
@@ -769,7 +803,7 @@ def session_row(
     across = _across(width)
     taken = shape.turns.get(one.who, 0)
     flag, flagging = _flagged(one)
-    colour = "$secondary" if one.working else "$foreground"
+    colour = _inked(one)
     clock = _clock(shape, one.who, working=one.working)
     # The branch and the mark are six columns ahead of the words, and the clock ends where
     # the clock of the box above it does, a side and a space short of the box's width, so
@@ -783,7 +817,7 @@ def session_row(
             part
             for part in (
                 one.named.rpartition(_DOT)[2] or short(one.who),
-                f"{taken} turn{'' if taken == 1 else 's'}" if taken else "",
+                t("{n} turns", n=taken) if taken else "",
                 _spent(shape, one.who),
             )
             if part
@@ -796,7 +830,7 @@ def session_row(
         f"[{colour}]{_WORKING if one.working else _IDLE}[/] [{colour}]{escape(head)}[/]"
         f"{pad}"
         + (f"[{flagging}]{escape(flagged)}[/][$text-muted]{_DOT}[/]" if flagged else "")
-        + f"[{'$secondary' if one.working else '$text-muted'}]{escape(tail)}[/]"
+        + f"[{'$primary' if one.working else '$text-muted'}]{escape(tail)}[/]"
     ]
     stem = f"{_INDENT}[$text-muted]  {' ' if last else _BOX[5]} [/]"
     lines += [stem + line for line in fleet(shape.under.get(one.who, ()), across - 4)]
@@ -842,8 +876,9 @@ def columns(width: int) -> str:
     """The row naming the columns of the list, which nothing lands on."""
     what = _what_room(width)
     return (
-        f"{_INDENT}    [$text-muted]{'node':<{_NAMED}}{'runs · where':<{what}}"
-        f"{'turns':>{_TURNS}}{'time':>{_CLOCK}}{'tokens':>{_TOKENS}}[/]"
+        f"{_INDENT}    [$text-muted]{t('node'):<{_NAMED}}"
+        f"{t('model · runtime'):<{what}}{t('turns'):>{_TURNS}}"
+        f"{t('time'):>{_CLOCK}}{t('tokens'):>{_TOKENS}}[/]"
     )
 
 
@@ -882,7 +917,7 @@ def listed_row(
     room = _what_room(width)
     said, flagging = flag
     name = _fits(named, _NAMED - 1 - (len(said) + 1 if said else 0))
-    colour = "$secondary" if working else "$foreground"
+    colour = "$primary" if working else "$foreground"
     lead = (
         f"[{colour}]{escape(name)}[/]"
         + (f" [{flagging}]{escape(said)}[/]" if said else "")
@@ -891,7 +926,7 @@ def listed_row(
     return (
         f"{_marked(here=here)}[$text-muted]{fold or ' '}[/] [{colour}]{mark}[/] {lead}"
         f"[$text-muted]{escape(f'{_fits(what, room - 1):<{room}}{turns:>{_TURNS}}')}[/]"
-        f"[{'$secondary' if working else '$text-muted'}]"
+        f"[{'$primary' if working else '$text-muted'}]"
         f"{escape(f'{clock:>{_CLOCK}}')}[/]"
         f"[$text-muted]{escape(f'{tokens:>{_TOKENS}}')}[/]"
     )
@@ -951,13 +986,17 @@ def _kinds(counted: Sequence[Counted]) -> list[str]:
       nobody has to read unless a figure has one.
     """
     if not counted:
-        return ["[$text-muted]no tokens used yet[/]"]
+        return [f"[$text-muted]{t('Nothing used yet')}[/]"]
     rows = [
         f"{escape(one.kind):<26}{thousands(one.tokens):>8}{'' if one.whole else '+'}"
         for one in counted
     ]
     if not all(one.whole for one in counted):
-        rows.append("[$text-muted]+ is a minimum: not all agents report this kind[/]")
+        rows.append(
+            "[$text-muted]"
+            + t("+ at least this many; not every harness reports it")
+            + "[/]"
+        )
     return rows
 
 
@@ -997,26 +1036,26 @@ class Entry(Sheet[tuple[str, str]]):
     def _ask(self) -> None:
         """Says what a line of the board is, and takes what is typed from here on."""
         self.query_one("#asked", Label).update(
-            "Board entry" if self._naming else f"{escape(self._key)}"
+            t("Board line") if self._naming else f"{escape(self._key)}"
         )
         self.query_one("#about", Label).update(
-            "Shared by you and the flow. Neither waits for the other."
+            t("You and the flow share the board, and neither waits for the other.")
         )
         self._fill()
 
     def crumb(self) -> str:
         """What a line of the board is, before it has a name of its own."""
-        return "board entry"
+        return t("Board line")
 
     def actions(self) -> list[Action]:
         """Going on to what the line says, once it is named, or writing it down."""
         return [
             Action(
                 "onward",
-                "next" if self._naming else "save",
-                "name the entry, then say what it is"
+                t("Next") if self._naming else t("Save"),
+                t("name the line first, then type what it says")
                 if self._naming
-                else "write the entry on the board; an empty one is taken off",
+                else t("write the line to the board, or remove it if empty"),
                 self.action_onward,
                 variant="primary",
             )
@@ -1025,7 +1064,7 @@ class Entry(Sheet[tuple[str, str]]):
     def _fill(self) -> None:
         """Puts up what has been typed, which is the whole of what this sheet shows."""
         listing = self.query_one("#choices", OptionList)
-        asked = "name" if self._naming else "value"
+        asked = t("Name") if self._naming else t("Value")
         listing.set_options(
             [
                 Option(
@@ -1040,13 +1079,13 @@ class Entry(Sheet[tuple[str, str]]):
             f"[$text-muted]{self._said}[/]" if self._said else ""
         )
         self._footed(
-            Key("type", "write"),
-            Key("backspace", "delete"),
+            Key("type", t("Write")),
+            Key("backspace", t("Delete")),
             Key(
                 "enter",
-                "continue to value" if self._naming else "save, or remove if empty",
+                t("Type value") if self._naming else t("Save or remove"),
             ),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         )
 
     def on_key(self, event: events.Key) -> None:
@@ -1076,12 +1115,12 @@ class Entry(Sheet[tuple[str, str]]):
             return
         named = self._typed.strip()
         if not named:
-            self._said = "a board entry needs a name"
+            self._said = t("A name is needed.")
             self._fill()
             return
         held = self._board.held(named)
         if held is not None and held.whose == FLOW:
-            self._said = f"{escape(named)} can only be changed by the flow"
+            self._said = t("Only the flow changes this line")
             self._fill()
             return
         self._key, self._naming = named, False
@@ -1135,33 +1174,33 @@ class Place(Sheet[str]):
         if place is None:
             # The run it was of has gone, and a new run's environments are not this one.
             self.query_one("#about", Label).update(
-                "This environment is not in the epic."
+                t("This environment is no longer part of the epic.")
             )
             listing.set_options([])
-            self._footed(Key("esc", "back"))
+            self._footed(Key("esc", t("Back")))
             return
         self.query_one("#asked", Label).update(escape(place.role or place.kind))
         self.query_one("#about", Label).update(
-            "An environment of the epic: where its sessions work."
+            t("An environment of the epic, where its sessions work.")
         )
         by = {one.who: one for one in self._sessions()}
         using = [by.get(key, Drawn(key)) for key in place.sessions]
         working = sum(one.working for one in using)
         facts = [
-            ("kind", place.kind.upper()),
-            ("target", place.target or "this machine"),
-            ("workdir", place.workdir),
-            ("set up as", place.given),
-            ("image", place.image),
-            ("grants", ", ".join(place.grants) or "nothing beyond running in it"),
-            ("needs", _DOT.join(place.needs)),
-            ("harness", _harnessed(place)),
+            (t("kind"), place.kind.upper()),
+            (t("target"), place.target or t("this machine")),
+            (t("workdir"), place.workdir),
+            (t("set up as"), place.given),
+            (t("image"), place.image),
             (
-                "status",
-                (
-                    f"{working} of {len(using)} session{'' if len(using) == 1 else 's'} "
-                    "working"
-                ),
+                t("grants"),
+                ", ".join(place.grants) or t("none beyond running here"),
+            ),
+            (t("machine"), _DOT.join(place.needs)),
+            (t("Harness").lower(), _harnessed(place)),
+            (
+                t("status"),
+                t("{working} of {n} sessions working", working=working, n=len(using)),
             ),
         ]
         at = self.under()
@@ -1175,12 +1214,12 @@ class Place(Sheet[str]):
             if value
         ]
         rows.append(Option("", disabled=True))
-        rows.append(Option(" [$primary]Sessions[/]", disabled=True))
+        rows.append(Option(f" [$primary]{t('Sessions')}[/]", disabled=True))
         rows += [
             Option(
                 " "
                 + _shade(
-                    "$secondary" if one.working else "$text-muted",
+                    "$primary" if one.working else "$text-muted",
                     _WORKING if one.working else _IDLE,
                     here=one.who == landing,
                 )
@@ -1198,7 +1237,7 @@ class Place(Sheet[str]):
         if landing:
             listing.highlighted = len(rows) - len(using) + place.sessions.index(landing)
             self._drawn = listing.highlighted
-        self._footed(Key("enter", "read session"), Key("esc", "back"))
+        self._footed(Key("enter", t("Read log")), Key("esc", t("Back")))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -1277,7 +1316,7 @@ def details(
         filled = round(full * _METER)
         budget.append(
             (
-                named,
+                t(_LIMITS[named]),
                 (
                     f"{has} of {of}  [{'$error' if full >= 1 else '$secondary'}]"
                     f"{'█' * filled}[/][$text-muted]{'░' * (_METER - filled)} "
@@ -1298,27 +1337,26 @@ def details(
         hard = [named for named, *_ in meters if not flags[named]]
         budget.append(
             (
-                "when spent",
-                "the last turn finishes"
+                t("when spent"),
+                t("the last turn finishes")
                 if not hard
-                else "cut off at once"
+                else t("cut off at once")
                 if len(hard) == len(meters)
-                else f"cut off at once by {' or '.join(hard)}, "
-                "else the last turn finishes",
+                else t(
+                    "{limits} cut off at once; otherwise the last turn finishes",
+                    limits=", ".join(t(_LIMITS[named]) for named in hard),
+                ),
             )
         )
     # Which of the two parts it profiles, as it started.
-    profiled = (
-        ", ".join(
-            part for part in ("flow", "environment") if epic.get(f"profile_{part}")
-        )
-        or "no"
-    )
+    profiled = ", ".join(
+        t(part) for part in ("flow", "environment") if epic.get(f"profile_{part}")
+    ) or t("no")
     names = dict(epic.get("names") or {})
     flow = str(epic.get("flow") or "")
     listed = [
         (
-            "agents",
+            t("agents"),
             [
                 f"{names[role]} · {role}={runs}"
                 if names.get(role, role) != role
@@ -1327,11 +1365,11 @@ def details(
             ],
         ),
         (
-            "envs",
+            t("environments"),
             [f"{role}={given}" for role, given in dict(epic.get("envs") or {}).items()],
         ),
         (
-            "params",
+            t("params"),
             [
                 f"{name}={json.dumps(value)}"
                 for name, value in dict(epic.get("params") or {}).items()
@@ -1340,31 +1378,34 @@ def details(
     ]
     return [
         (
-            "Figures",
+            t("Figures"),
             [
                 (
-                    "time",
-                    f"{lasting(lasted)} {'elapsed' if epic.get('state') else 'total'}",
+                    t("time"),
+                    (
+                        f"{lasting(lasted)} "
+                        f"{t('elapsed') if epic.get('state') else t('total')}"
+                    ),
                 ),
-                ("spent", escape(tally[1]) if tally else "nothing yet"),
-                ("tokens", escape(tally[0]) if tally else "none yet"),
+                (t("spent"), escape(tally[1]) if tally else t("nothing")),
+                (t("tokens"), escape(tally[0]) if tally else t("none")),
             ],
         ),
-        ("Budget", budget or [("limit", "none")]),
+        (t("Budget"), budget or [(t("limit"), t("none"))]),
         (
-            "Set up",
+            t("Set up"),
             [
-                ("flow", escape(named_as(flow))),
-                ("task", escape(_task(epic, _WIDEST))),
+                (t("flow"), escape(named_as(flow))),
+                (t("Task").lower(), escape(_task(epic, _WIDEST))),
                 *(
                     ("" if at else field, escape(value))
                     for field, values in listed
                     for at, value in enumerate(values)
                 ),
-                ("profiled", profiled),
+                (t("profiled"), profiled),
             ],
         ),
-        ("Flows", [("", line) for line in _flowing(named_as(flow), calls)]),
+        (t("Flows"), [("", line) for line in _flowing(named_as(flow), calls)]),
     ]
 
 
@@ -1392,11 +1433,11 @@ class Halts(Popup):
         """
         super().__init__()
         self._force = force
-        self.asked = "Close every session now?" if force else "Stop this epic?"
+        self.asked = t("Close every session now?") if force else t("Stop this epic?")
         self.about = (
-            "Each turn under way fails rather than finishing."
+            t("Every turn under way fails rather than finishing.")
             if force
-            else "It stops for every frontend reading it."
+            else t("It stops for everyone reading it.")
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -1404,10 +1445,10 @@ class Halts(Popup):
         return [
             (
                 "yes",
-                "force stop" if self._force else "stop",
-                "close every session now" if self._force else "stop the epic",
+                t("Force stop") if self._force else t("Stop"),
+                t("closes every session now") if self._force else t("stops the epic"),
             ),
-            ("no", "cancel", "leave it going"),
+            ("no", t("Cancel"), t("leaves the epic running")),
         ]
 
 
@@ -1459,8 +1500,10 @@ class Details(Sheet[None]):
         return [
             Action(
                 "force" if force else "stop",
-                "force stop" if force else "stop",
-                "close every session now" if force else "stop the epic for everybody",
+                t("Force stop") if force else t("Stop"),
+                t("closes every session now")
+                if force
+                else t("stop the epic for everyone reading it"),
                 functools.partial(self._halts, force=force),
                 variant="error",
             )
@@ -1495,9 +1538,11 @@ class Details(Sheet[None]):
         epic = self._epic()
         monitor = self._monitor()
         state = str(epic.get("state") or "")
-        self.query_one("#asked", Label).update(escape(_task(epic, _WIDEST) or "epic"))
+        self.query_one("#asked", Label).update(
+            escape(_task(epic, _WIDEST) or t("epic"))
+        )
         self.query_one("#about", Label).update(
-            {"running": "Running.", "stopping": "Stopping."}.get(state, "Over.")
+            t({"running": "Running", "stopping": "Stopping"}.get(state, "Ended"))
         )
         rows: list[Option] = []
         for heading, said in details(
@@ -1528,7 +1573,7 @@ class Details(Sheet[None]):
             for at, one in enumerate(rows):
                 if str(listing.get_option_at_index(at).prompt) != str(one.prompt):
                     listing.replace_option_prompt_at_index(at, one.prompt)
-        self._footed(Key("esc", "back"))
+        self._footed(Key("esc", t("Back")))
 
 
 #: What the row that puts a new line on the board is put up under: the board's own mark with
@@ -1571,7 +1616,7 @@ class _Switch(Static):
         Args:
           listed: Whether it is the list's half.
         """
-        super().__init__(_VIEWS[listed], id=f"as-{_VIEWS[listed]}")
+        super().__init__(_viewed(listed=listed), id=f"as-{_VIEWS[listed]}")
         self.listed = listed
 
     def on_click(self) -> None:
@@ -1586,7 +1631,7 @@ class _Exomyth(Static):
 
     def __init__(self) -> None:
         """Makes it."""
-        super().__init__("Exomyth", id="exomyth")
+        super().__init__(t("Exomyth"), id="exomyth")
 
     def on_click(self) -> None:
         """Opens the epic going in Exomyth."""
@@ -1688,6 +1733,7 @@ class Monitoring(Screen[str | None]):
         stop: Callable[[bool], None] = lambda _: None,
         timelined: Callable[[], bool] = lambda: False,
         exomyth: Callable[[], None] = lambda: None,
+        asking: Callable[[], Collection[str]] | None = None,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
 
@@ -1719,8 +1765,11 @@ class Monitoring(Screen[str | None]):
           timelined: Whether there is a run going to open in Exomyth: not a chat, which has
             no timeline.
           exomyth: Opens it there, as the epic's own sheet in `/epics` does.
+          asking: The outworlder roles the flow waits on for an answer now, whose nodes are
+            drawn as what waits on the person is; None where nothing is said to wait.
         """
         super().__init__()
+        self._asking = asking or frozenset[str]
         self._monitoring = monitor
         self._boxing = drawn
         self._setup = setup
@@ -2053,22 +2102,35 @@ class Monitoring(Screen[str | None]):
         over = (monitor.until or time.monotonic()) - monitor.began
         turns = sum(shape.turns.values())
         said = [
-            *([str(epic.get("state") or "") or "over"] if epic.get("run") else []),
-            f"{working} of {len(self._boxes)} working",
-            f"{turns} turn{'' if turns == 1 else 's'}",
+            *(
+                [
+                    t(
+                        {"running": "running", "stopping": "stopping"}.get(
+                            str(epic.get("state") or ""), "ended"
+                        )
+                    )
+                ]
+                if epic.get("run")
+                else []
+            ),
+            t("{working} of {total} working", working=working, total=len(self._boxes)),
+            t("{n} turns", n=turns),
             lasting(over),
             *(
-                f"{named} {has} of {of}"
+                f"{t(_LIMITS[named])} {t('{at} of {total}', at=has, total=of)}"
                 for named, _, _, has, of in (
                     _meters(epic, over) if epic.get("run") else []
                 )
             ),
         ]
+        # Cut to the row rather than wrapped under it: a limit's meter is the last thing
+        # on it, and the epic's own page says every one of them whole.
+        room = self.size.width - len(_INDENT) - 2 - len(t("epic")) - len(_DOT)
         return _Row(
             _EPIC,
             f"{_marked(here=self._was == _EPIC)}"
-            f"[{'$secondary' if working else '$primary'}]◫[/] epic"
-            f"{_DOT}[$text-muted]{_DOT.join(said)}[/]",
+            f"[{'$primary' if working else '$text-muted'}]◫[/] {t('epic')}"
+            f"{_DOT}[$text-muted]{escape(_fits(_DOT.join(said), room))}[/]",
             landing=bool(epic.get("run")),
         )
 
@@ -2079,16 +2141,22 @@ class Monitoring(Screen[str | None]):
           One row apiece, under the first row and above the agents: a person is not an
           agent the flow drives, and reading what the flow says to them is where they answer.
         """
+        asking = self._asking()
         return [
             _Row(
                 key,
                 (
-                    f"{_marked(here=self._was == key)}[$primary]◉[/] "
-                    f"{escape(role)}{_DOT}[$text-muted]outworlder: messages from "
-                    "the flow to you[/]"
+                    f"{_marked(here=self._was == key)}"
+                    f"[{'$accent' if role in asking else '$primary'}]◉[/] "
+                    f"{escape(role)}{_DOT}[$text-muted]"
+                    f"{t('outworlder: carries messages from the flow to you')}[/]"
                 )
                 + (f"{_DOT}[$text-muted]{escape(whose)}[/]" if whose else "")
-                + (f"{_DOT}[$primary]reading[/]" if self._reading() == key else ""),
+                + (
+                    f"{_DOT}[$primary]{t('reading')}[/]"
+                    if self._reading() == key
+                    else ""
+                ),
             )
             for role in self._outworlding()
             if (key := f"{OUTWORLDER}{role}")
@@ -2112,8 +2180,8 @@ class Monitoring(Screen[str | None]):
             return [
                 _Row(
                     _NOTHING,
-                    f"{_INDENT}  [$text-muted]no agent has taken a turn yet; "
-                    "agents appear as they take turns[/]",
+                    f"{_INDENT}  [$text-muted]"
+                    f"{t('no agent has taken a turn yet; they appear as they do')}[/]",
                     landing=False,
                 )
             ]
@@ -2153,8 +2221,8 @@ class Monitoring(Screen[str | None]):
                 rows.append(
                     _Row(
                         f"{_NOTHING}{one.who}",
-                        f"{_INDENT}  [$text-muted]{_LAST_UNDER}no session has said "
-                        "which it is[/]",
+                        f"{_INDENT}  [$text-muted]{_LAST_UNDER}"
+                        f"{t('no session yet')}[/]",
                         landing=False,
                     )
                 )
@@ -2211,7 +2279,7 @@ class Monitoring(Screen[str | None]):
                             mark=_WORKING if one.working else _IDLE,
                             named=one.named or short(one.who),
                             what=one.runs,
-                            turns=f"{taken} turn{'' if taken == 1 else 's'}",
+                            turns=t("{n} turns", n=taken),
                             clock=_clock(shape, one.who, working=one.working),
                             tokens=thousands(shape.used.get(one.who, 0)),
                             working=one.working,
@@ -2238,7 +2306,7 @@ class Monitoring(Screen[str | None]):
                                 mark=_WORKING if session.working else _IDLE,
                                 named=session.named or session.who,
                                 what=session.runs,
-                                turns=f"{taken} turn{'' if taken == 1 else 's'}",
+                                turns=t("{n} turns", n=taken),
                                 clock=_clock(
                                     self._by_session,
                                     session.who,
@@ -2270,7 +2338,7 @@ class Monitoring(Screen[str | None]):
                             mark=_ENV,
                             named=place.role or place.kind,
                             what=_where(place),
-                            turns=f"{count} session{'' if count == 1 else 's'}",
+                            turns=t("{n} sessions", n=count),
                             clock="",
                             tokens="",
                             working=working,
@@ -2304,20 +2372,20 @@ class Monitoring(Screen[str | None]):
         # picture has no room for, what it has cost, a blank line between one and the next.
         groups: list[list[tuple[str, list[str]]]] = [
             [
-                ("Flow", _flowing(flow, self._calling())),
+                (t("Flow"), _flowing(flow, self._calling())),
                 (
-                    "Agents",
-                    (reads(named, models) or ["none installed"])
+                    t("Agents"),
+                    (reads(named, models) or [t("None installed")])
                     if not self._boxes
                     else [],
                 ),
                 # Only what was changed: a flow of forty settings says nothing by listing
                 # the ones nobody touched, and this is read to see what this run is.
-                ("Set", [escape(one) for one in setting(config)]),
+                (t("Changes"), [escape(one) for one in setting(config)]),
                 # Who else is reading, where anybody is: which of them holds which role is
                 # on the outworlders' nodes, and who said what is on the log.
                 (
-                    "Reading",
+                    t("Readers"),
                     [escape(one) for one in frontends]
                     if len(frontends := self._frontends()) > 1
                     else [],
@@ -2327,13 +2395,13 @@ class Monitoring(Screen[str | None]):
                 # Only the ones the boxes have no arrow for: the rest are drawn above. And
                 # none on the list, which is drawn to say nothing of who handed to whom.
                 (
-                    "Also",
+                    t("Handovers"),
                     [] if self._listed else elsewhere(self._boxes, shape),
                 ),
             ],
             [
                 (
-                    "Tokens",
+                    t("Tokens"),
                     [
                         f"{escape(spend.model):<26}{thousands(spend.tokens):>8}"
                         # Blank rather than nought for a model nobody prices: a run whose
@@ -2343,17 +2411,18 @@ class Monitoring(Screen[str | None]):
                         # Output alone: the input of a turn is the conversation so far, sent
                         # again at every request, so a rate counting it says how long the
                         # transcript has got rather than how fast the model is writing.
-                        f"   [$text-muted]{spend.rate:.0f} out/s[/]"
+                        f"   [$text-muted]"
+                        f"{t('{rate} out/s', rate=f'{spend.rate:.0f}')}[/]"
                         for spend in spending
                     ]
-                    or ["[$text-muted]no tokens used yet[/]"],
+                    or [f"[$text-muted]{t('Nothing used yet')}[/]"],
                 ),
                 # Under the models rather than beside them, because it is a different
                 # question: what a model cost is per model, and what a run spent its tokens
                 # *on* is the run's, a cached read being the same thing whichever model made
                 # it. A `+` is a figure some agent of this run does not report and which is
                 # therefore a floor.
-                ("Kinds", _kinds(counted)),
+                (t("Kinds"), _kinds(counted)),
             ],
         ]
         lines: list[str] = []
@@ -2386,27 +2455,34 @@ class Monitoring(Screen[str | None]):
         width = self.size.width
         for ruled in self.query(".rule").results(Static):
             ruled.update(_RULE * width)
-        said = f"monitor{_DOT}{_VIEWS[self._listed]}"
-        left = f"[$secondary]▣[/] monitor[$text-muted]{_DOT}{_VIEWS[self._listed]}[/]"
+        said = f"{t('monitor')}{_DOT}{_viewed(listed=self._listed).lower()}"
+        left = (
+            f"[$secondary]▣[/] {t('monitor')}[$text-muted]{_DOT}"
+            f"{_viewed(listed=self._listed).lower()}[/]"
+        )
         if self._typed():
-            keys = ["enter send", "ctrl+c clear"]
+            keys = [f"enter {t('Send')}", f"ctrl+c {t('Clear')}"]
         else:
             under = self._was
             folding = (
-                ["space shut" if under in self._opened else "space sessions"]
+                [
+                    f"space {t('Hide sessions')}"
+                    if under in self._opened
+                    else f"space {t('Sessions')}"
+                ]
                 if any(one.who == under for one in self._boxes)
-                else ["space shut"]
+                else [f"space {t('Hide sessions')}"]
                 if self._owner(under) in self._opened and self._owner(under) != under
                 else []
             )
             keys = [
-                "↑↓ node",
+                f"↑↓ {t('Node')}",
                 *folding,
-                "enter open",
-                "→ back",
-                f"ctrl+t {_VIEWS[not self._listed]}",
-                *(["ctrl+e Exomyth"] if self._timelined() else []),
-                "/ commands",
+                f"enter {t('Open')}",
+                f"→ {t('Back')}",
+                f"ctrl+t {_viewed(listed=not self._listed)}",
+                *([f"ctrl+e {t('Exomyth')}"] if self._timelined() else []),
+                f"/ {t('Commands')}",
             ]
         # Measured as drawn: the mark and a space ahead of the words, and the padding.
         room = width - 4 - 2 - len(said)
@@ -2436,8 +2512,8 @@ class Monitoring(Screen[str | None]):
             _Row(f"{_BOARDED}{_NOTHING}", "", landing=False),
             _Row(
                 _BOARDED,
-                f"{_INDENT}[$primary]Board[/]{_DOT}[$text-muted]shared by you and "
-                "the flow[/]",
+                f"{_INDENT}[$primary]{t('Board')}[/]{_DOT}[$text-muted]"
+                f"{t('shared by you and the flow')}[/]",
                 landing=False,
             ),
         ]
@@ -2469,7 +2545,7 @@ class Monitoring(Screen[str | None]):
             _Row(
                 _NEW,
                 f"{_marked(here=self._was == _NEW)}[$primary]+[/] "
-                "[$text-muted]add entry[/]",
+                f"[$text-muted]{t('new entry')}[/]",
             )
         )
         return rows
@@ -2524,7 +2600,7 @@ class Monitoring(Screen[str | None]):
         board = self._boarding()
         held = board.held(key) if board is not None and key else None
         if held is not None and held.whose == FLOW:
-            self._said = f"{escape(key)} can only be changed by the flow"
+            self._said = t("Only the flow changes this line")
             self._fill()
             return
         self._writes(key)
@@ -2569,13 +2645,13 @@ class Monitoring(Screen[str | None]):
         named, value = said
         if value:
             board.put(named, value)
-            self._said = f"{escape(named)} saved to the board"
+            self._said = t("{name} saved", name=escape(named))
         elif board.held(named) is not None:
             # Written down as nothing, which is a line with nothing to say: taken off rather
             # than left up empty, there being no key of its own that does it.
             board.drop(named)
-            self._said = f"{escape(named)} removed from the board"
+            self._said = t("{name} removed", name=escape(named))
         else:
-            self._said = "nothing was entered, so nothing was saved"
+            self._said = t("nothing typed")
         self._ids = []  # the rows have moved, so they are put up again
         self._fill()

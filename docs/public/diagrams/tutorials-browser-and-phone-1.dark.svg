@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img">
+  <title>A phone reaches hmz web through a port forward that runs on the same computer; a browser on the computer reaches it directly; hmz web talks to the daemon</title>
+  <rect width="760" height="296" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L8 4L0 8z" fill="#4fd8ea"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="40" width="168" height="72" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="108" y="72" text-anchor="middle" font-weight="600">Your phone</text>
+    <text x="108" y="94" text-anchor="middle" font-size="12" fill="#b3c3c8">its browser</text>
+
+    <rect x="24" y="168" width="168" height="72" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="108" y="200" text-anchor="middle" font-weight="600">Your computer</text>
+    <text x="108" y="222" text-anchor="middle" font-size="12" fill="#b3c3c8">its browser</text>
+
+    <rect x="272" y="40" width="168" height="72" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="356" y="72" text-anchor="middle" font-weight="600">Port forward</text>
+    <text x="356" y="94" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">tailscale serve</text>
+
+    <rect x="520" y="40" width="216" height="72" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="628" y="72" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz web</text>
+    <text x="628" y="94" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">127.0.0.1:8420</text>
+
+    <rect x="520" y="168" width="216" height="72" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="628" y="200" text-anchor="middle" font-weight="600">Daemon</text>
+    <text x="628" y="222" text-anchor="middle" font-size="12" fill="#b3c3c8">holds your chats and epics</text>
+
+    <path d="M192 76H270" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="231" y="64" text-anchor="middle" font-size="12" fill="#b3c3c8">HTTP</text>
+
+    <path d="M440 64H518" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="479" y="52" text-anchor="middle" font-size="12" fill="#b3c3c8">loopback</text>
+
+    <path d="M192 204H480V92H518" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+    <text x="336" y="192" text-anchor="middle" font-size="12" fill="#b3c3c8">loopback</text>
+
+    <path d="M628 112V166" stroke="#4fd8ea" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+
+    <text x="380" y="272" text-anchor="middle" font-size="12" fill="#9aa9b0">The forward runs on the computer, so hmz web sees a local connection.</text>
+  </g>
+</svg>

@@ -61,12 +61,15 @@ def _counts(page: Page) -> dict[str, str]:
 
 
 #: The page the panel is mounted on alone: the page's stylesheet, and a policy letting the
-#: editor style what it draws, as Section 4.5.5 of web.md lets it.
+#: editor style what it draws and a stylesheet carry its own pictures, as the page's own does
+#: (Section 4.5.5 of web.md).
 _BENCH = (
     "<!doctype html><html lang=en data-theme=light><head><meta charset=utf-8>"
     "<title>Changes</title><link rel=stylesheet href=/style.css></head><body></body></html>"
 )
-_POLICY = "default-src 'self'; style-src 'self' 'unsafe-inline'"
+_POLICY = (
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
+)
 
 
 def _through(route: Route) -> None:
@@ -161,8 +164,29 @@ def test_groups_stage_unstage_discard_and_commit(
         app.hover()
         app.locator("[data-act=open]").click()
         assert page.evaluate("() => window.repo.opened") == [
-            ["files", {"path": "src/app.py"}]
+            ["files", {"path": "/work/src/app.py"}]
         ]
+
+        # A right click offers the same in a menu, what cannot be undone last; a second one
+        # on another row leaves one menu open, that row's, and Escape shuts it.
+        app.click(button="right")
+        menu = page.get_by_role("menu")
+        expect(menu).to_have_count(1)
+        assert menu.get_by_role("menuitem").all_inner_texts() == [
+            "Open File",
+            "Stage Changes",
+            "Discard Changes",
+        ]
+        _row(page, "untracked", "logo.png").click(button="right", force=True)
+        expect(menu).to_have_count(1)
+        assert menu.get_by_role("menuitem").all_inner_texts() == [
+            "Open File",
+            "Stage Changes",
+            "Delete File",
+        ]
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+        assert page.evaluate("() => window.repo.asked.length") == 2
 
         # Keyboard: Space stages what is picked, Shift+Down picks a run.
         _row(page, "untracked", "logo.png").click()
@@ -209,6 +233,15 @@ def test_diff_side_by_side_and_inline(site: Site, engine: str, tmp_path: Path) -
         expect(page.locator("[data-hmz=diff-counter]")).to_have_text("1 of 2")
         page.keyboard.press("F7")
         expect(page.locator("[data-hmz=diff-counter]")).to_have_text("2 of 2")
+        # Flat: nothing drawn here, the editor included, casts a shadow.
+        assert (
+            page.evaluate(
+                """() => [...document.querySelectorAll('*')]
+                  .filter((el) => getComputedStyle(el).boxShadow !== 'none')
+                  .map((el) => `${el.tagName}.${el.className}`)"""
+            )
+            == []
+        )
         page.screenshot(path=str(_shots(tmp_path) / f"changes-diff-{engine}.png"))
 
         page.locator("[data-hmz=diff-mode]").click()
@@ -259,6 +292,15 @@ def test_conflicts_bar_the_commit_and_snapshots_are_gated(
         )
 
         # A closed environment stays shown as last read, and offers nothing that changes it.
+        # The read the rewind itself asked for is let finish first, so that the press on
+        # Refresh below is what finds the environment closed.
+        page.wait_for_function(
+            """() => {
+              const { calls, pending } = window.repo
+              const after = calls.slice(calls.findLastIndex(([m]) => m === 'env.git.rewind'))
+              return after.some(([m]) => m === 'env.git.snapshots') && pending === 0
+            }"""
+        )
         page.evaluate("() => { window.repo.closed = true }")
         page.locator("[data-hmz=changes-refresh]").click()
         expect(page.locator("[data-hmz=changes-closed]")).to_be_visible()

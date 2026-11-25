@@ -33,8 +33,6 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
-import yaml
-
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
@@ -133,17 +131,17 @@ class Settings:
 
     @property
     def ai_chan(self) -> str:
-        """The nous a new Ai-chan conversation defaults to, as a nous's name or an agent spec.
+        """The nous the last Ai-chan conversation was made with, a nous's name or an agent spec.
 
-        This machine's rather than a workspace's (Section 3.4.3 of files.md): "" while nobody
-        has chosen one, which is no default, and a frontend asks for one instead.
+        This machine's rather than a workspace's (Section 3.4.3 of files.md), and what a new
+        conversation is offered: "" while none was made, and a frontend asks for one instead.
         """
         said = self._held.get("ai_chan")
         return said if isinstance(said, str) else ""
 
     @ai_chan.setter
     def ai_chan(self, spec: str) -> None:
-        """Writes down the nous a new Ai-chan conversation defaults to, or "" for none."""
+        """Writes down the nous an Ai-chan conversation was just made with."""
         self._sets("ai_chan", spec)
 
     @property
@@ -627,7 +625,7 @@ class Settings:
 
         try:
             self._held = settings.changes(marked)
-        except (OSError, yaml.YAMLError):
+        except (OSError, ValueError):
             # Remembered for as long as this is, which is all it can be.
             change(self._held)
 

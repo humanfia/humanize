@@ -234,6 +234,26 @@ def test_a_target_settings_has_none_of_lists_nothing(git: Git) -> None:
     assert git.asked == []
 
 
+def test_a_chat_an_earlier_humanize_backed_up_as_an_epic_is_listed_as_a_chat(
+    git: Git, ran: Path
+) -> None:
+    del git
+    record = ran / "epic.jsonl"
+    record.write_text(record.read_text().replace('"kind": "flow"', '"kind": "chat"'))
+    key = _held(ran)
+
+    (held,) = backing.listed("lab")
+
+    assert (held.key, held.chat) == (key, True)
+    shutil.rmtree(ran)
+    # And pulled among the chats, where a chat of its name would be here already.
+    at = backing.pulled("lab", key)
+    assert chats() == [at]
+    assert (at / "chat.jsonl").is_file()
+    with pytest.raises(ValueError, match="already here"):
+        backing.pulled("lab", key)
+
+
 @pytest.fixture
 def chat(tmp_path: Path) -> Path:
     workspace = tmp_path / "project"

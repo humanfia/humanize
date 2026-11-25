@@ -2,13 +2,13 @@
 
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
-    hmz chat -a claude/MODEL:high "what does this repository do?"
+    hmz chat start -a claude/MODEL:high "what does this repository do?"
 
-A few commands anybody types -- running a flow, saying one message to an agent, serving the web
-interface, backing an epic up to git repositories, and moving Humanize itself to its newest
-release -- and everything else Humanize keeps is walked at the prompt: a listing with a noun in
-it for every store would be a second interface to learn, and the one with the sheets in it is
-the interface.
+A few commands anybody types -- running a flow, serving the web interface, and moving Humanize
+itself to its newest release -- and everything else Humanize keeps is walked at the prompt, or
+asked of the daemon by a declared command (`hmz.cli.commands`): a listing with a noun in it for
+every store would be a second interface to learn, and the one with the sheets in it is the
+interface.
 
 The other command in the listing is `hmz internal`, which is the six lines Humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
@@ -21,8 +21,8 @@ A command imports what it needs when it is the one asked for, and no earlier: `h
 not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `chat.py`, `web.py`, `update.py`,
-`backup.py`, and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
+one of them costs nothing for the others -- which is what `web.py`, `update.py`, and
+`cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
 The other three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process
 becomes. `exec` has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`,
 since the terminal interface starts a flow from the same parts.
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from hmz.sdk import Run
     from hmz.tui import Humanize
 
-__all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens"]
+__all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens", "summaries"]
 
 #: How long a second interrupt waits for the daemon to say it forced the epic.
 _FORCING = 5.0
@@ -258,7 +258,7 @@ def _backs_up(running: Run, say: Callable[[str], object]) -> None:
                     return
         say(
             f"hmz exec: a backup took longer than {BACKING:.0f}s and was left; "
-            "`hmz backup EPIC` sends it again"
+            "`hmz backup run EPIC` sends it again"
         )
     except (OSError, ValueError, Refused):
         # The daemon gone: nothing is left to wait on.
@@ -445,20 +445,6 @@ def _hook(argv: list[str]) -> int:
     return hook(argv)
 
 
-def _chat(argv: list[str]) -> int:
-    """Says one message to an agent in this directory, and prints what it answered.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero once the turn is done; one where it failed or the daemon could not be reached.
-    """
-    from .chat import chat
-
-    return chat(argv)
-
-
 def _web(argv: list[str]) -> int:
     """Serves this directory's runs to a browser on this machine, until interrupted.
 
@@ -474,7 +460,7 @@ def _web(argv: list[str]) -> int:
 
 
 def _daemon(argv: list[str]) -> int:
-    """Runs, reaches, pairs or installs this machine's daemon.
+    """Runs, reaches or installs this machine's daemon.
 
     Args:
       argv: What followed the command name.
@@ -515,20 +501,6 @@ def _update(argv: list[str]) -> int:
     return update(argv)
 
 
-def _backup(argv: list[str]) -> int:
-    """Backs one epic up to git repositories now, and says how it went.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero where every target took it; one where one did not.
-    """
-    from .backup import backup
-
-    return backup(argv)
-
-
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines Humanize spawns for itself was named.
 
@@ -566,26 +538,51 @@ def _internal(argv: list[str]) -> int:
     return INTERNAL[argv[0]][0](argv[1:])
 
 
-def _line() -> ArgumentParser:
+def _line(*, plain: bool = False) -> ArgumentParser:
     """The line `hmz` itself takes, which is how the interface is opened.
 
     It takes nothing at all: which flow runs and what drives it are chosen at the prompt,
     and whether the run is held apart from this terminal is read off the terminal rather than
     asked for -- a run nobody can walk away from is not a thing to want. What is left is a
-    parser that names the program and refuses anything else, built here rather than where it
-    is parsed because the help asks it what `hmz` takes.
+    parser that names the program and refuses anything else. Its help is not argparse's flat
+    listing but the page `hmz help` writes (:func:`hmz.cli.commands.help.top`): the commands
+    under what they are about, what they share, and what to run next.
+
+    Args:
+      plain: Whether that page is written without escapes whatever is reading it.
 
     Returns:
       The parser, without the commands: whoever wants those adds them.
     """
     import argparse
 
-    return argparse.ArgumentParser(
-        prog="hmz",
-        description="Orchestrate, execute, and observe agent flows. Running without a "
-        "command opens the terminal interface where this directory left off.",
-        epilog="Run `hmz COMMAND --help` for more information on a command.",
-    )
+    class Line(argparse.ArgumentParser):
+        def format_help(self) -> str:
+            from .commands.help import top
+
+            return top(colour=False if plain else None)
+
+    return Line(prog="hmz")
+
+
+def summaries() -> dict[str, str]:
+    """Every command there is, with the line a listing shows it as.
+
+    Those that read their own line (:data:`COMMANDS`) and then those written as declarations
+    (:mod:`hmz.cli.tree`), which is the order a line is routed in: a name in both is the
+    first's.
+
+    Returns:
+      Each command's summary by its name.
+    """
+    from hmz.words import t
+
+    from . import tree
+
+    found = {name: summary for name, (_, summary) in COMMANDS.items()}
+    for name, command in tree.commands().items():
+        found.setdefault(name, t(command.summary))
+    return found
 
 
 def _tui() -> int:
@@ -669,7 +666,7 @@ def _closes(app: Humanize) -> int:
         if not done:
             print(
                 f"hmz: a backup took longer than {_CLOSING:.0f}s and was left; "
-                "`hmz backup EPIC` sends it again",
+                "`hmz backup run EPIC` sends it again",
                 file=sys.stderr,
             )
     return app.return_code or 0
@@ -706,23 +703,22 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Seven are for
-#: anybody: running a flow in a directory, saying one message to an agent there, serving the
-#: web interface, running, reaching and pairing this machine's daemon, serving a relay daemons
-#: and devices meet through, moving Humanize itself to its newest release, and backing an
-#: epic up from a script -- everything else Humanize keeps is walked at the prompt rather
-#: than typed, a run already held here included, which `hmz` with no command opens.
+#: Each command, as what carries it out and the line a listing shows it as. Five are for
+#: anybody: running a flow in a directory, serving the
+#: web interface, running, reaching and installing this machine's daemon, serving a relay daemons
+#: and devices meet through, and moving Humanize itself to its newest release -- everything
+#: else Humanize keeps is walked at the prompt rather than typed, or asked of the daemon by a
+#: declared command (`hmz.cli.commands`), a run already held here included, which `hmz` with
+#: no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
-    "chat": (_chat, "say one message to an agent in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
-    "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
+    "daemon": (_daemon, "run, reach and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
-    "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),
 }
 
@@ -740,6 +736,11 @@ def main(argv: list[str] | None = None) -> int:
     if not arguments:
         return _tui()
     if arguments[0] not in COMMANDS:
+        from . import tree
+
+        # A command written as a declaration (`hmz.cli.commands`): the tree reads its line.
+        if arguments[0] in tree.commands():
+            return tree.runs(arguments)
         if arguments == ["--version"]:
             # Read from the installed metadata, which costs more to reach than everything
             # else here put together -- so it is reached only when it is what was asked for.
@@ -757,10 +758,10 @@ def main(argv: list[str] | None = None) -> int:
         # person types would be describing a different program from the one that runs. It
         # knows the commands by name and not by what they take -- each one answers
         # `hmz COMMAND --help` itself.
-        parser = _line()
+        parser = _line(plain="--no-color" in arguments)
         commands = parser.add_subparsers(metavar="COMMAND", required=True)
-        for name, (_, summary) in COMMANDS.items():
-            commands.add_parser(name, help=summary, add_help=False)
+        for name in summaries():
+            commands.add_parser(name, add_help=False)
         parser.parse_args(arguments)
 
     return COMMANDS[arguments[0]][0](arguments[1:])

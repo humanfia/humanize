@@ -5,7 +5,9 @@ from __future__ import annotations
 import errno
 import os
 import re
+import shutil
 import stat
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,36 @@ def test_at_is_a_private_directory_of_this_users() -> None:
     assert found.stat().st_uid == os.getuid()
     assert stat.S_IMODE(found.stat().st_mode) & 0o077 == 0
     assert where.at() == found
+
+
+def test_a_folderless_workspace_is_a_new_private_directory_of_the_machines() -> None:
+    # Section 7.7.8 of files.md.
+    made = [Path(where.nofolder()), Path(where.nofolder())]
+    try:
+        assert made[0] != made[1]
+        for one in made:
+            assert one.is_dir()
+            assert one.parent == where.at().resolve() / "nofolder"
+            assert stat.S_IMODE(one.stat().st_mode) == 0o700
+            assert where.folderless(one)
+    finally:
+        for one in made:
+            shutil.rmtree(one)
+
+
+def test_only_a_directory_made_for_no_folder_is_folderless(tmp_path: Path) -> None:
+    # Section 4.2.5.1 of daemon.md.
+    holding = where.at().resolve() / "nofolder"
+    tmp = Path(tempfile.gettempdir()).resolve()
+
+    assert where.folderless(str(holding / "tmpab12cd34"))
+    # As an earlier hmz made one, straight in the temporary directory.
+    assert where.folderless(tmp / "hmz-ab12_d34")
+    assert not where.folderless(tmp / "hmz-project")
+    assert not where.folderless(tmp / "deeper" / "hmz-ab12_d34")
+    assert not where.folderless(holding)
+    assert not where.folderless(holding / "one" / "inside")
+    assert not where.folderless(tmp_path)
 
 
 def test_workspace_follows_every_link(tmp_path: Path) -> None:

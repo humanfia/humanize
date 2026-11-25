@@ -3,7 +3,7 @@
 The other machine is this one under a home of its own: reached over `stdio:ssh` by the
 stand-in `ssh` of `doubles_ssh`, whose `hmz daemon connect --stdio` starts that home's daemon
 as the real one would start the one installed there; or over `tcp`, `hmz daemon serve` under a
-home of its own, paired from the code `hmz daemon pair` makes.
+home of its own, paired from the code `hmz devices pair` makes.
 """
 
 from __future__ import annotations
@@ -19,16 +19,16 @@ import sys
 import tarfile
 import tempfile
 import threading
+import tomllib
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import pytest
-import yaml
 from textual.widgets import OptionList
 
-from hmz import home
+from hmz import config
 from hmz.coganchor.machines import sshconfig
 from hmz.daemon import link, where
 from hmz.runtime import Hmz
@@ -41,11 +41,13 @@ from hmz.tui.pick import (
     Devices,
     Epics,
     Exporting,
+    Installs,
     RemoteEpics,
     Revokes,
     Starting,
 )
 from hmz.tui.settings import Adjusts
+from tests.conftest import homed, places
 from tests.integration.doubles_daemon import ASKS
 from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
@@ -88,14 +90,11 @@ def host(
     far = tmp_path / "far"
     far.mkdir()
     found = faked(far, monkeypatch)
-    here = os.environ["HUMANIZE_HOME"]
     # Written there as a run there writes it: under that machine's own home.
-    monkeypatch.setenv("HUMANIZE_HOME", str(found.humanize))
     project = found.home / "project"
     project.mkdir()
-    with Epic("ralph", "tidy the far project", project):
+    with homed(found.humanize), Epic("ralph", "tidy the far project", project):
         pass
-    monkeypatch.setenv("HUMANIZE_HOME", here)
     yield found
     # The daemon `hmz daemon connect --stdio` started there, which outlives its client.
     pid = where.held(found.tmp / f"humanize-{os.getuid()}").get("pid")
@@ -120,17 +119,22 @@ async def _adds(pilot: Pilot[None], name: str) -> None:
 
 
 async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
-    host: Host, tmp_path: Path
+    host: Host, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # And one started there in no folder, in a directory that machine made for it alone.
+    made = host.tmp.resolve() / f"humanize-{os.getuid()}" / "nofolder" / "tmpab12cd34"
+    made.mkdir(parents=True)
+    with homed(host.humanize), Epic("ralph", "nowhere at all", made):
+        pass
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/settings daemons")
         await on(pilot, Adjusts)
-        await shows(pilot, "Local", "no other daemons yet")
+        await shows(pilot, "Local", "Only Local so far.")
         pilot.app.save_screenshot("daemons-empty.svg", str(tmp_path))
 
         await _adds(pilot, "box")
-        await picks(pilot, "mode", "Custom")
+        await picks(pilot, "mode", "custom")
         await onto(pilot, "host")
         await pilot.press(*"box.example", "enter")
         await pilot.click("#act-done")
@@ -150,11 +154,14 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
         await typed(pilot, "/epics @box")
         await on(pilot, RemoteEpics)
         await shows(pilot, "Epics on box", "tidy the far project", "ralph")
+        # Said to be of no folder, never by the directory made for it (Section 17.3.1.1).
+        said = await shows(pilot, "No folder · nowhere at all")
+        assert "tmpab12cd34" not in said
         pilot.app.save_screenshot("epics-box.svg", str(tmp_path))
 
         # And one brought here from its menu.
         await _menu(pilot)
-        await shows(pilot, "export", "upload", "copy name")
+        await shows(pilot, "Export", "Upload", "Copy name")
         pilot.app.save_screenshot("epic-menu.svg", str(tmp_path))
         await onto(pilot, "export")
         await pilot.press("enter")
@@ -178,12 +185,65 @@ async def test_a_daemon_is_added_and_its_epics_listed_and_exported(
     assert [one["name"] for one in Hmz().daemons.all()] == ["box"]
 
 
+async def test_a_machine_with_no_hmz_is_asked_about_before_any_is_installed(
+    host: Host,
+) -> None:
+    host.installs(None)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    question = "hmz is not installed on box. Install it?"
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings daemons")
+        await on(pilot, Adjusts)
+        await _menu(pilot, "box")
+        await onto(pilot, "connect")
+        await pilot.press("enter")
+
+        # Asked over the page, with nothing installed meanwhile; esc is not now.
+        asked = await on(pilot, Installs)
+        assert asked.asked == question
+        await shows(pilot, question, "Install", "Not now")
+        assert not host.installed()
+        await pilot.press("escape")
+        await on(pilot, Adjusts)
+        await shows(pilot, "failed: hmz is not installed on box.")
+        assert not host.installed()
+
+        # Not reached again by itself; connect asks again, and install brings it up.
+        await _menu(pilot, "box")
+        await onto(pilot, "connect")
+        await pilot.press("enter")
+        await on(pilot, Installs)
+        await pilot.press("enter")
+        await on(pilot, Adjusts)
+        await shows(pilot, "up, hmz ")
+        assert host.installed().split()[-1].startswith("hmz")
+
+
+async def test_a_question_goes_once_its_daemon_no_longer_asks(host: Host) -> None:
+    host.installs(None)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        pick.remotes().connect("box")
+        # Over whatever is on the screen: here, the prompt.
+        await on(pilot, Installs)
+        pick.remotes().answer("box", False)
+        await until(
+            pilot, lambda: not isinstance(pilot.app.screen, Installs), "it to go"
+        )
+        assert pick.remotes().state("box")["state"] == "failed"
+        assert not host.installed()
+
+
 async def test_epics_of_no_such_daemon_are_refused(host: Host) -> None:
     del host
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/epics @nowhere")
-        await shows(pilot, "/epics takes a daemon as @<name>: choose @local")
+        await shows(
+            pilot, "`/epics` takes a daemon as `@<name>`; the daemons are @local"
+        )
 
 
 async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
@@ -201,14 +261,10 @@ async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
         await picks(pilot, "daemon:box", "on")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
-        await shows(pilot, "box: applied")
+        await shows(pilot, "box: Applied")
 
-    here = os.environ["HUMANIZE_HOME"]
-    os.environ["HUMANIZE_HOME"] = str(host.humanize)
-    try:
+    with homed(host.humanize):
         assert Hmz().settings.details
-    finally:
-        os.environ["HUMANIZE_HOME"] = here
 
 
 async def test_an_epic_is_started_on_another_daemon_and_steered_here(
@@ -218,10 +274,8 @@ async def test_an_epic_is_started_on_another_daemon_and_steered_here(
     project = host.home / "project"
     own_flow(project, ASKS)
     # Set up there as that directory last ran it: under that machine's own home.
-    here = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
-    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
-    monkeypatch.setenv("HUMANIZE_HOME", here)
+    with homed(host.humanize):
+        Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "/epics @box")
@@ -314,10 +368,8 @@ async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
     Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
     project = host.home / "project"
     own_flow(project, ASKS)
-    here = os.environ["HUMANIZE_HOME"]
-    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
-    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
-    monkeypatch.setenv("HUMANIZE_HOME", here)
+    with homed(host.humanize):
+        Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
 
     def held() -> list[str]:
         with pick.remotes().client("box") as client:
@@ -345,10 +397,10 @@ async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
         await shows(pilot, "is 'a plan' good?")
         await typed(pilot, "it is")
         await until(pilot, (project / "result.json").exists, "the epic to end")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await typed(pilot, "not from there")
         # Nor the start of a chat there: what `n` on that daemon's list starts is an epic.
-        await shows(pilot, "start an epic on box with n on /epics @box")
+        await shows(pilot, "An epic is started on box with `n` on `/epics @box`")
         assert "start a chat on" not in screen(pilot.app)
 
         # The chat of this frontend is this machine's: back on its own host, here.
@@ -380,7 +432,8 @@ class _Gated:
         pass
 
     def call(self, method: str, *_args: Any, **_kwargs: Any) -> object:
-        if method != "runs.list":
+        # The list is read by both: its epics and, beside them, its chats.
+        if method not in {"runs.list", "chat.list"}:
             self.gate(method).wait(PATIENCE)
         return {
             "workspaces.list": {"here": "", "workspaces": [{"path": "/w"}]},
@@ -433,33 +486,33 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
             await shows(pilot, "tidy the far project")
 
             await pilot.press("n")
-            await shows(pilot, "reaching box…")
+            await shows(pilot, "Connecting box…")
             held.gate("workspaces.list").set()
             await on(pilot, Starting)
             await shows(pilot, "/w")
             await pilot.press("escape")
             await on(pilot, RemoteEpics)
-            assert "reaching box…" not in screen(pilot.app)
+            assert "Connecting box…" not in screen(pilot.app)
 
             await _menu(pilot, "e1")
             await onto(pilot, "copy-task")
             await pilot.press("enter")
             await shows(pilot, "fetching the task…")
             held.gate("runs.get").set()
-            await shows(pilot, "task copied")
+            await shows(pilot, "Task copied")
 
             await _menu(pilot, "e1")
             await onto(pilot, "upload")
             await pilot.press("enter")
-            await shows(pilot, "backing e1 up…")
+            await shows(pilot, "Uploading…")
             held.gate("runs.backup").set()
-            await shows(pilot, "backing e1 up to s3")
+            await shows(pilot, "Uploading to s3")
 
             # Followed on the interface's own screen, which says why it could not be.
             await _menu(pilot, "e1")
             await onto(pilot, "follow")
             await pilot.press("enter")
-            await shows(pilot, "following /w on box")
+            await shows(pilot, "Following /w on box")
             following.set()
             await shows(pilot, "hmz: box went away")
             await until(
@@ -533,7 +586,7 @@ def ssh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) ->
 
 def _written() -> dict[str, dict[str, Any]]:
     """Each daemon as the settings file holds it, by name."""
-    held = yaml.safe_load((home() / "settings.yaml").read_text())
+    held = tomllib.loads((config() / "settings.toml").read_text())
     return {one.pop("name"): one for one in held["daemons"]}
 
 
@@ -546,7 +599,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # A pairing code that is none is refused, and nothing is written.
         await _adds(pilot, "lab")
-        await shows(pilot, "Pairing code", "as hmz daemon pair printed it there")
+        await shows(pilot, "Pairing code", "Starts with hmz-pair:")
         await pilot.press(*"hmz-pair:nope", "enter")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
@@ -554,7 +607,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # SSH Config: a Host of the ssh config, and nothing else.
         await _adds(pilot, "cfg")
-        await picks(pilot, "mode", "SSH Config")
+        await picks(pilot, "mode", "ssh-config")
         await shows(pilot, "a Host of your ssh config")
         await picks(pilot, "alias", "gpu")
         pilot.app.save_screenshot("daemon-ssh-config.svg", str(tmp_path))
@@ -564,7 +617,7 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # Custom, its fields filled from a host of the ssh config.
         await _adds(pilot, "kept")
-        await picks(pilot, "mode", "Custom")
+        await picks(pilot, "mode", "custom")
         await picks(pilot, "import", "gpu")
         await shows(pilot, "gpu.example", "2222")
         pilot.app.save_screenshot("daemon-custom.svg", str(tmp_path))
@@ -574,14 +627,14 @@ async def test_a_daemon_is_added_in_each_mode(ssh_config: None, tmp_path: Path) 
 
         # Routes, in order: an untrusted one first needs the id a pairing code gives.
         await _adds(pilot, "far")
-        await picks(pilot, "mode", "Routes")
+        await picks(pilot, "mode", "routes")
         await onto(pilot, "routes")
         await pilot.press(*"tcp://10.0.0.1:41817, stdio:ssh://box", "enter")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)
         await shows(pilot, "needs the id of the daemon it reaches")
         await _adds(pilot, "far")
-        await picks(pilot, "mode", "Routes")
+        await picks(pilot, "mode", "routes")
         await onto(pilot, "routes")
         await pilot.press(*"stdio:ssh://box, tcp://10.0.0.1:41817", "enter")
         await pilot.click("#act-done")
@@ -635,7 +688,7 @@ def served(
     stand_in(tmp_path, monkeypatch)
     there = dict(
         os.environ,
-        HUMANIZE_HOME=str(tmp_path / "served"),
+        **places(tmp_path / "served"),
         # Short, as a socket's path under it must be.
         TMPDIR=tempfile.mkdtemp(prefix="s", dir=os.environ["TMPDIR"]),
     )
@@ -657,7 +710,7 @@ def served(
         assert serving.stdout is not None
         assert "listening on tcp://" in serving.stdout.readline()
         yield subprocess.run(
-            [sys.executable, "-m", "hmz", "daemon", "pair"],
+            [sys.executable, "-m", "hmz", "devices", "pair"],
             env=there,
             capture_output=True,
             text=True,
@@ -694,7 +747,7 @@ async def test_a_daemon_is_paired_from_its_code_and_a_device_revoked(
         await onto(pilot, "pair")
         await pilot.press("enter")
         await on(pilot, Adjusts)
-        await shows(pilot, "copied:", "hmz-pair:")
+        await shows(pilot, "Copied:", "hmz-pair:")
 
         await _menu(pilot, "lab")
         await onto(pilot, "devices")

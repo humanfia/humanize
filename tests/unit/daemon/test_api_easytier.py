@@ -81,16 +81,20 @@ def test_an_entry_listened_on_is_not_removed(held: dict[str, Any]) -> None:
     assert _refused(404, easytier.remove, "lab") == "There is no EasyTier entry lab."
 
 
-def test_community_nodes_that_cannot_be_read_are_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_the_shared_nodes_are_answered(monkeypatch: pytest.MonkeyPatch) -> None:
     from hmz.coganchor import easytier as tier
 
-    def unreadable(timeout: float = 10) -> list[Any]:
-        raise OSError("offline")
+    node = tier.Node("tcp://n.lab:11010", "lab", "", None, None)
+    monkeypatch.setattr(tier, "shared", lambda timeout=10: [node])
 
-    monkeypatch.setattr(tier, "community", unreadable)
-
-    assert _refused(503, easytier.nodes) == (
-        "The community nodes could not be read: offline"
-    )
+    assert easytier.nodes() == {
+        "nodes": [
+            {
+                "url": "tcp://n.lab:11010",
+                "name": "lab",
+                "version": "",
+                "up": None,
+                "uptime": None,
+            }
+        ]
+    }

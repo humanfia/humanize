@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from hmz import home
+from hmz import state
 from hmz.flows import (
     EnvBackendKind,
     EnvError,
@@ -105,7 +105,7 @@ async def test_home_is_this_users_and_state_is_humanizes_own() -> None:
         Path.home(), "x"
     )
     assert await machine.absolute(PurePosixPath("/x")) == PurePosixPath("/x")
-    assert await machine.state() == PurePosixPath(home().absolute())
+    assert await machine.state() == PurePosixPath(state().absolute())
 
 
 # ------------------------------------------------------------------------------- files

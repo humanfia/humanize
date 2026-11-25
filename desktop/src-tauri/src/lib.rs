@@ -602,6 +602,7 @@ pub fn run() {
             pipes::pipe_open,
             pipes::pipe_send,
             pipes::pipe_close,
+            pipes::pipe_answer,
             pipes::easytier_list,
             pipes::easytier_set,
             pipes::easytier_remove

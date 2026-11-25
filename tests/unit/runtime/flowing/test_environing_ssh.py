@@ -50,13 +50,17 @@ def test_what_a_host_says_about_itself_is_read() -> None:
 @pytest.mark.parametrize(
     ("said", "resources", "state"),
     [
-        ("home=/h\n", Resources(1, 0, 0, 0), "/h/.hmz"),
+        ("home=/h\n", Resources(1, 0, 0, 0), "/h/.local/state/humanize"),
         (
             "home=/h\nstate=rel\ncpus=0\nmemory=4096\n",
             Resources(1, 4096, 0, 0),
             "/h/rel",
         ),
-        ("home=/h\ncpus=many\nmemkb=x\nmemory=y\n", Resources(1, 0, 0, 0), "/h/.hmz"),
+        (
+            "home=/h\ncpus=many\nmemkb=x\nmemory=y\n",
+            Resources(1, 0, 0, 0),
+            "/h/.local/state/humanize",
+        ),
     ],
     ids=["nothing-but-home", "a-mac", "nonsense"],
 )

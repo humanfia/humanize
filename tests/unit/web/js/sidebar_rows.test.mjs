@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { CHAT_SAID, chatState, epicSaid, rowSaid, rowTitle, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
+import { CHAT_SAID, chatState, epicHow, epicSaid, rowSaid, rowTitle, shortcut, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
 
 test('a chat goes, asks, failed, or says nothing', () => {
   assert.equal(chatState('running'), 'working')
@@ -42,4 +42,27 @@ test('a row stands in the same words in every list: a chat only where there is s
   assert.equal(rowSaid('done', false), 'Done')
   assert.equal(rowSaid('budget', false), 'Budget spent')
   assert.equal(rowSaid('waiting', false), 'Waiting')
+})
+
+test('a shortcut is written a key apiece, as the system writes it', () => {
+  assert.deepEqual(shortcut('chat', true), ['⇧', '⌘', 'O'])
+  assert.deepEqual(shortcut('chat', false), ['Ctrl', 'Shift', 'O'])
+  assert.deepEqual(shortcut('search', true), ['⌘', 'K'])
+  assert.deepEqual(shortcut('search', false), ['Ctrl', 'K'])
+})
+
+test('a flow epic is stopping while the host going with it is, which only the host says', () => {
+  const run = { how: 'running', held: true, workspace: '/w', slot: '' }
+  const host = { state: 'stopping', workspace: '/w', slot: '' }
+  assert.equal(epicHow(run, [host]), 'stopping')
+  assert.equal(epicSaid(epicHow(run, [host])), 'Stopping')
+  // A host that only runs, another workspace's, another slot's, and none at all, leave it as its row says.
+  assert.equal(epicHow(run, [{ ...host, state: 'running' }]), 'running')
+  assert.equal(epicHow(run, [{ ...host, workspace: '/v' }]), 'running')
+  assert.equal(epicHow(run, [{ ...host, slot: 'two' }]), 'running')
+  assert.equal(epicHow({ ...run, slot: 'two' }, [{ ...host, slot: 'two' }]), 'stopping')
+  assert.equal(epicHow(run, []), 'running')
+  // One no host goes with is not a host's to stop, whatever stops beside it.
+  assert.equal(epicHow({ ...run, held: false }, [host]), 'running')
+  assert.equal(epicHow({ ...run, how: 'done', held: false }, [host]), 'done')
 })

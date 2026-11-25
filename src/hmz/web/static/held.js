@@ -11,6 +11,7 @@
 // `{workspace, slot}` for a chat's.
 
 import { attach, call, onDaemon } from './api.js'
+import { t } from './i18n.js'
 import { Flow } from './views/envs/terminal_flow.js'
 
 /** The most records kept per workspace, and about how many bytes of them, as the daemon keeps. */
@@ -83,7 +84,7 @@ export async function hosted(where, method, params = {}) {
   const stop = follow({ workspace, slot }, () => {})
   try {
     const opening = followed.get(`${workspace}\n${slot}`).opening
-    if (!opening) throw new Error('This host cannot be reached.')
+    if (!opening) throw new Error(t('This host cannot be reached.'))
     const sub = await opening
     return await call(method, { ...params, sub: sub.sub })
   } finally {
@@ -117,7 +118,8 @@ export function hearing(where, fn) {
 async function starts(workspace, slot, { scratch = false, ...said }) {
   const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot, replay: false }, () => {})
   try {
-    const started = await call('epic.start', { ...said, remember: true, sub: sub.sub })
+    // A directory made for this epic alone is set up by nothing again: nothing is written down of it.
+    const started = await call('epic.start', { ...said, remember: !scratch, sub: sub.sub })
     // Followed a moment longer, as the view gone to next follows it.
     follow({ workspace: started.workspace, slot: started.slot }, () => {})()
     return started
@@ -172,10 +174,10 @@ async function scratchChat() {
   const sub = await attach(
     { scratch: true, slot: 'chat:', replay: false },
     (message) => message.type === 'welcome' && welcomed(message),
-    (why) => gone(new Error(why || 'The host let this page go.')),
+    (why) => gone(new Error(why || t('The host let this page go.'))),
   )
   // A host that never welcomes the page leaves nobody waiting on it.
-  const waited = setTimeout(() => gone(new Error('The chat’s host did not answer.')), WELCOMED)
+  const waited = setTimeout(() => gone(new Error(t('The chat’s host did not answer.'))), WELCOMED)
   try {
     const { workspace, slot } = await where
     return { sub, workspace, slot }
@@ -211,7 +213,9 @@ export function shownTo(where, session) {
 }
 
 function following(workspace, slot) {
-  const state = { workspace, slot, connected: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
+  // `caught`: whether the host has told everything it kept (`live`, Section 4.9.1.1 of
+  // protocol/daemon.md), so that what it holds is whole and no longer being told again.
+  const state = { workspace, slot, connected: false, caught: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
   const listeners = new Set()
   let weights = []
   let weight = 0
@@ -273,8 +277,9 @@ function following(workspace, slot) {
         weights = []
         weight = 0
       }
-      Object.assign(state, { me: message.client, connected: true, gone: '' })
-    } else if (type === 'live') state.connected = true
+      // What it kept is told next, and is all told once it says `live`.
+      Object.assign(state, { me: message.client, connected: true, gone: '', caught: false })
+    } else if (type === 'live') Object.assign(state, { connected: true, caught: true })
     else if (typeof message.seq === 'number') {
       // Context beside a question, an image's above all, weighs what it is written as.
       const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME
@@ -306,7 +311,7 @@ function following(workspace, slot) {
     opening = one.opening = null
     uncount()
     state.connected = false
-    state.gone = why || 'The host let this page go.'
+    state.gone = why || t('The host let this page go.')
     tell()
     // A chat's host goes as it folds away, and is not reached again: it is carried on anew. The
     // workspace's own is attached again, after a moment, while a view still follows it.

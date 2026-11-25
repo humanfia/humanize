@@ -19,10 +19,14 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 from __future__ import annotations
 
 import base64
+import copy
+import difflib
+import errno
 import ipaddress
 import logging
 import os
 import re
+import shlex
 import shutil
 import time
 import urllib.parse
@@ -55,6 +59,7 @@ __all__ = [
     "Sign",
     "Way",
     "alike",
+    "broken",
     "declared",
     "elsewhere",
     "forget",
@@ -567,6 +572,44 @@ def written(effort: str) -> str:
 #: to catch the second at all.
 _SILENCE = 900.0
 
+#: What this process has already moved, or found it had nothing to move, so that each is
+#: looked at once (:func:`_settle`).
+_SETTLED: set[tuple[Path, Path]] = set()
+
+
+def _settle(was: Path, now: Path) -> None:
+    """Moves what a release before kept at `was` to `now`, once a process. Never raises.
+
+    Never into a `now` that is there: what it holds is what this release has written since,
+    and the two are not merged. A rename, and across devices a copy made beside `now` and
+    renamed to it once it is whole, so that `now` is never seen half there; then the original
+    removed. Anything else that refuses it leaves it where it is.
+    """
+    if (was, now) in _SETTLED:
+        return
+    _SETTLED.add((was, now))
+    if os.path.lexists(now) or not os.path.lexists(was):
+        return
+    try:
+        now.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            # Atomic, and refused where another process has meanwhile made `now` and put
+            # something in it.
+            was.rename(now)
+        except OSError as why:
+            if why.errno != errno.EXDEV:
+                return
+            staged = now.with_name(f".{now.name}.{os.getpid()}")
+            try:
+                shutil.copytree(was, staged, symlinks=True)
+                staged.rename(now)
+            except OSError:
+                shutil.rmtree(staged, ignore_errors=True)
+                return
+            shutil.rmtree(was, ignore_errors=True)
+    except OSError:
+        pass
+
 
 @dataclass(frozen=True, slots=True)
 class Profile:
@@ -756,6 +799,11 @@ class Profile:
         program -- its hooks, the MCP servers it spawns, the helpers it asks -- searched for
         in the directory it works in and every one above it up to the workspace. Empty for a
         CLI that reads none, or one nobody has written down.
+      formerly: What a release before kept somewhere it no longer does, as `(path under the
+        user's own home, path under the directory this process keeps this backend's home
+        in)`: each moved there the first time this process asks for the home -- never into one
+        already there, which would be two of everything, and left where it is if it cannot be
+        moved. Empty for a backend whose home has never moved, which is every CLI's.
     """
 
     name: str
@@ -799,6 +847,7 @@ class Profile:
     hosts: tuple[str, ...] = ()
     routes: str = ""
     launchers: tuple[Launcher, ...] = ()
+    formerly: tuple[tuple[str, str], ...] = ()
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -865,12 +914,25 @@ class Profile:
         Returns:
           The home directory. It may not exist: a backend that has never run has none.
         """
+        if self.formerly and environment is not None:
+            # What is moved is this user's own, to where this process keeps it -- never to
+            # wherever a turn's environment would put a home of its own.
+            self.directory()
         said = environment if environment is not None else os.environ
         moved = said.get(self.home_var) if self.home_var else ""
-        if moved:
-            return Path(moved) / self.home_in
-        under = said.get("HOME") if environment is not None else ""
-        return (Path(under) if under else Path.home()) / self.home_dir
+        # A home of Humanize's own follows the XDG specification, which has a relative value
+        # ignored; a CLI's follows whatever that CLI does, which for those here is to take it.
+        if moved and not (
+            self.home_in.startswith("humanize/") and not Path(moved).is_absolute()
+        ):
+            home = Path(moved) / self.home_in
+        else:
+            under = said.get("HOME") if environment is not None else ""
+            home = (Path(under) if under else Path.home()) / self.home_dir
+        if environment is None:
+            for was, now in self.formerly:
+                _settle(Path.home() / was, home.parent / now)
+        return home
 
     @staticmethod
     def configuration() -> Path:
@@ -2082,10 +2144,9 @@ PROFILES = (
         sessions=("sessions",),
         told=True,
         efforts=_DSH,
-        # None yet. The SDK's `sdk` profile mounts `dsh-skill-filesystem` since 0.1.2, but
-        # Humanize hands every runtime a home of the run's own, so which of a user's skills a
-        # session would load -- and how one is chosen -- is still to be put to the runtime; a
-        # list here before then would be of skills nothing is known to load.
+        # No skill globs: the runtime finds skills its own way -- from the project's root, the
+        # project's before the user's -- which `agents/skills.py` reads it by instead, and the
+        # driver hands the runtime the user's own home's when it is given the epic's.
         # `DEEPSEEK_SEARCH_BASE_URL` beside the other two because the search provider mounted
         # for an agent that may search reads it, and reads it *instead of* `DEEPSEEK_BASE_URL`:
         # search speaks the Anthropic-compatible Messages API and chat completions do not, so
@@ -4346,10 +4407,18 @@ PROFILES = (
             "api.mistral.ai",
         ),
         # A home of Humanize's own rather than a CLI's, for the conversations of an agent no
-        # run drives: under the cache Humanize keeps beside every agent's own state, since a
-        # run keeps its own under the run.
-        home_var="",
-        home_dir=".cache/humanize/litellm",
+        # run drives: under the state Humanize keeps beside every agent's own, since a run
+        # keeps its own under the run. State rather than cache: a conversation deleted is one
+        # that can no longer be resumed.
+        home_var="XDG_STATE_HOME",
+        home_in="humanize/litellm",
+        home_dir=".local/state/humanize/litellm",
+        # Where releases before kept these conversations, and the copies of an epic one moved
+        # out of its way -- both state, both kept under the cache until then.
+        formerly=(
+            (".cache/humanize/litellm", "litellm"),
+            (".cache/humanize/displaced", "displaced"),
+        ),
         # One file a conversation, a JSON line a message, with what each answer spent on its
         # line -- which is where the tally and the trace read it.
         logs=("sessions/{ident}.jsonl",),
@@ -4499,6 +4568,11 @@ _added: dict[str, tuple[str, ...]] | None = None
 _added_at: tuple[str, int, int] | None = None
 #: What each of those was declared to reach and to keep, read in the same pass.
 _declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+#: Why each entry written down that is not an added CLI is not one, read in the same pass.
+_broken: dict[str, str] = {}
+
+#: The keys a mapping entry may have (files.md 3.7.1.1).
+_KEYS = ("command", "hosts", "state")
 
 
 def _strings(said: object) -> tuple[str, ...]:
@@ -4529,6 +4603,76 @@ def _hosts(said: object, name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(kept))
 
 
+def _mend(entries: dict[str, object]) -> list[str]:
+    """Fixes, in place, what a hand-written entry has one obvious fix for.
+
+    A key one typo away from one of :data:`_KEYS`, such as `host`, and a `hosts` or `state`
+    written as one string rather than a list of them. A command is never mended: an entry
+    whose command is not a non-empty list is ignored when read (files.md 3.7.1.5).
+
+    Args:
+      entries: The `clis` mapping, as the file holds it.
+
+    Returns:
+      What was fixed, one line each; nothing where nothing was.
+    """
+    fixed: list[str] = []
+    for name, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        said = cast("dict[object, object]", entry)
+        for key in [one for one in said if one not in _KEYS]:
+            close = difflib.get_close_matches(str(key), _KEYS, n=1, cutoff=0.6)
+            if close and close[0] not in said:
+                said[close[0]] = said.pop(key)
+                fixed.append(f"clis.{name}: {key!r} renamed to {close[0]!r}")
+        for key in ("hosts", "state"):
+            one = said.get(key)
+            if isinstance(one, str):
+                said[key] = [one]
+                fixed.append(f"clis.{name}.{key}: {one!r} made a list")
+    return fixed
+
+
+def _fault(entry: object) -> str | None:
+    """What is wrong with one entry, or None where it is an added CLI as written."""
+    if isinstance(entry, list):
+        said: dict[object, object] = {"command": cast("object", entry)}
+    elif isinstance(entry, dict):
+        said = cast("dict[object, object]", entry)
+    else:
+        return "expected a command as a list, such as [my-agent, --acp], or a mapping"
+    unknown = [str(one) for one in said if one not in _KEYS]
+    if unknown:
+        return f"unknown key {unknown[0]!r}; expected command, hosts and state"
+    argv = said.get("command")
+    if isinstance(argv, str):
+        return f"command must be a list, such as {shlex.split(argv)!r}"
+    if not isinstance(argv, list) or not argv:
+        return "command must be a non-empty list"
+    for key in ("hosts", "state"):
+        if key in said and not isinstance(said[key], list):
+            return f"{key} must be a list"
+    return None
+
+
+def broken(name: str) -> str | None:
+    """Why the entry written down under a name is not an added CLI, or None where it is one.
+
+    Args:
+      name: What it was written down under.
+
+    Returns:
+      What is wrong with it, naming the settings file, or None where nothing is or nothing
+      was written down under that name.
+    """
+    from hmz.coganchor import settings
+
+    speaking()
+    why = _broken.get(name)
+    return None if why is None else f"clis.{name} in {settings.where()}: {why}"
+
+
 def speaking() -> dict[str, tuple[str, ...]]:
     """Every CLI somebody has added, and the command that starts each one.
 
@@ -4537,45 +4681,76 @@ def speaking() -> dict[str, tuple[str, ...]]:
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
     """
-    # Read where it is asked, never at import: the settings are YAML, which is not the
-    # standard library's to read.
     from hmz.coganchor import settings
 
-    global _added, _added_at, _declared
+    global _added, _added_at, _declared, _broken
     at = settings.where()
-    try:
-        moved = at.stat()
+
+    def stamped() -> tuple[str, int, int] | None:
+        try:
+            moved = at.stat()
+        except OSError:
+            return None
         # The file as well as its moment: another home's file can carry the same one.
-        stamp = (str(at), moved.st_mtime_ns, moved.st_size)
-    except OSError:
+        return (str(at), moved.st_mtime_ns, moved.st_size)
+
+    stamp = stamped()
+    if stamp is None:
+        # A YAML file an earlier release left is converted first, where there is one.
+        settings.read()
+        stamp = stamped()
+    if stamp is None:
         # No file is an answer, and a cheap one: nothing has been added.
-        _added, _added_at, _declared = {}, None, {}
+        _added, _added_at, _declared, _broken = {}, None, {}, {}
         return {}
     if _added is not None and stamp == _added_at:
         return _added
     held = settings.read().get(_SPOKEN)
+    if isinstance(held, dict) and _mend(copy.deepcopy(cast("dict[str, object]", held))):
+        # Fixed in the file rather than only in what is read, so that what the file says
+        # is what runs, and said so once rather than on every read.
+        fixed: list[str] = []
+
+        def mending(settled: dict[str, Any]) -> None:
+            entries = settled.get(_SPOKEN)
+            if isinstance(entries, dict):
+                fixed.extend(_mend(cast("dict[str, object]", entries)))
+
+        try:
+            held = settings.changes(mending).get(_SPOKEN)
+        except (OSError, ValueError) as why:
+            log.warning("clis in %s could not be fixed: %s", at, why)
+        else:
+            for one in fixed:
+                log.warning("%s in %s", one, at)
+            stamp = stamped() or stamp
     if not isinstance(held, dict):
-        _added, _added_at, _declared = {}, stamp, {}
+        _added, _added_at, _declared, _broken = {}, stamp, {}, {}
         return {}
     found: dict[str, tuple[str, ...]] = {}
     declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    faults: dict[str, str] = {}
     for name, entry in cast("dict[str, object]", held).items():
+        fault = _fault(entry)
+        if fault is not None:
+            # Ignored, as the protocol has it, and said why: wherever it is named it is
+            # refused with this rather than taken for a CLI nobody added.
+            faults[str(name)] = fault
+            log.error("clis.%s in %s: %s; ignored", name, at, fault)
+            continue
         said = (
             cast("dict[str, object]", entry)
             if isinstance(entry, dict)
             else {"command": entry}
         )
-        argv = said.get("command")
-        if not isinstance(argv, list):
-            continue
-        given = tuple(str(one) for one in cast("list[object]", argv))
-        if given:
-            found[str(name)] = given
-            declared[str(name)] = (
-                _hosts(said.get("hosts"), str(name)),
-                _strings(said.get("state")),
-            )
-    _added, _added_at, _declared = found, stamp, declared
+        found[str(name)] = tuple(
+            str(one) for one in cast("list[object]", said["command"])
+        )
+        declared[str(name)] = (
+            _hosts(said.get("hosts"), str(name)),
+            _strings(said.get("state")),
+        )
+    _added, _added_at, _declared, _broken = found, stamp, declared, faults
     return found
 
 
@@ -5325,6 +5500,9 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     if profile is None and not slash and ":" in backend:
         profile = named(backend.partition(":")[0].strip())
     if profile is None:
+        why = broken(backend)
+        if why is not None:
+            raise ValueError(why)
         raise ValueError(
             f"unknown CLI {backend!r}; see the CLI reference for supported names"
         )

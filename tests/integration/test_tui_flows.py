@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
 
+from hmz import config
 from hmz.daemon.link import Link
 from hmz.runtime.flowing import index
 from hmz.tui import Humanize
@@ -55,8 +56,8 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 
 def remembered(tmp_path: Path, workspace: Path) -> dict[str, Any]:
     """What the settings file keeps about the workspace, or nothing where it keeps nothing."""
-    kept = tmp_path / "humanize-home" / "settings.yaml"
-    said: dict[str, Any] = yaml.safe_load(kept.read_text()) if kept.exists() else {}
+    kept = config() / "settings.toml"
+    said: dict[str, Any] = tomllib.loads(kept.read_text()) if kept.exists() else {}
     return dict(said.get("workspaces", {}).get(str(workspace), {}))
 
 
@@ -104,7 +105,7 @@ async def test_an_own_flow_given_a_budget_and_saved_runs_and_is_opened_on_next_t
         await set_up_own_flow(pilot)
 
         await typed(pilot, f"${OWN} make it so")
-        drawn = await shows(pilot, "the flow is done")
+        drawn = await shows(pilot, "Flow done")
 
     assert "heard make it so" in drawn
     assert (workspace / "said.txt").read_text() == "started: heard make it so\n"
@@ -112,7 +113,7 @@ async def test_an_own_flow_given_a_budget_and_saved_runs_and_is_opened_on_next_t
     async with Humanize().run_test(size=SIZE) as pilot:
         # Set up as it was saved: it starts at once.
         await typed(pilot, f"/flow {OWN} again")
-        await shows(pilot, "heard again", "the flow is done")
+        await shows(pilot, "heard again", "Flow done")
 
 
 async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
@@ -127,9 +128,9 @@ async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
         await opens(pilot, "0")  # its one agent
         await on(pilot, Agent)
         await picks(pilot, "effort", "low")
-        await shows(pilot, "unsaved changes")
+        await shows(pilot, "● Unsaved")
         await leaves(pilot)
-        await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+        await shows(pilot, f"Flow set up; `/flow {OWN} <task>` starts it.")
 
         await typed(pilot, f"/flow {OWN} make it so")
         await shows(pilot, "heard make it so")
@@ -174,7 +175,9 @@ async def test_the_flows_with_a_newer_release_are_counted_on_the_status_line(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await shows(
-            pilot, "kernel 1.0.0 ↑ 1.1.0; update from /flow", "1 flow update · "
+            pilot,
+            "kernel 1.0.0 ↑ 1.1.0; install them from `/flow`.",
+            "1 flow update · ",
         )
 
         newer.clear()
@@ -200,12 +203,12 @@ async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
         await typed(pilot, "/flow")
         await on(pilot, Flows)
         await opens(pilot, OWN)
-        await shows(pilot, "profile flow", "profile environment")
+        await shows(pilot, "Profile flow", "Profile environment")
         await picks(pilot, "\x1eprofile-flow", "on")
         await picks(pilot, "\x1eprofile-environment", "on")
         await shows(pilot, "samples the flow's own Python")
         await leaves(pilot)
-        await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+        await shows(pilot, f"Flow set up; `/flow {OWN} <task>` starts it.")
 
         await typed(pilot, f"/flow {OWN} make it so")
         await shows(pilot, "heard make it so")

@@ -88,6 +88,103 @@ def test_a_session_too_far_behind_keeps_its_answers_and_drops_what_it_was_told(
     assert pipe.wrote == [_answer(0), _answer(1)]
 
 
+def _gone(sub: str) -> bytes:
+    return _frame(
+        {
+            "jsonrpc": "2.0",
+            "method": "epic.event",
+            "params": {
+                "sub": sub,
+                "message": {"type": "gone", "why": "too far behind; attach again"},
+            },
+        }
+    )
+
+
+def _notices_gone(sub: str) -> bytes:
+    return _frame(
+        {
+            "jsonrpc": "2.0",
+            "method": "notices.event",
+            "params": {"sub": sub, "gone": "too far behind; subscribe again"},
+        }
+    )
+
+
+def test_what_ended_a_subscription_and_was_dropped_is_sent_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sessions, "BEHIND", 1000)
+    pipe = _Pipe()
+    out = Outgoing(pipe, lambda: out.again())  # noqa: PLW0108 -- made after
+    out.sendall(_answer(0))  # being written while the rest wait
+    # Ended for an earlier fall behind, and not written yet when the session falls again.
+    out.sendall(_gone("s1"))
+    out.sendall(_notices_gone("s2"))
+    out.sendall(_told("s3", 1200))
+    pipe.flowing.set()
+    out.flush_then_close()
+
+    assert pipe.closed.wait(5)
+    assert pipe.wrote == [_answer(0), _gone("s1"), _notices_gone("s2")]
+
+
+class _Peer:
+    """What a session notifies with, framed as `hmz.rpc` frames it, into its queue."""
+
+    def __init__(self, out: Outgoing) -> None:
+        self.out = out
+        self.closed = False
+
+    def notify(self, method: str, params: dict[str, Any]) -> None:
+        self.out.sendall(_frame({"jsonrpc": "2.0", "method": method, "params": params}))
+
+
+def test_a_subscription_ended_for_falling_behind_is_told_so_after_another_fall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A page whose epic subscription went quiet with no `gone` (#897).
+
+    Its session falls behind and the subscription is ended; before its `gone` is written, one
+    attached meanwhile fills the queue again, and that fall drops the `gone`.
+    """
+    from hmz.daemon.hosts import Subscription
+
+    monkeypatch.setattr(sessions, "BEHIND", 1000)
+    pipe = _Pipe()
+    behind = threading.Semaphore(0)
+
+    def falls() -> None:
+        session.behind()
+        behind.release()
+
+    out = Outgoing(pipe, falls)
+    session = Session(out, trusted=True, fingerprint="local", device="local")
+    session.peer = _Peer(out)  # pyright: ignore[reportAttributeAccessIssue]
+    out.sendall(
+        _answer(0)
+    )  # being written while the rest wait, to a page reading slowly
+    first = Subscription(session, "s1", mock.Mock(), figures=False)
+    session.subs["s1"] = first
+    first.opened()
+    first.told({"type": "event", "seq": 1, "text": "x" * 1200})
+    assert behind.acquire(timeout=5)
+    assert first.gone
+    second = Subscription(session, "s2", mock.Mock(), figures=False)
+    session.subs["s2"] = second
+    second.opened()
+    second.told({"type": "event", "seq": 1, "text": "x" * 1200})
+    assert behind.acquire(timeout=5)
+    pipe.flowing.set()
+    out.flush_then_close()
+
+    assert pipe.closed.wait(5)
+    ended = [
+        json.loads(one[4:])["params"]["sub"] for one in pipe.wrote if b'"gone"' in one
+    ]
+    assert ended == ["s1", "s2"]
+
+
 def test_a_closed_queue_takes_nothing() -> None:
     pipe = _Pipe()
     out = Outgoing(pipe, mock.Mock())

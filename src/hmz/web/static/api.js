@@ -6,6 +6,8 @@
 
 import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
 import { fromBase64, toBase64 } from './rpc/pipe.js'
+import { routeKind } from './rpc/routes.js'
+import { t } from './i18n.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
 const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
@@ -13,11 +15,11 @@ const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
 /** What this page is to a daemon, as `session.hello` says it. */
 const CLIENT = { name: '', kind: DESKTOP ? 'desktop' : 'web' }
 
-/** The remote daemons this browser keeps, and its WebRTC certificate and ICE servers. */
+/** The remote daemons this browser keeps, each with its STUN and TURN servers, and its WebRTC certificate. */
 export const daemons = registry()
 
 /** What opens a carrier for the page: the server's `/rpc` and `/dial`, or the app's pipes; and WebRTC. */
-export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate(), iceServers: () => daemons.iceServers() })]
+export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate() })]
 
 /** The daemon the address names, or '' where it names none. */
 function named(address) {
@@ -46,9 +48,34 @@ export function hash(path) {
   return naming ? `#/@${encodeURIComponent(naming)}${path}` : `#${path}`
 }
 
-/** Switches the page to another daemon, on the view given, a new epic where none is. */
+/** The address of a view of the page on a daemon, which it names unless that is Local. */
+export const hashOn = (name, path) => `#${name === 'local' ? '' : `/@${encodeURIComponent(name)}`}${path}`
+
+/** Switches the page to another daemon, on the view given, a new chat where none is. */
 export function toDaemon(name, path = '/new/chat') {
-  location.hash = name === 'local' ? path : `/@${encodeURIComponent(name)}${path}`
+  location.hash = hashOn(name, path)
+}
+
+/** The pages of Settings that were a folder's, by the page of that folder's own dialog each is now. */
+const FOLDERS = { workspace: 'setup', 'workspace-usage': 'usage', archived: 'archived' }
+
+/**
+ * Where an address written before leads now, or '' for one that is as addresses are: a `daemon`
+ * in its query, which once picked a daemon for one dialog alone, names the daemon the whole page
+ * goes to; and a page of Settings that was a folder's is that folder's own dialog (Sections
+ * 3.4.2.4.1 and 3.11.1.6 of protocol/web.md).
+ *
+ * @param {string[]} parts The parts of the address's path, after the daemon it names.
+ * @param {URLSearchParams} query Its query.
+ */
+export function movedTo(parts, query) {
+  const said = new URLSearchParams(query)
+  const on = said.get('daemon')
+  said.delete('daemon')
+  const folder = parts[0] === 'settings' && Object.hasOwn(FOLDERS, parts[1])
+  if (on === null && !folder) return ''
+  const text = said.toString()
+  return hashOn(on || daemon(), `/${(folder ? ['workspace', FOLDERS[parts[1]]] : parts).map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
 }
 
 /** Tells `fn` the daemon the page switched to, each time it does, until what it returns is called. */
@@ -85,6 +112,12 @@ export class Refused extends Error {
 const clients = new Map()
 /** Who is told each change of any daemon's state. */
 const stateWatchers = new Set()
+/**
+ * The daemons the user has said to install hmz on the machine of, since the page was loaded, each
+ * by the routes it had then: a yes is to the machine those reach (Section 3.13.22 of
+ * protocol/web.md).
+ */
+const installs = new Map()
 
 /**
  * The client of a daemon, by name: reached in the background from the first time it is asked for.
@@ -95,12 +128,13 @@ const stateWatchers = new Set()
 export async function client(name = daemon()) {
   if (clients.has(name)) return clients.get(name)
   const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
-  if (!entry) throw new Refused(`There is no daemon ${name}.`, ERRORS.NOT_FOUND)
+  if (!entry) throw new Refused(t('There is no daemon {name}.', { name }), ERRORS.NOT_FOUND)
   if (clients.has(name)) return clients.get(name)
   const made = connect(entry, providers, {
     client: CLIENT,
     // An id answered over a trusted route is pinned from then on (Section 3.8.2.7 of protocol/daemon.md).
     pinned: (id) => name !== 'local' && daemons.update(name, { id }).catch(() => {}),
+    install: installs.get(name) === entry.routes.join(' '),
   })
   clients.set(name, made)
   made.watch((state) => {
@@ -144,6 +178,19 @@ export async function hello(name = daemon()) {
   })
 }
 
+/**
+ * Answers a daemon that is `asking` whether hmz is installed on its machine: a yes is kept, and
+ * answers for the page from then on, for as long as its routes are those it has now; a no leaves
+ * it `failed` until it is reached again. Nothing is kept of one that is not asking.
+ *
+ * @param {string} name
+ * @param {boolean} install
+ */
+export function answer(name, install) {
+  const held = clients.get(name)
+  if (held?.answer(install) && install) installs.set(name, held.routes.join(' '))
+}
+
 /** Reaches a daemon again at once: one that failed, or one whose entry has changed. */
 export async function reconnect(name) {
   forget(name)
@@ -166,33 +213,39 @@ export async function known() {
 
 /** A remote daemon's kind, as the page names it (Section 3.13.18 of protocol/web.md). */
 export function kindOf(entry) {
-  const first = entry.routes[0] || ''
-  if (first.startsWith('stdio:ssh')) return 'SSH'
-  if (first.startsWith('easytier:')) return 'P2P'
-  return 'Paired'
+  const kind = routeKind(entry.routes[0] || '')
+  return CARRIERS[kind] || kind || ''
 }
+
+/** What each kind of route a remote daemon is first reached over is called. */
+const CARRIERS = { 'stdio:ssh': 'SSH', easytier: 'EasyTier', tcp: 'TCP', ws: 'WebSocket', relay: 'Relay', webrtc: 'WebRTC' }
 
 /**
  * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
- * the machine the page is served from is called; a P2P daemon over `first`, its `easytier:` route
- * (Section 3.13.6).
+ * the machine the page is served from is called, over `first` before the code's own routes
+ * (Section 3.13.6); reached with, and then kept with, `ice`, its STUN and TURN servers (Section
+ * 3.13.21).
  */
-export async function pair(name, code, first) {
+export async function pair(name, code, first, ice = []) {
   const device = (await hello('local').catch(() => null))?.machine || 'browser'
   try {
-    return await claim(daemons, { name, code, device, first }, providers, CLIENT)
+    return await claim(daemons, { name, code, device, first, ice }, providers, CLIENT)
   } catch (error) {
     throw refused(error, name)
   }
 }
+
+/** How a daemon is reached, as a failure to reach it says it. */
+const STATES = { idle: t('idle@@link'), connecting: t('connecting'), asking: t('asking@@link'), installing: t('installing'), up: t('up'), failed: t('failed') }
 
 /** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
 function refused(error, name) {
   if (error instanceof Refused) return error
   if (error instanceof RpcError) {
     if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
-      const { state, detail } = stateOf(name)
-      return new Refused(`${name} is unavailable, ${state}${detail ? `: ${detail}` : '.'}`, error.code, error.data)
+      const { state: now, detail } = stateOf(name)
+      const state = Object.hasOwn(STATES, now) ? STATES[now] : now
+      return new Refused(detail ? t('{name} is unavailable, {state}: {detail}', { name, state, detail }) : t('{name} is unavailable, {state}.', { name, state }), error.code, error.data)
     }
     return new Refused(error.message, error.code, error.data)
   }
@@ -204,14 +257,31 @@ function refused(error, name) {
  *
  * @param {string} method
  * @param {object} [params]
- * @param {{on?: string, timeout?: number}} [options] `on` the daemon, the one shown by default.
+ * @param {{on?: string, timeout?: number, behind?: boolean}} [options] `on` the daemon, the one
+ *   shown by default; `behind`, for what is read ahead of being asked for.
  */
-export async function call(method, params = {}, { on = daemon(), timeout } = {}) {
+export async function call(method, params = {}, { on = daemon(), timeout, behind = false } = {}) {
+  if (!behind) asking += 1
   try {
     return await (await client(on)).call(method, params, { timeout })
   } catch (error) {
     throw refused(error, on)
+  } finally {
+    if (!behind) asking -= 1
   }
+}
+
+/** How many calls are being asked in front: those not asked `behind` whatever the page shows. */
+let asking = 0
+
+/** Whether nothing is being asked in front, so that what is read ahead competes with nothing. */
+export function unasked() {
+  return asking === 0
+}
+
+/** The id a daemon answered by (`session.hello`), or '' until it is up. */
+export function idOf(name = daemon()) {
+  return clients.get(name)?.hello?.daemon_id || ''
 }
 
 /**

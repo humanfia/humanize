@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.conftest import as_them
 from tests.system.real import SAMPLE
 
 if TYPE_CHECKING:
@@ -30,8 +31,13 @@ LOOPS = ("goal", "ralph_loop", "rlar", "stateful_ralph")
 
 
 @pytest.fixture(autouse=True)
-def _no_real_agents() -> None:
-    """Overrides the root's: the agents installed here are what these tests run."""
+def _no_real_agents(_humanize_home: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Overrides the root's: the agents installed here are what these tests run.
+
+    As whoever runs the suite, whose `HOME` and `PATH` the suite's own stand in for between
+    tests, once the test's own home is named.
+    """
+    as_them(monkeypatch)
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -40,7 +46,9 @@ def _clones_nothing_elsewhere() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _loops_installed(_humanize_home: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def _loops_installed(
+    _humanize_home: None, _no_real_agents: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Fetches the official index and installs the loops out of it, into the test's home."""
     from hmz.runtime.flowing.index import install
     from hmz.runtime.flowing.verses import OFFICIAL, fetch

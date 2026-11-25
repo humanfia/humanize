@@ -82,9 +82,36 @@ It is normative. It is cited by the tag [TUI].
 - [22. Completion and history](#22-completion-and-history)
 - [23. Selecting and copying](#23-selecting-and-copying)
 - [24. Keys](#24-keys)
-- [25. Security Considerations](#25-security-considerations)
-- [26. References](#26-references)
-  - [26.1. Normative References](#261-normative-references)
+- [25. Zones and views](#25-zones-and-views)
+  - [25.1. Zones](#251-zones)
+  - [25.2. The hint line](#252-the-hint-line)
+  - [25.3. Colour and drawing](#253-colour-and-drawing)
+  - [25.4. Order and removal](#254-order-and-removal)
+  - [25.5. Texts](#255-texts)
+- [26. Keys view](#26-keys-view)
+- [27. Navigator and Search](#27-navigator-and-search)
+- [28. New chat and the chat's chips](#28-new-chat-and-the-chats-chips)
+  - [28.1. Chips](#281-chips)
+  - [28.2. New chat](#282-new-chat)
+  - [28.3. Details](#283-details)
+  - [28.4. Harness session](#284-harness-session)
+- [29. New epic and the epic's context](#29-new-epic-and-the-epics-context)
+- [30. Environment panes](#30-environment-panes)
+  - [30.1. The panes](#301-the-panes)
+  - [30.2. Files](#302-files)
+  - [30.3. Changes](#303-changes)
+  - [30.4. Terminal](#304-terminal)
+- [31. Flows page and transfers](#31-flows-page-and-transfers)
+- [32. Settings: App and Daemon](#32-settings-app-and-daemon)
+  - [32.1. Groups](#321-groups)
+  - [32.2. Themes](#322-themes)
+  - [32.3. Language](#323-language)
+  - [32.4. Telling the system](#324-telling-the-system)
+  - [32.5. What is kept](#325-what-is-kept)
+- [33. Monitor, Exomyth and sheets in humanfia](#33-monitor-exomyth-and-sheets-in-humanfia)
+- [34. Security Considerations](#34-security-considerations)
+- [35. References](#35-references)
+  - [35.1. Normative References](#351-normative-references)
 
 ## 1. Introduction
 
@@ -199,11 +226,14 @@ it.
 the flow remembered for the working directory set up for `/flow` and `$` lines, each agent role as
 remembered for the flow or, where nothing is remembered, as Section 16.5.4 fills it.
 
-**3.3** The interface MUST draw in the terminal's own palette, MUST NOT query the terminal for its
-colours, MUST draw failures in red and warnings in yellow, MUST use the theme named by
-`TEXTUAL_THEME` where it names an available one, and MUST honour `NO_COLOR`.
+**3.3** The interface MUST draw in the first of these themes that applies: the one `TEXTUAL_THEME`
+names, where it names an available one; `terminal`, where `NO_COLOR` is set and non-empty; the one
+kept by Settings (Section 32); `humanfia-light`, where `COLORFGBG` says the terminal's background is
+white; `humanfia-dark` (Section 25.3). It MUST NOT query the terminal for its colours, and MUST draw
+failures in red and warnings in yellow or gold.
 
-**3.4** The interface MUST offer no command palette.
+**3.4** The interface MUST offer no command palette other than the views of Section 25 and the
+Search page of Section 27.
 
 **3.5** As it opens, the interface MUST, in the background and without delaying input:
 
@@ -425,8 +455,9 @@ one MUST leave it on the screen.
 stands, by attaching to that host; any other MUST be carried on by the next line said (`chat.start`
 with `resume` the chat's id), the interface saying so.
 
-**7.12.5.3** `/resume` MUST NOT list or carry on an epic an earlier Humanize recorded for a chat
-(Section 17.2.3).
+**7.12.5.3** `/resume` MUST list and carry on a chat an earlier Humanize recorded as an epic as any
+other chat, once the daemon has moved it among the chats (Section 8.7.10 of [CORE]), and MUST NOT
+list or carry on one not yet moved (Section 17.2.3).
 
 **7.12.5.4** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
 then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
@@ -546,8 +577,7 @@ seconds to finish, saying so where it waits and where one was left unfinished.
 
 **7.19.1** `/ai` MUST open a menu (Section 15) listing, under an entry **New**, every Ai-chan
 conversation of the daemon (Section 4.22.3 of [DAEMON]), newest first, each with its title, its
-scope, its nous, its preset, whether its network is on, and whether a turn is open, it is between
-turns or it has folded away.
+scope, its nous, its preset, and whether a turn is open, it is between turns or it has folded away.
 
 **7.19.2** Choosing a conversation MUST follow its host in the log screen, carrying it on where it
 has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 states.
@@ -555,9 +585,8 @@ has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 s
 **7.19.3** **New** MUST open a form (Section 2.17) asking, in order: the scope, `daemon`, `workspace`
 or `epic`, defaulting to `epic`, of the epic going or last on the host this interface follows, where
 there is one, and otherwise to `workspace`, of this directory; the nous, offering every nous
-`nous.list` answers and defaulting to the `ai_chan` setting (Section 14.3.2 of [CORE]); the preset,
-`read-only` or `danger-full-access`, defaulting to `read-only`; and the network, `off` or `on`,
-defaulting to `off`.
+`nous.list` answers and defaulting to the nous last used, the `ai_chan` setting (Section 14.3.2 of
+[CORE]); and the preset, `read-only` or `danger-full-access`, defaulting to `read-only`.
 
 **7.19.4** **Done** on the form of Section 7.19.3 MUST leave the menu with the log screen waiting
 on a new conversation, and the first line said MUST make it by `aichan.create`, that line being its
@@ -585,7 +614,10 @@ this interface follows -- a chat's workspace among them -- as the snapshot `envs
 chain and marked where it is closed; `/env <role>` MUST open the first env of that role, and MUST be
 refused, naming the roles it takes, for a role that has none.
 
-**7.20.2** `/env` MUST be refused while the host holds no env.
+**7.20.2** `/env` MUST be refused while the host holds no env, except for a chat to be carried on
+that no host holds (Section 7.12.5.2): `/env` MUST then carry that chat on with nothing said
+(`chat.start` with `resume` the chat's id and an empty `task`, Section 4.25.1.9 of [DAEMON]) and
+MUST open once its host lists its envs.
 
 **7.20.3** An env MUST open on its pages as Section 7.13.3 of [CORE] chooses them: `Files` where it
 serves files, `Changes` where it serves git, and `Shell` where it serves a shell; it MUST open on
@@ -772,7 +804,7 @@ withdrawn; a question withdrawn while its sheet is open MUST close it, saying wh
 `markdown` as Markdown, `code` and `diff` highlighted as their language and as a diff, `table` as a
 table, `json` indented, and `image` and `chart` as one line naming the block and saying that the web
 page shows it, with the address of the epic's page where it is known: where this machine runs the
-epic and `<home>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
+epic and `<state>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
 most 40 lines, and each after it at most 12, and a table at most 10 rows, followed by how many
 more there are and, where it is known, that address.
 
@@ -1030,7 +1062,7 @@ the name `-f` takes.
 **16.2.2** Each installed flow MUST show its release and, where its index lists a newer one, that
 newer release; the flow in force MUST be marked `✔`.
 
-**16.2.3** The Installed page MUST offer **Install more…**, **Update** where an update is listed,
+**16.2.3** The Installed page MUST offer **Browse Flowverses**, **Update** where an update is listed,
 **Uninstall** for an installed flow, **Copy here** for a flow not of this project, and **Search…**.
 
 **16.2.4** **Uninstall** MUST be refused while another installed flow needs the flow.
@@ -1050,8 +1082,8 @@ directory under the flowverses home that is not a clone, each with whether it is
 fetched, edited, or has no origin, its URL with any credential hidden, how many flows it lists, how
 many are installed and how many have updates.
 
-**16.3.2** The Flowverses page MUST offer **Add flowverse…**, a form taking a repository and an
-optional name; **Fetch** or **Fetch again**; **Remove**, except for `official`, asked first in a box
+**16.3.2** The Flowverses page MUST offer **Add flowverse**, a form taking a repository and an
+optional name; **Fetch**; **Remove**, except for `official`, asked first in a box
 that says how many installed flows go with it; and **Search…**.
 
 **16.3.3** One flowverse's page MUST list each flow its index lists at its newest release, with what
@@ -1170,7 +1202,8 @@ path`.
 another directory, saying where it ran; while an epic is going; and for an epic whose flow is not
 resumable or that cannot be resumed here, saying why.
 
-**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) MUST be listed as an epic,
+**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) that the daemon has not
+yet moved among the chats (Section 8.7.10 of [CORE]) MUST be listed as an epic,
 named `chat` where another names its flow, MUST be read as any other, and MUST NOT be offered
 `resume epic` or any way to carry it on, saying that it cannot be carried on.
 
@@ -1197,6 +1230,9 @@ epic of kind `chat`.
 **17.3.1** On a daemon of another machine, `/epics` MUST list the epics that daemon holds, read
 over a session to it (Section 3.8 of [DAEMON]) in the background, and MUST say why where it cannot
 be reached.
+
+**17.3.1.1** A row of that list whose workspace is folderless (the `folderless` of its row, Section
+4.16.2 and Section 4.25.5.2 of [DAEMON]) MUST say `no folder` in place of its workspace.
 
 **17.3.2** `enter`, `m` or a click on such an epic MUST offer `follow` for one a host there holds,
 `export` for one not going, `upload`, `copy name`, `copy task` and `copy workspace`.
@@ -1229,11 +1265,12 @@ Humanize recorded for one (Section 17.2.3).
 
 ### 19.1. Landing screen
 
-**19.1.1** `/settings` MUST be one menu of nine pages, in this order: General, Notifications,
-Daemons, Accounts, Nous, Runtimes, Backup, Workspace, Usage.
+**19.1.1** `/settings` MUST be one menu of eleven pages in three groups, in this order: under
+**App**, Themes, Daemons, Notifications, Language; under **Daemon**, General, Accounts, Nous,
+Runtimes, Backup, Usage; under **Workspace**, Workspace (Section 32.1).
 
-**19.1.2** The landing screen MUST show one card per page with a summary of it, and `● unsaved` on
-each card whose page holds a change.
+**19.1.2** The landing screen MUST show each group's name over its pages, one card per page with a
+summary of it, and `■ Unsaved` on each card whose page holds a change.
 
 **19.1.3** `enter` or a click on a card MUST open its page; `esc`, `←` or `backspace` on a page MUST
 return to the landing screen with the cursor on that page's card.
@@ -1244,17 +1281,14 @@ return to the landing screen with the cursor on that page's card.
 
 **19.1.6** Each saved setting MUST take effect at once where it can; otherwise the interface MUST
 say beside its row while held and in the transcript when it lands: account changes from the next
-agent session, forgetting a directory from the next launch, the `ai_chan` setting from the next
-Ai-chan conversation made.
+agent session, forgetting a directory from the next launch.
 
 **19.1.7** Leaving `/settings` MUST write one dim line per change into the transcript.
 
 ### 19.2. General
 
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool calls,
-thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
-14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
-titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
+thinking and harness output; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
 whose own is not overridden (Section 8.9.10 of [CORE]); **Harness sessions**, whether `/resume` in a
 chat lists them (Section 7.12.5.4); **Error reports**, on or off; and **What is sent**, which says
 what error reports include and exclude.
@@ -1271,13 +1305,13 @@ transcript; details off MUST show the agents' answers only.
 ### 19.4. Notifications
 
 **19.4.1** The Notifications page MUST offer, each on or off, the kinds Done, Failed, Stopped,
-Questions and Waiting, and **System**, whether the terminal's bell rings and a system
-notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
-its own (Section 3.15 of [WEB]).
+Questions and Waiting, and **System**, whether the system is told of a notice too (Section 32.4),
+kept in the settings file (Section 3.4.5 of [FILES]); the page keeps its own (Section 3.15 of
+[WEB]).
 
 **19.4.2** For every epic and every chat of Local and of every remote daemon that is `up`, the
 interface MUST show each notice of a kind turned on (Section 10 of [CORE]) as a card that goes after
-a while, and, with **System** on, MUST ring the bell and show a system notification.
+a while, and, with **System** on, MUST tell the system as Section 32.4 specifies.
 
 **19.4.3** The interface MUST NOT give a notice of an epic of this directory while its log or the
 monitor is on the screen, nor of the chat on the screen, which a notice names by `chat` where
@@ -1302,6 +1336,13 @@ revokes one after confirmation; each written at once.
 **19.5.3** The Daemons page MUST offer **Batch apply…**: this machine's settings of the pages
 picked, the accounts excluded, written to each daemon picked as the web interface's `Batch apply`
 writes them (Section 3.11.2.13 of [WEB] to Section 3.11.2.15 of [WEB]), saying how each went.
+
+**19.5.4** While a daemon of another machine is `asking` (Section 3.8.3.7 of [DAEMON]), the
+interface MUST ask, over whatever is on the screen, `hmz is not installed on <name>. Install it?`,
+offering **install** and **not now**, and MUST give that daemon the answer chosen (Section 3.8.3.8
+of [DAEMON]); `esc` MUST answer **not now**, and the question MUST go once the daemon is no longer
+`asking`. **connect** (Section 19.5.2) MUST reach again a daemon that failed so (Section 3.8.3.9 of
+[DAEMON]).
 
 ### 19.6. Accounts
 
@@ -1614,13 +1655,1057 @@ states where its row's context holds.
 | 24.1.69 | anywhere | drag, double click, triple click | copy (Section 23) |
 | 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
 | 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
+| 24.1.72 | app | the key of a view | Section 25.1.4 |
+| 24.1.73 | app | `ctrl+b` | the navigator (Section 27.1) |
+| 24.1.74 | app | `ctrl+k` | Search (Section 27.5) |
+| 24.1.75 | navigator | `↑`, `↓` | move along the list |
+| 24.1.76 | navigator, a chat, an epic or a session | `enter` | open it (Section 27.3) |
+| 24.1.77 | navigator, a heading | `enter` | fold or unfold the group |
+| 24.1.78 | navigator | `n`, `N` | a new chat, a new epic (Section 27.4.1) |
+| 24.1.79 | navigator, a row | `p` | pin or unpin |
+| 24.1.80 | navigator, a row | `u` | mark unread or read |
+| 24.1.81 | navigator, a row or a folder | `.` | its menu (Sections 27.4.3 and 27.4.4) |
+| 24.1.82 | navigator | `g` | the next grouping (Section 27.2.3) |
+| 24.1.83 | Search | `↑`, `↓` | move along what was found, round the ends |
+| 24.1.84 | Search | `enter` | open the one moved to (Section 27.3) |
+| 24.1.85 | Search | `tab`, `shift+tab` | next or previous tab |
+| 24.1.86 | Search | `f2`, `f3`, `f4` | next of how it went, of the folders, of the flows |
+| 24.1.87 | Search | `f5` | clear what was typed and the filters |
+| 24.1.88 | Search | `pgdn`, `pgup` | an older page, a newer page |
+| 24.1.89 | Search | `esc` | close Search |
+| 24.1.90 | Flows page | `tab` | the other tab (Section 31.1.1) |
+| 24.1.91 | Flows page, installed flow | `enter`, `n`, `u`, `s`, `x` | open, new epic, update, switch release, uninstall (Section 31.1.3) |
+| 24.1.92 | Flows page, flowverse | `enter`, `a`, `f`, `x` | open, add, fetch, remove (Section 31.1.4) |
+| 24.1.93 | Flows page, flow of a flowverse | `enter`, `i`, `x`, `f` | releases, install, uninstall, fetch (Section 31.1.5) |
+| 24.1.94 | Flows page, release | `enter`, `x` | install or switch to, uninstall (Section 31.1.5) |
+| 24.1.95 | Download page | `enter`, `f`, `t` | download, fetch again, next target (Section 31.2.3) |
+| 24.1.96 | Import page | `enter` | ask for the file (Section 31.2.4) |
+| 24.1.97 | Export page | `enter` | export the epic (Section 31.2.5) |
+| 24.1.98 | a page | `esc` | back one list, then close (Section 25.1.5) |
+| 24.1.99 | environment pane | `ctrl+w` | widen the context (Section 30.1.7) |
+| 24.1.100 | environment pane, several envs | `tab` | turn to the next env (Section 30.1.3) |
+| 24.1.101 | Files pane, tree | `enter` | open or shut the directory, or show the file |
+| 24.1.102 | Files pane | `e` | open the file in the editor (Section 30.2.3) |
+| 24.1.103 | Files pane, tree | `n`, `shift+n` | new file, new directory |
+| 24.1.104 | Files pane, tree | `r`, `d` | rename, delete after a box |
+| 24.1.105 | Files pane | `ctrl+p`, `/` | show a file by name, search in files |
+| 24.1.106 | Files pane, file shown | `backspace` | back to the tree |
+| 24.1.107 | Changes pane, changes | `enter` | the keys to the diff |
+| 24.1.108 | Changes pane, changes | `s`, `u`, `x` | stage, unstage, discard after a box |
+| 24.1.109 | Changes pane, changes | `shift+s`, `shift+u` | stage all, unstage all |
+| 24.1.110 | Changes pane, changes | `c`, `l`, `p` | commit, the commits, the snapshots |
+| 24.1.111 | Changes pane | `r` | read again |
+| 24.1.112 | Changes pane, snapshots | `enter` | rewind after a box |
+| 24.1.113 | Changes pane, diff, commits or snapshots | `backspace` | back to the changes |
+| 24.1.114 | Terminal pane, tabs | `enter` | the keys to the terminal |
+| 24.1.115 | Terminal pane, tabs | `left`, `right` | previous or next terminal |
+| 24.1.116 | Terminal pane, tabs | `n`, `x` | new terminal, close after a box |
+| 24.1.117 | Terminal pane, terminal | `~.` at the start of a line | the keys to the tabs |
+| 24.1.118 | Terminal pane, terminal | any other key | typed into the terminal |
+| 24.1.119 | New chat page | `tab`, `shift+tab` | next or previous of chips, box, list (Section 28.2.5) |
+| 24.1.120 | New chat page, chip | `enter`, click | drop the list its value is picked from |
+| 24.1.121 | New chat page, box | `enter` | start the chat (Section 28.2.6) |
+| 24.1.122 | New chat page, list | `↑`, `↓`, `enter` | move; open the chat or the harness session |
+| 24.1.123 | Details view | `↑`, `↓` | previous or next chip or action |
+| 24.1.124 | Details view | `enter`, click | change the chip, or do the action (Section 28.3) |
+| 24.1.125 | Harness session page | `↑`, `↓`, `pageup`, `pagedown` | scroll what was said |
+| 24.1.126 | Harness session page | `enter` | `Continue in chat` (Section 28.4.2) |
+| 24.1.127 | New chat or Harness session page | `esc` | close the page |
+| 24.1.128 | log screen | `ctrl+e` | open the New epic page (Section 29.1) |
+| 24.1.129 | New epic page | `ctrl+e` | close the page, keeping what it holds |
+| 24.1.130 | New epic page | `ctrl+s` | Start (Section 29.4) |
+| 24.1.131 | log screen | `ctrl+o` | the Epic view (Section 29.5) |
+| 24.1.132 | Epic view | `←`, `→`, `1`–`4` | previous or next tab, wrapping; the tab of that number |
+| 24.1.133 | Epic view | `↑`, `↓` | row above or below |
+| 24.1.134 | Epic view, Board, a line | `enter` | change what the line says |
+| 24.1.135 | Epic view, Board | `a` | add a line |
+| 24.1.136 | Epic view, Board, a line | `d` | remove the line, once asked |
+| 24.1.137 | Epic view, People, a role | `enter` | claim, take over or release the role |
+| 24.1.138 | Epic view, People, a role | `w` | away or back for the role |
+| 24.1.139 | Epic view, People | `shift+w` | away or back for every role |
+| 24.1.140 | Epic view, Side questions, a side conversation | `enter` | ask in it |
+| 24.1.141 | Epic view, Side questions | `a` | ask in a new side conversation |
+| 24.1.142 | Epic view, Side questions, a side conversation | `d` | close it, once asked |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
 **24.3** `shift+enter` MUST break the line where the terminal reports it; `ctrl+j` MUST break the
 line in every terminal.
 
-## 25. Security Considerations
+## 25. Zones and views
+
+### 25.1. Zones
+
+**25.1.1** The log screen MUST have three zones side by side: the _navigator_ on the left, the log
+of Section 4 in the middle, and the _context_ on the right. A zone other than the log MUST take no
+column until a view is open in it.
+
+**25.1.2** A _view_ is one thing opened in the navigator, in the context, or over the whole screen
+as a _page_. A view MUST open only in the place it is specified for, and opening a view MUST NOT
+move or close what is open in another zone.
+
+**25.1.3** A zone with a view open MUST show the view's title in capitals over a heavy rule, in the
+colour of what has the keys while the keys are in it and dim otherwise.
+
+**25.1.4** A view with a key MUST, on that key: open with the keys where it is not open; take the
+keys where it is open and they are elsewhere; and close, the keys going to the editor, where the
+keys are in it. That key MUST do so whatever has the keys.
+
+**25.1.5** `esc` in a zone MUST give the keys to the editor and leave the zone open; `esc` on a
+page MUST close the page.
+
+**25.1.6** A view open as the interface opens MUST NOT take the keys from the editor.
+
+### 25.2. The hint line
+
+**25.2.1** Under the status line the interface MUST draw one _hint line_: every key the view with
+the keys takes, each with what it does, then `esc` with `Back` where a view has the keys, then the
+key of every other view that has one with what it opens. The hint line MUST NOT be drawn where it
+would be empty.
+
+**25.2.2** A view MUST NOT act on a key the hint line does not show while that view has the keys.
+
+**25.2.3** Where the keys a view takes change with what it shows -- the tab that is open, the row
+under its cursor -- the hint line MUST show the keys it takes now, and MUST be drawn again as they
+change.
+
+**25.2.4** The key of a page MUST close that page while it is the screen on top, as `esc` on it
+does: what a page keeps as it is left (Section 29.3.1) MUST be kept.
+
+### 25.3. Colour and drawing
+
+**25.3.1** The interface MUST have the themes `humanfia-dark` and `humanfia-light`, whose colours
+are those of the web interface's dark and light palettes (Section 3.12 of [WEB]), and the theme
+`terminal`, which names only the terminal's own sixteen colours and its own background.
+
+**25.3.2** In a humanfia theme: what can be followed, and what has the keys, MUST be cyan; what is
+picked out, and the one thing to press, MUST be pink, and a screen MUST NOT draw more than one such
+thing in pink apart from the row under the cursor; green MUST be drawn only in the mark and beside
+cyan, never beside pink; failures MUST be red and warnings gold.
+
+**25.3.3** What the interface draws of its own MUST be drawn with flat planes, heavy rules and
+square corners, and MUST NOT be drawn with rounded corners or shading.
+
+**25.3.4** The box the interface opens with MUST show the mark -- two stems, one diagonal between
+them, and a dot, the dot green -- and the name beside it where the terminal is wide enough.
+
+### 25.4. Order and removal
+
+**25.4.1** In every list a view draws, what waits on the person MUST come first.
+
+**25.4.2** A view MUST ask before it removes anything, naming what is removed.
+
+### 25.5. Texts
+
+**25.5.1** Every text a view draws that is not data MUST be a text the web interface writes ([WEB])
+wherever that interface has a text saying the same thing, word for word in its English, and MUST
+otherwise be a text kept with hmz for that purpose. A view MUST NOT compose such a text where it is
+drawn.
+
+**25.5.2** The texts of a view MUST be drawn in the language of Section 32 where they have a
+translation in it, and in English otherwise.
+
+## 26. Keys view
+
+**26.1** `f1` MUST be the key of the _Keys_ view, which opens in the context and whose hint is
+`keys`.
+
+**26.2** The Keys view MUST list the key of every view that has one with what it opens, then `esc`
+with `Back`, the keys in cyan.
+
+## 27. Navigator and Search
+
+### 27.1. The navigator
+
+**27.1.1** `ctrl+b` MUST be the key of the _navigator_ view, which opens in the navigator zone,
+whose title is `Sidebar` and whose hint is `Sidebar`.
+
+**27.1.2** The navigator MUST be open as the interface opens where the terminal is at least 110
+columns wide, and closed otherwise.
+
+**27.1.3** The navigator MUST list what the sidebar of the web interface lists (Section 3.5 of
+[WEB]) of this machine's daemon: every chat `chat.list` answers, every epic `runs.list` answers,
+and, where `settings.get` answers `harness_sessions` true, the sessions `chat.harness.list` answers
+of each folder not folded, after that folder's chats and epics. It MUST give every workspace
+`workspaces.list` answers a heading, and MUST read nothing off the files of a chat or an epic.
+
+**27.1.4** The navigator MUST read the list again when the interface hears a notice of an epic or
+a chat, and otherwise every 5 seconds, and MUST ask the daemon off the thread that draws.
+
+### 27.2. Groups, marks and order
+
+**27.2.1** The first group MUST be `Waiting for you`, holding every chat that is asking and every
+epic that is asking or waiting, and MUST be left out where there is none. Its heading, the marks of
+its rows and the words that say how they stand MUST be the only pink the navigator draws.
+
+**27.2.2** After it MUST come `Pinned`, holding the rows pinned that do not wait, left out where
+there is none; then the rest, as Section 27.2.3 groups it. Within a group, rows MUST stand newest
+first by when each was last heard of, an epic that is going standing as heard of now.
+
+**27.2.3** The rest MUST be grouped by `Folder`, by `Date` or as `None`, `g` stepping through them
+in that order. By folder: one group a workspace, named by the last part of its path, those an epic
+is going in first, then by their latest row, and the rows of no folder last under `No folder`; a
+folder whose directory is gone MUST say `missing`, and one that is gone and holds nothing MUST NOT
+be listed. By date: `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, `Older`. As none: one
+group, `All`. Grouped other than by folder, the folders MUST stand last as a group `Folders`, each
+with how many rows it has.
+
+**27.2.4** A group MUST show at most 20 rows and then a row `Show {n} more`, on which `enter` shows
+them all.
+
+**27.2.5** A row MUST show a mark, its title on one line, and at its end how it stands in the word
+the web interface's list says it in (`Running`, `Asking`, `Waiting`, `Stopping`; of a chat
+`Running`, `Awaiting input`; of a harness session `Read-only`) or, of one at rest, how long ago it
+was heard of in the web interface's texts (`just now`, `{n}m ago`, `{n}h ago`, else the month and
+day). The mark MUST be pink where it waits on the person, cyan where it is going, the colour of
+success where an epic is done, the colour of failure where it failed, was refused or crashed, and
+dim otherwise.
+
+**27.2.6** A row marked unread MUST show `●` in cyan beside its mark, and a row pinned `▸`. The row
+on the log MUST have its title in cyan. A folded group that holds an unread row MUST show `●` in
+its heading. The row under the cursor MUST be a cyan plane while the keys are in the navigator.
+
+**27.2.7** While the keys are in the navigator, a list read again MUST be drawn without moving any
+row already listed: a row that changed is redrawn where it stands, a row that left is taken out,
+and a new row is put in after the row it would follow. The order of Sections 27.2.1 to 27.2.3 MUST
+be restored when the keys leave, and at once after a change the person made with a key of the
+navigator, the cursor staying on the row it was on.
+
+**27.2.8** What is pinned, what is unread, the grouping and which groups are folded MUST be kept
+in `navigator.json` of the state directory, MUST be read as the navigator opens, and MUST NOT be
+asked of or told to a daemon. A notice of a chat or an epic that is not on the log MUST mark it
+unread, and opening a row MUST mark it read.
+
+### 27.3. Opening a row
+
+**27.3.1** Opening a chat of the workspace the interface is of MUST do what choosing it on
+`/resume` in a chat does, and MUST then give the keys to the editor.
+
+**27.3.2** Opening an epic that a host of the workspace the interface is of goes with MUST attach
+the log to that host. Opening any other epic of this machine MUST open the sheet `/epics` opens on
+entering it, wherever it ran; `esc` on that sheet with nothing said MUST return to where the epic
+was opened from.
+
+**27.3.3** Opening a harness session of the workspace the interface is of whose harness carries a
+copy on MUST adopt it (`chat.harness.adopt`) and open the chat made; one that does not MUST say
+`Read-only. A session of {harness} cannot be continued in a chat.`
+
+**27.3.4** Opening a chat or a harness session of another workspace MUST open nothing and MUST
+say, in the transcript, that it is in that folder and that `hmz` run there opens it; one of no
+folder MUST say that it has none and that the web interface opens it.
+
+**27.3.5** Opening the chat already on the log MUST change nothing but where the keys are. A chat
+the list says no host holds MUST be opened by asking the hosts which holds it, not by taking the
+list's word.
+
+### 27.4. The navigator's keys
+
+**27.4.1** `n` MUST open the view `newchat` where there is one and otherwise do what `/chat` does;
+`N` MUST open the view `newepic` where there is one and otherwise do what `/flow` does.
+
+**27.4.2** `enter` on a heading MUST fold or unfold its group.
+
+**27.4.3** `.` on a row MUST open its menu, in the web interface's words: `Open`; `Pin` or `Unpin`;
+`Mark as read` or `Mark as unread`; of a chat `Rename`, `Fork` (a chat of this workspace), `Copy
+ID`, `Upload`, `Archive` and `Delete`; of an epic `Copy task`, `Copy name`, `Upload` and, where a
+host goes with it, `Stop`; of a harness session `Copy session ID`. `Rename`, `Fork`, `Archive` and
+`Delete` MUST ask the daemon what the same row of `/resume` asks it, `Delete` asking the person
+first; `Upload` MUST ask `chat.backup` or `runs.backup`; `Stop` MUST ask the epic's host to stop
+it.
+
+**27.4.4** `.` on a folder MUST open its menu: `New chat here` and `New epic here`, which MUST
+open the New chat page and the New epic page on that folder (a folder that is still there only),
+`Search here`, `Copy path`, `Collapse` or `Expand`, and, for a folder
+in which `workspaces.list` counts no chat and no epic and says nothing is going, and of which no
+row is listed, `Forget`, which MUST ask first, naming the folder, and then ask `workspaces.forget`.
+
+**27.4.5** What a menu's action came to MUST be said in one line under the list, a refusal in the
+colour of failure.
+
+### 27.5. Search
+
+**27.5.1** `ctrl+k` MUST be the key of the _Search_ view, a page whose title and hint are
+`Search`. It MUST open over whatever has the keys, the editor included, and the same key MUST
+close it.
+
+**27.5.2** Search MUST show, top to bottom: one field; the tabs `All`, `Chats` and `Epics`, the
+chosen one in cyan; the filters `How it went`, `Folder` and `Flow` with what each is set to; a
+heading, `Recents` where nothing narrows the list and `Results` otherwise; what was found, a line
+apiece as Section 27.2.5 draws a row, with its folder and its flow before how it stands; which rows
+are shown of how many; and its keys. The keys MUST stay in the field.
+
+**27.5.3** Search MUST ask this machine's daemon as Section 3.10 of [WEB] states: on `Chats`,
+`chat.list`; on `Epics`, or on `All` with how it went or a flow chosen, `runs.list`; otherwise
+both, read from their first row and cut to the page as one list, newest first. Each call MUST carry
+what was typed as `q`, the folder as `workspace`, and of `runs.list` how it went as `status` and
+the flow as `flow`; a page is 50 rows. Where both are asked, Search MUST NOT turn to a page that
+ends past the 200th row.
+
+**27.5.4** What is typed MUST narrow the list once nothing has been typed for 0.2 seconds, asked
+off the thread that draws; an answer to what is no longer chosen MUST be dropped.
+
+**27.5.5** `tab` and `shift+tab` MUST change the tab, stopping at either end; choosing `Chats` MUST
+clear how it went and the flow, and choosing either of those on `Chats` MUST change the tab to
+`Epics`. `f2`, `f3` and `f4` MUST step how it went (`All`, `Running`, `Done`, `Failed`, `Stopped`,
+`Unfinished`), the folder and the flow, each coming back to all after its last. `f5` MUST clear
+what was typed and the filters and keep the tab.
+
+**27.5.6** `enter` MUST close Search and open the row moved to as Section 27.3 states; `esc` MUST
+close it.
+
+**27.5.7** Where nothing was found, Search MUST say so in the web interface's texts: `Nothing is
+like that.` with what clearing does where something was typed or filtered for, and otherwise that
+there is none yet of the tab's kind.
+
+**27.5.8** `Search here` (Section 27.4.4) MUST open Search with that folder chosen.
+
+## 28. New chat and the chat's chips
+
+### 28.1. Chips
+
+**28.1.1** A _chip_ is one thing a chat starts or goes on with, named and showing the value in
+force: `Folder`, `Environment`, `Model`, `Effort`, `Permissions`. `enter` on a chip MUST drop the
+list its value is picked from (Section 15), the value in force ticked, and picking nothing MUST
+leave the value as it was.
+
+**28.1.2** `Model` MUST offer the models each harness installed on the daemon's machine lists, as
+`flows.backends` answers them, a group a harness, and MUST answer with an agent spec. A harness
+nobody has asked what it runs MUST be offered as one row which, picked, asks it (`accounts.models`)
+and offers the list again; a harness that lists none MUST say so in a row that cannot be picked. A
+model picked MUST keep the effort in force where that model takes it, and MUST otherwise have none.
+
+**28.1.3** `Effort` MUST offer `Default`, the model's own, then the efforts the model in force
+takes.
+
+**28.1.4** `Permissions` MUST offer the three permissions of Section 8.3.9 of [CORE], narrowest
+first, as `Read only`, `Edit this folder` and `Full access`, each with the line the web interface
+gives it.
+
+**28.1.5** `Environment` MUST offer `This computer`, then each runtime `runtimes.list` answers
+under `Runtimes`. A runtime picked MUST then offer the directories of its machine (`paths.list`
+with `env`) to pick one from; picking none, or a machine whose directories cannot be listed, MUST
+come to the runtime named alone.
+
+**28.1.6** `Folder` MUST offer the workspaces `workspaces.list` answers whose directory exists,
+then `Open folder…`, which MUST walk the directories of the daemon's machine (`paths.list`) and
+answer with the one `Use this directory` is picked in.
+
+### 28.2. New chat
+
+**28.2.1** `ctrl+n` MUST be the key of the _New chat_ view, a page whose hint is `New chat`. On
+that key while the page is open, the page MUST close.
+
+**28.2.2** The page MUST draw, from the top: the five chips of Section 28.1, each showing the value
+a chat started now would have; the box the first message is typed into; and a list. The page MUST
+open with the keys in the box.
+
+**28.2.3** The chips MUST open on: the directory the interface was opened in; `This computer`; the
+chat agent that folder remembers (`settings.get`), else the first model `flows.backends` lists;
+that agent's effort; and `Edit this folder`. Picking another folder MUST read what that folder
+remembers, and MUST put the environment back to `This computer`.
+
+**28.2.4** On the page `Environment` MUST also offer `New worktree`, which MUST NOT be pickable,
+saying `This folder is not a git repository`, where neither the folder nor a directory over it
+holds `.git`.
+
+**28.2.5** `tab` and `shift+tab` MUST move the keys to the next and the previous of the chips, the
+box and the list, wrapping; a list with no row MUST be passed over.
+
+**28.2.6** `enter` in the box with nothing typed MUST do nothing. With something typed it MUST start
+a chat (`chat.start`) with that as `task`, the agent of `Model` and `Effort` as `agent`, the
+permission picked, `worktree` where `New worktree` is picked, `env` where a runtime is, and
+`remember` `true`; where no model is in force it MUST instead say `Pick a nous for the chat.` and
+drop the list of `Model`.
+
+**28.2.7** A chat of the directory the interface was opened in MUST be started on a new chat host
+which the log screen then follows (Section 11), and the page MUST close at once. A chat of another
+folder MUST be started with that folder as `workspace`; once it has started the page MUST close and
+the log MUST say that it was started there and is read by opening hmz in that folder, and a start
+refused MUST be said on the page, which MUST stay open.
+
+**28.2.8** The list MUST hold, first, under `Waiting for you`, each chat of the directory the
+interface was opened in whose state is `asking` (`chat.list`), each saying `Asked a question`; then,
+under `Harness sessions`, where the setting `harness_sessions` is on, the harness sessions of that
+directory (`chat.harness.list`), each naming its harness. The list MUST be read again every 4
+seconds. `enter` on a chat MUST close the page and put that chat on the log screen; `enter` on a
+harness session MUST open it as Section 28.4 states.
+
+**28.2.9** On the page the start action, drawn at the end of the box, MUST be the one thing drawn
+pink; a chip with the keys MUST be cyan.
+
+### 28.3. Details
+
+**28.3.1** `ctrl+g` MUST be the key of the _Details_ view, which opens in the context and whose
+hint is `Details`. It MUST be about the chat on the log screen, read by `chat.get` as it opens and
+every 4 seconds after, and MUST say `No chat here` where the log screen shows none.
+
+**28.3.2** The view MUST draw the chat's title; that it waits on its person or that it failed,
+where it does; `Harness` and `Account`, which cannot be changed; the chips `Model`, `Effort`,
+`Permissions`, `Skill or flow` and `Environment`; the directory it works in; under `Usage`, what
+the chat has spent, its output tokens and the time it has worked, or `Nothing used yet`, and what
+its folder spent over the last 7 days (`runs.usage`); and under `Actions`, `Rename…`, `Fork`,
+`Archive` and `Delete chat`. `↑` and `↓` MUST move between the chips and the actions.
+
+**28.3.3** `Model` MUST offer only the models of the chat's own harness and account, and `Model`
+and `Effort` picked MUST be asked as `chat.agent`.
+
+**28.3.4** `Permissions` and `Skill or flow` -- `Use the skill` or `Start the flow`, the chat's
+preference of Section 8.9.10 of [CORE] -- picked MUST be asked as `chat.set`, and `Environment`
+picked as `chat.move`, `This computer` being the chat's folder. Where no host holds the chat, the
+view MUST first carry the chat on with nothing said (`chat.start` with `resume` and an empty
+`task`), MUST put the log screen on the host that answers, and MUST ask that host.
+
+**28.3.5** `Rename…` MUST ask for the title on the form of Section 18 and ask `chat.rename`; `Fork`
+MUST ask `chat.fork` and put the fork on the log screen; `Archive` MUST ask `chat.archive` and
+`Delete chat` MUST ask `chat.delete`, each then leaving the log screen on a new chat as `/clear`
+does. `Delete chat` MUST first ask, in a box naming the chat by its title, whether to delete it,
+and MUST delete nothing unless that is answered yes.
+
+**28.3.6** While a chip is being changed, that chip MUST be the one thing of the view drawn pink.
+A refusal MUST be said in the view, in the daemon's words, and MUST change nothing else.
+
+### 28.4. Harness session
+
+**28.4.1** The _Harness session_ view MUST be a page with no key, opened for one harness session
+of one workspace. It MUST read the session by `chat.harness.get` with `trace` `true` and draw what
+was said in it in the order it was said: each line the user said behind the mark of Section 9, what
+the harness said, and the name of whatever else it did, dim. A session whose logs hold nothing MUST
+say `Its logs held nothing said.` Opened for no session, it MUST read the workspace's newest.
+
+**28.4.2** The page MUST change nothing of the session. For a session whose row says `continuable`
+it MUST draw `Continue in chat`, the one thing on the page drawn pink, and `enter` MUST ask
+`chat.harness.adopt`, close the page, and put the chat that answers on the log screen; where that
+was opened from the New chat page, that page MUST close too. For any other session it MUST say that
+a session of that harness cannot be continued in a chat, and `enter` MUST do nothing.
+
+**28.4.3** `↑`, `↓`, `pageup` and `pagedown` MUST scroll what was said, and `esc` MUST close the
+page.
+
+## 29. New epic and the epic's context
+
+### 29.1. The New epic page
+
+**29.1.1** `ctrl+e` MUST be the key of the _New epic_ page, whose hint is `new epic`. From the log
+screen it MUST open the page; on the page it MUST close it; and while any other screen is over the
+log -- a menu, the monitor, an environment page -- the key MUST be that screen's, as though the page
+had no key (Section 24.1.47 stands).
+
+**29.1.2** The page MUST be one form (Section 15), every row of it on one list in this order, each
+group under its heading in capitals over a heavy rule: `Flow`; under `Environment`, `Folder` and
+one row per environment role the flow does not fill itself; `Task`; under `Agents`, one row per
+agent role the flow does not fill itself; under `Parameters`, one row per property of the flow's
+params schema; under `Budget`, `Cost, $`, `Time, min`, `Output tokens`, then `Cost graceful`, `Time
+graceful` and `Tokens graceful`; under `Backup`, one switch per backup target, where there is one;
+under `Options`, `Profile flow` and `Profile environment`; and `Resume`, for a flow that can be
+picked up. No row MUST be reached through another, and a group with no row MUST NOT be drawn.
+
+**29.1.3** A row MUST be drawn on one line, its value at the far end, and what the row under the
+cursor is for MUST be said under the list.
+
+**29.1.4** The page MUST read what it offers of the daemon and, but for the sheets `More options`
+opens (Section 16), MUST NOT load a flow itself: the
+flows of the folder and the one it last set up (`flows.list`), what the flow declares and what the
+folder last set it up with (`flows.get`), the harnesses and their models (`flows.backends`), every
+virtual nous (`nous.list`), the runtimes (`runtimes.list`), and the backup targets and their
+defaults (`settings.get`).
+
+**29.1.5** The page MUST open on the folder the interface is open in, on the flow that folder last
+set up -- else the first on offer -- with every row holding what `remembered` of `flows.get` holds
+for it: the agents, the environments, the params, the limits of the budget with the time in whole
+minutes, each grace, each profiling switch, and the backup targets, those being the defaults where
+none was remembered. The task MUST open empty, with the cursor on it.
+
+**29.1.6** Where no flow is on offer the page MUST say `No flow installed yet.` under the list,
+and Start MUST be refused on the `Flow` row with `Install a flow first, from Flows.`
+
+### 29.2. Rows
+
+**29.2.1** `Flow` MUST drop every flow on offer under the heading of whose it is, each with what it
+is for; picking one MUST set every row below as Section 29.1.5 states for that flow.
+
+**29.2.2** `Folder` MUST be written as a path, completed as Section 15 completes one. Kept, it MUST
+read the page again for that folder as Section 29.1.4 and 29.1.5 state. Left empty it MUST read `No
+folder`, and the epic MUST start in a folderless workspace (Section 4.7.1.3 of [DAEMON]).
+
+**29.2.3** An agent role's row MUST drop, in this order: what it holds, where the list has it not;
+every virtual nous under `Virtual`; under each harness that can fill the role, up to six models of
+that machine's own sign-in, each as `<cli>/<model>:auto`; and `More options`, which MUST open the
+agent sheet of Section 16 on what the row holds and hold what it is saved with. A role nothing
+installed can fill MUST say `No harness installed here can fill it.` An empty row MUST read `Pick
+a nous`.
+
+**29.2.4** A harness that can fill a role and has never been asked what it runs MUST be asked
+(`accounts.models`) once the page has drawn, without the page waiting for it.
+
+**29.2.5** An environment role's row MUST drop `Folder`, which is the row left empty; each runtime
+saved, as `<backend>@<name>`; and `More options`, which MUST open the environment sheet of Section
+16 and hold what it answers.
+
+**29.2.6** A param MUST be asked as the form of Section 10 asks a field of that schema: a choice
+dropped under its row, a list or JSON written over several lines, a secret drawn as bullets, a
+default written as it opens.
+
+**29.2.7** A switch MUST be `on` or `off`, dropped under its row as Section 15 drops one.
+
+**29.2.8** `Resume` MUST drop `None` and up to twelve of the folder's latest epics of the flow that
+can be picked up and are not going. Picking one MUST set the rows as that epic ran (`runs.get`),
+put its task in an empty `Task`, and have Start pick it up.
+
+### 29.3. Leaving
+
+**29.3.1** `esc` MUST close the page without asking. What the page held MUST be kept for as long as
+the interface is open, and the page opened again MUST hold it where the same flow is picked.
+
+### 29.4. Start
+
+**29.4.1** The page MUST have one button, `Start`, apart at the far end of its bar, and `ctrl+s`
+MUST press it from any row. `enter` keeping a written row MUST move to the next row still to be
+answered, and to `Start` where none is.
+
+**29.4.2** Start MUST first be refused, with no call of the daemon, for: no flow (`Pick a flow
+first.`), an empty task (`Describe the task`), a required agent role with nothing picked (`Pick an
+agent for <role>.`), a param the form of Section 10 refuses, a limit that is not a number, and no
+limit at all (`Set at least one limit of the budget.`). Each MUST be said in red under the row it
+is about, and the cursor MUST go to the first of them.
+
+**29.4.3** Start MUST then have the daemon check the set-up (`flows.check`) and MUST start nothing
+it refuses. A refusal that names a role, a param, the budget or the epic picked up MUST be said
+under that row, the cursor going to it; any other MUST be said under the list.
+
+**29.4.4** In the folder the interface is open in, Start MUST start the epic as saving `/flow` and
+a `$` line do (Sections 16 and 8): the set-up written down for the folder, and the epic followed on
+the log screen. It MUST be refused under the list while an epic is going there, and while an epic
+of another daemon is followed.
+
+**29.4.5** In any other folder, and in none, Start MUST start the epic on that folder's own host
+(`epic.attach`, `epic.start` with `remember`), let go of it, and say in the transcript where it
+started and that `/epics` lists it.
+
+**29.4.6** `backup` MUST be sent absent while the folder remembered none and no switch was moved,
+so that the epic follows the defaults; `graceful` MUST be one flag where the three agree.
+
+### 29.5. The Epic view
+
+**29.5.1** `ctrl+o` MUST be the key of the _Epic_ view, which opens in the context and whose hint
+is `epic panel`. While a screen is over the log the key MUST do nothing.
+
+**29.5.2** The view MUST have four tabs, `Details`, `Board`, `People` and `Side questions`, drawn
+across its top each after its number, the open one in the colour of what has the keys. `←` and `→`
+MUST turn to the tab before and after, wrapping, and `1` to `4` to the tab of that number.
+
+**29.5.3** The tab open and the row each tab's cursor is on MUST be kept for as long as the
+interface is open: the view closed and opened again MUST be on that tab and that row.
+
+**29.5.4** While the view has the keys the hint line MUST show, in place of Section 25.2.1's keys
+of the view: `←/→` `tab`, `↑/↓` `move`, then every key the open tab takes on the row under the
+cursor, each with the web interface's word for what it does there now.
+
+**29.5.5** With no epic on the log screen -- none started, or a chat -- every tab MUST say `No epic
+is going here.`
+
+**29.5.6** `Details` MUST say `Running`, `Stopping` or `Ended` with the epic's name, then what
+the epic page of Section 20 says under `Figures`, `Budget`, `Setup` and `Flows`, read again at
+least every second.
+
+**29.5.7** `Board` MUST list each line of the board with what it says, and under it what it is for,
+who wrote it and whose it is. `enter` MUST open the board entry of Section 20 on the line and `a`
+on a new one; `d` MUST remove the line. Removing a line -- by `d`, or by saving it empty -- MUST
+first ask `Remove <key>?`. A line the flow owns MUST NOT be changed or removed, and MUST say `Only
+the flow changes this line`. An epic with no board MUST say `This flow keeps no board.`, and an
+empty board `Nothing is on the board yet.`
+
+**29.5.8** `People` MUST list each role a person fills with who holds it -- `You`, the name of the
+frontend holding it, or `Anyone` -- and `Away` where nobody is there for it. `enter` MUST claim a
+role nobody holds, take over one another frontend holds, and release one this interface holds
+(`epic.claim`, `epic.release`); `w` MUST set the role away or back and `shift+w` every role
+(`epic.afk`). An epic with no such role MUST say `This flow has no role for a person.`
+
+**29.5.9** `Side questions` MUST list each side conversation the daemon holds about the epic
+(`btw.list` of the epic by name, read again at least every two seconds while the tab is open) as
+`btw · <agent>/<n>`,
+with each question asked in it and its answer, and `Answering…` under one not answered yet.
+
+**29.5.10** `a` MUST ask in a new side conversation and `enter` in the one under the cursor
+(`btw.ask`): on a form of two rows, `Ask it of` -- every session of the epic, newest first, absent
+for a side conversation already open -- and `Side question`. A refusal MUST be said under the
+list. `d` MUST close the side conversation under the cursor (`btw.leave`), first asking.
+
+**29.5.11** A side question asked here MUST NOT enter btw mode (Section 12), and MUST NOT reach
+the epic.
+
+### 29.6. Faces
+
+**29.6.1** The line of Section 10.17 MUST read `The custom view is in the web page<where>; Enter
+answers here with the plain form`, `<where>` being `: <address>` where the address is known and
+` (hmz web)` otherwise.
+
+## 30. Environment panes
+
+### 30.1. The panes
+
+**30.1.1** `f5`, `f6` and `f7` MUST be the keys of the views _Files_, _Changes_ and _Terminal_, each
+an _environment pane_ that opens in the context (Section 25.1.4), whose hints are `Files`,
+`Changes` and `Terminal`. Opening one MUST NOT take the editor's text, close what the log shows or
+stop a turn; `/env` (Section 7.20) MUST go on opening its sheets as it did.
+
+**30.1.2** A pane MUST show one env of those `/env` would list (Section 7.20.1): one that is open
+and has the pane's capability -- files for Files, git for Changes, a shell for Terminal (Section
+7.20.3). It MUST show the env the panes of that chat or epic were last turned to (Section 30.1.3)
+where that env still is one of them, and otherwise the first of them in the order `/env` lists
+them.
+
+**30.1.3** Where more than one env has the pane's capability, the pane's first row MUST name the
+env shown and its place among them, and `tab` MUST turn the pane to the next of them. The env
+turned to MUST be remembered for that chat or epic, for all three panes, for as long as the
+interface runs.
+
+**30.1.4** A pane MUST say `No environment is open here yet.` where the host lists no env, and
+that this environment has no files, changes or terminal where envs are open and none has the
+pane's capability, and MUST then ask the host nothing.
+
+**30.1.5** A pane MUST read what it shows again when the host says an env was used or a turn
+ended, and when the envs the host lists change.
+
+**30.1.6** A pane MUST draw, on a line of its own at its foot, every key it takes where the keys
+are now with what each does, in the texts of Section 25.5; that line is part of the hint line for
+Section 25.2.2. `esc` MUST give the keys to the editor and leave the pane as it is (Section
+25.1.5), except in a terminal that has the keys (Section 30.4.3).
+
+**30.1.7** `ctrl+w` in a pane MUST make the context one step wider: from the 48 columns it opens
+at, to half the screen, to four fifths of it, and back to 48. The width MUST stay until it is
+changed again.
+
+**30.1.8** A pane MUST ask, in a box that names what goes, before it deletes a file or a folder,
+discards a change, rewinds an env or closes a terminal that is running.
+
+### 30.2. Files
+
+**30.2.1** Files MUST draw the env's workdir as a tree (`env.list`), directories first: `enter` on
+a directory MUST open it under its row, a step in, or shut it; `enter` on a symbolic link MUST do
+what it would to what the link leads to.
+
+**30.2.2** `enter` on a file MUST show it in the pane in place of the tree, read-only, with line
+numbers and its syntax highlighted by its name, and `backspace` MUST put the tree back. A file
+over 1 MiB MUST NOT be shown, and the pane MUST say so; a file that is not UTF-8 text MUST be shown
+with what cannot be read replaced, and the pane MUST say it is not UTF-8 text. Reading a file MUST
+NOT write it.
+
+**30.2.3** `e` on a file, in the tree or shown, MUST open it in the editor of Section 7.20.5, over
+the screen, which writes as that section states; leaving the editor MUST return to the pane, which
+MUST then show the file as written.
+
+**30.2.4** In the tree, `n` MUST ask for a name and make an empty file of it (`env.write` with
+`if_match` `""`) and open it in the editor; `shift+n` MUST ask for a name and make a directory
+(`env.mkdir`); each in the open directory under the cursor, else beside the row under it. `r` MUST
+ask for a new name of the row under the cursor (`env.rename`), and `d` MUST delete it
+(`env.remove`) after the box of Section 30.1.8.
+
+**30.2.5** `ctrl+p` MUST list the env's files (`env.find`) to be narrowed by typing and MUST show
+the one picked; `/` MUST ask for a text, list the lines that hold it (`env.search`), and show the
+file of the one picked at that line.
+
+### 30.3. Changes
+
+**30.3.1** Changes MUST say where the repository stands -- its branch, or its commit where none is
+checked out, and its upstream with how far ahead and behind -- and MUST list the env's git status
+(`env.git.status`) in the groups of Section 7.20.7, each headed by its name and count.
+
+**30.3.2** Under the list the pane MUST draw the change of the file under the cursor
+(`env.git.diff`, `staged` for one under Staged Changes) highlighted as a diff, following the
+cursor, and MUST say so in place of a diff for a binary file and for a change that is empty.
+`enter` MUST give the keys to the diff, to scroll it, and `backspace` MUST give them back to the
+list.
+
+**30.3.3** `s` MUST stage the file under the cursor and `u` unstage it, a renamed file with the
+path it was renamed from; `shift+s` MUST stage every change and `shift+u` unstage every one
+staged; `x` MUST discard the file under the cursor (`env.git.discard`) after the box of Section
+30.1.8. After each the list MUST be read again, the cursor staying with the file.
+
+**30.3.4** `c` MUST open the form of Section 7.20.7, with a message and whether to amend the last
+commit, and MUST commit as it is answered (`env.git.commit`); a refusal MUST be said in the pane
+in the host's words.
+
+**30.3.5** `l` MUST list the commits (`env.git.log`), newest first, each by its short hash,
+subject, author and date; `p` MUST list the env's snapshots (`env.git.snapshots`), where `enter`
+MUST rewind the env to the one under the cursor (`env.git.rewind`) after the box of Section 30.1.8.
+`backspace` MUST return from either to the changes, and `r` MUST read again whichever is listed.
+
+### 30.4. Terminal
+
+**30.4.1** Terminal MUST show the terminals alive in the env (`env.term.list`) as a row of tabs,
+each by its place and title, the one shown marked. Opening the pane where none is alive MUST
+start one (`env.term.open`).
+
+**30.4.2** The terminal shown MUST be drawn in the pane as its screen is: what it prints
+(`term`), read as a terminal reads it -- cursor movement, colours, erasing -- at the size of the
+pane, which MUST be passed on when it changes (`env.term.resize`); what is drawn MUST be
+acknowledged (`env.term.ack`). A terminal come back to MUST first be drawn with what it kept
+(`replay`). A terminal MUST go on being drawn while the keys are elsewhere.
+
+**30.4.3** While a terminal has the keys, every key the interface is given, `esc` among them, MUST
+be typed into it (`env.term.input`), in order, and MUST do nothing else -- except the keys bound
+over everything (Section 24.1.1, 24.1.2 and 24.1.72), and `~.` typed at the start of a line,
+which MUST give the keys to the row of tabs and leave the terminal running; `~~` there MUST type
+one `~` (Section 7.20.9).
+
+**30.4.4** On the row of tabs, `enter` MUST give the keys to the terminal shown; `left` and
+`right` MUST show the terminal before and after it; `n` MUST start another and give it the keys;
+`x` MUST close the one shown (`env.term.close`) after the box of Section 30.1.8, and without one
+where it has ended.
+
+**30.4.5** A terminal that ends MUST say `[exited]`, with its status where the host gave one, where
+it would have printed and on its tab, and MUST give the keys to the row of tabs where it had them.
+A terminal that cannot be opened, and input that is refused, MUST be said there in the host's
+words.
+
+**30.4.6** Closing the pane MUST leave its terminals running (Section 4.24.4.9 of [DAEMON]).
+
+## 31. Flows page and transfers
+
+### 31.1. The Flows page
+
+**31.1.1** `ctrl+l` MUST be the key of the _Flows_ view, a page whose hint is `Flows`. The page MUST
+be headed `FLOWS` over a heavy rule and MUST have two tabs, `Installed` and `Flowverses`, the open
+one cyan, and MUST open on `Installed`. `tab` MUST turn from one tab to the other.
+
+**31.1.2** `Installed` MUST list every flow there is to run here -- those installed from a
+flowverse and the user's own -- each with its release, and MUST list first, marked, each flow whose
+flowverse lists a newer release, with that release. Above the list it MUST say how many flows there
+are and, where any has a newer release, how many do: the count of Section 3.6.
+
+**31.1.3** On an installed flow: `enter` MUST open what it says of itself and what it declares --
+its agent roles, its environment roles and its params; `n` MUST start a new epic of it, on the New
+epic page (Section 29) where there is one and otherwise as `/flow <flow>` does (Section 7.9.2), the
+page closing; `u` MUST install the newest release its flowverse lists; `s` MUST list its releases,
+of which `enter` installs or switches to one; `x` MUST uninstall it.
+
+**31.1.4** `Flowverses` MUST list every flowverse except the project's and the user's own, each
+with when its index was fetched or that it is not, where it is fetched from with any credential
+hidden, and how many flows it lists, has installed and has updates for. `a` MUST ask for a
+repository and an optional name and add it; `f` MUST fetch the one under the cursor; `x` MUST
+remove it; `enter` MUST list the flows it lists, each at its newest release with what of it is
+installed, naming each manifest it skipped and why.
+
+**31.1.5** On a flow a flowverse lists: `i` MUST install its newest release; `enter` MUST list its
+releases newest first, the installed one and prereleases marked, of which `enter` installs or
+switches to one; `x` MUST uninstall it.
+
+**31.1.6** The page MUST ask before it uninstalls a flow, naming the flow, and before it removes a
+flowverse, naming it and saying how many installed flows go with it (Section 25.4.2).
+
+**31.1.7** While an epic is going the page MUST say that flows are installed, updated and
+uninstalled once it ends, and MUST refuse to install, update or uninstall one, or to remove a
+flowverse a flow is installed from, saying so again where it was asked (Section 3.9).
+
+**31.1.8** One install, uninstall, fetch, add or removal MUST run at a time, without stopping the
+page from drawing or taking keys; the page MUST say what is under way, refuse another until it is
+done, and say what came of it under the list and in the transcript. The page MUST NOT fetch an
+index unasked.
+
+**31.1.9** `esc` MUST go back one list, and from a tab MUST close the page. The page MUST show its
+own hint line, saying exactly the keys the list open takes (Section 25.2.2).
+
+**31.1.10** What the page lists and what it says of what was done MUST be what `/flow` lists and
+says (Section 16), and `/flow` MUST go on working as Section 16 states.
+
+### 31.2. Transfers
+
+**31.2.1** _Download_, _Import_ and _Export_ MUST each be a page view, named `download`, `import`
+and `export`, with no key of its own, headed by its name in capitals over a heavy rule.
+
+**31.2.2** A _transfer_ is one download, import or export. A transfer MUST run without stopping
+the interface from drawing or taking keys, and MUST go on when its page is closed. Each of the
+three pages MUST list the transfers of the interface, newest first: one still going with what it is
+moving, a bar that moves and how long it has taken, saying that it goes on when the page is closed;
+one ended with what came of it, a failure in red. What came of a transfer MUST also be said in the
+transcript.
+
+**31.2.3** Download MUST list what one backup target holds as Section 19.10.3 and 19.10.4 state,
+fetched without delaying input, and MUST open on the first target; `enter` MUST download the epic
+or chat under the cursor, `f` MUST fetch the target again, and `t`, where there is more than one
+target, MUST turn to the next. What is here already MUST be marked `Here` and MUST NOT be
+downloaded again, saying how it is opened. Where there is no target the page MUST say so and where
+one is added.
+
+**31.2.4** Import MUST ask for a `.hmzepic` by path, finished as it is typed (Section 15.4), as it
+opens where no import is listed and on `enter`, and MUST read the file in as Section 17.1.5 states
+for an import, saying the folder it was imported into.
+
+**31.2.5** Export MUST list every epic recorded on this machine, newest first, each with when it
+began, its flow or `chat`, its task, how it ended and the folder it ran in; `enter` MUST ask where
+the archive goes as Section 17.2.6 states for an export and write it there, saying where it landed
+and how big it is. Opened for one epic, it MUST ask where that epic goes at once.
+
+## 32. Settings: App and Daemon
+
+### 32.1. Groups
+
+**32.1.1** The pages of `/settings` MUST stand in the groups the web interface's Settings has them
+in (Section 3.11 of [WEB]): **App**, what is kept on this machine for the person at it; **Daemon**,
+what the daemon keeps; and **Workspace**, the page of the directory `hmz` was started in.
+
+**32.1.2** A group's name MUST be a heading the cursor steps over, drawn in capitals and ruled to
+the far edge.
+
+**32.1.3** `/settings <page>` (Section 7.13.2) MUST also take `themes` and `language`.
+
+**32.1.4** `f2` MUST be the key of the _Settings_ view, a page (Section 25.1.2) that is `/settings`
+on its landing screen and whose hint is `settings`. `f2` pressed while `/settings` is open, or
+anything opened from it is, MUST NOT open it again.
+
+**32.1.5** The Themes and Language pages MUST hold nothing: what is chosen on them MUST be kept at
+once, MUST NOT mark a card `■ Unsaved`, and MUST NOT be asked about on leaving.
+
+### 32.2. Themes
+
+**32.2.1** The Themes page MUST list, under **Appearance**, Auto, Light, Dark and Terminal, and
+under **Presets**, every preset of the web interface (Section 3.12 of [WEB]) by the name it has
+there, each with a sample of it in its own colours, and MUST mark the appearance and the preset in
+use.
+
+**32.2.2** The interface MUST have, for every preset, a light theme and a dark theme named
+`<preset>-light` and `<preset>-dark`, whose colours are the ones the web interface draws that
+preset in, and which obey Section 25.3.2 with the preset's accent for cyan, its highlight for pink
+and its brand colour for green; the preset Humanize Green MUST be `humanfia-light` and
+`humanfia-dark`.
+
+**32.2.3** Auto MUST draw the light side of the preset in use where `COLORFGBG` says the terminal's
+background is light and its dark side otherwise; Light and Dark MUST draw that side; Terminal MUST
+draw the theme `terminal` whatever the preset in use.
+
+**32.2.4** While the cursor is on a row of the Themes page, the whole interface MUST be drawn as
+it would be were that row chosen. `enter` on the row MUST keep it; leaving the page or the menu
+MUST draw the interface as kept. Opening the page MUST put the cursor on the preset in use, or
+on Terminal where that is the appearance in use.
+
+**32.2.5** Choosing a preset while Terminal is the appearance in use MUST set the appearance to
+Auto.
+
+**32.2.6** Where `TEXTUAL_THEME` names a theme, and otherwise where `NO_COLOR` is set, that
+variable MUST decide the theme (Section 3): the page MUST say which variable is set, MUST NOT
+redraw the interface as the cursor moves, and MUST still keep what is chosen.
+
+### 32.3. Language
+
+**32.3.1** The Language page MUST list System, and English, 简体中文 and 繁體中文, each by the name
+it calls itself, and MUST mark the one in use.
+
+**32.3.2** System MUST be the language of the first of `LC_ALL`, `LC_MESSAGES` and `LANG` that is
+set: Traditional Chinese for a Chinese locale of Taiwan, Hong Kong or Macao or one naming `Hant`,
+Simplified Chinese for any other Chinese locale, and English otherwise.
+
+**32.3.3** While the cursor is on a row of the Language page, the menu MUST be drawn in that row's
+language; `enter` MUST keep it; leaving the page or the menu MUST go back to the language kept.
+
+**32.3.4** The language kept MUST be in effect before the interface first draws, and for every
+view and menu drawn after it is chosen (Section 25.5.2). What a daemon, a flow or an agent wrote
+MUST stay as written.
+
+### 32.4. Telling the system
+
+**32.4.1** With **System** on (Section 19.4.1), the interface MUST tell the system of each notice it
+shows a card for, by writing to the terminal: OSC 777 (`notify`, a title and a body) to a terminal
+that takes it -- one that sets `VTE_VERSION`, or whose `TERM` starts with `rxvt` or `foot`; OSC 9 to
+a terminal known to show it as a system notification -- iTerm2, Ghostty, WezTerm, kitty, Warp and
+Windows Terminal; and to any other terminal, and to any inside tmux or screen (`TMUX` or `STY`
+set, or a `TERM` starting with `tmux` or `screen`), the bell followed by OSC 9.
+
+**32.4.2** The interface MUST NOT write more than one of OSC 777 and OSC 9 for one notice.
+
+**32.4.3** Where the terminal has reported whether it has the focus, the interface MUST NOT tell
+the system of a notice while the terminal has it. A terminal that has reported nothing MUST be
+told every notice.
+
+**32.4.4** Every control character of what is written between the sequence's introducer and its
+terminator MUST be replaced by a space.
+
+### 32.5. What is kept
+
+**32.5.1** The preset, the appearance and the language MUST be kept under `tui` in the settings
+file, as `theme` (a preset's key, `humanize` by default), `appearance` (`auto`, `light`, `dark` or
+`terminal`; `auto` by default) and `language` (`en`, `zh-Hans`, `zh-Hant`, or empty for System, the
+default), which every other key of that file, and of `tui`, is left beside (Section 3.3.2.4 of [FILES]).
+
+**32.5.2** A value of any of the three that is none of those MUST be read as its default.
+
+**32.5.3** Where the settings file cannot be written, the interface MUST keep what was chosen for
+as long as it runs and MUST NOT report an error.
+
+## 33. Monitor, Exomyth and sheets in humanfia
+
+This section states how the menus and boxes of Section 15, the monitor of Section 20 and Exomyth of
+Section 21 are drawn to Section 25.3, the view of Ai-chan's conversations, and what the texts
+other sections quote literally are now. Where this section and an earlier one disagree about how
+something is drawn or what a text says, this section governs.
+
+### 33.1. Menus and boxes
+
+**33.1.1** The list of a menu MUST be drawn in a square frame ruled heavily, the menu's title in
+capitals in the frame's top rule. The frame and its title MUST be the colour of what has the keys
+while the list has them, and dim otherwise.
+
+**33.1.2** A box (Section 15.1.11) MUST be drawn in a square frame ruled heavily, in the colour of
+what has the keys, headed `QUESTION` in the frame's top rule. A dropdown MUST be drawn the same
+way, headed by its row's name in capitals.
+
+**33.1.3** The row under the cursor of a list that has the keys MUST be filled pink. A button MUST
+be a flat plane without a border: the button that has the keys in the colour of what has the keys;
+the button that answers a menu, and a button that removes, in pink whether or not it has the keys;
+any other dim. Section 15.1.9's green and red do not apply.
+
+**33.1.4** The box that asks before a chat or an Ai-chan conversation is deleted MUST have the
+button that keeps it first, so that `enter` alone deletes nothing.
+
+**33.1.5** The keys line of a menu, of a box and of Exomyth MUST draw each key in the colour of what
+can be followed, in bold, and what it does quietly, as the hint line of Section 25.2 does.
+
+**33.1.6** A menu, a box, a dropdown, the monitor and Exomyth MUST take every colour they draw from
+the theme in force, and MUST stay legible in the theme `terminal` and in a theme that defines none
+of humanfia's own colours.
+
+### 33.2. Monitor
+
+**33.2.1** The box of an agent (Section 20.2.3) MUST be drawn as a block ruled heavily with square
+corners, a plane down its left side in the agent's lane colour. Lane colours MUST be given out in
+the flow's order, six of them and then again from the first, as the web interface gives them out
+(Section 3.12 of [WEB]).
+
+**33.2.2** The frame of the box under the cursor MUST be pink, and every other frame dim.
+
+**33.2.3** A node that works MUST be named in cyan with its clock in cyan, and any other in the
+text colour. `unread` MUST be pink and `reading` cyan.
+
+**33.2.4** The handovers between two boxes MUST be drawn on a heavy spine, each direction cut off it
+by one diagonal: `┃ ╱ ↓ <n> ╱ ↑ <n>`, in cyan where the latest handover went that way and dim
+otherwise; between two agents never handed between the spine MUST be dotted.
+
+**33.2.5** An outworlder's node MUST be marked in pink while the flow waits on that role for an
+answer, and in cyan otherwise.
+
+### 33.3. Exomyth
+
+**33.3.1** Exomyth MUST colour a span by its category: a turn in the first lane colour, a tool call
+in the fourth, a message in the fifth, a session or a process in the third, a flow in the third
+ink, a model call in the mark's green, and anything else in the sixth lane colour.
+
+**33.3.2** The span under the cursor MUST be filled pink, its name in bold. No category is drawn in
+pink.
+
+**33.3.3** The lists of the Flame and Slices views MUST be framed as Section 33.1.1 frames a menu's
+list.
+
+### 33.4. Ai-chan's conversations
+
+**33.4.1** `f3` MUST be the key of the _Ai-chan_ view, which opens in the context and whose hint is
+`Ai-chan`.
+
+**33.4.2** The view MUST list `New conversation` and under it every Ai-chan conversation of the
+daemon (`aichan.list`): those pinned first, then by when each was last said in, the latest first.
+Each MUST show `Ai-chan#<n>`, its title, its scope, its preset, `typing…` while a turn of hers is
+open, a square where it is pinned and a dot where it is unread.
+
+**33.4.3** A conversation is _unread_ where it was marked so, or where it was said in after it was
+last read in this interface. Following a conversation MUST read it. What is pinned, what is
+unread and up to when each was read MUST be kept in `navigator.json` of the state directory,
+beside what Section 27.2.8 keeps there, MUST be read as the interface opens, and MUST NOT be sent
+to the daemon.
+
+**33.4.4** In the view: `enter` on a conversation MUST follow it as Section 7.19.2 states and give
+the keys to the editor; `enter` on `New conversation`, and `n`, MUST open `/ai`; `r` MUST ask for a
+title and rename the conversation by `aichan.rename`; `p` MUST pin it or let it go; `u` MUST mark it
+read or unread; `delete` MUST ask as Section 33.4.6 states and then forget it by `aichan.forget`.
+
+**33.4.5** The menu of a conversation in `/ai` (Section 7.19.5) MUST offer **Rename**, **Pin** or
+**Unpin**, **Mark as read** or **Mark as unread**, and **Delete**, each doing what its key of
+Section 33.4.4 does, and `/ai` MUST list and mark the conversations as Section 33.4.2 states.
+
+**33.4.6** Deleting a conversation MUST ask in a box `Delete this conversation?`, naming it, whose
+first button is **Cancel** and whose second is **Delete**.
+
+### 33.5. Texts
+
+**33.5.1** What a key does, on a keys line, MUST be said in the words of Section 25.5: `Open`,
+`Back`, `Close`, `Choose`, `Search`, `Actions`, `Menu` and so on. A sentence of this document that
+quotes such a word in lower case is to be read with the word as it is here.
+
+**33.5.2** The texts below, which other sections quote, MUST be as the right column has them.
+
+| Section | Was | Is |
+| ------- | --- | --- |
+| 7.12 | `/resume`'s menu: `rename`, `fork`, `archive`, `upload`, `delete`, `copy id` | **Rename**, **Fork**, **Archive**, **Upload**, **Delete**, **Copy ID** |
+| 7.12 | the title `Resume a chat` | `Resume chat` |
+| 7.12 | a box saying that the deletion is permanent | the box `Delete <title>?`, saying what the web interface says of deleting a chat, **Cancel** first and **Delete** second |
+| 7.19.1 | the entry **New** | **New conversation** |
+| 7.19.3 | the rows `scope`, `nous`, `preset` | `Scope`, `Nous`, `Permissions` |
+| 7.19.5 | **Forget** | **Delete**, with the rest of Section 33.4.5 |
+| 10 | the button `answer`, and `answer · <n> required left` | `Answer`, and `Answer · <n> required left` |
+| 10 | `this is needed`, `this needs a number`, `this needs a whole number` | `This needs an answer.`, `This needs a number.`, `This needs a whole number.` |
+| 15.1.3 | `● unsaved changes` | `● Unsaved` |
+| 15.3 | the box `Save?` offering **Save** and **Discard** | the box `Save changes?` offering **Save** and **Discard** |
+| 14 | the box `A flow is running.` offering `stop the flow and exit`, and `detach and exit` or `cancel` | the same box offering **Stop the flow and quit**, and **Detach and quit** or **Cancel** |
+| 19.13 | the box `Report errors to Humanize?` offering `yes` and `no` | the box `Send error reports to Humanize?` offering **Yes** and **No** |
+| 15.2 | the search button `search…` and the placeholder `type to filter` | **Search** and `Type to filter` |
+| 4.6 | `no agent available` | `No agents`, and `No harness installed` where no harness is installed |
+| 7 | a refusal `hmz: no such command: /<name>`, and `hmz: /<name> is only available on …, not on …` | ``hmz: No such command: `/<name>`.``, and ``hmz: `/<name>` is only available on …, not on ….`` |
+| 7.20.3, 7.20.8, 7.20.9 | the page `Shell` | `Terminal` |
+| 7.20.5 | a box offering to keep the user's text or to read the file again | the box `<path> changed in the environment since you opened it.` offering **Reload**, **Keep mine** and **Show the diff** |
+| 7.20.5 | the editor's states `● edited`, `conflict: changed on disk`, `not saved: <why>` | `● Unsaved`, `Conflict`, `Not saved: <why>` |
+| 7.20.7 | the buttons `stage all`, `unstage all`, `commit…` | **Stage All Changes**, **Unstage All Changes**, **Commit** |
+| 7.21.2 | `the chat is already on the screen` | `The chat is already open.` |
+| 10.1 | under a question: `<name>'s to answer`, `yours to answer: type an answer, or /afk to stop being asked`, `type an answer, or /afk to stop being asked` | ``It is <name>'s to answer``, ``Yours to answer · type an answer, or `/afk` to stop being asked``, ``Type an answer, or `/afk` to stop being asked`` |
+| 10.11 | `form · <n> fields — press Enter to open` | `Form of <n> fields · Enter opens it` |
+| 10.16 | `<role> was shown` | `<role> was shown something` |
+| 10.18 | `withdrawn: <why>` | `Withdrawn: <why>` |
+| 11.4, 13.2 | `starting…`, `running`, `done`, `waiting for` and `you` or a name | `Starting…`, `Running`, `Done`, `Waiting for you` or `Waiting for <name>` |
+| 11.5 | `no turn is open, so there is nothing to stop` | `No turn is open, so there is nothing to stop.` |
+| 12.7 | `btw: exited` | `btw: Side questions ended`, and `btw: Side questions ended: <why>` where it was not asked for |
+| 12.9 | `hmz: btw is still answering the last question` | `hmz: A side question is still being answered.` |
+| 13.1 | `details`, ` · copied` | `Details`, ` · Copied` |
+| 13.3 | `shift+tab switch view`, `/ commands`, `shift+enter newline`, `← monitor` | `shift+tab Next view`, `/ Commands`, `shift+enter New line`, `← Monitor` |
+| 13.3 | what `enter` does: `run`, `start`, `ask`, `send`, `answer`; what `ctrl+c` does: `clear`, `again to stop`, `again to exit`, `exit`, `stop`, `force stop` | `Run`, `Start`, `Ask`, `Send`, `Answer`; `Clear`, `Again to stop`, `Again to exit`, `Exit`, `Stop`, `Force stop` |
+| 13.4 | `↑↓ move`, `tab select`, `esc cancel` | `↑↓ Move`, `tab Choose`, `esc Cancel` |
+| 15.4 | a switch reading `on` or `off`, and a row of a form named in lower case (`name`, `host`, `port`, `identity file`, …) | `On` or `Off`, and the row named as the web interface names the field (`Name`, `Host`, `Port`, `Identity file`, …) |
+| 16 | a budget cap cut off mid-turn said as `<cap> even mid-turn` | `<cap> cut off at once` |
+| 16.5.3, 19.6.1, 19.6.3 | this machine's own sign-in, as `as local` | **Local**, with `signed in outside Humanize` beside it |
+| 16.6 | the form `Environment for <role>` | `Runtime for <role>` |
+| 17.1.2 | the scope `this directory`, and the epics `in this directory` | **This folder**, and the epics `in this folder` |
+| 17.1.3 | the filters `status`, `flow`, `workspace`, each opening on `all` | `State`, `Flow`, `Folder`, each opening on `All` |
+| 17.2 | an epic's rows `resume epic`, `graph`, `export epic`, `upload`, `copy name`, `copy task`, `copy path` | **Resume epic**, **Graph**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy path** |
+| 17.2 | an epic said to be `is still going`, `finished` or `was left unfinished` | `still going`, `done` or `unfinished` |
+| 17.3.1.1 | `no folder` | `No folder` |
+| 17.3.2 | `follow`, `export`, `upload`, `copy name`, `copy task`, `copy workspace`, `copy id` | **Follow**, **Export**, **Upload**, **Copy name**, **Copy task**, **Copy workspace**, **Copy ID** |
+| 19.5.2 | **Add daemon**, **edit…**, **connect**, **remove**, **copy name**, **Pair a device…**, **Devices…** | **New daemon**, **Edit**, **Connect**, **Remove**, **Copy name**, **Pair a device**, **Devices** |
+| 19.5.2 | the modes `Pairing code`, `SSH Config`, `Custom`, `Routes` | `Pairing code`, `SSH config`, `Custom`, `Routes` |
+| 19.5.4 | **install** and **not now** | **Install** and **Not now** |
+| 19.6.2 | **edit settings** and **sign in again** | **Edit** and **Sign in again** |
+| 19.6.4 | **Add an account** and **Add a custom CLI** | **Add account** and **Add CLI** |
+| 19.9 | **Add a runtime…**, `import ~/.ssh/config`, and a runtime's `edit`, `check` | **Add runtime…**, **Read SSH config**, and **Edit**, **Check** |
+| 19.9 | a runtime's kinds `ssh host`, `docker host`, `docker swarm`, `apple containers`, `slurm cluster` | `SSH host`, `Docker container`, `Docker swarm`, `Apple container`, `Slurm cluster` |
+| 19.10 | **Add target** on a form titled `Add backup target`, and **Download…** | **Add target** on a form titled `New target`, and **Download…** |
+| 20 | the board's sheet `Board entry`, its buttons `next` and `save`, and the row `add entry` | `Board line`, **Next** and **Save**, and `new entry` |
+| 20 | the switch and the keys line saying `graph` and `list` | **Graph** and **List**; the status line keeps `monitor · graph` and `monitor · list` |
+| 20 | the epic's sheet saying `Running.`, `Stopping.`, `Over.` | `Running`, `Stopping`, `Ended` |
+| 21 | the keys `merge` and `apart`, and `range`, `hold`, `drop` | **Merge sessions** and **Split sessions**, and **Mark range**, **Hold range**, **Clear range** |
+| 24.1.49 | write, delete | **Write**, **Delete** |
+| 24.1.50 | on to the value, then save | **Type value**, then **Save or remove** |
+| 24.1.109 | stage all, unstage all | **Stage All Changes**, **Unstage All Changes** |
+| 26.1 | the hint `keys` | `Keys` |
+| 29.1.1 | the hint `new epic` | `New epic` |
+| 29.5.1 | the hint `epic panel` | `Epic panel` |
+| 29.5.4 | `←/→` `tab`, `↑/↓` `move` | `←→` `Tab`, `↑↓` `Move` |
+| 29.6.1 | `The custom view is in the web page<where>; Enter answers here with the plain form`, `<where>` being `: <address>` or ` (hmz web)` | `The custom view is in the web page at <address>; Enter answers here with the plain form.`, and ``The custom view is in the web page (`hmz web`); Enter answers here with the plain form.`` where no address is known |
+| 32.1.4 | the hint `settings` | `Settings` |
+
+**33.5.3** Every other text the log screen says for itself -- a refusal after `hmz: `, a notice,
+a word of the status line, what a command is said to be for -- MUST be a text of Section 25.5.1,
+said as a sentence where it is one: a capital first, and a full stop where it is not a label.
+A command's name, a key's name, a path and a model's name are data and MUST be said as they are.
+
+**33.5.4** Every hint, on the hint line and on the right of the status line, MUST be a key's name
+followed by one text in sentence case, and a row of the hint line MUST break only between one key
+and the next.
+
+## 34. Security Considerations
 
 This section is informative. It states no requirement; it gathers the properties stated elsewhere
 in this document that bear on security.
@@ -1669,9 +2754,9 @@ in this document that bear on security.
   19.13.1); the General page holds the answer and says where `HUMANIZE_SENTRY` overrides it
   (Section 19.2.1 and Section 19.2.3).
 
-## 26. References
+## 35. References
 
-### 26.1. Normative References
+### 35.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.

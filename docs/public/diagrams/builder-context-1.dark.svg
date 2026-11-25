@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 272" role="img">
+  <title>Every error of the flow API is under FlowException, in three branches: FlowRuntimeError, HarnessError and EnvError</title>
+  <rect width="760" height="272" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="32" y="44" font-size="16" font-weight="600" fill="#e8f0f2">One tree, three branches</text>
+
+    <rect x="32" y="128" width="160" height="48" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="112" y="157" font-size="14" text-anchor="middle" fill="#4fd8ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">FlowException</text>
+
+    <path d="M192 152 H224 V88 H252" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M192 152 H252" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <path d="M192 152 H224 V216 H252" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle" fill="#e8f0f2">
+      <rect x="256" y="64" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="348" y="93">FlowRuntimeError</text>
+      <rect x="256" y="128" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="348" y="157">HarnessError</text>
+      <rect x="256" y="192" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+      <text x="348" y="221">EnvError</text>
+    </g>
+
+    <g font-size="12" fill="#b3c3c8">
+      <text x="464" y="84">Humanize refused it, or a limit ran out</text>
+      <text x="464" y="148">A coding agent could not take the turn</text>
+      <text x="464" y="212">An environment could not do it</text>
+    </g>
+    <g font-size="12" fill="#9aa9b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <text x="464" y="104">BudgetExceeded, FlowCancelled</text>
+      <text x="464" y="168">HarnessThrottled, OutputSchemaError</text>
+      <text x="464" y="232">EnvCommandTimeout, EnvFileNotFound</text>
+    </g>
+  </g>
+</svg>

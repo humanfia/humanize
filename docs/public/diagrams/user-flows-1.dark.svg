@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 328" role="img">
+<title>Where flows come from and what each is called: official and added flowverses are installed from, the project's and your home's flows are read in place; a bare name is looked up in the project first</title>
+<rect width="760" height="328" rx="12" fill="#172026"/>
+<defs>
+<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#9aa9b0"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+<text x="24" y="44" font-size="12" fill="#9aa9b0">Where a flow lives</text>
+<text x="408" y="44" font-size="12" fill="#9aa9b0">What you call it</text>
+<text x="736" y="44" font-size="12" fill="#9aa9b0" text-anchor="end">Bare name looked up</text>
+<rect x="24" y="56" width="216" height="48" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="40" y="76">Official flowverse</text>
+<text x="40" y="94" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">humanfia/flowverse</text>
+<path d="M240 80H406" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="323" y="72" text-anchor="middle" font-size="12" fill="#9aa9b0">install</text>
+<rect x="408" y="56" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="424" y="85" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">goal</text>
+<circle cx="692" cy="80" r="14" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="692" y="85" text-anchor="middle">3</text>
+<rect x="24" y="120" width="216" height="48" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+<text x="40" y="140">A flowverse you add</text>
+<text x="40" y="158" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">alex/flowverse</text>
+<path d="M240 144H406" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="323" y="136" text-anchor="middle" font-size="12" fill="#9aa9b0">install</text>
+<rect x="408" y="120" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="424" y="149" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">@team/review</text>
+<circle cx="692" cy="144" r="14" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="692" y="149" text-anchor="middle">4</text>
+<rect x="24" y="184" width="216" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="204">This project</text>
+<text x="40" y="222" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">.hmz/flows/</text>
+<path d="M240 208H406" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="323" y="200" text-anchor="middle" font-size="12" fill="#9aa9b0">read in place</text>
+<rect x="408" y="184" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="424" y="213" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">@local/review</text>
+<circle cx="692" cy="208" r="14" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="692" y="213" text-anchor="middle">1</text>
+<rect x="24" y="248" width="216" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+<text x="40" y="268">Your home</text>
+<text x="40" y="286" font-size="10.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#b3c3c8">~/.local/share/humanize/flows/</text>
+<path d="M240 272H406" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="323" y="264" text-anchor="middle" font-size="12" fill="#9aa9b0">read in place</text>
+<rect x="408" y="248" width="184" height="48" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+<text x="424" y="277" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">@user/review</text>
+<circle cx="692" cy="272" r="14" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+<text x="692" y="277" text-anchor="middle">2</text>
+</g>
+</svg>

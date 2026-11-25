@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import home
+from hmz import data
 from hmz.runtime.doing import adopting
 from hmz.runtime.epic import CHATTED, SESSIONS, read
 
@@ -272,7 +272,7 @@ def test_only_a_harness_installed_here_and_kept_outside_humanize_is_listed(
     assert [one.harness for one in adopting.listed(workspace)] == ["claude"]
 
     # One whose home is Humanize's own keeps what Humanize ran, which is no harness session.
-    clis.homes = home() / "kept"
+    clis.homes = data() / "kept"
     _claude(clis, workspace, "c-9", "kept by humanize")
     assert adopting.listed(workspace) == []
 
@@ -343,7 +343,7 @@ def test_adopting_copies_a_session_into_a_chat_that_rests_and_leaves_it_as_it_wa
     at = adopting.adopt(one, workspace)
 
     assert (log.read_bytes(), log.stat().st_mtime_ns) == before
-    assert at.parent.parent == home() / "chats"
+    assert at.parent.parent == data() / "chats"
     copy = at / SESSIONS / "claude" / "projects" / log.parent.name / "c-1.jsonl"
     assert copy.read_bytes() == before[0]
     ran = read(at)
@@ -423,7 +423,7 @@ def test_adopting_is_refused_where_a_copy_could_not_be_carried_on(
     gone = claude._replace(ident="c-0", model="m1")
     with pytest.raises(ValueError, match="c-0 cannot be continued: its files are gone"):
         adopting.adopt(gone, workspace)
-    assert not (home() / "chats").exists()
+    assert not (data() / "chats").exists()
 
 
 # ------------------------------------------- the harnesses that are listed and not carried on
@@ -744,4 +744,4 @@ def test_adopting_is_refused_for_a_harness_that_is_listed_and_carries_none_on(
             ValueError, match=f"{one.harness} cannot carry a session of its own on"
         ):
             adopting.adopt(one, workspace)
-    assert not (home() / "chats").exists()
+    assert not (data() / "chats").exists()

@@ -9,7 +9,7 @@ ssh. Everything a driver derives -- a subdirectory, a worktree, a temporary copy
 directory -- is another driver on the same machine object, so they share its connection.
 
 Where what a driver makes lives, on the machine it makes it on, under Humanize's own home
-there (`hmz.home()` here, `${HUMANIZE_HOME:-~/.hmz}` over ssh)::
+there (`hmz.state()` here, `humanize` in the XDG state directory over ssh)::
 
     envs/<name>-<digest>/            one per workdir things are derived from
         clones/<id>-<digest>/        a temporary copy, kept until destroyed

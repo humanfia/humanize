@@ -216,6 +216,7 @@ const THERE: &str = r#"export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; "#
 /// Asked of the host before anything is started there: the version of its `hmz`, and whether
 /// its daemon is running, as `hmz` itself asks it.
 const PROBE: &str = r#"echo "hmz: $(hmz --version 2>/dev/null | sed -n 's/^hmz //p' | tail -n 1)"
+echo "connect: $(hmz daemon connect --help >/dev/null 2>&1 && echo yes || echo no)"
 daemon=none
 for under in "$TMPDIR" "$TEMP" "$TMP" "$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)" \
     /tmp /var/tmp; do
@@ -235,8 +236,18 @@ echo "daemon: $daemon"
 /// The uv fetched where the host has none: the one `hmz` itself pins.
 const UV: &str = "0.12.24";
 
-/// Installs `hmz` of a version, `{version}`, fetching uv first where there is none.
-fn installing(version: &str) -> String {
+/// What follows the install of a release the app did not pick: one with no `hmz daemon
+/// connect` is removed again, and said to be too old (Section 3.8.3.12 of [DAEMON]).
+const CHECKED: &str = " && { hmz daemon connect --help >/dev/null 2>&1 || \
+    { uv tool uninstall hmz >/dev/null 2>&1; \
+    echo 'The latest release of hmz is too old to be reached: it has no daemon command.'; \
+    exit 1; }; }";
+
+/// Installs `hmz` of a version, or of the release uv picks where none is given, fetching uv
+/// first where there is none.
+fn installing(version: Option<&str>) -> String {
+    let hmz = version.map_or("hmz".to_owned(), |version| format!("hmz=={version}"));
+    let checked = if version.is_some() { "" } else { CHECKED };
     format!(
         "export UV_NO_MODIFY_PATH=1; \
          if ! command -v uv >/dev/null 2>&1; then \
@@ -245,7 +256,7 @@ fn installing(version: &str) -> String {
          then curl -LsSf https://astral.sh/uv/{UV}/install.sh | sh; \
          else wget -qO- https://astral.sh/uv/{UV}/install.sh | sh; fi; \
          command -v uv >/dev/null 2>&1 || exit 1; fi; \
-         exec uv tool install --force --python '>=3.12' 'hmz=={version}'"
+         uv tool install --force --python '>=3.12' '{hmz}'{checked}"
     )
 }
 
@@ -346,10 +357,10 @@ fn lines(out: impl Read, heard: &mpsc::Sender<String>) {
     }
 }
 
-/// What the probe found: the version of `hmz` there, empty where none, and whether its daemon
-/// is `none`, `running` or `unknown`; `name` is the route, said where the host is silent
+/// What the probe found: the version of `hmz` there, empty where none, whether it has `hmz
+/// daemon connect`, and whether its daemon is `none`, `running` or `unknown`; `name` is the route, said where the host is silent
 /// beyond [`PROBING`] (Section 3.4.9 of [WIRE]).
-fn probed(kids: &Kids, route: &Ssh, name: &str) -> Result<(String, String), String> {
+fn probed(kids: &Kids, route: &Ssh, name: &str) -> Result<(String, bool, String), String> {
     let late = format!("{name} did not open within {} seconds.", PROBING.as_secs());
     let (ok, lines) = ran(kids, &mut ssh(route, PROBE), PROBING, &late, &|_| {})?;
     let field = |key: &str| {
@@ -359,7 +370,9 @@ fn probed(kids: &Kids, route: &Ssh, name: &str) -> Result<(String, String), Stri
         })
     };
     match (ok, field("hmz"), field("daemon")) {
-        (true, Some(hmz), Some(daemon)) => Ok((hmz, daemon)),
+        (true, Some(hmz), Some(daemon)) => {
+            Ok((hmz, field("connect").as_deref() == Some("yes"), daemon))
+        }
         _ => Err(last(&lines, &format!("{} did not answer.", route.host))),
     }
 }
@@ -375,58 +388,111 @@ fn last(lines: &[String], otherwise: &str) -> String {
         .to_owned()
 }
 
-/// Finds the `hmz` on the route's host and installs the app's own there where it must
-/// (Section 3.8.3 of [DAEMON]), then starts `hmz daemon connect --stdio` there. `wanted` is
-/// the app's version as PyPI has it, None for a development build; `name` is the route as
-/// written; `say` is told the state and what was said last.
+/// What is done about the `hmz` found on a host before connecting there.
+#[derive(Debug, PartialEq)]
+enum Found {
+    /// None is there: the user is asked (Section 3.8.3.7 of [DAEMON]).
+    Ask,
+    /// The one there is used.
+    Use,
+    /// The one there would be used, and has no `hmz daemon connect` (Section 3.8.3.12 of
+    /// [DAEMON]).
+    Old,
+    /// The one there is used, and not replaced, for what is said (Section 3.8.3.3 of [DAEMON]).
+    Keep(String),
+    /// The app's own release replaces the one there.
+    Install,
+}
+
+/// What Section 3.8.3 of [DAEMON] has done where the probe found `hmz` `there`, empty where
+/// none, having `hmz daemon connect` or not, and its daemon `none`, `running` or `unknown`,
+/// for an app wanting `wanted`.
+fn found(wanted: Option<&str>, there: &str, connects: bool, daemon: &str) -> Found {
+    let used = if connects { Found::Use } else { Found::Old };
+    match wanted {
+        _ if there.is_empty() => Found::Ask,
+        // A development build replaces nothing, and uses what is there.
+        None => used,
+        Some(wanted) if wanted == there => used,
+        Some(wanted) if daemon == "running" => Found::Keep(format!(
+            "hmz {there} there holds running epics; hmz {wanted} waits"
+        )),
+        Some(_) if daemon != "none" => Found::Keep(format!(
+            "Whether hmz {there} there runs epics is unknown; not replaced"
+        )),
+        Some(_) => Found::Install,
+    }
+}
+
+/// Installs `hmz` on the route's host, of the version `wanted` or, for a development build,
+/// of the release uv picks, and sees that it answers (Section 3.8.3.4 and Section 3.8.3.5 of
+/// [DAEMON]).
+fn installed(
+    kids: &Kids,
+    route: &Ssh,
+    name: &str,
+    wanted: Option<&str>,
+    say: &dyn Fn(&'static str, &str),
+) -> Result<(), String> {
+    let hmz = wanted.map_or("hmz".to_owned(), |wanted| format!("hmz {wanted}"));
+    say("installing", &hmz);
+    let tell = |line: &str| {
+        if !line.trim().is_empty() {
+            say("installing", line.trim());
+        }
+    };
+    let script = installing(wanted);
+    let late = format!(
+        "{hmz} was not installed within {} seconds.",
+        INSTALLING.as_secs()
+    );
+    let (ok, lines) = ran(kids, &mut ssh(route, &script), INSTALLING, &late, &tell)?;
+    if !ok {
+        return Err(last(&lines, &format!("{hmz} could not be installed.")));
+    }
+    let (there, _, _) = probed(kids, route, name)?;
+    match wanted {
+        Some(wanted) if there != wanted => Err(format!(
+            "hmz {wanted} was installed, and hmz {there} answers."
+        )),
+        None if there.is_empty() => Err("hmz could not be installed.".into()),
+        _ => Ok(()),
+    }
+}
+
+/// Finds the `hmz` on the route's host and installs the app's own there where it must, asking
+/// first where none is there (Section 3.8.3 of [DAEMON]), then starts `hmz daemon connect
+/// --stdio` there. `wanted` is the app's version as PyPI has it, None for a development build;
+/// `name` is the route as written; `say` is told the state and what was said last; `asked`,
+/// called once the state is `asking`, waits for the user's answer, true to install.
 pub fn reach_ssh(
     kids: &Kids,
     route: &Ssh,
     name: &str,
     wanted: Option<&str>,
     say: &dyn Fn(&'static str, &str),
+    asked: &dyn Fn() -> bool,
 ) -> Result<Arc<Child>, String> {
     let host = &route.host;
     say("connecting", &format!("ssh {host}"));
-    let (there, daemon) = probed(kids, route, name)?;
-    match wanted.filter(|&wanted| wanted != there) {
-        // A development build installs nothing, and uses what is there.
-        None if there.is_empty() => return Err(format!("hmz is not installed on {host}.")),
-        None => {}
-        Some(wanted) if !there.is_empty() && daemon != "none" => {
-            let why = if daemon == "running" {
-                format!("hmz {there} there holds running epics; hmz {wanted} waits")
-            } else {
-                format!("Whether hmz {there} there runs epics is unknown; not replaced")
-            };
-            say("connecting", &why);
-        }
-        Some(wanted) => {
-            say("installing", &format!("hmz {wanted}"));
-            let tell = |line: &str| {
-                if !line.trim().is_empty() {
-                    say("installing", line.trim());
-                }
-            };
-            let script = installing(wanted);
-            let late = format!(
-                "hmz {wanted} was not installed within {} seconds.",
-                INSTALLING.as_secs()
-            );
-            let (ok, lines) = ran(kids, &mut ssh(route, &script), INSTALLING, &late, &tell)?;
-            if !ok {
-                return Err(last(
-                    &lines,
-                    &format!("hmz {wanted} could not be installed."),
-                ));
+    let (there, connects, daemon) = probed(kids, route, name)?;
+    match found(wanted, &there, connects, &daemon) {
+        Found::Ask => {
+            let none = format!("hmz is not installed on {host}.");
+            say("asking", &none);
+            if !asked() {
+                return Err(none);
             }
-            let (there, _) = probed(kids, route, name)?;
-            if there != wanted {
-                return Err(format!(
-                    "hmz {wanted} was installed, and hmz {there} answers."
-                ));
-            }
+            installed(kids, route, name, wanted, say)?;
         }
+        Found::Use => {}
+        Found::Old => {
+            return Err(format!(
+                "hmz {there} on {host} is too old to be reached: it has no daemon command."
+            ));
+        }
+        Found::Keep(why) => say("connecting", &why),
+        Found::Install => installed(kids, route, name, wanted, say)?,
     }
     let mut connect = ssh(route, CONNECT);
     kids.spawn(piped(&mut connect))
@@ -532,7 +598,13 @@ mod tests {
     #[test]
     fn the_scripts_say_what_they_mean_to_sh() {
         // Each read back by sh as it was written.
-        for script in [PROBE, THERE, &installing("1.2.3"), IN_WSL, LOCALLY] {
+        let (pinned, latest) = (installing(Some("1.2.3")), installing(None));
+        assert!(pinned.ends_with(" 'hmz==1.2.3'"), "{pinned}");
+        assert!(
+            latest.ends_with(&format!(" 'hmz'{CHECKED}")) && !latest.contains("=="),
+            "{latest}"
+        );
+        for script in [PROBE, THERE, &pinned, &latest, IN_WSL, LOCALLY] {
             let out = Command::new("/bin/sh")
                 .args(["-c", &format!("printf %s {}", quoted(script))])
                 .output()
@@ -544,6 +616,33 @@ mod tests {
                 .unwrap();
             assert!(parsed.success(), "{script}");
         }
+    }
+
+    #[test]
+    fn asks_where_no_hmz_is_there_and_replaces_only_an_idle_other_release() {
+        // None there: asked, whatever the build and whatever the daemon is said to be.
+        for wanted in [None, Some("1.2.3")] {
+            for daemon in ["none", "running", "unknown"] {
+                assert_eq!(found(wanted, "", false, daemon), Found::Ask);
+            }
+        }
+        // The app's own release, and whatever a development build finds: used.
+        for daemon in ["none", "running", "unknown"] {
+            assert_eq!(found(Some("1.2.3"), "1.2.3", true, daemon), Found::Use);
+            assert_eq!(found(None, "1.0.0", true, daemon), Found::Use);
+            // One with no `hmz daemon connect` cannot be: it is too old.
+            assert_eq!(found(None, "0.2.2", false, daemon), Found::Old);
+        }
+        // Another release: replaced unasked, but not under a daemon that runs or may.
+        assert_eq!(found(Some("1.2.3"), "1.0.0", false, "none"), Found::Install);
+        assert_eq!(
+            found(Some("1.2.3"), "1.0.0", true, "running"),
+            Found::Keep("hmz 1.0.0 there holds running epics; hmz 1.2.3 waits".into())
+        );
+        assert_eq!(
+            found(Some("1.2.3"), "1.0.0", true, "unknown"),
+            Found::Keep("Whether hmz 1.0.0 there runs epics is unknown; not replaced".into())
+        );
     }
 
     /// A home whose `~/.local/bin` holds an `hmz`, another `hmz` elsewhere, and a login shell

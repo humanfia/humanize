@@ -1,170 +1,106 @@
-<script setup>
-import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
-import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+---
+title: Leave it running and come back
+description: Close the terminal or the app while a flow runs, and attach to the same epic again later.
+---
 
-const back = [
-  {
-    label: 'hmz, later',
-    lines: [
-      '[dim]─ reading agent ─[/]',
-      '[dim]❯[/] Fix the bug in calc.py. [m]· by you@tui[/][n]1[/]',
-      '[dim]● agent is working[/]',
-      '[g]●[/] Found the bug: add() subtracts. Fixing it now.',
-      '[dim]✻ Worked for 7s · agent[/]',
-      '[dim]● agent is working · conversation 2 of 2[/][n]2[/]',
-      '',
-      { r: '[m]agent · claude/claude-haiku-4-5-20251001:high · ● 2[/]' },
-      { r: '[m]$0.05 · 151 out/s[/]' },
-      { rule: true },
-      { prompt: '' },
-      { rule: true },
-      {
-        l: '[c]·/·[/] agent… [m](24s · ctrl+c twice to stop)[/][n]3[/]',
-        keys: '/ commands · shift+enter newline · ← monitor · ctrl+c stop',
-      },
-    ],
-    caption:
-      'A new interface on the same run, read from the top. Everything the run did while you were away is here.',
-  },
-]
-</script>
+# Leave it running and come back
 
-# Leaving it running
+A background daemon on the machine holds every epic. Close the terminal or the app and the flow keeps working. Open either again to attach to the same epic.
 
-A run does not need your terminal. Close the window, lose the ssh connection, or `/exit` and
-press **Detach and exit**: the flow goes on taking its turns. Run `hmz` in the same directory
-and you are back in it.
+![Humanize Desktop, the browser page and hmz in a terminal all attach to one epic that the daemon holds](/diagrams/user-leaving-1.svg)
 
-::: info At a glance
-- **You will** walk away from a long run and come back to it later, from the same terminal or
-  another one.
-- **Use it when** a run will take longer than you want to sit and watch it, or your
-  connection to the machine may drop.
-- **You need** a flow running in `hmz`, started as in [Your first run](/user/first-run).
-:::
+## In the app
 
-## Try it
+Humanize Desktop and the browser page leave running epics and chat turns untouched when you exit.
 
-While a flow runs, type `/exit`, press **Detach and exit**, and later, in the same directory:
+| Action | Effect on a running epic |
+| --- | --- |
+| Close the Humanize Desktop window | Hides the window. The app stays in the Dock (macOS) or the tray (Windows). The epic runs. |
+| Quit Humanize Desktop | Stops the app and its child processes. The epic runs. |
+| Close the browser tab | Detaches the page. The epic runs. |
+| Stop `hmz web` with <kbd>ctrl+c</kbd> | Stops serving the page. The epic runs. |
+
+Open the app or the browser page again to return. The sidebar marks an active epic as **Running** with a **live** badge, and counts all live epics at the bottom. Click the row to attach and read everything the epic did while you were away.
+
+![Humanize Desktop open on a running epic: the sidebar row says Running and live](/shots/user-leaving-app.svg)
+
+*An epic the terminal started, opened in the app while it runs.*
+
+Press **Stop** before leaving if you want to end the epic. See [Stop a run](/user/stopping).
+
+## In the terminal
+
+Type `/exit`, `/quit`, or press <kbd>ctrl+q</kbd> while a flow runs in `hmz`. A box titled `A flow is running.` asks what to do.
+
+![The leave box in the terminal: /exit, then down to Detach and quit](/shots/user-leaving-box.svg)
+
+| Choice | Effect |
+| --- | --- |
+| **Stop the flow and quit** | Focused by default. Stops the epic for everyone attached, waits up to 10 seconds, then exits. |
+| **Detach and quit** | Press <kbd>down</kbd> or <kbd>tab</kbd>, then <kbd>enter</kbd>. Exits while the epic keeps running. |
+| <kbd>esc</kbd> | Stays in `hmz`. |
+
+Closing the terminal window or dropping an ssh connection detaches and exits.
+
+When nothing is running, `/exit` leaves at once. Leaving a chat also exits at once and never ends the chat.
+
+### Reconnect in the terminal
+
+Run `hmz` in the same folder from any terminal on that machine:
 
 ```sh
+cd ~/shop
 hmz
 ```
 
-## How it works
+`hmz` attaches to the folder's epic and reads it from the start.
 
-The run is not held by the `hmz` you are looking at. It is held on this machine, apart from the
-terminal, one run per directory, and `hmz` is a window onto it. Closing the window, on purpose
-or because the connection dropped, leaves the run where it was. Running `hmz` again in the same
-directory opens a new window onto the same run, and reads it from the top.
+![hmz run again in the folder: the whole epic so far, still working](/shots/user-leaving-back.svg)
 
-That has three consequences:
+Type `/epics` to list every epic in the folder. Active epics say `still going`. Press <kbd>ctrl+t</kbd> in that view to list every folder on the machine.
 
-- **One run per directory.** `hmz` in a directory always opens that directory's run. Another
-  project has its own.
-- **Several windows at once.** A second terminal, or an ssh session from elsewhere, can open
-  the same run while you still have it open. Each is a whole interface of its own. See
-  [Several people on one run](/features/daemon#several-people-on-one-run).
-- **The run lives on this machine.** Your laptop can close; the machine running `hmz` cannot. A
-  reboot ends the run.
+![The /epics list with one epic marked still going](/shots/user-leaving-epics.svg)
 
-## Example: detach, then come back
+If the epic ended while you were away, `hmz` shows the final state. Run `/resume` to continue a resumable flow. See [Resume a run](/user/resuming).
 
-Start a flow, as in [Your first run](/user/first-run). Then type `/exit`, or press
-<kbd>ctrl+q</kbd>, which asks the same thing:
+## From the command line
 
-<Term title="/exit">
+`hmz exec` holds the terminal until its epic ends, then exits.
 
-<pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span>  <span class="p b">A flow is running.</span>                                            <span class="p">│</span>
-  <span class="p">│</span>  <span class="m">Detached, it keeps running: run `hmz` here to reattach.</span>       <span class="p">│</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">│</span>  <b>enter</b> stop   <b>esc</b> stay                                         <span class="p">│</span>
-  <span class="p">│</span>                                                                <span class="p">│</span>
-  <span class="p">╰────────────────────────────────────────────────────────────────╯</span></pre>
+![hmz exec printing an epic until it ends](/shots/user-leaving-exec.svg)
 
-</Term>
-
-**Stop the flow and exit** has the focus as the box opens. Press <kbd>→</kbd> to move to
-**Detach and exit**, then <kbd>enter</kbd>, or click it. Your shell comes back, and the flow is
-still going.
-
-Later, from any terminal on the same machine:
+Closing the terminal, pressing <kbd>ctrl+c</kbd>, or running `kill` stops the epic. Ignore the hangup signal to keep a command-line run going after you log out:
 
 ```sh
-cd ~/tmp/humanize-demo
-hmz
+nohup hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.duration=30m "Add a discount code to checkout" &
 ```
 
-<TermScreen title="hmz · ralph_loop" :frames="back" />
+Watch the running epic from the app's sidebar or `/epics`. See [The command line](/user/command-line).
 
-What to look at, by number:
+## Attach several windows to one epic
 
-1. **Your task, marked `· by you@tui`.** The new window reads the run from its first line, so
-   everything said to it is there. A line typed in another window, the one you left included,
-   is marked with who typed it.
-2. **The rounds you missed.** A Ralph loop kept opening a conversation a round. Here it is on
-   its second, and the first one's work is above it.
-3. **The status line.** Still running, with the clock of the turn in progress, and
-   `ctrl+c stop` as the last key: this window can stop the run as well as the one you left.
+Attach any number of terminals, app windows, or browsers on other devices to the same epic at once. Every window reads the full epic and can steer or stop it. Closing one window leaves the others attached.
 
-### Check it worked
+Check **Frontends** in the app's **Epic** panel to see who is attached.
 
-- After **Detach and exit**, the shell prompt comes back at once, with no `stopping` line.
-- `hmz` in the same directory reads the flow, still working, from its start.
-- The transcript holds turns that happened while you were gone.
+![The Frontends list in the Epic panel: a terminal and this page](/shots/user-leaving-frontends.svg)
 
-## Before you walk away
+Each window uses your login name and interface type, such as `alex@tui` or `alex@web`, to label lines you type. Set `HUMANIZE_NAME` before starting `hmz` to change the name prefix. See [Talk to a running flow](/user/steering).
 
-- **Say you are away.** A flow that asks you something waits for an answer. Type `/afk on`
-  before you go, and it is answered with nothing instead: away stays said after you have left.
-  A role you [claimed](/reference/tui#several-people-on-one-run) is anybody's to answer once
-  you leave. See [Being away](/user/afk).
-- **Give it a budget you can live with.** Nobody is watching the spend. See
-  [Every run has a budget](/features/allowances).
-- **Know how to stop it later.** Open it with `hmz`, then press <kbd>ctrl+c</kbd> twice or type
-  `/stop`. That stops it for everybody reading it. <kbd>ctrl+c</kbd> never leaves a run
-  behind. See [Stopping](/user/stopping).
+## Automatic shutdown
 
-## Variations
+The daemon and its helpers stop on their own when idle:
 
-- **Just close the window.** Closing the terminal or losing the connection does what
-  **Detach and exit** does. `/exit` only asks so that you choose on purpose.
-- **Watch from two places.** Leave one `hmz` open and run another in the same directory, over
-  ssh for example. Leaving one leaves the others reading it.
-- **Nobody watching at all.** A run with no one at any window belongs on a command line: see
-  [Run it unattended](/user/unattended).
+- A folder's host, the process that holds its epics, closes when no epic is running and no window is attached.
+- An idle chat with no open window closes after 60 seconds between turns. Open it again to continue.
+- The daemon exits 2 seconds after the last host and window close, unless you started it with `hmz daemon serve` or as a login service, or it listens for other machines. See [The daemon](/user/daemon).
 
-## Troubleshooting
+## Good to know
 
-### `hmz` opened on an idle prompt, not on my run
-
-You are in another directory. A run belongs to the directory it was started in: `cd` there and
-run `hmz` again.
-
-### The run was gone when I came back
-
-The machine was restarted, or the run ended by itself: its budget was spent, or the flow
-finished. `/epics` lists it with how it ended. A flow that can be picked up carries on with
-`/resume`; see [Picking a run up](/user/resuming).
-
-### It was waiting for me the whole time
-
-A question was put to you and nobody answered. Turn [`/afk`](/user/afk) on before you leave.
-
-### `hmz: the daemon cannot be reached: …`
-
-`hmz` always holds its runs through this machine's daemon, starting it where none runs, and
-could not reach or start it; the reason follows the colon. `hmz` does not open without it.
-Fix what the reason names and run `hmz` again.
-
-## Next steps
-
-- [Being away (`/afk`)](/user/afk): keep a run you left from waiting on you.
-- [Stopping](/user/stopping): end it when you are back.
-- [Picking a run up](/user/resuming): carry on after a reboot or a stop.
-- [The terminal can leave](/features/daemon): how a run outlives its terminal, drawn.
-- [Daemon reference](/reference/daemon): the details.
+- Pressing <kbd>ctrl+c</kbd> twice in `hmz` stops the running flow instead of detaching. Use `/exit` to leave it running.
+- The machine running the epic must stay awake and powered on. A reboot ends the epic. You can close your laptop only if the epic runs on a remote machine.
+- On Windows, epics run in WSL. If you quit Humanize Desktop, epics last only while WSL keeps the distribution running.
+- A flow pauses if it asks a question while you are away. Mark yourself away before leaving: see [Answer a flow's questions](/user/questions).
+- Set a budget so the epic does not overspend while unattended: see [Budgets](/user/budgets).
+- `hmz` waits up to 15 seconds on exit for queued backups to finish.
+- For a full walkthrough, see [Leave a long task running overnight](/tutorials/overnight-run).

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img">
+  <title>A daemon registers at a relay; terminals join through it, a browser signals through it and then talks to the daemon directly</title>
+  <rect width="760" height="320" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4fd8ea"/></marker>
+    <marker id="a-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ff94c2"/></marker>
+    <marker id="a-line" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa9b0"/></marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#e8f0f2">
+    <rect x="24" y="40" width="200" height="64" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="124" y="68" text-anchor="middle">Terminal, Desktop</text>
+    <text x="124" y="88" text-anchor="middle" font-size="12" fill="#4fd8ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">relay:</text>
+
+    <rect x="24" y="168" width="200" height="64" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="124" y="196" text-anchor="middle">Browser page</text>
+    <text x="124" y="216" text-anchor="middle" font-size="12" fill="#ff94c2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">webrtc:</text>
+
+    <rect x="304" y="88" width="168" height="96" rx="8" fill="#27351a" stroke="#a5d84a" stroke-width="1.5"/>
+    <text x="388" y="132" text-anchor="middle" font-weight="600">Relay</text>
+    <text x="388" y="154" text-anchor="middle" font-size="12" fill="#b3c3c8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">hmz relay serve</text>
+
+    <rect x="568" y="88" width="168" height="96" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="652" y="132" text-anchor="middle" font-weight="600">Daemon</text>
+    <text x="652" y="154" text-anchor="middle" font-size="12" fill="#b3c3c8">no open port</text>
+
+    <path d="M568 112H474" fill="none" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a-line)"/>
+    <text x="520" y="104" text-anchor="middle" font-size="12" fill="#b3c3c8">registers</text>
+
+    <path d="M224 72H388V86" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a-cyan)"/>
+    <text x="236" y="64" font-size="12" fill="#4fd8ea">mutual TLS</text>
+    <path d="M472 160H566" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a-cyan)"/>
+    <text x="520" y="178" text-anchor="middle" font-size="12" fill="#4fd8ea">spliced</text>
+
+    <path d="M224 200H388V186" fill="none" stroke="#ff94c2" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a-pink)"/>
+    <text x="236" y="192" font-size="12" fill="#ff94c2">signals only</text>
+
+    <path d="M124 232V272H652V186" fill="none" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#a-pink)"/>
+    <text x="388" y="292" text-anchor="middle" font-size="12" fill="#ff94c2">data channel, direct where the network allows</text>
+  </g>
+</svg>

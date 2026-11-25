@@ -1,15 +1,16 @@
 """`/settings`: every setting Humanize has, on a screen of its own, one level at a time.
 
-What opens is the eight places settings are kept -- this machine's own, its notifications, the
-daemons, the accounts, the nous, the runtimes, the backups and this workspace's -- and
-what the epics spent, each a card saying what is in it, as a phone's settings or VS Code's open
-on their categories. They stand from the broadest to the nearest: what is true wherever
-Humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
-and what takes over when one fails, where their work goes and where its epics are kept, and
-last the one directory open now. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`),
-drawn the same way. Enter or a
-click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
-what they list; the line across the top says where you are, and its first word is a way back.
+What opens is the places settings are kept, each a card saying what is in it, in the groups
+the web page's Settings has them in -- because the first thing somebody looking for a setting
+asks is whether it is about their screen or about the machine doing the work. **App** is what
+is kept on this machine for this person: how the interface is drawn, the daemons it reaches,
+what it tells of them, and the language it is written in. **Daemon** is what the daemon
+keeps: what is true wherever Humanize runs, who its agents are and what takes over when one
+fails, where their work goes, where epics are backed up, and what all of it spent. And
+**Workspace** is the one directory open now. Where flows come from is `/flow`'s
+(:mod:`hmz.tui.flows`), drawn the same way. Enter or a click goes into a page and esc or
+backspace comes back out, as k9s and ranger walk in and out of what they list; the line
+across the top says where you are, and its first word is a way back.
 
 Inside one is a list, and what is done about the list rather than to one thing on it --
 searching it, adding to it, bringing more into it, saving -- is a bar of buttons under it,
@@ -20,9 +21,15 @@ rather than stepped along with the arrows. And every one of those is a click as 
 that is how every sheet of :mod:`hmz.tui.pick` is drawn and worked, this one first among them;
 what is here is what is this menu's own: its pages, and its first screen of them.
 
-What is changed is still held until it is saved, from the bar or from the question leaving
-asks: the pages that are lists of things are the classes of :mod:`hmz.tui.pick` this is made
-of, which say what a list of accounts or machines does, and this is where they are drawn.
+What is changed is held until it is saved, from the bar or from the question leaving asks:
+the pages that are lists of things are the classes of :mod:`hmz.tui.pick` this is made of,
+which say what a list of accounts or machines does, and this is where they are drawn. A theme
+and a language are the two that are not held: each is shown as the cursor moves over it, so
+that what it comes to is seen before it is chosen, kept by enter and put back by esc
+(:mod:`hmz.tui.own`).
+
+Every text here is one of :mod:`hmz.words`, said as it is drawn rather than as this module is
+read, so that a language chosen is the language of the next thing drawn.
 """
 
 # The pages are the mixins of `pick`, and what they share is that module's own.
@@ -30,9 +37,12 @@ of, which say what a list of accounts or machines does, and this is where they a
 
 from __future__ import annotations
 
+import os
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Final, Literal, NamedTuple, cast
 
+from rich.cells import cell_len
 from rich.markup import escape
 from textual import on, work
 from textual.message import Message
@@ -40,15 +50,16 @@ from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.runtime import telemetry
-from hmz.runtime.kept import Runs, read_back, written
+from hmz.runtime.kept import Runs, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 from hmz.runtime.watching.notices import KINDS, prefer, preferences
+from hmz.words import LANGUAGES, speak, t
 
+from . import humanfia, own
 from .chats import Archived
-from .dropdown import Dropdown, Value
+from .dropdown import Value
 from .pick import (
     _ACCOUNTS,
-    _APART_MARK,
     _BACKUP,
     _DAEMONS,
     _DIRECTORY,
@@ -73,7 +84,6 @@ from .pick import (
     Providers,
     _chip,
     _hmz,
-    _many,
     _shade,
     _shortly,
     complete,
@@ -90,25 +100,43 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Model
 
 
-__all__ = ["MOVED", "PAGES", "Adjusts", "page_of"]
+__all__ = ["GROUPS", "MOVED", "PAGES", "Adjusts", "menu", "page_of"]
 
+
+#: The groups the pages stand in, as the web page's Settings has them, each with the pages
+#: in it by the word that opens each: what is this person's on this machine, what the daemon
+#: keeps, and the directory open now.
+GROUPS: Final = (
+    ("App", ("themes", "daemons", "notifications", "language")),
+    ("Daemon", ("general", "accounts", "nous", "runtimes", "backup", "usage")),
+    ("Workspace", ("workspace",)),
+)
 
 #: What `/settings` is told to open each page by, in the order they are listed: the word on
 #: its card, lower case, so that the word typed is the word read.
-PAGES = (
-    "general",
-    "notifications",
-    "daemons",
-    "accounts",
-    "nous",
-    "runtimes",
-    "backup",
-    "workspace",
-    "usage",
-)
+PAGES: Final = tuple(page for _, pages in GROUPS for page in pages)
 
-#: The page of what the epics spent, the last.
-_USAGE = PAGES.index("usage")
+#: The pages that are this module's own to count: what the epics spent, how the interface is
+#: drawn and what it is written in. The rest are counted where the classes they are made of
+#: are (:mod:`hmz.tui.pick`).
+_USAGE, _THEMES, _LANGUAGE = 8, 9, 10
+
+#: Which page each word opens, as the pages are counted -- which is not the order they are
+#: listed in: a page keeps its number wherever it is moved to on the screen.
+_TABS: Final = {
+    "general": _EVERYWHERE,
+    "notifications": _NOTIFICATIONS,
+    "daemons": _DAEMONS,
+    "accounts": _ACCOUNTS,
+    "nous": _NOUS,
+    "runtimes": _MACHINES,
+    "backup": _BACKUP,
+    "workspace": _DIRECTORY,
+    "usage": _USAGE,
+    "themes": _THEMES,
+    "language": _LANGUAGE,
+}
+_NAMES: Final = {tab: name for name, tab in _TABS.items()}
 
 #: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
 MOVED = "flowverses"
@@ -116,10 +144,10 @@ MOVED = "flowverses"
 #: The words pages were opened by before they were called what they are, still taken: a word
 #: somebody's fingers know is a word they will type.
 _ALIASES = {
-    "settings": _EVERYWHERE,
-    "everywhere": _EVERYWHERE,
-    "directory": _DIRECTORY,
-    "environments": PAGES.index("runtimes"),
+    "settings": "general",
+    "everywhere": "general",
+    "directory": "workspace",
+    "environments": "runtimes",
 }
 
 
@@ -130,55 +158,51 @@ def page_of(said: str) -> int | None:
       said: The word, in any case.
 
     Returns:
-      The page, counting from the first, or None for a word that is no page.
+      The page, counting from the first of :data:`PAGES`, or None for a word that is no page.
     """
     said = said.lower()
-    return PAGES.index(said) if said in PAGES else _ALIASES.get(said)
+    said = _ALIASES.get(said, said)
+    return PAGES.index(said) if said in PAGES else None
 
 
-class _Page(NamedTuple):
-    """One card of the first screen: what the page is called, its mark, and what is in it.
+def _cards() -> dict[str, tuple[str, str]]:
+    """What each page is called, and what is kept there in a line: the web page's words.
 
-    Attributes:
-      title: What it is called, on its card and across the top once inside it.
-      icon: One cell that tells it from the others at a glance.
-      blurb: What is kept there, in a line.
+    Three of them are this interface's own, where the page's speak of a browser.
     """
+    return {
+        "themes": (t("Themes"), t("Colours of this terminal")),
+        "daemons": (
+            t("Daemons"),
+            t("Machines this terminal reaches, and the one it shows"),
+        ),
+        "notifications": (t("Notifications"), t("What every daemon tells you")),
+        "language": (t("Language"), t("What this terminal is written in")),
+        "general": (t("General"), t("Display and reporting")),
+        "accounts": (t("Accounts"), t("Credentials agents run as")),
+        "nous": (
+            t("Nous"),
+            t("Who takes a turn, and where it goes once it fails"),
+        ),
+        "runtimes": (t("Runtimes"), t("Machines environments run on")),
+        "backup": (t("Backup"), t("Git repositories epics go to")),
+        "usage": (
+            t("Usage"),
+            t("What everything on this daemon spent, by day and flow"),
+        ),
+        "workspace": (t("Workspace"), t("What this folder was last set up with")),
+    }
 
-    title: str
-    icon: str
-    blurb: str
 
+def _groups() -> dict[str, str]:
+    """What each group is headed, by the name it has in :data:`GROUPS`."""
+    return {"App": t("App"), "Daemon": t("Daemon"), "Workspace": t("Workspace")}
 
-#: The pages, in the order of :data:`PAGES`.
-_PAGES = (
-    _Page(
-        "General",
-        "⚙",
-        "this machine: what epics show, Ai-chan's nous, chat $, error reports",
-    ),
-    _Page("Notifications", "♪", "which epics on this machine you are told of"),
-    _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
-    _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
-    _Page("Nous", "↻", "what agents think with, and where a failed turn goes"),
-    _Page(
-        "Runtimes", "▦", "ssh hosts, docker daemons, swarms, Apple containers and Slurm"
-    ),
-    _Page("Backup", "⇪", "repositories epics are backed up to"),
-    _Page(
-        "Workspace", "⌂", "this directory: its flow, its chat agent, and forgetting it"
-    ),
-    _Page("Usage", "$", "what the epics spent, by day and by flow"),
-)
-
-#: What the first screen says it is.
-_HOME_ABOUT = "Every setting Humanize keeps. What you change is held until you save it."
 
 #: The rows the general and workspace pages are made of, by the id each is put up under.
 _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
-_AI_CHAN = "ai_chan"
 _PREFER = "prefer"
 _HARNESS = "harness_sessions"
 _RUNS = "flow"
@@ -187,15 +211,21 @@ _ARCHIVED = "archived"
 _FORGET = "forget"
 _SYSTEM = "system"
 
-#: What the notifications page calls each kind of notice, as the web interface's does, and
-#: what it is told of.
-_KINDS = {
-    "done": ("Done", "an epic finished, or a chat turn did"),
-    "failed": ("Failed", "an epic failed, crashed, ran out of budget or was refused"),
-    "stopped": ("Stopped", "an epic was stopped"),
-    "asked": ("Questions", "a flow asks you something"),
-    "listening": ("Waiting", "a flow waits for what you say next"),
-}
+#: The rows of the themes and language pages, by what their ids start with: which side is
+#: drawn, which preset, and which language.
+_MODE, _PAIR, _LANG = "mode:", "pair:", "lang:"
+
+
+def _kinds() -> dict[str, str]:
+    """What the notifications page calls each kind of notice, as the web page's does."""
+    return {
+        "done": t("Done"),
+        "failed": t("Failed"),
+        "stopped": t("Stopped"),
+        "asked": t("Questions"),
+        "listening": t("Waiting"),
+    }
+
 
 #: The kinds of row those are: a switch, turned on or off from the two dropped under it; a
 #: value picked out of a list; one that says something when it is opened; one that opens a
@@ -203,22 +233,17 @@ _KINDS = {
 #: in it are what is remembered, not set here.
 _SWITCH, _PICK, _SAYS, _SETS, _READ = "switch", "pick", "says", "sets", "read"
 
-#: What a chat's `$<name>` can mean where a native skill and a flow are both called that
-#: (Section 8.9.10 of [CORE]), and what each comes to, said beside it on the list dropped
-#: under the row.
-_PREFERS: dict[Literal["native", "flow"], str] = {
-    "native": "the harness's own skill of that name",
-    "flow": "the flow of that name; the skill stays $ in the harness",
-}
 
-#: What the list of Ai-chan's nous offers beside the ones it can already be: setting one up.
-_ANOTHER = f"{_APART_MARK}another"
+def _prefers() -> dict[Literal["native", "flow"], str]:
+    """What a chat's `$<name>` can mean where a native skill and a flow are both called that.
 
-#: When a setting that cannot land at once does land, said beside its row while it is held
-#: and in the transcript once it is saved.
-_NEXT_LAUNCH = "takes effect on next launch"
-_NEXT_AI = "takes effect on the next Ai-chan conversation"
-_NEXT_CHAT = "takes effect on next chat"
+    Section 8.9.10 of [CORE]: each with what it comes to, said beside it on the list dropped
+    under the row.
+    """
+    return {
+        "native": t("The harness's own skill of that name runs"),
+        "flow": t("The flow of that name starts, and the skill stays $ in the harness"),
+    }
 
 
 class _Setting(NamedTuple):
@@ -244,36 +269,56 @@ class _Setting(NamedTuple):
 
 
 def _word(on: bool | None) -> str:  # noqa: FBT001 -- a switch is one
-    """What a switch says it is."""
-    return {True: _YES, False: _NO, None: "not set"}[on]
+    """What a switch says it is on its row, where the dot beside it is filled or is not."""
+    return t("Not set") if on is None else _YES if on else _NO
 
 
-#: What each switch's two values mean, said beside them on the list dropped under it.
-_MEANS = {
-    _SENTRY: ("send error reports", "send nothing"),
-    _DETAILS: ("show tool calls and thinking", "show turn responses only"),
-    _HARNESS: ("list each harness's own sessions", "list Humanize's chats alone"),
-    _FORGET: ("clear saved settings here", "keep them"),
-    _SYSTEM: ("ring the bell and notify the system", "a card in hmz alone"),
-    **dict.fromkeys(KINDS, ("tell me", "say nothing")),
-}
+def _said(on: bool | None) -> str:  # noqa: FBT001 -- a switch is one
+    """What a switch says it is on a card, in the page's words."""
+    return t("Not set") if on is None else t("On") if on else t("Off")
+
+
+#: The rows that are switches, whose two values are dropped under them.
+_SWITCHES: Final = frozenset({_SENTRY, _DETAILS, _HARNESS, _FORGET, _SYSTEM, *KINDS})
+
+
+def _unsaved(named: str, why: OSError) -> str:
+    """What the transcript says of a setting that could not be written, as markup."""
+    return "hmz: " + escape(t("Could not save {name}: {why}", name=named, why=str(why)))
+
+
+def menu(page: int | None = None) -> Adjusts:
+    """`/settings`, made on what is installed here, for whoever opens it.
+
+    Args:
+      page: Which page to open inside, counting from the first of :data:`PAGES`, or None
+        for the screen of them all.
+
+    Returns:
+      The menu, to be put on the screen.
+    """
+    agents = _hmz().installed()
+    unavailable = _hmz().installable()
+    agents.update(unavailable)
+    return Adjusts(agents, page=page, unavailable=frozenset(unavailable))
 
 
 class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
-    """Every setting Humanize has: `/settings`, nine pages opened from one screen of them.
+    """Every setting Humanize has: `/settings`, eleven pages opened from one screen of them.
 
-    General is what is true of this machine however many projects are driven from it, and the
-    notifications which of its epics it tells of; the
-    daemons are this machine's and the others reached from it; the accounts, the nous
+    The themes and the language are how this person's interface is drawn and what it is
+    written in, the daemons this machine's and the others reached from it, and the
+    notifications which of their epics it tells of. General is what is true of this machine
+    however many projects are driven from it; the accounts, the nous
     and the runtimes are what agents run as, what they think with and where turns go, and the
-    machines their work goes on; the backups are where epics are copied to;
-    the workspace is one directory's; the usage is what the epics spent. One menu because they
-    are one question -- what does Humanize remember -- and a command apiece was nine things to
-    learn the names of.
+    machines their work goes on; the backups are where epics are copied to; the usage is what
+    the epics spent; and the workspace is one directory's. One menu because they
+    are one question -- what does Humanize remember -- and a command apiece was eleven things
+    to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in Humanize's own words, and a person should not have to know
-    the shape of a YAML file to turn a thing off. What is held lands together when it is saved,
+    the shape of a TOML file to turn a thing off. What is held lands together when it is saved,
     from the bar or from the question leaving asks, and each setting takes effect at once where
     it can; where it cannot, the row says when it will while it is held and the transcript says
     so once it is saved. What runs a command of its own -- making an account, signing one in,
@@ -313,7 +358,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         Args:
           agents: The backends offered here, and what each of them says it runs, which is
             what the nous page chooses a concrete nous out of.
-          page: Which page to open inside, or None for the screen of them all.
+          page: Which page to open inside, counting from the first of :data:`PAGES`, or
+            None for the screen of them all.
           unavailable: The optional backends that still need installing, which Ai-chan's
             is offered as it is anywhere else an agent is set up.
         """
@@ -322,8 +368,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._sentry = self._sentry_was = settings.enable_sentry
         self._overridden = telemetry.enabled() is not self._sentry
         self._details = self._details_was = settings.details
-        #: The nous a new Ai-chan conversation defaults to, or "" for none.
-        self._ai_chan = self._ai_chan_was = settings.ai_chan
         #: What a chat's `$<name>` means where it names both a native skill and a flow, for
         #: every chat that does not say for itself.
         self._prefer: Literal["native", "flow"] = settings.chat_prefer
@@ -333,7 +377,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         #: The agent a new chat in this directory talks to, or None where none was chosen.
         self._chat_agent = self._chat_agent_was = settings.chat_agent
         #: Which kinds of notice are told, and whether the system shows them too: kept with the
-        #: web interface's, under `notifications` in this machine's `settings.yaml`.
+        #: web interface's, under `notifications` in this machine's `settings.toml`.
         wanted = preferences()
         self._kinds: dict[str, bool] = dict(wanted["kinds"])
         self._kinds_was = dict(self._kinds)
@@ -350,9 +394,13 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._read_backups()
         #: Whether the screen of pages is what is drawn, rather than one of them.
         self._home = page is None
-        self._tab = page or 0
+        self._tab = _TABS[PAGES[page or 0]]
         #: The row each page's cursor was last on, by id, for when it is gone back into.
         self._cursors: dict[int, str] = {}
+        #: How this person's interface is drawn and what it is written in, as it is kept:
+        #: what the cursor is on is shown, and this is what is put back.
+        self._kept = own.read()
+        self._was = self._arrives(self._tab)
 
     def _ask(self) -> None:
         """Reads the pages that are lists, and puts up whichever is open."""
@@ -377,6 +425,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         if not self._home:
             self._saids[self._tab] = self._said
             self._cursors[self._tab] = self._was
+            self._puts_back()
         self._said = ""
         self._typed = ""
         self._searching = False
@@ -392,9 +441,94 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._home = False
             self._tab = page
             self._said = self._saids.pop(page, "")
-            self._was = self._cursors.get(page, "")
+            self._was = self._arrives(page) or self._cursors.get(page, "")
         self._fill()
         self._settles_focus()
+
+    def _arrives(self, page: int) -> str:
+        """Where the cursor lands on a page not yet walked: on what is in use, where it lists that.
+
+        Which is what keeps opening the themes from changing anything: what is under the
+        cursor is what is shown, and what is shown first is what was already there.
+
+        Args:
+          page: The page.
+
+        Returns:
+          The row, by id, or "" for the first of a page that has no row in use.
+        """
+        if page == _THEMES:
+            # Not on a preset while the terminal's own colours are drawn: a preset under the
+            # cursor is a preset shown.
+            if self._kept.appearance == "terminal":
+                return f"{_MODE}terminal"
+            return f"{_PAIR}{self._kept.theme}"
+        if page == _LANGUAGE:
+            return f"{_LANG}{self._kept.language}"
+        return ""
+
+    # -- What is shown before it is chosen -----------------------------------------------------
+
+    def _candidate(self, row: str) -> own.Kept:
+        """What would be kept were one row of the themes or the language chosen.
+
+        A preset chosen while the terminal's own colours are drawn is chosen to be seen, so
+        it goes back to following the terminal.
+
+        Args:
+          row: The row, by id; any other is what is kept now.
+        """
+        kept = self._kept
+        if row.startswith(_MODE):
+            return replace(kept, appearance=row.removeprefix(_MODE))
+        if row.startswith(_PAIR):
+            side = "auto" if kept.appearance == "terminal" else kept.appearance
+            return replace(kept, theme=row.removeprefix(_PAIR), appearance=side)
+        if row.startswith(_LANG):
+            return replace(kept, language=row.removeprefix(_LANG))
+        return kept
+
+    def _shows_as(self, kept: own.Kept) -> None:
+        """Draws the interface as it would be with something kept, and says its texts so.
+
+        Not its theme where `TEXTUAL_THEME` or `NO_COLOR` says what that is: the page says so
+        instead, and what is chosen is still kept for when neither is set.
+
+        Args:
+          kept: What to show: what is kept, or what the cursor is on.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        themes = showing.available_themes
+        if not own.overridden(os.environ, themes):
+            theme = humanfia.chosen(os.environ, themes, kept.looks())
+            if showing.theme != theme:
+                showing.theme = theme
+        speak(kept.speaks(os.environ))
+
+    def _puts_back(self) -> None:
+        """Draws the interface as kept again, on the way out of the themes or the language.
+
+        What the cursor was on when the page was left is not what was chosen. Nothing is done
+        on the way out of any other page: nothing there was shown.
+        """
+        if not self._home and self._tab in (_THEMES, _LANGUAGE):
+            self._shows_as(self._kept)
+
+    def _keeps(self, row: str) -> None:
+        """Keeps the theme, the side or the language of one row, at once: nothing of it is held.
+
+        Args:
+          row: The row, by id.
+        """
+        chosen = self._candidate(row)
+        self._kept = own.keep(
+            theme=chosen.theme, appearance=chosen.appearance, language=chosen.language
+        )
+        self._said = escape(t("Saved"))
+        self._fill()
 
     def _tell(self, page: int, said: str) -> None:
         """Says what became of something done on one page, whichever is open now.
@@ -440,11 +574,15 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._home or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _NOUS, _BACKUP)
         )
 
+    def _page_title(self) -> tuple[str, str]:
+        """What the page open is called, and what is kept there in a line."""
+        return _cards()[_NAMES[self._tab]]
+
     # -- The way across the top -----------------------------------------------------------
 
     def crumb(self) -> str:
         """`/settings`, or the page open in it, which is what a menu opened from it is in."""
-        return "/settings" if self._home else escape(_PAGES[self._tab].title)
+        return "/settings" if self._home else escape(self._page_title()[0])
 
     def crumbs(self) -> list[str]:
         """`/settings`, while a page of it is open."""
@@ -461,26 +599,54 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
 
     # -- Drawing -----------------------------------------------------------------------------
 
+    def _about(self) -> str:
+        """What the screen of pages, or the page open, says it is, as markup."""
+        if self._home:
+            return escape(
+                t(
+                    "Every setting is here. A change to a daemon or workspace setting "
+                    "is held until saved, while a theme or language is kept as soon as "
+                    "it is chosen."
+                )
+            )
+        listed = {
+            _DAEMONS: self.DAEMONS_ABOUT,
+            _ACCOUNTS: self.ACCOUNTS_ABOUT,
+            _MACHINES: self.MACHINES_ABOUT,
+            _NOUS: self.NOUS_ABOUT,
+            _BACKUP: self.BACKUP_ABOUT,
+        }
+        if self._tab in listed:
+            return t(listed[self._tab], spec="cli@account/model")
+        if self._tab == _THEMES:
+            said = t(
+                "The theme under the cursor is shown as you move through the list and "
+                "kept once chosen. Auto follows the terminal's background, light or dark."
+            )
+        elif self._tab == _LANGUAGE:
+            said = t(
+                "System follows the language this terminal is set to. What a daemon, "
+                "a flow or an agent wrote stays as it was written."
+            )
+        elif self._tab == _NOTIFICATIONS:
+            said = t("Of every daemon, as they happen.")
+        elif self._tab == _DIRECTORY:
+            said = f"{_shortly(self._workspace)}{_DOT}{self._page_title()[1]}"
+        else:
+            said = self._page_title()[1]
+        return escape(said)
+
     def _fill(self) -> None:
-        """Puts up the screen of pages, or the page that is open, and the bar under it."""
+        """Puts up the screen of pages, or the page that is open, and the bar under it.
+
+        On the themes and the language, what the cursor is on is shown first, so that the
+        page itself is drawn in it.
+        """
+        if not self._home and self._tab in (_THEMES, _LANGUAGE):
+            # The row the cursor is on, or the one it is about to be put on.
+            self._shows_as(self._candidate(self.under() or self._was))
         self.query_one("#asked", Label).update(self.crumb())
-        self.query_one("#about", Label).update(
-            _HOME_ABOUT
-            if self._home
-            else {
-                _EVERYWHERE: "How Humanize behaves on this machine, in every directory.",
-                _NOTIFICATIONS: "Which epics on this machine you are told of, here and in "
-                "the web interface, while you are not on them.",
-                _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow last "
-                "set up in it, the agent its chats talk to, and how it was last configured.",
-                _DAEMONS: self.DAEMONS_ABOUT,
-                _ACCOUNTS: self.ACCOUNTS_ABOUT,
-                _MACHINES: self.MACHINES_ABOUT,
-                _NOUS: self.NOUS_ABOUT,
-                _BACKUP: self.BACKUP_ABOUT,
-                _USAGE: self.USAGE_ABOUT,
-            }[self._tab]
-        )
+        self.query_one("#about", Label).update(self._about())
         if self._home:
             self._fill_home()
         elif self._tab == _DAEMONS:
@@ -495,29 +661,47 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._fill_backups()
         elif self._tab == _USAGE:
             self._fill_usage()
+        elif self._tab == _THEMES:
+            self._fill_themes()
+        elif self._tab == _LANGUAGE:
+            self._fill_language()
         else:
             self._fill_own()
 
     def _summary(self, page: int) -> str:
         """What one page's card says is in it, in a few words."""
+        kept = self._kept
+        if page == _THEMES:
+            return (
+                f"{t(humanfia.PRESETS[kept.theme].name)}{_DOT}"
+                f"{self._modes()[kept.appearance][0]}"
+            )
+        if page == _LANGUAGE:
+            return LANGUAGES[kept.language] if kept.language else t("System")
         if page == _EVERYWHERE:
-            return f"details {_word(self._details)}{_DOT}reports {_word(self._sentry)}"
+            return (
+                f"{t('Details')} {_said(self._details)}{_DOT}"
+                f"{t('Error reports')} {_said(self._sentry)}"
+            )
         if page == _NOTIFICATIONS:
-            told = sum(self._kinds.values())
-            return f"{told} of {len(KINDS)} kinds{_DOT}system {_word(self._system)}"
+            told = t("{n} of {total} on", n=sum(self._kinds.values()), total=len(KINDS))
+            return f"{told}{_DOT}{t('System@@notifications')} {_said(self._system)}"
         if page == _DIRECTORY:
-            return f"{_shortly(self._workspace)}{_DOT}flow {self._flow or 'none'}"
+            return (
+                f"{_shortly(self._workspace)}{_DOT}{t('Flow')} "
+                f"{self._flow or t('none')}"
+            )
         if page == _DAEMONS:
-            return _many(len(self._daemons) + 1, "daemon")
+            return t("{n} daemons", n=len(self._daemons) + 1)
         if page == _ACCOUNTS:
-            return _many(len([one for one in self._accounts if one.name]), "account")
+            return t("{n} accounts", n=len([one for one in self._accounts if one.name]))
         if page == _MACHINES:
-            return _many(len(self._saved_machines), "machine")
+            return t("{n} runtimes", n=len(self._saved_machines))
         if page == _BACKUP:
-            return _many(len(self._repos), "target")
+            return t("{n} targets", n=len(self._repos))
         if page == _USAGE:
             return self._usage_summary()
-        return f"{len(self._nous)} nous"
+        return t("{n} nous", n=len(self._nous))
 
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
@@ -525,13 +709,11 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             return (
                 self._sentry,
                 self._details,
-                self._ai_chan,
                 self._prefer,
                 self._harness,
             ) != (
                 self._sentry_was,
                 self._details_was,
-                self._ai_chan_was,
                 self._prefer_was,
                 self._harness_was,
             )
@@ -554,7 +736,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         switch turned on and back off again is nothing to save, and nothing to be asked about
         on the way out.
         """
-        return any(self._pending(page) for page in range(len(PAGES)))
+        return any(self._pending(page) for page in _NAMES)
 
     def leaving(self) -> None:
         """Asks whether to save what is held, where anything still is, and leaves."""
@@ -564,35 +746,212 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self.asks_to_save()
 
     def _fill_home(self) -> None:
-        """Puts up a card per page: its mark, its name, what is in it, and what it is for."""
+        """Puts up a card per page, under the group it is in: its name and what is in it.
+
+        The groups are headings the arrows step over, and the cursor comes back to the card of
+        the page it was last inside.
+        """
         listing = self.query_one("#choices", OptionList)
-        at = (
-            listing.highlighted
-            if listing.option_count == len(PAGES) and listing.highlighted is not None
-            else self._tab
+        under = self.under()
+        landing = under if under in PAGES else _NAMES[self._tab]
+        cards, headed = _cards(), _groups()
+        options: list[Option] = []
+        for group, pages in GROUPS:
+            if options:
+                options.append(Option("", disabled=True))
+            options.append(self._heading(headed[group]))
+            for page in pages:
+                title, blurb = cards[page]
+                options.append(
+                    Option(
+                        self._carded(
+                            title,
+                            self._summary(_TABS[page]),
+                            blurb,
+                            here=page == landing,
+                            pending=self._pending(_TABS[page]),
+                        ),
+                        id=f"={page}",
+                    )
+                )
+        self._put(listing, options, landing)
+        self._drawn = listing.highlighted
+        self.query_one("#tuning", Label).update("")
+        self._footed(Key("enter", t("Open")), Key("esc", t("Close")))
+
+    def _carded(
+        self, title: str, summary: str, blurb: str, *, here: bool, pending: bool
+    ) -> str:
+        """One card of the first screen: a square, the page's name, what is in it, what it is for.
+
+        Args:
+          title: What the page is called.
+          summary: What is in it, in a few words, at the far end.
+          blurb: What it is for, in a line under.
+          here: Whether the cursor is on it.
+          pending: Whether the page is holding a change that saving would land.
+
+        Returns:
+          The card, as markup.
+        """
+        unsaved = f"{humanfia.SQUARE} {t('Unsaved')}"
+        taken = cell_len(summary) + (cell_len(unsaved) + 2 if pending else 0)
+        pad = " " * max(2, self._across() - 5 - cell_len(title) - taken)
+        right = _shade("$text-muted", summary, here=here) + (
+            f"  {_shade('$warning', unsaved, here=here)}" if pending else ""
         )
-        cards: list[Option | None] = []
-        for page, card in enumerate(_PAGES):
-            cards.append(
+        return (
+            f" {_shade('$primary', humanfia.SQUARE, here=here)}  "
+            f"[b]{escape(title)}[/]{pad}{right}\n"
+            f"    {_shade('$text-muted', blurb, here=here)}"
+        )
+
+    # -- Themes and language -------------------------------------------------------------------
+
+    @staticmethod
+    def _modes() -> dict[str, tuple[str, str]]:
+        """Which side of the theme in use is drawn: what each is called, and what it means."""
+        return {
+            "auto": (
+                t("Auto"),
+                t("Light or dark, whichever the terminal's background asks for"),
+            ),
+            "light": (t("Light"), ""),
+            "dark": (t("Dark"), ""),
+            "terminal": (
+                t("Terminal"),
+                t(
+                    "The terminal's own sixteen colours on its own background, "
+                    "whatever theme is in use"
+                ),
+            ),
+        }
+
+    def _side(self) -> str:
+        """Which side of a preset its row is drawn a sample of: the one that would be shown."""
+        side = self._kept.appearance
+        if side in ("light", "dark"):
+            return side
+        return humanfia.side(os.environ)
+
+    @staticmethod
+    def _sample(pair: str, side: str) -> str:
+        """One side of a preset drawn small: its text on its paper, and its three accents."""
+        theme = humanfia.THEMES[humanfia.named(pair, side)]
+        paper = theme.background
+        accents = "".join(
+            f"[{one} on {paper}]{humanfia.SQUARE}[/]"
+            for one in (theme.primary, theme.accent, theme.variables["hmz-green"])
+        )
+        return f"[{theme.foreground} on {paper}] Aa [/]{accents}[on {paper}] [/]"
+
+    def _in_use(self, *, used: bool, here: bool) -> str:
+        """The mark before the row that is the one in use: a square, or the room for one."""
+        return _shade("$primary", humanfia.SQUARE, here=here) if used else " "
+
+    def _decided(self) -> str:
+        """What the themes page says under its list where a variable decides the theme."""
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        name = own.overridden(os.environ, showing.available_themes)
+        if not name:
+            return ""
+        return escape(
+            t(
+                "{name} is set in the environment and decides this while it is set.",
+                name=name,
+            )
+        )
+
+    def _fill_themes(self) -> None:
+        """Puts up which side is drawn, then every preset, the ones in use marked.
+
+        A preset's row carries a sample of it, in its own colours, of the side that would be
+        shown; the whole interface is the larger sample, drawn as the cursor moves.
+        """
+        listing = self.query_one("#choices", OptionList)
+        self._follows(listing)
+        kept, used = self._kept, t("In use")
+        rows = [f"{_MODE}{one}" for one in own.APPEARANCES]
+        rows += [f"{_PAIR}{one}" for one in humanfia.PRESETS]
+        landing = self._lands(rows)
+        options = [self._heading(t("Appearance"))]
+        for mode, (named, about) in self._modes().items():
+            held, on_ = f"{_MODE}{mode}", kept.appearance == mode
+            here = held == landing
+            options.append(
                 Option(
-                    self._card(
-                        card.icon,
-                        card.title,
-                        self._summary(page),
-                        card.blurb,
-                        here=page == at,
-                        pending=self._pending(page),
+                    self._listed(
+                        named,
+                        about,
+                        here=here,
+                        mark=self._in_use(used=on_, here=here),
+                        tail=used if on_ else "",
                     ),
-                    id=f"={PAGES[page]}",
+                    id=f"={held}",
                 )
             )
-            # A rule between two cards, which the cursor steps over.
-            cards.append(None)
-        listing.set_options(cards[:-1])
-        listing.highlighted = at
-        self._drawn = at
-        self.query_one("#tuning", Label).update("")
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        options += [Option("", disabled=True), self._heading(t("Presets"))]
+        side, width = self._side(), self._across()
+        for key, pair in humanfia.PRESETS.items():
+            held, on_ = f"{_PAIR}{key}", kept.theme == key
+            here, named = held == landing, t(pair.name)
+            gap = " " * max(2, 24 - cell_len(named))
+            tail = ""
+            if on_:
+                fill = " " * max(
+                    2, width - 12 - cell_len(named) - len(gap) - cell_len(used)
+                )
+                tail = f"{fill}{_shade('$text-muted', used, here=here)}"
+            options.append(
+                Option(
+                    f" {self._in_use(used=on_, here=here)} [b]{escape(named)}[/]{gap}"
+                    f"{self._sample(key, side)}{tail}",
+                    id=f"={held}",
+                )
+            )
+        self._put(listing, options, landing)
+        self._drawn = listing.highlighted
+        said = self._said or self._decided()
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._footed(Key("enter", t("Use")), Key("esc", t("Back")))
+
+    def _fill_language(self) -> None:
+        """Puts up the system's language and each the texts are written in, the one in use marked.
+
+        A language is called what it calls itself, whatever the page is written in.
+        """
+        listing = self.query_one("#choices", OptionList)
+        self._follows(listing)
+        kept, used = self._kept, t("In use")
+        named = {"": t("System"), **LANGUAGES}
+        landing = self._lands([f"{_LANG}{one}" for one in named])
+        options: list[Option] = []
+        for code, says in named.items():
+            held, on_ = f"{_LANG}{code}", kept.language == code
+            here = held == landing
+            options.append(
+                Option(
+                    self._listed(
+                        says,
+                        "",
+                        here=here,
+                        mark=self._in_use(used=on_, here=here),
+                        tail=used if on_ else "",
+                    ),
+                    id=f"={held}",
+                )
+            )
+        self._put(listing, options, landing)
+        self._drawn = listing.highlighted
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{self._said}[/]" if self._said else ""
+        )
+        self._footed(Key("enter", t("Use")), Key("esc", t("Back")))
 
     def _settings(self) -> list[_Setting]:
         """The rows of the general or the workspace page, as they are held now.
@@ -609,107 +968,99 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                         kind,
                         named,
                         _word(self._kinds[kind]),
-                        about,
+                        "",
                         _SWITCH,
-                        group="Kinds",
+                        group=t("Kinds"),
                     )
-                    for kind, (named, about) in _KINDS.items()
+                    for kind, named in _kinds().items()
                 ),
                 _Setting(
                     _SYSTEM,
-                    "System",
+                    t("System@@notifications"),
                     _word(self._system),
-                    "ring the terminal's bell and show a system notification too",
+                    t(
+                        "Shows a system notification while the terminal is not in "
+                        "front, or rings the bell where it cannot"
+                    ),
                     _SWITCH,
-                    group="Shown",
                 ),
             ]
         if self._tab == _DIRECTORY:
             return [
                 _Setting(
                     _RUNS,
-                    "Default flow",
-                    self._flow or "none",
-                    f"configured with {_many(self._roles, 'agent')}; chosen with /flow",
+                    t("Flow"),
+                    self._flow or t("none"),
+                    t("{n} agents", n=self._roles),
                     _READ,
-                    group="Flow",
                 ),
                 _Setting(
                     _CHAT_AGENT,
-                    "Chat agent",
-                    written(self._chat_agent) if self._chat_agent else "not set",
-                    "the agent a new chat here talks to",
+                    t("Default agent"),
+                    written(self._chat_agent) if self._chat_agent else t("Not set"),
+                    t("The agent a new chat in this folder talks to"),
                     _SETS,
-                    _NEXT_CHAT if self._chat_agent != self._chat_agent_was else "",
-                    group="Chat",
+                    t("in the next chat")
+                    if self._chat_agent != self._chat_agent_was
+                    else "",
                 ),
                 _Setting(
                     _ARCHIVED,
-                    "Archived chats",
+                    t("Archived chats"),
                     "",
-                    "the chats archived here; one picked is put back among the others",
+                    t("Chats of this folder that were put away"),
                     _SAYS,
-                    group="Chat",
                 ),
                 _Setting(
                     _FORGET,
-                    "Forget",
+                    t("Forget"),
                     _word(self._forget),
-                    f"clear saved settings here, across {_many(self._flows, 'flow')}",
+                    t("Forget how {n} flows were set up here?", n=self._flows),
                     _SWITCH,
-                    _NEXT_LAUNCH if self._forget else "",
-                    group="Reset",
+                    t("on next launch") if self._forget else "",
                 ),
             ]
         return [
             _Setting(
                 _DETAILS,
-                "Details",
+                t("Details"),
                 _word(self._details),
-                "show every tool call and all of the thinking",
+                t("Tool calls and thinking"),
                 _SWITCH,
-                group="Display",
-            ),
-            _Setting(
-                _AI_CHAN,
-                "Ai-chan",
-                self._ai_chan or "none",
-                "the nous a new Ai-chan conversation defaults to",
-                _PICK,
-                _NEXT_AI if self._ai_chan != self._ai_chan_was else "",
-                group="Agents",
             ),
             _Setting(
                 _PREFER,
-                "Chat prefers for $",
+                t("When $name is both"),
                 self._prefer,
-                "what $<name> starts in a chat where a native skill and a flow share it",
+                t(
+                    "What $name starts in a chat where a native skill and a flow "
+                    "share the name"
+                ),
                 _PICK,
-                group="Chat",
             ),
             _Setting(
                 _HARNESS,
-                "Harness sessions",
+                t("Harness sessions"),
                 _word(self._harness),
-                "list the sessions each harness had of its own here, to continue as chats",
+                t(
+                    "/resume in a chat lists the sessions each harness had of its own "
+                    "in this folder, to continue as chats"
+                ),
                 _SWITCH,
-                group="Chat",
             ),
             _Setting(
                 _SENTRY,
-                "Error reports",
+                t("Error reports"),
                 _word(self._sentry),
-                "send error reports to Humanize",
+                t("Report Humanize’s own failures"),  # noqa: RUF001 -- the page's
                 _SWITCH,
-                group="Privacy",
             ),
             _Setting(
                 _SENT,
-                "What is sent",
+                t("What is sent"),
                 "",
-                "what error reports include and exclude",
+                t("What error reports include and what they leave out"),
                 _SAYS,
-                group="Privacy",
             ),
         ]
 
@@ -727,57 +1078,53 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         Returns:
           The markup, and its width.
         """
+        if one.kind == _READ:
+            return _shade("$text-muted", one.value, here=here), cell_len(one.value)
         if one.kind in (_SWITCH, _PICK):
-            return _chip(one.value, _DROPS, here=here, toggles=one.kind == _SWITCH)
-        if one.kind == _SAYS:
-            return _chip("", _OPENS, here=here)
-        if one.kind == _SETS:
-            return _chip(one.value, _OPENS, here=here)
-        return _shade("$text-muted", one.value, here=here), len(one.value)
+            said, cells = _chip(
+                one.value, _DROPS, here=here, toggles=one.kind == _SWITCH
+            )
+        else:
+            said, cells = _chip(
+                one.value if one.kind == _SETS else "", _OPENS, here=here
+            )
+        # Counted there in letters: a value in a script two cells wide is as much wider.
+        return said, cells + cell_len(one.value) - len(one.value)
 
     def _fill_own(self) -> None:
-        """Puts up the general or workspace page: a row per setting under its heading.
+        """Puts up the general, notifications or workspace page: a row per setting.
 
-        Its value at the far end, and a rule between two rows of one heading; a heading, as
-        the accounts' are, is a row the arrows step over.
+        Its value at the far end and what it is under it; a heading, where the rows have one,
+        is a row the arrows step over.
         """
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         rows = self._settings()
         held = [one.held for one in rows]
         landing = self._was if self._was in held else held[0]
-        width = self._width_of(listing)
-        options: list[Option | None] = []
+        options: list[Option] = []
         group = ""
         for one in rows:
             if one.group != group:
                 if options:
-                    # Not the rule after the last row: a blank line before the next heading.
-                    options[-1] = Option("", disabled=True)
+                    options.append(Option("", disabled=True))
                 group = one.group
-                options.append(Option(f" [$primary]{escape(group)}[/]", disabled=True))
+                if group:
+                    options.append(self._heading(group))
             here = one.held == landing
-            chip, cells = self._chip(one, here=here)
-            pad = max(2, width - 2 - len(one.named) - cells)
-            if here:
-                self._values_at = 1 + len(one.named) + pad
-            note = (
-                f"{_DOT}{_shade('$warning', one.note, here=here)}" if one.note else ""
-            )
             options.append(
                 Option(
-                    f" [b]{escape(one.named)}[/]{' ' * pad}{chip}\n"
-                    f"   {_shade('$text-muted', one.about, here=here)}{note}",
+                    self._set_to(
+                        one.named,
+                        self._chip(one, here=here),
+                        one.about,
+                        here=here,
+                        note=one.note,
+                    ),
                     id=f"={one.held}",
                 )
             )
-            options.append(None)
-        listing.set_options(options[:-1])
-        listing.highlighted = next(
-            at
-            for at in range(listing.option_count)
-            if listing.get_option_at_index(at).id == f"={landing}"
-        )
+        self._put(listing, options, landing)
         self._was = landing
         self._drawn = listing.highlighted
         said = self._said
@@ -787,15 +1134,23 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             and self._overridden
             and self._sentry == self._sentry_was
         ):
-            said = f"{SAYS} is set, overriding this setting for this run"
+            said = escape(
+                t(
+                    "{name} is set in the environment and decides this while it is set.",
+                    name=SAYS,
+                )
+            )
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
         kind = next((one.kind for one in rows if one.held == landing), _READ)
-        does = {_SWITCH: "choose", _PICK: "choose", _SAYS: "read", _SETS: "set up"}.get(
-            kind
-        )
-        self._footed(*((Key("enter", does),) if does else ()), Key("esc", "back"))
+        does = {
+            _SWITCH: t("Choose"),
+            _PICK: t("Choose"),
+            _SAYS: t("Open"),
+            _SETS: t("Open"),
+        }.get(kind)
+        self._footed(*((Key("enter", does),) if does else ()), Key("esc", t("Back")))
 
     def _lands(self, items: Sequence[str]) -> str:
         """Lands the cursor as a page does, and the focus with it on something just added.
@@ -830,6 +1185,9 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             _NOUS: self._nous_actions,
             _BACKUP: self._backup_actions,
             _USAGE: self._usage_actions,
+            # Nor do the themes and the language hold anything: each is kept as chosen.
+            _THEMES: self._usage_actions,
+            _LANGUAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -838,7 +1196,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         Args:
           keys: The page's keys, for its list.
         """
-        back = Key("esc", "close" if self._home else "back")
+        back = Key("esc", t("Close") if self._home else t("Back"))
         super()._footed(*(one for one in keys if one.key != "esc"), back)
 
     # -- Doing -------------------------------------------------------------------------------
@@ -852,7 +1210,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         """
         held = str(event.option.id or "").removeprefix("=")
         if self._home:
-            self._opens(PAGES.index(held))
+            self._opens(_TABS[held])
             return
         self._takes(held)
 
@@ -872,12 +1230,17 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._took_nous(held)
         elif self._tab == _BACKUP:
             self._took_backup(held)
+        elif self._tab in (_THEMES, _LANGUAGE):
+            self._keeps(held)
         elif held == _SENT:
-            sent, kept = "; ".join(SENT), "; ".join(KEPT)
-            self._said = f"Sent: {sent}. Never sent: {kept}."
+            self._said = escape(
+                t(
+                    "Sent: {sent}. Never sent: {kept}.",
+                    sent="; ".join(SENT),
+                    kept="; ".join(KEPT),
+                )
+            )
             self._fill()
-        elif held == _AI_CHAN:
-            self._chooses_ai_chan()
         elif held == _CHAT_AGENT:
             self._sets_chat_agent()
         elif held == _ARCHIVED:
@@ -897,7 +1260,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         return (
             not self._home
             and self._tab in (_EVERYWHERE, _NOTIFICATIONS, _DIRECTORY)
-            and (row in _MEANS or row == _PREFER)
+            and (row in _SWITCHES or row == _PREFER)
         )
 
     def dropping(self, row: str) -> Drop:
@@ -911,16 +1274,17 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         """
         if self._tab == _USAGE:
             return self._dropping_usage(row)
+        named = next(one.named for one in self._settings() if one.held == row)
         if row == _PREFER:
+            means = _prefers()
             return Drop(
-                "Chat prefers for $",
-                [Value(one, one, means) for one, means in _PREFERS.items()],
+                named,
+                [Value(one, one, meant) for one, meant in means.items()],
                 self._prefer,
-                cursor=next(one for one in _PREFERS if one != self._prefer),
+                cursor=next(one for one in means if one != self._prefer),
             )
         now = self._switched(row)
-        named = next(one.named for one in self._settings() if one.held == row)
-        return switched(named, _word(now) if now is not None else "", _MEANS[row])
+        return switched(named, _word(now) if now is not None else "")
 
     def dropped(self, row: str, picked: str) -> None:
         """Holds a row at the value picked.
@@ -958,46 +1322,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             _SYSTEM: self._system,
             **self._kinds,
         }[held]
-
-    @work
-    async def _chooses_ai_chan(self) -> None:
-        """Asks which nous a new Ai-chan conversation defaults to, from the list under its row.
-
-        None, the one chosen already where one is, another nous, or an agent set up on the
-        sheet every agent is set up on (Section 19.2.1 of tui.md). None is no default: `/ai`
-        then asks for one each time.
-        """
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            values = [Value("", "none", "ask for one each time")]
-            if self._ai_chan:
-                values.append(Value(self._ai_chan, self._ai_chan, "chosen"))
-            values.extend(
-                Value(one.name, one.name, "a nous")
-                for one in self._nous
-                if one.name != self._ai_chan
-            )
-            values.append(Value(_ANOTHER, "another…", "set an agent up"))
-            picked = await showing.push_screen_wait(
-                Dropdown("Ai-chan", values, self._ai_chan, at=self.dropped_at())
-            )
-            if picked == _ANOTHER:
-                chosen = await self._agent_set_up(
-                    "Ai-chan", read_back(self._ai_chan) or Runs("")
-                )
-                picked = written(chosen) if chosen is not None else None
-        finally:
-            self.opened()
-        if picked is None or picked == self._ai_chan:
-            return
-        self._ai_chan, self._said = picked, ""
-        self.changed()
-        self._fill()
 
     @work
     async def _sets_chat_agent(self) -> None:
@@ -1073,18 +1397,18 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             try:
                 settings.chat_prefer = self._prefer
             except OSError as why:
-                told.append(f"hmz: chat preference not saved: {escape(str(why))}")
+                told.append(_unsaved(t("When $name is both"), why))
         if self._harness != self._harness_was:
             try:
                 settings.harness_sessions = self._harness
             except OSError as why:
-                told.append(f"hmz: harness sessions not saved: {escape(str(why))}")
+                told.append(_unsaved(t("Harness sessions"), why))
         agent = self._chat_agent
         if agent is not None and agent != self._chat_agent_was and not self._forget:
             try:
                 settings.chat_agent = agent
             except OSError as why:
-                told.append(f"hmz: chat agent not saved: {escape(str(why))}")
+                told.append(_unsaved(t("Default agent"), why))
 
     def applied(self) -> None:
         """Lands what every page was holding, and answers with what was changed."""
@@ -1105,7 +1429,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                     system=self._system if self._system != self._system_was else None,
                 )
             except OSError as why:
-                told.append(f"hmz: notifications not saved: {escape(str(why))}")
+                told.append(_unsaved(t("Notifications"), why))
         self.dismiss(
             Adjusted(
                 enable_sentry=self._sentry
@@ -1113,7 +1437,6 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 else None,
                 details=self._details if self._details != self._details_was else None,
                 forget=self._forget,
-                ai_chan=self._ai_chan if self._ai_chan != self._ai_chan_was else None,
                 told=tuple(told),
                 corrected=tuple(self._corrected),
             )
@@ -1134,10 +1457,15 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
           The waiting, as a sheet's own is.
         """
         said = result or (Adjusted(told=tuple(self._told)) if self._told else None)
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        self._puts_back()
+        # The line of keys under the log is said in whatever language was just kept.
+        hints = getattr(getattr(showing, "shell", None), "hints", None)
+        if callable(hints):
+            hints()
         if said is not None and not self._answered:
-            showing = cast(
-                "App[None]",
-                self.app,  # pyright: ignore[reportUnknownMemberType]
-            )
             showing.post_message(self.Settled(said))
         return super().dismiss(said)

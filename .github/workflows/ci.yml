@@ -9,7 +9,7 @@
 # merges, so a push to `main`, already tested there, runs none of this: cache.yml saves the
 # caches these restore. A push to a `release/*` branch runs it, on what the push changed.
 # title.yml checks the pull request's title. `tests/system` runs real agents, and the web page
-# in real browsers, and is never run here. docs/contributing/ci.md has the rest.
+# in real browsers, and is never run here. CONTRIBUTING.md has the rest.
 
 name: ci
 
@@ -69,6 +69,8 @@ jobs:
               - pyproject.toml
               - uv.lock
               - src/hmz/*
+              # What the command line and the terminal interface say, and their tests read.
+              - src/hmz/words/**
               - tests/conftest.py
               - tests/integration/conftest.py
               - tests/integration/flows/**
@@ -90,6 +92,7 @@ jobs:
             unit-sdk: [*unit, src/hmz/sdk/**, tests/unit/sdk/**]
             unit-tui: [*unit, src/hmz/tui/**, tests/unit/tui/**]
             unit-web: [*unit, src/hmz/web/**, tests/unit/web/**]
+            unit-words: [*unit, tests/unit/words/**]
             # The RPC package holds protocol/openrpc.json to the protocol's text.
             unit-rpc: [*unit, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
             unit-trust: [*unit, src/hmz/trust/**, tests/unit/trust/**]
@@ -121,6 +124,14 @@ jobs:
               - src/hmz/**
               - tests/integration/*_core*.py
               - tests/integration/doubles_daemon.py
+              # tests/integration/test_core_cli_help.py holds the methods a command names to
+              # the protocol's, test_core_cli_reference.py the reference to what the script
+              # writes from the commands, and test_core_coverage.py every command to its
+              # section of protocol/cli.md.
+              - protocol/openrpc.json
+              - protocol/cli.md
+              - scripts/cli_reference.py
+              - docs/reference/cli.md
               # tests/integration/test_core_ci_caches.py holds it to what the jobs here restore.
               - .github/workflows/cache.yml
             integration-anchor:
@@ -451,6 +462,8 @@ jobs:
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           pnpm tauri build --debug --bundles app,dmg
+          named=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' src-tauri/target/debug/bundle/macos/*.app/Contents/Info.plist)
+          test "$named" = Humanize || { echo "::error::The menu bar names the app $named, not Humanize."; exit 1; }
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" src-tauri/target/debug/bundle/dmg/*.dmg
           test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
 

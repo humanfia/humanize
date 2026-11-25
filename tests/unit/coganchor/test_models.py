@@ -12,6 +12,7 @@ import importlib.util
 import io
 import json
 import subprocess
+import tempfile
 import types
 import urllib.error
 import urllib.request
@@ -262,6 +263,42 @@ def test_ask_claude_reads_its_control_response(backend: Callable[..., Ran]) -> N
     assert json.loads(ran.input)["request"] == {"subtype": "list_models"}
     assert models.offered("claude") == found
     assert not models.stale("claude")
+
+
+def test_an_answer_is_kept_where_it_was_asked_for_wherever_the_machine_keeps_it_by_then(
+    backend: Callable[..., Ran], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = backend(
+        _claude_says(
+            {
+                "request_id": "models",
+                "subtype": "success",
+                "response": {"models": [{"value": "haiku"}]},
+            }
+        )
+    )
+    asked_at = models.where("claude")
+    moved = tmp_path / "moved"
+    moved.mkdir()
+
+    def answers_late(argv: list[str], **given: Any) -> subprocess.CompletedProcess[str]:
+        # The machine's directory is another by the time the backend answers.
+        monkeypatch.setattr(tempfile, "tempdir", str(moved))
+        return ran(argv, **given)
+
+    monkeypatch.setattr(
+        models,
+        "subprocess",
+        types.SimpleNamespace(
+            run=answers_late, TimeoutExpired=subprocess.TimeoutExpired
+        ),
+    )
+
+    models.ask("claude")
+
+    assert models.where("claude") != asked_at
+    assert json.loads(asked_at.read_text())["asked"]
+    assert models.asked("claude") == ""
 
 
 @pytest.mark.parametrize(

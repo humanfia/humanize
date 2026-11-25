@@ -6,6 +6,7 @@ Each run is a real `python -m hmz exec` of `ralph_loop`, for one round, driving 
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -40,17 +41,24 @@ def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
     # A program the agent runs for longer than the environment's sampler takes to see it,
     # with room for a machine busy running the rest of the suite beside it.
     task = 'run: [["sleep", "2"]]'
-    # One round: the first turn spends every token the run may.
-    ran = hmz_exec(
-        "-f",
-        "ralph_loop",
-        "-a",
-        f"agent={AGENT}",
-        "-p",
-        f"budget.output_tokens={TOKENS}",
-        *flags,
-        task,
-    )
+    # A program of this process's own, running before the run begins and all through it:
+    # under the process the run is held in, and not one the run's agents started.
+    bystander = subprocess.Popen(["sleep", "60"])
+    try:
+        # One round: the first turn spends every token the run may.
+        ran = hmz_exec(
+            "-f",
+            "ralph_loop",
+            "-a",
+            f"agent={AGENT}",
+            "-p",
+            f"budget.output_tokens={TOKENS}",
+            *flags,
+            task,
+        )
+    finally:
+        bystander.kill()
+        bystander.wait()
     assert ran.returncode == 0, ran.stderr
 
     epics = Hmz(project).epics
@@ -83,3 +91,6 @@ def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
     else:
         assert python == []
     assert ("os" in kinds) is environment
+    assert bystander.pid not in {one["pid"] for one in document["processes"]}
+    # Nothing in it is older than the epic, which is where its time starts.
+    assert document["processes"][0]["start"] == 0

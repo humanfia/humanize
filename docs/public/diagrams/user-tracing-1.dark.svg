@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 344" role="img">
+  <title>What a trace is made of: the epic record and the session logs always, the flow profile and the environment profile when switched on, read by Exomyth or written as a Chrome trace file</title>
+  <rect width="760" height="344" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#9aa9b0"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="24" y="44" font-size="12" fill="#9aa9b0">Always recorded</text>
+    <rect x="24" y="56" width="272" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="40" y="80" font-size="14" fill="#e8f0f2">Epic record</text>
+    <text x="40" y="98" font-size="12" fill="#b3c3c8">flow calls</text>
+    <rect x="24" y="120" width="272" height="56" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="40" y="144" font-size="14" fill="#e8f0f2">Session logs</text>
+    <text x="40" y="162" font-size="12" fill="#b3c3c8">turns, model calls, tools</text>
+
+    <text x="24" y="204" font-size="12" fill="#ff94c2">Only when you switch it on</text>
+    <rect x="24" y="216" width="272" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="40" y="238" font-size="14" fill="#e8f0f2">Flow profile</text>
+    <text x="40" y="254" font-size="12" fill="#b3c3c8">the flow's own Python</text>
+    <rect x="24" y="272" width="272" height="48" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+    <text x="40" y="294" font-size="14" fill="#e8f0f2">Environment profile</text>
+    <text x="40" y="310" font-size="12" fill="#b3c3c8">programs the agents start</text>
+
+    <g fill="none" stroke="#9aa9b0" stroke-width="1.5">
+      <path d="M296 84 H392"/>
+      <path d="M296 148 H392"/>
+      <path d="M296 240 H392"/>
+      <path d="M296 296 H392"/>
+      <path d="M392 84 V296"/>
+      <path d="M392 128 H486" marker-end="url(#a)"/>
+      <path d="M392 248 H486" marker-end="url(#a)"/>
+    </g>
+
+    <rect x="488" y="96" width="248" height="64" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="504" y="124" font-size="14" fill="#e8f0f2">Exomyth</text>
+    <text x="504" y="142" font-size="12" fill="#b3c3c8">timeline, flame graph, slices</text>
+    <rect x="488" y="216" width="248" height="64" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="504" y="244" font-size="14" fill="#e8f0f2">Chrome trace file</text>
+    <text x="504" y="262" font-size="12" fill="#b3c3c8">terminal export, or Python</text>
+  </g>
+</svg>

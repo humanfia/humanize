@@ -1,15 +1,22 @@
 // The workspaces of this machine, as the page offers them: every one an epic ran in, set up or
 // opened here, the one `hmz web` was started in first. Picking one is picking where an epic
-// runs, whose flows are on offer, and whose settings are read.
+// runs, whose flows are on offer, and whose settings are read. A directory can go while the
+// page is open: the daemon looks on every `workspaces.list` (`there`), and nothing here offers,
+// or opens on, one that went.
 
-import { call, daemon, onDaemon, started } from './api.js'
+import { call, daemon, given, onDaemon, poll, refresh, started } from './api.js'
 import { chipNamed } from './desk.js'
-import { fill, h, icon } from './dom.js'
+import { h, icon } from './dom.js'
+import { t } from './i18n.js'
+import { closed, opened } from './layers.js'
 import { pathItems, pathParts, typing } from './natives.js'
 import { pathPicker } from './paths.js'
 import { choice, dragged, follow, menu, section } from './shell.js'
 
 let known = null
+/** When `known` was asked for: a directory can go, so an answer is trusted only for `FRESH`. */
+let asked = 0
+const FRESH = 5000
 // Another daemon's workspaces are others.
 onDaemon(() => (known = null))
 
@@ -19,9 +26,12 @@ export async function mine() {
   return here ? { here } : {}
 }
 
-/** Every workspace there is to offer, read again where asked to. */
+/** Every workspace there is to offer, read again where asked to or where what was read is old. */
 export async function workspaces(again = false) {
-  if (!known || again) known = mine().then((here) => call('workspaces.list', here))
+  if (!known || again || Date.now() - asked > FRESH) {
+    asked = Date.now()
+    known = mine().then((here) => call('workspaces.list', here))
+  }
   try {
     return await known
   } catch (error) {
@@ -30,20 +40,61 @@ export async function workspaces(again = false) {
   }
 }
 
+/** Whether a workspace's directory is on its machine: a daemon that does not say is taken to mean it is. */
+export const there = (one) => one.there !== false
+
+/** Whether `workspaces.list` answered that the directory at a path is gone. */
+export function missing(path, answer) {
+  return Boolean(path) && ((answer && answer.workspaces) || []).some((one) => one.path === path && !there(one))
+}
+
 /**
- * The workspace offered first: where `hmz web` started, on Local; else the first there is; else,
- * on a daemon that knows none yet, its user's home, `~` as it expands it there.
+ * The workspace an answer of `workspaces.list` offers first: where `hmz web` started, on Local,
+ * while that directory is there; else the first listed that is there -- one going, then the one
+ * worked in last; else the user's home, `~` as the daemon expands it. Never one that is gone.
  */
+export function firstOf(answer) {
+  if (answer.here && !missing(answer.here, answer)) return answer.here
+  const first = (answer.workspaces || []).find(there)
+  return first ? first.path : '~'
+}
+
+/** The workspace offered first, as `firstOf` picks it from what the daemon lists now. */
 export async function firstWorkspace() {
-  const offered = await workspaces()
-  return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || '~'
+  return firstOf(await workspaces())
+}
+
+/** What is said of a folder whose directory is gone, where there is no other to pick: of a chat carried on there. */
+export function lostSaid(path) {
+  return t('The folder {name} is no longer on this machine.', { name: nameOf(path) })
+}
+
+/** What is said of a folder picked whose directory is gone, on the form and where starting is refused. */
+export function goneSaid(path) {
+  return t('The folder {name} is no longer on this machine. Pick another folder.', { name: nameOf(path) })
+}
+
+/** That sentence as a form says it over its box, in place of the daemon's refusal. */
+export function goneNote(path) {
+  return h('p', { class: 'note folder-gone', role: 'status', 'data-hmz': 'folder-gone', title: path }, goneSaid(path))
+}
+
+/** A start refused because its directory is gone (404, Section 4.5.2 of protocol/daemon.md), said as `goneSaid` says it, or as `said` does. */
+export function unplaced(error, path, said = goneSaid) {
+  return error && error.status === 404 && /^There is no directory /.test(error.message) ? new Error(said(path)) : error
 }
 
 /** What picking no workspace is called, as the sidebar calls the group of what has none. */
-const NONE = 'No folder'
+const NONE = t('No folder')
 
 /** Where an epic of no workspace works. */
-const NOWHERE = 'A new directory of its own, in the temporary directory'
+const NOWHERE = t('A temporary directory of its own, made as it starts')
+
+/** The choice of no folder, marked as the folders are by what each picks. */
+function folderless(item) {
+  item.dataset.folder = ''
+  return item
+}
 
 /** A choice that says more where it is pointed at, where there is more to say. */
 function tipped(item, tip) {
@@ -72,9 +123,23 @@ export function folderFiles(folder) {
       const key = `${workspace}\n${hidden}\n${dir}`
       if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
       const items = pathItems(dir, base, await listed.get(key))
-      return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: 'Files', items }] : [] }
+      return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: t('Files'), items }] : [] }
     },
   }
+}
+
+/** The workspace of an epic or a chat as a list names it: `No folder` of a folderless one. */
+export function folderOf(run) {
+  return run.folderless ? NONE : nameOf(run.workspace)
+}
+
+/**
+ * The address of a folder's own settings (views/workspace.js), on one of its pages -- `setup`,
+ * `usage` or `archived` -- or of those of `No folder`, where no folder is named: its archived
+ * chats, said as a new chat of no folder is, by `scratch`.
+ */
+export function workspaceAt(workspace = '', page = 'setup') {
+  return workspace ? `/workspace/${page}?${new URLSearchParams({ workspace })}` : '/workspace/archived?scratch=1'
 }
 
 /** A workspace as a list names it: the last part of its path. */
@@ -85,49 +150,111 @@ export function nameOf(path) {
 /**
  * A button naming the workspace chosen, whose menu offers every other and opening one by path --
  * and, where asked, no workspace: a directory of its own, made for the epic when it starts.
+ * `hosted`, it has no button of its own: the folders are rows of another's menu, a chip that
+ * names more than the folder (chips/environment.js), which `bind`s itself to them.
  *
  * @param {string | null} chosen The workspace chosen to begin with, "" for where `hmz web`
  *   started, or null for no workspace.
  * @param {(path: string | null) => void} changed Told the workspace picked, null for none.
- * @param {{ none?: boolean, plain?: boolean }} [offers] Whether no workspace is on offer, and
- *   whether the menu is a chat app's folder menu: each folder one row, by the last part of its
- *   path alone, under no heading, its whole path said where it is pointed at.
+ * @param {{ none?: boolean, plain?: boolean, hosted?: boolean, went?: (gone: boolean) => void }} [offers]
+ *   Whether no workspace is on offer; whether the menu is a chat app's folder menu: each folder
+ *   one row, by the last part of its path alone, under no heading, its whole path said where it
+ *   is pointed at -- as the rows of a `hosted` one always are; and what is told when the
+ *   directory of the one chosen goes, or comes back.
+ * @returns {{node: Element, set: (path: string | null) => void, value: () => string | null, gone: () => boolean, leave: () => void,
+ *   rows: (close: () => void) => unknown[], bind: (button: Element, where: {align?: string, up?: boolean}, say: (now: {path: string | null, name: string, tip: string, lost: boolean}) => void) => void}}
+ *   `node` is the button and the form a folder is opened by -- that form alone, `hosted`;
+ *   `gone` says whether the one chosen is known to be gone; `leave` stops watching the
+ *   directories; `rows` are the menu's choices, and `bind` gives a `hosted` one the button that
+ *   opens them, where its menu opens, and what is told the folder chosen whenever it is read.
  */
-export function workspacePicker(chosen, changed, { none = false, plain = false } = {}) {
+export function workspacePicker(chosen, changed, { none = false, plain = false, hosted = false, went = () => {} } = {}) {
+  if (hosted) plain = true
   const said = h('b', {}, '…')
-  const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
-  const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
+  let button = hosted ? null : h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
+  const folder = pathPicker({ label: t('Folder'), placeholder: '~/project' })
   const typed = folder.input
   typed.dataset.hmz = 'workspace-path'
   const problem_ = h('span', { class: 'hint' })
-  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Folder'), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, 'Open'), h('button', { class: 'btn small quiet', type: 'button', onclick: () => shut() }, 'Cancel')), problem_), 'false')
-  const node = h('div', { class: 'menu-holder' }, button, opening)
+  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, t('Folder')), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, t('Open')), h('button', { class: 'btn small quiet', type: 'button', onclick: () => shut() }, t('Cancel'))), problem_), 'false')
+  const node = hosted ? opening : h('div', { class: 'menu-holder' }, button, opening)
   let list = []
   let path = chosen
+  /** Whether the directory of the one chosen is gone, as the daemon answered last. */
+  let lost = false
+  // Where the menu opens, and the form that takes its place.
+  let where = { align: 'start', up: plain }
+  /** What the folder chosen is said by: the button's own text, or whoever hosts the rows. */
+  let say = ({ name, tip }) => {
+    said.textContent = name
+    button.dataset.tip = tip
+    button.setAttribute('class', lost ? 'flow-picker gone' : 'flow-picker')
+    if (lost) button.setAttribute('aria-invalid', 'true')
+    else button.removeAttribute('aria-invalid')
+    // Said with what it picks, as every chip under a box is: its text alone is only a name.
+    button.setAttribute('aria-label', chipNamed(t('Folder'), name))
+  }
+  /** The folder chosen as it is said: its name, and what is said where it is pointed at. */
+  const now = () => ({
+    path,
+    // Not read yet, where it is opened on wherever `hmz web` started: said as the button says it until then.
+    name: path === null ? NONE : path === '' ? '…' : lost ? t('{name} (missing)', { name: nameOf(path) }) : nameOf(path),
+    tip: path === null ? NOWHERE : lost ? t('This folder is no longer on this machine: {path}', { path }) : path,
+    lost,
+  })
 
   function set(to) {
     path = to
-    said.textContent = to === null ? NONE : nameOf(to)
-    button.dataset.tip = to === null ? NOWHERE : to
-    // Said with what it picks, as every chip under a box is: its text alone is only a name.
-    button.setAttribute('aria-label', chipNamed('Folder', said.textContent))
+    const was = lost
+    lost = missing(to, { workspaces: list })
+    if (button) say(now())
+    if (lost !== was) went(lost)
   }
 
-  menu(
-    button,
-    (close) => [
-      plain ? null : section('Recent'),
-      list.map((one) => {
-        const item = choice({ label: one.name, about: plain ? '' : one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })
-        if (plain) item.dataset.tip = one.path
-        return item
-      }),
-      h('hr'),
-      choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
-      none ? tipped(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close }), plain ? NOWHERE : '') : null,
-    ],
-    { label: 'Folders', up: plain },
-  )
+  // Pressed while the form is open, the button shuts it, as it shuts its menu: heard before the
+  // menu hears of it, which then opens nothing.
+  const stands = (on) =>
+    on.addEventListener('click', (event) => {
+      if (opening.hidden) return
+      event.stopImmediatePropagation()
+      shut()
+    })
+
+  /** The choices of the menu: the folders there are, opening one by its path, and none. */
+  const rows = (close) => [
+    // No folder first, a choice as any folder is: a directory made for what starts, and its alone.
+    none ? tipped(folderless(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close })), plain ? NOWHERE : '') : null,
+    plain ? null : section(t('Recent')),
+    // Only what is there to work in -- and the one chosen, said to be missing, so that the
+    // menu still shows what the button names.
+    list.filter((one) => there(one) || one.path === path).map((one) => {
+      const gone = !there(one)
+      const item = choice({ label: one.name, about: gone ? t('Missing') : plain ? '' : one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })
+      item.dataset.folder = one.path
+      if (gone) item.dataset.missing = ''
+      if (plain || gone) item.dataset.tip = gone ? t('This folder is no longer on this machine: {path}', { path: one.path }) : one.path
+      return item
+    }),
+    h('hr'),
+    choice({ label: t('Open folder…'), glyph: 'plus', act: () => open(), close }),
+  ]
+
+  if (!hosted) {
+    stands(button)
+    menu(button, rows, { label: t('Folders'), ...where })
+  }
+
+  /** Gives a hosted one its button: called before the button is given the menu the rows are in. */
+  function bind(on, at, told) {
+    button = on
+    // The form is the button's as a menu is: closed, the focus goes back to it, and a press on it
+    // is no press outside the form.
+    layer.anchor = on
+    where = at
+    say = told
+    stands(on)
+    say(now())
+  }
 
   function pick(to) {
     if (to === path) return
@@ -135,53 +262,79 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
     changed(to)
   }
 
-  // Kept by the button while it is open, as a menu is.
+  // Kept by the button while it is open, as a menu is, and closed by what closes one (layers.js):
+  // a panel, which keeps what is typed into it while the window is sized or left.
   let unfollow = () => {}
+  const layer = { node: opening, anchor: button, kind: 'panel', close: shut }
   function shut() {
+    if (opening.hidden) return
+    closed(layer)
     unfollow()
     opening.hidden = true
+    button.setAttribute('aria-expanded', 'false')
   }
 
   function open() {
     opening.hidden = false
-    unfollow = follow(opening, button, {})
+    opened(layer)
+    unfollow = follow(opening, button, where)
+    button.setAttribute('aria-expanded', 'true')
     problem_.textContent = ''
     typed.value = ''
     typed.focus()
   }
 
-  typed.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') shut()
-  })
   const openButton = opening.querySelector('[type=submit]')
   opening.addEventListener('submit', async (event) => {
     event.preventDefault()
     if (openButton.disabled) return
     openButton.disabled = true
-    openButton.textContent = 'Opening…'
+    openButton.textContent = t('Opening…')
     problem_.textContent = ''
     try {
       const answer = await call('workspaces.add', { workspace: typed.value.trim(), ...(await mine()) })
       known = Promise.resolve(answer)
+      asked = Date.now()
       list = answer.workspaces
+      // Whoever lists the folders -- the sidebar, another picker -- lists this one too.
+      refresh('workspaces.list')
       shut()
       pick(answer.kept)
     } catch (error) {
       problem_.textContent = error.message
     } finally {
       openButton.disabled = false
-      openButton.textContent = 'Open'
+      openButton.textContent = t('Open')
     }
   })
 
-  workspaces().then(
-    (answer) => {
+  // Watched for as long as the picker stands, in the read the sidebar keeps: a directory that
+  // goes leaves the menu, and the one chosen says so. A daemon that cannot be reached answers
+  // nothing, and the view the picker is on says why.
+  let unwatch = () => {}
+  let left = false
+  mine().then((here) => {
+    if (left) return
+    unwatch = poll('workspaces.list', given(here), 10000, (answer) => {
+      if (!answer) return
       list = answer.workspaces
-      if (path === '') path = answer.here
-      set(path)
+      // What `workspaces` answers is no older than this: whoever is told the folder went, or
+      // came back, and reads them again reads what said so, not what was read before it.
+      known = Promise.resolve(answer)
+      asked = Date.now()
+      set(path === '' ? firstOf(answer) : path)
+    })
+  })
+  return {
+    node,
+    set,
+    value: () => path,
+    gone: () => lost,
+    rows,
+    bind,
+    leave() {
+      left = true
+      unwatch()
     },
-    // A daemon that cannot be reached: the view it is on says why.
-    () => {},
-  )
-  return { node, set, value: () => path }
+  }
 }

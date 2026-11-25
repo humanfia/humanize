@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tomllib
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import yaml
+import tomlkit
 
-from hmz import home
+from hmz import config
 from hmz.runtime import Hmz
 from hmz.runtime.epic import Epic, chats, epics, read
 from hmz.tui import Humanize
@@ -64,9 +65,9 @@ def _bare(tmp_path: Path, name: str) -> Path:
 
 
 def _targets(*targets: dict[str, Any], defaults: tuple[str, ...] = ()) -> None:
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "settings.yaml").write_text(
-        yaml.safe_dump(
+    config().mkdir(parents=True, exist_ok=True)
+    (config() / "settings.toml").write_text(
+        tomlkit.dumps(
             {"backup": {"targets": list(targets), "defaults": list(defaults)}}
         )
     )
@@ -95,7 +96,7 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await opened(pilot)
         await typed(pilot, "/settings backup")
         await on(pilot, Adjusts)
-        await shows(pilot, "no backup targets yet")
+        await shows(pilot, "No backup target yet.")
 
         await pilot.click("#act-add")
         await on(pilot, Backing)
@@ -107,11 +108,11 @@ async def test_a_target_added_on_the_backup_page_is_written_to_settings(
         await pilot.click("#act-done")
 
         await on(pilot, Adjusts)
-        await shows(pilot, "lab ✔", "on epic end")
+        await shows(pilot, "lab ✔", "On epic end")
         await leaves(pilot)
         await shows(pilot, "1 backup target saved")
 
-    saved = yaml.safe_load((home() / "settings.yaml").read_text())["backup"]
+    saved = tomllib.loads((config() / "settings.toml").read_text())["backup"]
     assert saved == {
         "targets": [
             {
@@ -153,7 +154,7 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
 
         # A flow, which a chat is not: its epic goes where the flow menu said.
         await typed(pilot, f"${OWN} hello")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
 
     assert Hmz().backups.wait(60)
@@ -200,7 +201,7 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         await typed(pilot, f"${OWN} hello")
-        await shows(pilot, "the flow is done")
+        await shows(pilot, "Flow done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 
@@ -213,12 +214,12 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
 
         await on(pilot, Epics)
         (epic,) = epics(workspace)
-        await shows(pilot, f"backing {epic.name} up to lab")
+        await shows(pilot, "Uploading to lab")
         assert Hmz().backups.wait(60)
 
         await pilot.press("enter")
         await on(pilot, Does)
-        await shows(pilot, "lab: backed up")
+        await shows(pilot, "lab: uploaded")
 
     assert _log(lab) == [f"Back up epic {epic.name} (manual)"]
 
@@ -243,14 +244,14 @@ async def test_an_epic_downloaded_from_the_backup_page_lands_here_again(
         await shows(pilot, "Download from lab", held.machine, "fix the build · done")
 
         await opens(pilot, held.key)
-        await shows(pilot, f"downloaded {epic.path.name}")
+        await shows(pilot, f"Downloaded {epic.path.name}")
         await until(pilot, epic.path.is_dir, "the epic to land")
-        await shows(pilot, "fix the build · done · here")
+        await shows(pilot, "fix the build · done · Here")
         await pilot.press("enter")
         await shows(pilot, "is here already")
 
         await leaves(pilot)
-        await shows(pilot, f"downloaded {epic.path.name} into")
+        await shows(pilot, f"Downloaded {epic.path.name} into")
     assert epics(workspace) == [epic.path]
 
 
@@ -277,7 +278,7 @@ async def test_a_chat_downloaded_from_the_backup_page_lands_among_the_chats(
         await opens(pilot, held.key)
         await until(pilot, chat.path.is_dir, "the chat to land")
         await wrapped(pilot, "carry it on with /resume in a chat")
-        await wrapped(pilot, "what is here? · done · here")
+        await wrapped(pilot, "what is here? · done · Here")
         await leaves(pilot)
     assert chats(workspace) == [chat.path]
     assert epics(workspace) == []

@@ -1,0 +1,1070 @@
+{
+ "entries": [
+  {
+   "wants": "summary of `hmz settings`: read and write the settings this daemon keeps",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "read and write the settings this daemon keeps"
+  },
+  {
+   "wants": "summary of `hmz settings get`: print the settings, or one of them",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "print the settings, or one of them"
+  },
+  {
+   "wants": "what `hmz settings get` prints as text: One line per setting: its name and its value, text as it is and anything else as JSON. With KEY, the value alone.",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per setting: its name and its value, text as it is and anything else as JSON. With KEY, the value alone."
+  },
+  {
+   "wants": "the KEY argument of `hmz settings get`: the one setting to print, a field of the JSON document such as `details` or `backup`; every setting where not given",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the one setting to print, a field of the JSON document such as `details` or `backup`; every setting where not given"
+  },
+  {
+   "wants": "the --workspace PATH option of `hmz settings get`: the workspace folder, as a path; the home folder where not given",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the workspace folder, as a path; the home folder where not given"
+  },
+  {
+   "wants": "what the example line `hmz settings get` does: print every setting of this machine and of the home folder",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print every setting of this machine and of the home folder"
+  },
+  {
+   "wants": "what the example line `hmz settings get chat -w ~/project` does: print the chat agent remembered for the workspace `~/project`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the chat agent remembered for the workspace `~/project`"
+  },
+  {
+   "wants": "what the example line `hmz settings get backup --json | jq -r '.backup.targets[].name'` does: print the names of the backup targets with jq",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the names of the backup targets with jq"
+  },
+  {
+   "wants": "the JSON field `workspace` (string) that `hmz settings get --json` prints: the workspace these settings are of, the home folder where none was named",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the workspace these settings are of, the home folder where none was named"
+  },
+  {
+   "wants": "the JSON field `flow` (string) that `hmz settings get --json` prints: the flow the workspace was last set up to run, or empty",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the flow the workspace was last set up to run, or empty"
+  },
+  {
+   "wants": "the JSON field `flows` (list) that `hmz settings get --json` prints: names of the flows set up in the workspace",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "names of the flows set up in the workspace"
+  },
+  {
+   "wants": "the JSON field `chat` (string) that `hmz settings get --json` prints: the chat agent remembered for the workspace, as `-a` spells one, or empty",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the chat agent remembered for the workspace, as `-a` spells one, or empty"
+  },
+  {
+   "wants": "the JSON field `ai_chan` (string) that `hmz settings get --json` prints: the nous the last Ai-chan conversation was made with, or empty",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the nous the last Ai-chan conversation was made with, or empty"
+  },
+  {
+   "wants": "the JSON field `details` (boolean) that `hmz settings get --json` prints: whether tool calls and thinking are shown",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether tool calls and thinking are shown"
+  },
+  {
+   "wants": "the JSON field `harness_sessions` (boolean) that `hmz settings get --json` prints: whether harness sessions are listed in the sidebar",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether harness sessions are listed in the sidebar"
+  },
+  {
+   "wants": "the JSON field `reports` (boolean|null) that `hmz settings get --json` prints: whether Humanize reports its own failures, or null if never answered",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether Humanize reports its own failures, or null if never answered"
+  },
+  {
+   "wants": "the JSON field `backup` (object) that `hmz settings get --json` prints: the backup targets and the defaults",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the backup targets and the defaults"
+  },
+  {
+   "wants": "the JSON field `backup.targets` (list) that `hmz settings get --json` prints: the git repositories epics are backed up to",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the git repositories epics are backed up to"
+  },
+  {
+   "wants": "the JSON field `backup.targets[].name` (string) that `hmz settings get --json` prints: name of the backup target",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "name of the backup target"
+  },
+  {
+   "wants": "the JSON field `backup.targets[].url` (string) that `hmz settings get --json` prints: URL of the repository, with its credentials removed",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "URL of the repository, with its credentials removed"
+  },
+  {
+   "wants": "the JSON field `backup.targets[].branch` (string) that `hmz settings get --json` prints: the branch pushed to",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the branch pushed to"
+  },
+  {
+   "wants": "the JSON field `backup.targets[].policies` (list) that `hmz settings get --json` prints: when it is backed up to unasked: any of `session`, `interval`, `end`; empty means by hand only",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "when it is backed up to unasked: any of `session`, `interval`, `end`; empty means by hand only"
+  },
+  {
+   "wants": "the JSON field `backup.targets[].every` (integer) that `hmz settings get --json` prints: minutes between backups under the `interval` policy",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "minutes between backups under the `interval` policy"
+  },
+  {
+   "wants": "the JSON field `backup.defaults` (list) that `hmz settings get --json` prints: names of the targets a new epic is backed up to",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "names of the targets a new epic is backed up to"
+  },
+  {
+   "wants": "the JSON field `listen` (list) that `hmz settings get --json` prints: the listener specs the daemon opens",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the listener specs the daemon opens"
+  },
+  {
+   "wants": "the JSON field `ice_servers` (list) that `hmz settings get --json` prints: the STUN and TURN servers",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the STUN and TURN servers"
+  },
+  {
+   "wants": "the JSON field `ice_servers[].urls` (string|list) that `hmz settings get --json` prints: URL or URLs of the server",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "URL or URLs of the server"
+  },
+  {
+   "wants": "the JSON field `ice_servers[].username` (string) that `hmz settings get --json` prints: username of a TURN server, where it has one",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "username of a TURN server, where it has one"
+  },
+  {
+   "wants": "the JSON field `ice_servers[].credential` (boolean) that `hmz settings get --json` prints: `true` where a credential is kept; its value is never printed",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "`true` where a credential is kept; its value is never printed"
+  },
+  {
+   "wants": "summary of `hmz settings set`: write one setting",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "write one setting"
+  },
+  {
+   "wants": "paragraph for `hmz settings set`, saying all of this and nothing more: Writes one setting and prints `Saved.`; with `--json`, prints every setting as it is afterwards. Each setting is a command of its own: run `hmz settings set COMMAND --help` for the values it takes.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes one setting and prints `Saved.`; with `--json`, prints every setting as it is afterwards. Each setting is a command of its own: run `hmz settings set COMMAND --help` for the values it takes."
+  },
+  {
+   "wants": "summary of `hmz settings set details`: show or hide tool calls and thinking",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "show or hide tool calls and thinking"
+  },
+  {
+   "wants": "what `hmz settings set details` prints as text: The line `Saved.`",
+   "where": "sentence in the Output section of --help",
+   "text": "The line `Saved.`."
+  },
+  {
+   "wants": "the VALUE argument of `hmz settings set details`: `on` or `off`; `true` and `false` are taken too",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "`on` or `off`; `true` and `false` are taken too"
+  },
+  {
+   "wants": "what the example line `hmz settings set details on` does: show tool calls and thinking",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "show tool calls and thinking"
+  },
+  {
+   "wants": "summary of `hmz settings set reports`: turn error reports on or off",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "turn error reports on or off"
+  },
+  {
+   "wants": "what the example line `hmz settings set reports off` does: stop Humanize reporting its own failures",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "stop Humanize reporting its own failures"
+  },
+  {
+   "wants": "summary of `hmz settings set harness_sessions`: list or hide harness sessions in the sidebar",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list or hide harness sessions in the sidebar"
+  },
+  {
+   "wants": "what the example line `hmz settings set harness_sessions on` does: list harness sessions after the chats of a folder",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list harness sessions after the chats of a folder"
+  },
+  {
+   "wants": "summary of `hmz settings set chat`: set the chat agent remembered for a workspace",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "set the chat agent remembered for a workspace"
+  },
+  {
+   "wants": "the AGENT argument of `hmz settings set chat`: the agent, as `-a` spells one: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` or the name of a nous",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the agent, as `-a` spells one: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` or the name of a nous"
+  },
+  {
+   "wants": "what the example line `hmz settings set chat claude/claude-opus-4-1` does: make new chats in the home folder start with that agent",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make new chats in the home folder start with that agent"
+  },
+  {
+   "wants": "what the example line `hmz settings set chat codex@work/gpt-6-sol:high -w ~/project` does: set the chat agent of the workspace `~/project`, with an account and an effort",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "set the chat agent of the workspace `~/project`, with an account and an effort"
+  },
+  {
+   "wants": "summary of `hmz settings set listen`: set the listeners the daemon opens",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "set the listeners the daemon opens"
+  },
+  {
+   "wants": "paragraph for `hmz settings set listen`, saying all of this and nothing more: Writes every listener the daemon opens, replacing the ones written; listeners open and close at once. Give none to listen nowhere.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes every listener the daemon opens, replacing the ones written; listeners open and close at once. Give none to listen nowhere."
+  },
+  {
+   "wants": "the SPEC argument of `hmz settings set listen`: a listener spec such as `tcp://0.0.0.0:7000`, `ws://0.0.0.0:7001`, `relay:URL`, `webrtc:URL` or `easytier:NAME`; or one JSON list of them",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "a listener spec such as `tcp://0.0.0.0:7000`, `ws://0.0.0.0:7001`, `relay:URL`, `webrtc:URL` or `easytier:NAME`; or one JSON list of them"
+  },
+  {
+   "wants": "what the example line `hmz settings set listen tcp://0.0.0.0:7000 ws://0.0.0.0:7001` does: listen on a TCP port and a WebSocket port",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "listen on a TCP port and a WebSocket port"
+  },
+  {
+   "wants": "what the example line `hmz settings set listen` does: close every listener",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "close every listener"
+  },
+  {
+   "wants": "summary of `hmz settings set ice_servers`: set the STUN and TURN servers",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "set the STUN and TURN servers"
+  },
+  {
+   "wants": "paragraph for `hmz settings set ice_servers`, saying all of this and nothing more: Writes every STUN and TURN server, replacing the ones written. They are only used where this daemon is reached over a `webrtc:` route. A TURN server's credential is read from JSON on standard input, never from the command line; `\"credential\": true` keeps the one written.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes every STUN and TURN server, replacing the ones written. They are only used where this daemon is reached over a `webrtc:` route. A TURN server's credential is read from JSON on standard input, never from the command line; `\"credential\": true` keeps the one written."
+  },
+  {
+   "wants": "the SERVER argument of `hmz settings set ice_servers`: a server's URL such as `stun:stun.example.org:3478`, a JSON object of `urls`, `username` and `credential`, one JSON list of them, or `-` to read that list from standard input",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "a server's URL such as `stun:stun.example.org:3478`, a JSON object of `urls`, `username` and `credential`, one JSON list of them, or `-` to read that list from standard input"
+  },
+  {
+   "wants": "what the example line `hmz settings set ice_servers stun:stun.example.org:3478` does: use one STUN server",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "use one STUN server"
+  },
+  {
+   "wants": "what the example line `hmz settings set ice_servers - < servers.json` does: read the servers, credentials included, from a JSON file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "read the servers, credentials included, from a JSON file"
+  },
+  {
+   "wants": "summary of `hmz settings set backup`: write every backup target and the defaults from JSON",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "write every backup target and the defaults from JSON"
+  },
+  {
+   "wants": "paragraph for `hmz settings set backup`, saying all of this and nothing more: Writes the whole `backup` setting, replacing every target and the defaults. A target whose `url` is the one `hmz settings get backup` printed keeps the URL written, credentials included.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes the whole `backup` setting, replacing every target and the defaults. A target whose `url` is the one `hmz settings get backup` printed keeps the URL written, credentials included."
+  },
+  {
+   "wants": "the VALUE argument of `hmz settings set backup`: a JSON object of `targets` and `defaults`, as `hmz settings get backup --json` prints under `backup`; `-` reads it from standard input",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "a JSON object of `targets` and `defaults`, as `hmz settings get backup --json` prints under `backup`; `-` reads it from standard input"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup '{\"targets\": [], \"defaults\": []}'` does: remove every backup target",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "remove every backup target"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup - < backup.json` does: write the backup targets from a JSON file",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "write the backup targets from a JSON file"
+  },
+  {
+   "wants": "summary of `hmz settings set backup.target`: add, change or remove one backup target",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "add, change or remove one backup target"
+  },
+  {
+   "wants": "paragraph for `hmz settings set backup.target`, saying all of this and nothing more: Adds a backup target, or changes the one of that name; what is not given stays as it was, and a new target starts on the branch `main`, backed up by hand only. The other targets are kept.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Adds a backup target, or changes the one of that name; what is not given stays as it was, and a new target starts on the branch `main`, backed up by hand only. The other targets are kept."
+  },
+  {
+   "wants": "the --url URL option of `hmz settings set backup.target`: the git repository, as a URL git pushes to; needed for a new target",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the git repository, as a URL git pushes to; needed for a new target"
+  },
+  {
+   "wants": "the --policy POLICY option of `hmz settings set backup.target`: when it is backed up to unasked: `session` on session close, `interval` every N minutes, `end` on epic end, or `manual` for by hand only",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "when it is backed up to unasked: `session` on session close, `interval` every N minutes, `end` on epic end, or `manual` for by hand only"
+  },
+  {
+   "wants": "the --default option of `hmz settings set backup.target`: back new epics up to it unless they say otherwise",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "back new epics up to it unless they say otherwise"
+  },
+  {
+   "wants": "the --no-default option of `hmz settings set backup.target`: stop backing new epics up to it by default",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "stop backing new epics up to it by default"
+  },
+  {
+   "wants": "the --remove option of `hmz settings set backup.target`: remove the target instead",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "remove the target instead"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup.target lab --url git@github.com:you/epics.git --policy session --policy end --default` does: add the target `lab`, backed up to on session close and on epic end, as a default",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "add the target `lab`, backed up to on session close and on epic end, as a default"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup.target lab --policy interval --every 30` does: back `lab` up every 30 minutes instead",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "back `lab` up every 30 minutes instead"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup.target lab --remove` does: remove the target `lab`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "remove the target `lab`"
+  },
+  {
+   "wants": "summary of `hmz settings set backup.defaults`: set the backup targets a new epic goes to",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "set the backup targets a new epic goes to"
+  },
+  {
+   "wants": "the NAME argument of `hmz settings set backup.defaults`: name of a backup target; none given means a new epic is backed up nowhere by default",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "name of a backup target; none given means a new epic is backed up nowhere by default"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup.defaults lab` does: back new epics up to the target `lab`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "back new epics up to the target `lab`"
+  },
+  {
+   "wants": "what the example line `hmz settings set backup.defaults` does: back new epics up to no target by default",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "back new epics up to no target by default"
+  },
+  {
+   "wants": "summary of `hmz settings forget`: forget what a workspace was set up with",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "forget what a workspace was set up with"
+  },
+  {
+   "wants": "paragraph for `hmz settings forget`, saying all of this and nothing more: Forgets the flow a workspace opens on and how every flow was set up there. Where no epic ran there, the workspace also stops being offered.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Forgets the flow a workspace opens on and how every flow was set up there. Where no epic ran there, the workspace also stops being offered."
+  },
+  {
+   "wants": "what `hmz settings forget` prints as text: `Forgotten.`, or `Nothing to forget.` where nothing was set up there.",
+   "where": "sentence in the Output section of --help",
+   "text": "`Forgotten.`, or `Nothing to forget.` where nothing was set up there."
+  },
+  {
+   "wants": "the --workspace PATH option of `hmz settings forget`: the workspace folder, as a path",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the workspace folder, as a path"
+  },
+  {
+   "wants": "what the example line `hmz settings forget -w ~/project` does: forget how the flows of `~/project` were set up",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "forget how the flows of `~/project` were set up"
+  },
+  {
+   "wants": "the JSON field `forgot` (boolean) that `hmz settings forget --json` prints: whether there was anything to forget",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether there was anything to forget"
+  },
+  {
+   "wants": "what `hmz settings` says when a command line cannot be read: no setting named {name}",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "no setting named {name}"
+  },
+  {
+   "wants": "summary of `hmz accounts`: list, add and remove the accounts agents run as",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list, add and remove the accounts agents run as"
+  },
+  {
+   "wants": "paragraph for `hmz accounts`, saying all of this and nothing more: An account is a named set of credentials for one harness, kept apart from the harness's own sign-in. An agent is given one as `-a` spells it: `HARNESS@ACCOUNT/MODEL`. No command prints a credential, and a credential is never taken from the command line.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "An account is a named set of credentials for one harness, kept apart from the harness's own sign-in. An agent is given one as `-a` spells it: `HARNESS@ACCOUNT/MODEL`. No command prints a credential, and a credential is never taken from the command line."
+  },
+  {
+   "wants": "summary of `hmz accounts list`: list the accounts",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list the accounts"
+  },
+  {
+   "wants": "what `hmz accounts list` prints as text: One line per account: harness, name (`Local` for the machine's own sign-in), sign-in method, the variables it sets, how many models it runs.",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per account: harness, name (`Local` for the machine's own sign-in), sign-in method, the variables it sets, how many models it runs."
+  },
+  {
+   "wants": "what the example line `hmz accounts list --json | jq -r '.accounts[] | \"\\(.cli)@\\(.name)\"'` does: print each account as `HARNESS@ACCOUNT` with jq",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print each account as `HARNESS@ACCOUNT` with jq"
+  },
+  {
+   "wants": "the JSON field `gateway` (string) that `hmz accounts list --json` prints: name of the local gateway some ways of signing in go through",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "name of the local gateway some ways of signing in go through"
+  },
+  {
+   "wants": "the JSON field `accounts` (list) that `hmz accounts list --json` prints: every account, the machine's own sign-in listed with an empty name",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "every account, the machine's own sign-in listed with an empty name"
+  },
+  {
+   "wants": "the JSON field `accounts[].cli` (string) that `hmz accounts list --json` prints: the harness the account is for",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the harness the account is for"
+  },
+  {
+   "wants": "the JSON field `accounts[].name` (string) that `hmz accounts list --json` prints: name of the account, empty for the machine's own sign-in",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "name of the account, empty for the machine's own sign-in"
+  },
+  {
+   "wants": "the JSON field `accounts[].way` (string) that `hmz accounts list --json` prints: the sign-in method it was made by",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the sign-in method it was made by"
+  },
+  {
+   "wants": "the JSON field `accounts[].sets` (list) that `hmz accounts list --json` prints: names of the environment variables it sets, never their values",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "names of the environment variables it sets, never their values"
+  },
+  {
+   "wants": "the JSON field `accounts[].made` (string) that `hmz accounts list --json` prints: when it was made, ISO 8601, or empty for the machine's own sign-in",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "when it was made, ISO 8601, or empty for the machine's own sign-in"
+  },
+  {
+   "wants": "the JSON field `accounts[].models` (list) that `hmz accounts list --json` prints: the models its harness last said it runs as this account",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the models its harness last said it runs as this account"
+  },
+  {
+   "wants": "the JSON field `accounts[].asked` (string) that `hmz accounts list --json` prints: when the harness was last asked for its models, ISO 8601, or empty if never",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "when the harness was last asked for its models, ISO 8601, or empty if never"
+  },
+  {
+   "wants": "the JSON field `accounts[].serves` (list) that `hmz accounts list --json` prints: the other harnesses the account can be copied to",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the other harnesses the account can be copied to"
+  },
+  {
+   "wants": "summary of `hmz accounts ways`: list the sign-in methods of each harness and what each asks for",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list the sign-in methods of each harness and what each asks for"
+  },
+  {
+   "wants": "paragraph for `hmz accounts ways`, saying all of this and nothing more: Lists how an account can be made for each harness. A method marked `(at a terminal)` runs the harness's own sign-in and can only be used from `/settings` in `hmz`; any other is made by `hmz accounts add` from the answers it asks for.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Lists how an account can be made for each harness. A method marked `(at a terminal)` runs the harness's own sign-in and can only be used from `/settings` in `hmz`; any other is made by `hmz accounts add` from the answers it asks for."
+  },
+  {
+   "wants": "what `hmz accounts ways` prints as text: One line per sign-in method: harness, method, what it is. Under it, indented, one line per answer it asks for: the variable and what it is.",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per sign-in method: harness, method, what it is. Under it, indented, one line per answer it asks for: the variable and what it is."
+  },
+  {
+   "wants": "the CLI argument of `hmz accounts ways`: list the sign-in methods of this harness only",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "list the sign-in methods of this harness only"
+  },
+  {
+   "wants": "what the example line `hmz accounts ways claude` does: list the sign-in methods of `claude` and the variables each asks for",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list the sign-in methods of `claude` and the variables each asks for"
+  },
+  {
+   "wants": "what the example line `hmz accounts ways --json | jq '.backends[].ways[] | select(.terminal | not) | .name'` does: print the sign-in methods `hmz accounts add` can use with jq",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the sign-in methods `hmz accounts add` can use with jq"
+  },
+  {
+   "wants": "the JSON field `backends` (list) that `hmz accounts ways --json` prints: every harness of the daemon",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "every harness of the daemon"
+  },
+  {
+   "wants": "the JSON field `backends[].cli` (string) that `hmz accounts ways --json` prints: name of the harness",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "name of the harness"
+  },
+  {
+   "wants": "the JSON field `backends[].wants` (string) that `hmz accounts ways --json` prints: the command that installs what its gateway sign-in methods need, or empty",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the command that installs what its gateway sign-in methods need, or empty"
+  },
+  {
+   "wants": "the JSON field `backends[].ways` (list) that `hmz accounts ways --json` prints: its sign-in methods",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "its sign-in methods"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].name` (string) that `hmz accounts ways --json` prints: name of the sign-in method, as `--way` takes it",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "name of the sign-in method, as `--way` takes it"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].about` (string) that `hmz accounts ways --json` prints: what the sign-in method is",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "what the sign-in method is"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].group` (string) that `hmz accounts ways --json` prints: the gateway it goes through, or empty",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the gateway it goes through, or empty"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].terminal` (boolean) that `hmz accounts ways --json` prints: whether it needs a terminal and so cannot be used by `hmz accounts add`",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether it needs a terminal and so cannot be used by `hmz accounts add`"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].asks` (list) that `hmz accounts ways --json` prints: the answers it asks for",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the answers it asks for"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].asks[].env` (string) that `hmz accounts ways --json` prints: the variable the answer is given as",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the variable the answer is given as"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].asks[].about` (string) that `hmz accounts ways --json` prints: what the answer is",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "what the answer is"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].asks[].secret` (boolean) that `hmz accounts ways --json` prints: whether the answer is a credential, taken by `--env` or `--stdin` only",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether the answer is a credential, taken by `--env` or `--stdin` only"
+  },
+  {
+   "wants": "the JSON field `backends[].ways[].asks[].fixed` (string) that `hmz accounts ways --json` prints: its value where left unanswered, or empty where it must be answered",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "its value where left unanswered, or empty where it must be answered"
+  },
+  {
+   "wants": "summary of `hmz accounts add`: make an account from the answers to a sign-in method",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "make an account from the answers to a sign-in method"
+  },
+  {
+   "wants": "paragraph for `hmz accounts add`, saying all of this and nothing more: Makes an account for a harness. `hmz accounts ways CLI` lists the sign-in methods and the answers each asks for. Give an answer that is a credential with `--env` or `--stdin`; `--set` refuses one, and no answer is ever printed.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Makes an account for a harness. `hmz accounts ways CLI` lists the sign-in methods and the answers each asks for. Give an answer that is a credential with `--env` or `--stdin`; `--set` refuses one, and no answer is ever printed."
+  },
+  {
+   "wants": "what `hmz accounts add` prints as text: The line `Made HARNESS@ACCOUNT.`",
+   "where": "sentence in the Output section of --help",
+   "text": "The line `Made HARNESS@ACCOUNT.`."
+  },
+  {
+   "wants": "the CLI argument of `hmz accounts add`: the harness the account is for, such as `claude` or `codex`",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the harness the account is for, such as `claude` or `codex`"
+  },
+  {
+   "wants": "the NAME argument of `hmz accounts add`: name for the new account, such as `work`",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "name for the new account, such as `work`"
+  },
+  {
+   "wants": "the --way WAY option of `hmz accounts add`: the sign-in method, as `hmz accounts ways` names it",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the sign-in method, as `hmz accounts ways` names it"
+  },
+  {
+   "wants": "the --set NAME=VALUE option of `hmz accounts add`: an answer that is not a credential, as NAME=VALUE, NAME being the variable the way asks for",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "an answer that is not a credential, as NAME=VALUE, NAME being the variable the way asks for"
+  },
+  {
+   "wants": "the --env NAME[=VAR] option of `hmz accounts add`: take the answer NAME from the environment variable of the same name, or from VAR where written NAME=VAR; for credentials",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "take the answer NAME from the environment variable of the same name, or from VAR where written NAME=VAR; for credentials"
+  },
+  {
+   "wants": "the --stdin NAME option of `hmz accounts add`: read the answer NAME from standard input, without its trailing line feed; for a credential",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "read the answer NAME from standard input, without its trailing line feed; for a credential"
+  },
+  {
+   "wants": "what the example line `hmz accounts add claude work --way key --env ANTHROPIC_API_KEY` does: make `claude@work` from the API key in the environment variable `ANTHROPIC_API_KEY`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make `claude@work` from the API key in the environment variable `ANTHROPIC_API_KEY`"
+  },
+  {
+   "wants": "what the example line `pass show anthropic | hmz accounts add claude work --way key --stdin ANTHROPIC_API_KEY` does: read the API key from standard input instead",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "read the API key from standard input instead"
+  },
+  {
+   "wants": "what the example line `hmz accounts add claude proxy --way anthropic-gateway --set ANTHROPIC_BASE_URL=https://llm.example.org --env ANTHROPIC_AUTH_TOKEN=PROXY_TOKEN` does: give a URL on the command line and a credential from the environment variable `PROXY_TOKEN`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "give a URL on the command line and a credential from the environment variable `PROXY_TOKEN`"
+  },
+  {
+   "wants": "summary of `hmz accounts correct`: write an account again with new answers",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "write an account again with new answers"
+  },
+  {
+   "wants": "paragraph for `hmz accounts correct`, saying all of this and nothing more: Changes the answers an account was made from. An answer not given stays as it was. Give a credential with `--env` or `--stdin`.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Changes the answers an account was made from. An answer not given stays as it was. Give a credential with `--env` or `--stdin`."
+  },
+  {
+   "wants": "the NAME argument of `hmz accounts correct`: name of the account, as `hmz accounts list` prints it",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "name of the account, as `hmz accounts list` prints it"
+  },
+  {
+   "wants": "what the example line `hmz accounts correct claude work --env ANTHROPIC_API_KEY` does: replace the API key of `claude@work` with the one in the environment",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "replace the API key of `claude@work` with the one in the environment"
+  },
+  {
+   "wants": "what the example line `hmz accounts correct claude proxy --set ANTHROPIC_BASE_URL=https://llm2.example.org` does: change the URL of `claude@proxy` and keep its credential",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "change the URL of `claude@proxy` and keep its credential"
+  },
+  {
+   "wants": "summary of `hmz accounts remove`: remove an account, credentials and all",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "remove an account, credentials and all"
+  },
+  {
+   "wants": "what `hmz accounts remove` prints as text: The line `Removed`",
+   "where": "sentence in the Output section of --help",
+   "text": "The line `Removed`."
+  },
+  {
+   "wants": "what the example line `hmz accounts remove claude work` does: remove the account `claude@work`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "remove the account `claude@work`"
+  },
+  {
+   "wants": "summary of `hmz accounts models`: ask a harness which models it runs as an account",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "ask a harness which models it runs as an account"
+  },
+  {
+   "wants": "paragraph for `hmz accounts models`, saying all of this and nothing more: Asks the harness which models it runs as the account, and keeps the answer: it is what `hmz accounts list` and `hmz nous list` show from then on.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Asks the harness which models it runs as the account, and keeps the answer: it is what `hmz accounts list` and `hmz nous list` show from then on."
+  },
+  {
+   "wants": "what `hmz accounts models` prints as text: One model per line, or `No models listed`.",
+   "where": "sentence in the Output section of --help",
+   "text": "One model per line, or `No models listed`."
+  },
+  {
+   "wants": "the NAME argument of `hmz accounts models`: name of the account; the machine's own sign-in where not given",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "name of the account; the machine's own sign-in where not given"
+  },
+  {
+   "wants": "what the example line `hmz accounts models claude work` does: ask `claude` which models it runs as the account `work`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "ask `claude` which models it runs as the account `work`"
+  },
+  {
+   "wants": "what the example line `hmz accounts models codex` does: ask `codex` which models it runs as the machine's own sign-in",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "ask `codex` which models it runs as the machine's own sign-in"
+  },
+  {
+   "wants": "the JSON field `cli` (string) that `hmz accounts models --json` prints: the harness that was asked",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the harness that was asked"
+  },
+  {
+   "wants": "the JSON field `models` (list) that `hmz accounts models --json` prints: the models the harness runs as the account",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the models the harness runs as the account"
+  },
+  {
+   "wants": "the JSON field `asked` (string) that `hmz accounts models --json` prints: when the harness was asked, ISO 8601, or empty where the daemon does not say",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "when the harness was asked, ISO 8601, or empty where the daemon does not say"
+  },
+  {
+   "wants": "summary of `hmz accounts copy`: copy an account to another harness",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "copy an account to another harness"
+  },
+  {
+   "wants": "paragraph for `hmz accounts copy`, saying all of this and nothing more: Writes an account down again for another harness its credentials can run. The `serves` field of `hmz accounts list --json` names the harnesses an account can be copied to.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes an account down again for another harness its credentials can run. The `serves` field of `hmz accounts list --json` names the harnesses an account can be copied to."
+  },
+  {
+   "wants": "what `hmz accounts copy` prints as text: The line `Copied to HARNESS`",
+   "where": "sentence in the Output section of --help",
+   "text": "The line `Copied to HARNESS`."
+  },
+  {
+   "wants": "the INTO argument of `hmz accounts copy`: the harness to copy it to",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the harness to copy it to"
+  },
+  {
+   "wants": "what the example line `hmz accounts copy claude work pi` does: copy the account `claude@work` to the harness `pi`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "copy the account `claude@work` to the harness `pi`"
+  },
+  {
+   "wants": "what `hmz accounts` says when a command line cannot be read: {name} is a credential: give it with `--env` or `--stdin`, not on the command line",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "{name} is a credential: give it with `--env` or `--stdin`, not on the command line"
+  },
+  {
+   "wants": "what `hmz accounts` says when a command line cannot be read: the environment variable {name} is not set",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "the environment variable {name} is not set"
+  },
+  {
+   "wants": "summary of `hmz nous`: list, scan and write nous: models, tries and fallbacks",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list, scan and write nous: models, tries and fallbacks"
+  },
+  {
+   "wants": "paragraph for `hmz nous`, saying all of this and nothing more: A concrete nous is a model of a harness, written `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`. A virtual nous is a name for a graph of other nous: a turn that fails there is tried again, on the same model or on another. An agent is given either with `-a`.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "A concrete nous is a model of a harness, written `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`. A virtual nous is a name for a graph of other nous: a turn that fails there is tried again, on the same model or on another. An agent is given either with `-a`."
+  },
+  {
+   "wants": "summary of `hmz nous list`: list the nous written, or every concrete nous",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "list the nous written, or every concrete nous"
+  },
+  {
+   "wants": "what `hmz nous list` prints as text: One line per nous written: name, `Virtual` or `Concrete`, tries and policy, limit, graph, and where a turn goes once its tries are spent. A graph that is a chain is printed as its nous separated by commas, any other as JSON.",
+   "where": "sentence in the Output section of --help",
+   "text": "One line per nous written: name, `Virtual` or `Concrete`, tries and policy, limit, graph, and where a turn goes once its tries are spent. A graph that is a chain is printed as its nous separated by commas, any other as JSON."
+  },
+  {
+   "wants": "the --concrete option of `hmz nous list`: print every concrete nous the harnesses run instead, one per line",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "print every concrete nous the harnesses run instead, one per line"
+  },
+  {
+   "wants": "what the example line `hmz nous list` does: list every nous that has tries, a limit or a graph written",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list every nous that has tries, a limit or a graph written"
+  },
+  {
+   "wants": "what the example line `hmz nous list --concrete` does: list every model an agent can be given",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "list every model an agent can be given"
+  },
+  {
+   "wants": "what the example line `hmz nous list --json | jq -r '.policies[].name'` does: print the names of the ways of waiting with jq",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the names of the ways of waiting with jq"
+  },
+  {
+   "wants": "the JSON field `nous` (list) that `hmz nous list --json` prints: every nous that has something written of it",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "every nous that has something written of it"
+  },
+  {
+   "wants": "the JSON field `nous[].name` (string) that `hmz nous list --json` prints: the nous: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` for a concrete one, a name for a virtual one",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the nous: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` for a concrete one, a name for a virtual one"
+  },
+  {
+   "wants": "the JSON field `nous[].virtual` (boolean) that `hmz nous list --json` prints: whether it is a virtual nous, a name for a graph of other nous",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether it is a virtual nous, a name for a graph of other nous"
+  },
+  {
+   "wants": "the JSON field `nous[].tries` (integer) that `hmz nous list --json` prints: how many more goes a turn that fails there is given",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "how many more goes a turn that fails there is given"
+  },
+  {
+   "wants": "the JSON field `nous[].policy` (string) that `hmz nous list --json` prints: how long is waited between tries, one of `policies`",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "how long is waited between tries, one of `policies`"
+  },
+  {
+   "wants": "the JSON field `nous[].timeout` (number) that `hmz nous list --json` prints: the limit of a turn in seconds, 0 for no limit",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the limit of a turn in seconds, 0 for no limit"
+  },
+  {
+   "wants": "the JSON field `nous[].graph` (object|null) that `hmz nous list --json` prints: the graph a virtual nous stands for, null for a concrete nous",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the graph a virtual nous stands for, null for a concrete nous"
+  },
+  {
+   "wants": "the JSON field `nous[].graph.start` (string) that `hmz nous list --json` prints: id of the node a turn starts at",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "id of the node a turn starts at"
+  },
+  {
+   "wants": "the JSON field `nous[].graph.nodes` (list) that `hmz nous list --json` prints: the nodes, each `id`, `use` (a nous) or `balance` (a strategy) with `among` (each `nous` and `weight`) and `spread`, and `on` (fault to node id, `*` for any other)",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the nodes, each `id`, `use` (a nous) or `balance` (a strategy) with `among` (each `nous` and `weight`) and `spread`, and `on` (fault to node id, `*` for any other)"
+  },
+  {
+   "wants": "the JSON field `nous[].then` (object|null) that `hmz nous list --json` prints: the graph a turn goes to once its tries are spent, in the same shape, or null for nowhere",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the graph a turn goes to once its tries are spent, in the same shape, or null for nowhere"
+  },
+  {
+   "wants": "the JSON field `policies` (list) that `hmz nous list --json` prints: the ways of waiting between tries, each `name` and `about`",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the ways of waiting between tries, each `name` and `about`"
+  },
+  {
+   "wants": "the JSON field `default` (string) that `hmz nous list --json` prints: the policy used where none is given",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the policy used where none is given"
+  },
+  {
+   "wants": "the JSON field `strategies` (list) that `hmz nous list --json` prints: the ways a balance node picks among its members, each `name` and `about`",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the ways a balance node picks among its members, each `name` and `about`"
+  },
+  {
+   "wants": "the JSON field `faults` (list) that `hmz nous list --json` prints: every fault an edge of a graph can be for, and `*` for any other",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "every fault an edge of a graph can be for, and `*` for any other"
+  },
+  {
+   "wants": "the JSON field `concrete` (list) that `hmz nous list --json` prints: every concrete nous the installed harnesses and the accounts run, without an effort",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "every concrete nous the installed harnesses and the accounts run, without an effort"
+  },
+  {
+   "wants": "the JSON field `scanning` (boolean) that `hmz nous list --json` prints: whether a scan of the harnesses is going on",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "whether a scan of the harnesses is going on"
+  },
+  {
+   "wants": "summary of `hmz nous scan`: ask every installed harness which models it runs",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "ask every installed harness which models it runs"
+  },
+  {
+   "wants": "paragraph for `hmz nous scan`, saying all of this and nothing more: Asks every harness installed on the daemon's machine which models it runs, as the machine's own sign-in and as each account. This starts each harness and can take a minute. A harness that does not answer is reported and does not fail the command.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Asks every harness installed on the daemon's machine which models it runs, as the machine's own sign-in and as each account. This starts each harness and can take a minute. A harness that does not answer is reported and does not fail the command."
+  },
+  {
+   "wants": "what `hmz nous scan` prints as text: How many concrete nous were found, on standard output; one line per harness that would not answer, on standard error.",
+   "where": "sentence in the Output section of --help",
+   "text": "How many concrete nous were found, on standard output; one line per harness that would not answer, on standard error."
+  },
+  {
+   "wants": "what the example line `hmz nous scan` does: ask every harness what it runs and print how many concrete nous were found",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "ask every harness what it runs and print how many concrete nous were found"
+  },
+  {
+   "wants": "what the example line `hmz nous scan --json | jq '.failed'` does: print the harnesses that would not answer, with jq",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "print the harnesses that would not answer, with jq"
+  },
+  {
+   "wants": "the JSON field `failed` (list) that `hmz nous scan --json` prints: the harnesses that would not answer",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the harnesses that would not answer"
+  },
+  {
+   "wants": "the JSON field `failed[].cli` (string) that `hmz nous scan --json` prints: the harness",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the harness"
+  },
+  {
+   "wants": "the JSON field `failed[].account` (string) that `hmz nous scan --json` prints: the account it was asked as, empty for the machine's own sign-in",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "the account it was asked as, empty for the machine's own sign-in"
+  },
+  {
+   "wants": "the JSON field `failed[].why` (string) that `hmz nous scan --json` prints: why it would not answer",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "why it would not answer"
+  },
+  {
+   "wants": "summary of `hmz nous set`: write the tries, limit and graph of a nous",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "write the tries, limit and graph of a nous"
+  },
+  {
+   "wants": "paragraph for `hmz nous set`, saying all of this and nothing more: Writes what is kept of one nous. What is not given stays as it was written. A name with no `/` is a virtual nous and needs `--graph`. A graph is one or more nous tried in turn, or one JSON object of `start` and `nodes` as `hmz nous list --json` prints one.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Writes what is kept of one nous. What is not given stays as it was written. A name with no `/` is a virtual nous and needs `--graph`. A graph is one or more nous tried in turn, or one JSON object of `start` and `nodes` as `hmz nous list --json` prints one."
+  },
+  {
+   "wants": "the NAME argument of `hmz nous set`: the nous: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` for a concrete one, any other name for a virtual one",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the nous: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]` for a concrete one, any other name for a virtual one"
+  },
+  {
+   "wants": "the --policy POLICY option of `hmz nous set`: how long is waited between tries: one of the `policies` of `hmz nous list --json`, such as `exponential-jitter` or `constant`",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "how long is waited between tries: one of the `policies` of `hmz nous list --json`, such as `exponential-jitter` or `constant`"
+  },
+  {
+   "wants": "the --graph GRAPH option of `hmz nous set`: what a virtual nous stands for: a nous, or a JSON graph; given more than once, the nous are tried in turn",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "what a virtual nous stands for: a nous, or a JSON graph; given more than once, the nous are tried in turn"
+  },
+  {
+   "wants": "the --then GRAPH option of `hmz nous set`: where a turn goes once its tries are spent: a nous, or a JSON graph; given more than once, the nous are tried in turn",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "where a turn goes once its tries are spent: a nous, or a JSON graph; given more than once, the nous are tried in turn"
+  },
+  {
+   "wants": "the --no-then option of `hmz nous set`: send a turn nowhere once its tries are spent, so that it fails",
+   "where": "option description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "send a turn nowhere once its tries are spent, so that it fails"
+  },
+  {
+   "wants": "what the example line `hmz nous set claude/claude-opus-4-1 --tries 3 --timeout 600` does: give turns on that model three more goes and ten minutes each",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "give turns on that model three more goes and ten minutes each"
+  },
+  {
+   "wants": "what the example line `hmz nous set careful --graph claude/claude-opus-4-1 --graph codex/gpt-6-sol --tries 1` does: make the virtual nous `careful`, which tries one model and then the other",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make the virtual nous `careful`, which tries one model and then the other"
+  },
+  {
+   "wants": "what the example line `hmz nous set claude/claude-opus-4-1 --then careful` does: send a turn to `careful` once its tries on that model are spent",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "send a turn to `careful` once its tries on that model are spent"
+  },
+  {
+   "wants": "what the example line `hmz nous set fast --graph '{\"start\": \"a\", \"nodes\": [{\"id\": \"a\", \"balance\": \"round-robin\", \"among\": [{\"nous\": \"claude/claude-haiku-4-5\", \"weight\": 1}, {\"nous\": \"codex/gpt-6-luna\", \"weight\": 1}]}]}'` does: make the virtual nous `fast`, which balances turns between two models",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make the virtual nous `fast`, which balances turns between two models"
+  },
+  {
+   "wants": "summary of `hmz nous rename`: rename a virtual nous",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "rename a virtual nous"
+  },
+  {
+   "wants": "paragraph for `hmz nous rename`, saying all of this and nothing more: Gives a virtual nous another name, in every graph that names it too.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Gives a virtual nous another name, in every graph that names it too."
+  },
+  {
+   "wants": "what `hmz nous rename` prints as text: The line `Renamed`",
+   "where": "sentence in the Output section of --help",
+   "text": "The line `Renamed`."
+  },
+  {
+   "wants": "the NAME argument of `hmz nous rename`: the virtual nous to rename",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the virtual nous to rename"
+  },
+  {
+   "wants": "the TO argument of `hmz nous rename`: its new name",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "its new name"
+  },
+  {
+   "wants": "what the example line `hmz nous rename careful slow` does: rename the virtual nous `careful` to `slow`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "rename the virtual nous `careful` to `slow`"
+  },
+  {
+   "wants": "summary of `hmz nous clear`: forget what is written of a nous",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "forget what is written of a nous"
+  },
+  {
+   "wants": "paragraph for `hmz nous clear`, saying all of this and nothing more: Removes the tries, limit and graph written of a nous; a virtual nous is removed whole. A nous that another nous names in its graph is refused.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Removes the tries, limit and graph written of a nous; a virtual nous is removed whole. A nous that another nous names in its graph is refused."
+  },
+  {
+   "wants": "the NAME argument of `hmz nous clear`: the nous, as `hmz nous list` prints it",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "the nous, as `hmz nous list` prints it"
+  },
+  {
+   "wants": "what the example line `hmz nous clear careful` does: remove the virtual nous `careful`",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "remove the virtual nous `careful`"
+  },
+  {
+   "wants": "paragraph for `hmz settings`, saying all of this and nothing more: The settings a daemon keeps for its machine (details, error reports, harness sessions, what `$NAME` means in a chat, backup targets, listeners, STUN and TURN servers) and for one workspace (its chat agent and the flows set up there).",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "The settings a daemon keeps for its machine (details, error reports, harness sessions, what `$NAME` means in a chat, backup targets, listeners, STUN and TURN servers) and for one workspace (its chat agent and the flows set up there)."
+  },
+  {
+   "wants": "the JSON field `prefer` (string) that `hmz settings get --json` prints: what `$NAME` in a chat means where it names both a native skill and a flow: `native` or `flow`",
+   "where": "description of a JSON field in --help, lower case start, no full stop; keep every fact",
+   "text": "what `$NAME` in a chat means where it names both a native skill and a flow: `native` or `flow`"
+  },
+  {
+   "wants": "summary of `hmz settings set prefer`: set what `$NAME` in a chat means where it names both a native skill and a flow",
+   "where": "command summary in a --help listing, lower-case verb first, no full stop",
+   "text": "set what `$NAME` in a chat means when a skill and flow match"
+  },
+  {
+   "wants": "paragraph for `hmz settings set prefer`, saying all of this and nothing more: Sets the preference of every chat of this machine: whether `$NAME` typed in a chat runs the harness's own skill of that name or the flow of that name, where both exist. One chat can override it with `/prefer`.",
+   "where": "paragraph of --help; may run to 60 words; keep every fact",
+   "text": "Sets the preference of every chat of this machine: whether `$NAME` typed in a chat runs the harness's own skill of that name or the flow of that name, where both exist. One chat can override it with `/prefer`."
+  },
+  {
+   "wants": "the VALUE argument of `hmz settings set prefer`: `native` for the harness's own skill, `flow` for the flow",
+   "where": "argument description, lower case start, no full stop; may run to 40 words; keep every fact and every backticked example",
+   "text": "`native` for the harness's own skill, `flow` for the flow"
+  },
+  {
+   "wants": "what the example line `hmz settings set prefer flow` does: make `$NAME` in a chat run the flow where a skill has the same name",
+   "where": "what an example line does, lower case start, no full stop",
+   "text": "make `$NAME` in a chat run the flow where a skill has the same name"
+  },
+  {
+   "wants": "what `hmz settings` says when a command line cannot be read: a credential is read from standard input only: give the servers as JSON with `-`",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "a credential is read from standard input only: give the servers as JSON with `-`"
+  },
+  {
+   "wants": "what `hmz settings` says when a command line cannot be read: no backup target named {name}",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "no backup target named {name}"
+  },
+  {
+   "wants": "what `hmz accounts` says when a command line cannot be read: `--set` takes an answer as NAME=VALUE",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "`--set` takes an answer as NAME=VALUE"
+  },
+  {
+   "wants": "what `hmz accounts` says when a command line cannot be read: the answer given for {name} is empty",
+   "where": "usage error after `hmz <command>: `, lower case start, no full stop; keep `{names}` and backticks",
+   "text": "the answer given for {name} is empty"
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

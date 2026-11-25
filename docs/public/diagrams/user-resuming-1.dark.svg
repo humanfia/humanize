@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 232" role="img">
+  <title>Resuming starts a new epic from a copy of the earlier epic's saved state</title>
+  <rect width="760" height="232" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#4fd8ea"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="40" y="44" font-size="16" font-weight="600" fill="#e8f0f2">Resuming starts a new epic</text>
+
+    <rect x="40" y="64" width="280" height="112" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="56" y="90" font-size="14" fill="#e8f0f2">Earlier epic</text>
+    <text x="56" y="110" font-size="12" fill="#9aa9b0">stopped, failed or cut off; never changed</text>
+    <rect x="56" y="128" width="120" height="32" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="116" y="149" font-size="12" fill="#4fd8ea" text-anchor="middle">saved state</text>
+
+    <text x="380" y="134" font-size="12" fill="#b3c3c8" text-anchor="middle">copied</text>
+
+    <rect x="440" y="64" width="280" height="112" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+    <text x="456" y="90" font-size="14" fill="#e8f0f2">New epic</text>
+    <text x="456" y="110" font-size="12" fill="#9aa9b0">its own name; budget counted from zero</text>
+    <path d="M176 144H462" fill="none" stroke="#4fd8ea" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="464" y="128" width="120" height="32" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+    <text x="524" y="149" font-size="12" fill="#4fd8ea" text-anchor="middle">saved state</text>
+    <text x="600" y="149" font-size="12" fill="#b3c3c8">carries on</text>
+
+    <text x="40" y="204" font-size="12" fill="#9aa9b0">Without resuming, the flow starts from the beginning.</text>
+  </g>
+</svg>

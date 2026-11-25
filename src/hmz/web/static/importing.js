@@ -4,7 +4,9 @@
 
 import { daemon, hash, imported, refresh } from './api.js'
 import { h, iconButton, problem } from './dom.js'
+import { t } from './i18n.js'
 import { fromBase64 } from './rpc/pipe.js'
+import { posted } from './ui.js'
 
 /** What an epic's archive is named with. */
 const SUFFIX = '.hmzepic'
@@ -12,24 +14,23 @@ const SUFFIX = '.hmzepic'
 /** The most a daemon takes of one, which is told before any of it is sent. */
 const LARGEST = 2 * 1024 ** 3
 
-/** What is said of the import going, or of how it failed, until the next or until closed. */
-let notice = null
+/** What takes away what is said of the import going, or of how it failed: said until the next or until closed. */
+let unsay = () => {}
 
 function say(...kids) {
-  notice?.remove()
-  notice = kids.length ? h('div', { class: 'toast notice', role: 'status', 'data-hmz': 'import-notice' }, kids) : null
-  if (notice) document.body.append(notice)
+  unsay()
+  unsay = kids.length ? posted(h('div', { class: 'toast notice', role: 'status', 'data-hmz': 'import-notice' }, kids)) : () => {}
 }
 
 /** Says why an import failed, until closed. */
 function failed(...why) {
-  say(why, iconButton('close', 'Close', { onclick: () => say() }))
+  say(why, iconButton('close', t('Close'), { onclick: () => say() }))
 }
 
 /** How an import refused is said: the daemon's sentence, and the epic it names where that is here already. */
 export function refusal(error) {
   const name = error.said && error.said.name
-  return [problem(error), name ? h('a', { href: hash(`/epics/${encodeURIComponent(name)}`), 'data-hmz': 'imported-already', onclick: () => say() }, 'Open') : null]
+  return [problem(error), name ? h('a', { href: hash(`/epics/${encodeURIComponent(name)}`), 'data-hmz': 'imported-already', onclick: () => say() }, t('Open')) : null]
 }
 
 /** The most the desktop application reads of an opened archive at once (Section 3.12.7 of protocol/desktop.md). */
@@ -53,8 +54,8 @@ export async function opened(path) {
 
 /** Sends one archive in chunks, saying so as it goes, and opens the epic it was once it is in. */
 export async function importFile(file) {
-  if (file.size > LARGEST) return failed(problem('That is more than a daemon takes.'))
-  say(h('span', {}, `Importing ${file.name}…`))
+  if (file.size > LARGEST) return failed(problem(t('That is more than a daemon takes.')))
+  say(h('span', {}, t('Importing {name}…', { name: file.name })))
   const into = daemon()
   try {
     const answer = await imported(file, { on: into })
@@ -116,5 +117,5 @@ addEventListener('drop', (event) => {
   dropping(false)
   const file = [...event.dataTransfer.files].find((one) => one.name.endsWith(SUFFIX))
   if (file) importFile(file)
-  else failed(problem(`Only a ${SUFFIX} file is imported.`))
+  else failed(problem(t('Only a {suffix} file is imported.', { suffix: SUFFIX })))
 })

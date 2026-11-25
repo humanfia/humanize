@@ -6,21 +6,26 @@
 //
 // `#/envs/live?workspace=…&slot=…&env=<id>&tab=<panel>` is the envs of whichever epic a host
 // holds, at the address of that host, `#/live`, with `envs/` before it (Section 3.16 of
-// protocol/web.md). The same frame, without its list, stands in a chat's side panel (`frame`).
+// protocol/web.md). A chat's says the chat too (`chat=<id>`): where the host it names has gone,
+// the chat is brought up again with nothing said, and its address goes on to the host it is on
+// now. The same frame, without its list, stands in a chat's side panel (`frame`).
 //
 // Each panel is a module of its own, loaded when first opened and kept, hidden, while another is
 // shown -- an editor's tabs and a terminal's screen stay as they were -- and left once another
 // environment is picked. It is given the frame's `ctx` (views/envs/tree.js works out the rest).
 
-import { hash } from '../api.js'
+import { call, hash } from '../api.js'
 import { stays } from '../app.js'
 import { pathOf } from '../chats.js'
-import { empty, fill, h, headline, pathText, problem } from '../dom.js'
+import { empty, fill, h, headline, icon, pathText, problem } from '../dom.js'
 import { watch } from '../epic.js'
 import { hearing, hosted } from '../held.js'
+import { t } from '../i18n.js'
+import { modal } from '../layers.js'
 import { bar, keep, kept } from '../shell.js'
 import { COLOURS } from '../themes.js'
-import { clampWidth, factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
+import { splitter } from './envs/split.js'
+import { factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
 
 /** Each panel's module, loaded the first time it is opened. */
 const PANELS = {
@@ -29,12 +34,11 @@ const PANELS = {
   changes: () => import('./envs/changes.js'),
 }
 
-/** How wide the list of environments is until it is dragged, and how far a key moves it. */
-const WIDE = 240
-const STEP = 16
-
 /** The tokens a theme is told to a panel by: every colour a theme sets, and the fonts. */
 const TOKENS = [...COLOURS.flatMap(([, tokens]) => tokens.map(([token]) => token)), 'live', 'live-soft', 'sans', 'mono']
+
+/** Why an environment cannot be worked in (tree.js `offOf`), as it is said. */
+const OFF = { closed: t('closed'), unavailable: t('unavailable') }
 
 /** Links the frame's stylesheet into the page, once. */
 function styled() {
@@ -50,34 +54,37 @@ export function themeNow() {
   return { dark: document.documentElement.dataset.theme === 'dark', tokens }
 }
 
-/** Asks a question that is answered yes or no, over the page, until it is answered. */
-export function confirmed(text, { yes = 'OK', no = 'Cancel' } = {}) {
+/**
+ * Asks a question that is answered yes or no, over the page, until it is answered: it opens on
+ * `no`, and Escape, a press beside it and the page going elsewhere all answer that.
+ */
+export function confirmed(text, { yes = t('OK'), no = t('Cancel') } = {}) {
   return new Promise((resolve) => {
     const dialog = h(
       'dialog',
       { class: 'envs-confirm', 'data-hmz': 'envs-confirm', 'aria-label': text },
-      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no' }, no), h('button', { class: 'btn danger', value: 'yes', autofocus: true }, yes))),
+      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no', autofocus: true }, no), h('button', { class: 'btn danger', value: 'yes' }, yes))),
     )
     dialog.addEventListener('close', () => {
       resolve(dialog.returnValue === 'yes')
       dialog.remove()
     })
     document.body.append(dialog)
-    dialog.showModal()
+    modal(dialog, 'no')
   })
 }
 
 /** Why there are no environments to show, as what is followed says it; '' where there may be. */
-function why(seen, name) {
-  if (!name && seen.none) return 'Nothing is going here.'
+function why(seen, name, chat) {
+  if (!name && seen.none) return chat ? t('This chat is no longer at this address.') : t('Nothing is going here.')
   if (name && seen.error && !seen.detail) return seen.error.message
-  if (name && seen.detail && !seen.detail.held && !seen.going) return 'This epic is not running: its environments are open only while it runs.'
+  if (name && seen.detail && !seen.detail.held && !seen.going) return t('This epic is not running: its environments are open only while it runs.')
   return ''
 }
 
 export function mount(root, { query }) {
   const name = ''
-  const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '' }
+  const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '', chat: query.get('chat') || '' }
   const head = h('div', { class: 'bar-holder' })
   const body = h('div', { class: 'envs-holder' })
   fill(root, h('div', { class: 'view view-envs', 'data-hmz': 'envs-view' }, head, body))
@@ -87,22 +94,66 @@ export function mount(root, { query }) {
     if (key === titled) return
     titled = key
     const back = detail ? hash(pathOf(detail)) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
-    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? 'The chat going' : 'The epic going')]
-    fill(head, bar({ title: 'Environments', sub }))
+    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? t('The chat') : t('The epic going'))]
+    fill(head, bar({ title: t('Environments'), sub }))
   }
   titling(null)
+  /** Whether the view was left, after which nothing it asked for is taken up. */
+  let left = false
+  /** The environment and panel shown, as the address says them. */
+  let shown = { env: query.get('env') || '', tab: query.get('tab') || '' }
   const made = frame(body, {
-    follow: (told) =>
-      watch(name, wanted, (seen) => {
-        titling(seen.detail)
-        told(seen.held, why(seen, name))
-      }),
-    env: query.get('env') || '',
-    tab: query.get('tab') || '',
-    moved: ({ env, tab }) => stays({ ...wanted, env, tab }),
+    follow: (told) => {
+      /** Whether the chat was brought up again, once, and why it could not be. */
+      let woken = false
+      let asking = false
+      let refused = ''
+      let stop = () => {}
+      const follows = () => {
+        stop = watch(name, { workspace: wanted.workspace, slot: wanted.slot }, (seen) => {
+          titling(seen.detail)
+          // A chat whose host has gone, or goes, is brought up again, with nothing said, where
+          // it is named: once for each host its address comes to.
+          const over = Boolean(wanted.chat) && (seen.none || Boolean(seen.held && seen.held.gone))
+          if (over && !woken) {
+            woken = asking = true
+            call('chat.start', { workspace: wanted.workspace, slot: 'chat:', task: '', resume: wanted.chat }).then(
+              (started) => {
+                asking = false
+                if (left) return
+                // On another host now, or on the one it was on, which let this page go: followed
+                // again there, and brought up again once more should that one go too.
+                woken = started.slot === wanted.slot
+                wanted.slot = started.slot
+                stays({ ...wanted, ...shown })
+                stop()
+                follows()
+              },
+              (error) => {
+                asking = false
+                refused = error.message
+                told(seen.held, refused)
+              },
+            )
+          }
+          const waking = over && asking
+          told(waking ? null : seen.held, waking ? '' : refused || why(seen, name, wanted.slot.startsWith('chat:')))
+        })
+      }
+      follows()
+      return () => stop()
+    },
+    ...shown,
+    moved: (now) => {
+      shown = now
+      stays({ ...wanted, ...now })
+    },
   })
   return {
-    leave: made.leave,
+    leave() {
+      left = true
+      made.leave()
+    },
     /** Another environment, or panel, of the same epic: picked without drawing it all again. */
     moved({ parts: next, query: asked }) {
       if (next[0] !== 'envs') return false
@@ -145,50 +196,19 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
   let said = ''
   let left = false
 
-  const list = h('div', { class: 'envs-tree', role: 'tree', 'aria-label': 'Environments', 'data-hmz': 'envs-tree' })
-  const resizer = h('div', { class: 'envs-resizer', role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Resize the list of environments', 'aria-valuemin': '160', 'data-hmz': 'envs-resizer' })
+  const list = h('div', { class: 'envs-tree', role: 'tree', 'aria-label': t('Environments'), 'data-hmz': 'envs-tree' })
   const notice = h('div', { class: 'envs-notice', 'data-hmz': 'envs-notice' })
   const head = h('div', { class: 'envs-head', 'data-hmz': 'envs-head' })
-  const tabs = h('div', { class: 'tabs envs-tabs', role: 'tablist', 'aria-label': 'Panels', 'data-hmz': 'envs-tabs' })
+  const tabs = h('div', { class: 'tabs envs-tabs', role: 'tablist', 'aria-label': t('Panels'), 'data-hmz': 'envs-tabs' })
   const panes = h('div', { class: 'envs-panes', 'data-hmz': 'envs-panes' })
-  const main = h('section', { class: 'envs-main', 'aria-label': 'Environment' }, notice, head, tabs, panes)
-  const split = h('div', { class: 'envs-split' }, compact ? null : [h('nav', { class: 'envs-side', 'aria-label': 'Environments' }, list), resizer], main)
+  const main = h('section', { class: 'envs-main', 'aria-label': t('Environment') }, notice, head, tabs, panes)
+  const split = h('div', { class: 'envs-split' }, main)
+  // The list, and the line that sizes it: in a side panel, the pick in the head stands for both.
+  // The list takes half the frame at most, and leaves the one picked 560px, as frame.css lays them out.
+  if (!compact) split.prepend(h('nav', { class: 'envs-side', 'aria-label': t('Environments') }, list), splitter(split, { name: '--envs-tree', key: 'hmz-envs-tree', label: t('Resize the list of environments'), most: (whole) => Math.min(whole / 2, whole - 560), hmz: 'envs-resizer' }))
   fill(el, h('div', { class: ['envs', compact && 'envs-compact'], 'data-hmz': 'envs' }, split))
 
-  // ---------------------------------------------------------------- the list, and its width
-
-  let width = Number(kept('hmz-envs-tree', '')) || WIDE
-  const widen = (to, kept_ = false) => {
-    width = clampWidth(to, split.clientWidth || innerWidth)
-    split.style.setProperty('--envs-tree', `${width}px`)
-    resizer.setAttribute('aria-valuenow', String(width))
-    if (kept_) keep('hmz-envs-tree', width === WIDE ? null : String(width))
-  }
-  widen(width)
-  resizer.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    const from = event.clientX
-    const was = width
-    resizer.setPointerCapture(event.pointerId)
-    resizer.classList.add('dragging')
-    const move = (moving) => widen(was + moving.clientX - from)
-    const up = () => {
-      resizer.removeEventListener('pointermove', move)
-      resizer.classList.remove('dragging')
-      widen(width, true)
-    }
-    resizer.addEventListener('pointermove', move)
-    resizer.addEventListener('pointerup', up, { once: true })
-    resizer.addEventListener('pointercancel', up, { once: true })
-  })
-  resizer.addEventListener('dblclick', () => widen(WIDE, true))
-  resizer.addEventListener('keydown', (event) => {
-    const to = { ArrowLeft: width - STEP, ArrowRight: width + STEP, Home: 0, End: Infinity }[event.key]
-    if (to === undefined) return
-    event.preventDefault()
-    widen(to, true)
-  })
+  // ---------------------------------------------------------------- the list
 
   list.addEventListener('click', (event) => {
     const item = event.target.closest('[data-env]')
@@ -215,7 +235,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
     const groups = treeOf(envs)
     const items = []
     for (const group of groups) {
-      items.push(h('div', { class: 'envs-role', role: 'presentation' }, group.role || 'environments'))
+      items.push(h('div', { class: 'envs-role', role: 'presentation' }, group.role || t('environments')))
       const walk = (node) => {
         const one = node.env
         const chosen = current && current.id === one.id
@@ -234,9 +254,9 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
               'data-env': one.id,
               'data-hmz': 'envs-item',
             },
-            h('span', { class: 'envs-glyph', 'aria-hidden': 'true' }, node.depth ? '↳' : '▣'),
+            h('span', { class: 'envs-glyph', 'aria-hidden': 'true' }, icon(node.depth ? 'fork' : 'home')),
             h('span', { class: 'envs-name' }, nameOf(one)),
-            h('span', { class: 'envs-item-meta' }, state || one.backend || ''),
+            h('span', { class: 'envs-item-meta' }, OFF[state] || state || one.backend || ''),
           ),
         )
         for (const child of node.children) walk(child)
@@ -313,14 +333,14 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         envs.length > 1
           ? h(
               'select',
-              { class: 'envs-select', 'aria-label': 'Environment', 'data-hmz': 'envs-select', onchange: (event) => choose(event.target.value) },
-              envs.map((one) => h('option', { value: one.id, selected: one.id === env.id }, `${one.role} · ${nameOf(one)}${usable(one) ? '' : ` (${offOf(one)})`}`)),
+              { class: 'envs-select', 'aria-label': t('Environment'), 'data-hmz': 'envs-select', onchange: (event) => choose(event.target.value) },
+              envs.map((one) => h('option', { value: one.id, selected: one.id === env.id }, `${one.role} · ${nameOf(one)}${usable(one) ? '' : ` (${OFF[offOf(one)] || offOf(one)})`}`)),
             )
           : null,
         h('b', { class: envs.length > 1 ? 'envs-named' : '', 'data-hmz': 'envs-name' }, nameOf(env)),
         env.chain && env.role && env.chain !== env.role && !compact ? h('span', { class: 'envs-chip' }, env.role) : null,
-        off ? h('span', { class: 'envs-chip off', 'data-hmz': 'envs-state' }, off) : null,
-        compact && full ? h('a', { class: 'icon-btn envs-full', href: full(env.id, current.tab), 'aria-label': 'Open in its own view', title: 'Open in its own view', 'data-hmz': 'envs-full' }, '⤢') : null,
+        off ? h('span', { class: 'envs-chip off', 'data-hmz': 'envs-state' }, OFF[off] || off) : null,
+        compact && full ? h('a', { class: 'icon-btn envs-full', href: full(env.id, current.tab), 'aria-label': t('Open in its own view'), title: t('Open in its own view'), 'data-hmz': 'envs-full' }, icon('open')) : null,
       ),
       h(
         'div',
@@ -328,7 +348,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         env.backend || env.provider ? h('span', { class: 'mono', 'data-hmz': 'envs-backend' }, [env.backend, env.provider].filter(Boolean).join(' · ')) : null,
         env.workdir ? h('span', { class: 'envs-workdir mono' }, pathText(env.workdir)) : null,
         facts.length ? h('span', { 'data-hmz': 'envs-facts' }, facts.join(' · ')) : null,
-        declared.length ? h('span', { class: 'envs-uses', 'data-hmz': 'envs-uses', title: 'What the flow says it uses here' }, 'flow uses ', declared.join(', ')) : null,
+        declared.length ? h('span', { class: 'envs-uses', 'data-hmz': 'envs-uses', title: t('What the flow says it uses here') }, t('flow uses {caps}', { caps: declared.join(', ') })) : null,
       ),
     )
   }
@@ -353,7 +373,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
             onclick: () => showTab(panel.key),
           },
           panel.label,
-          panel.caps.some((cap) => declared.has(cap)) ? h('span', { class: 'envs-used', title: 'The flow uses this', 'aria-label': '(the flow uses this)' }, '•') : null,
+          panel.caps.some((cap) => declared.has(cap)) ? h('span', { class: 'envs-used', title: t('The flow uses this'), 'aria-label': t('(the flow uses this)') }, '•') : null,
         ),
       ),
     )
@@ -396,7 +416,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
 
   function load(one, key) {
     const label = panelsOf(one.env).find((panel) => panel.key === key).label
-    const el = h('div', { class: 'envs-pane', role: 'tabpanel', id: `envs-pane-${key}`, 'aria-labelledby': `envs-tab-${key}`, 'data-hmz': `envs-pane-${key}` }, h('p', { class: 'loading', role: 'status' }, `Opening ${label}…`))
+    const el = h('div', { class: 'envs-pane', role: 'tabpanel', id: `envs-pane-${key}`, 'aria-labelledby': `envs-tab-${key}`, 'data-hmz': `envs-pane-${key}` }, h('p', { class: 'loading', role: 'status' }, t('Opening {name}…', { name: label })))
     panes.append(el)
     const slot = { el, made: null, gone: false, ready: null }
     one.panes.set(key, slot)
@@ -406,7 +426,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         module = await PANELS[key]()
       } catch (error) {
         console.warn(error)
-        if (!slot.gone) fill(el, h('div', { class: 'envs-unavailable', 'data-hmz': 'envs-unavailable' }, empty('This panel is unavailable.', ` ${label} could not be loaded here.`)))
+        if (!slot.gone) fill(el, h('div', { class: 'envs-unavailable', 'data-hmz': 'envs-unavailable' }, empty(t('This panel is unavailable.'), t(' {name} could not be loaded here.', { name: label }))))
         return null
       }
       if (slot.gone) return null
@@ -422,7 +442,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         return slot.made
       } catch (error) {
         console.error(error)
-        if (!slot.gone) fill(el, problem(`${label} failed to open: ${error.message}`))
+        if (!slot.gone) fill(el, problem(t('{name} failed to open: {why}', { name: label, why: error.message })))
         return null
       }
     })()
@@ -437,8 +457,8 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         return one.env
       },
       call(method, params = {}) {
-        if (one.left) return Promise.reject(new Error('That environment is no longer shown.'))
-        if (!host) return Promise.reject(new Error('This host cannot be reached.'))
+        if (one.left) return Promise.reject(new Error(t('That environment is no longer shown.')))
+        if (!host) return Promise.reject(new Error(t('This host cannot be reached.')))
         return hosted(host, method, paramsOf(method, params, one.id))
       },
       on(type, fn) {
@@ -514,7 +534,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
     }
     envs = (state && state.standing.envs && state.standing.envs.envs) || []
     // What there is is shown, whatever else is said of the epic; and why not, where there is none.
-    const nothing = envs.length ? '' : !state ? note || 'Reading the epic…' : note || (state.gone ? '' : 'No environment is open here yet.')
+    const nothing = envs.length ? '' : !state ? note || t('Reading the epic…') : note || (state.gone ? '' : t('No environment is open here yet.'))
     if (!envs.length) {
       leaveCurrent()
       drawList()
@@ -526,7 +546,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
           ? problem(state.gone)
           : reading
             ? h('p', { class: 'loading', role: 'status' }, nothing)
-            : empty(nothing, ' Environments are listed here while the epic or chat that opened them runs.'),
+            : empty(nothing, note ? '' : t(' Environments are listed here while the epic that opened them runs.')),
       )
       head.hidden = tabs.hidden = panes.hidden = true
       return
@@ -567,7 +587,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
       if (!current.panes.size && current.tab) showTab(current.tab)
       else if (!current.tab) {
         notice.hidden = false
-        fill(notice, empty('Nothing can be opened here.', ' This environment has no files, shell or git.'))
+        fill(notice, empty(t('Nothing can be opened here.'), t(' This environment has no files, shell or git.')))
       }
     } else {
       // Closed, or out of reach: what was last read of it stays shown, and nothing in it can be
@@ -576,8 +596,8 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
       tabs.hidden = panes.hidden = !read
       if (read) for (const tab of tabs.querySelectorAll('[role=tab]')) tab.hidden = !current.panes.has(tab.dataset.tab)
       notice.hidden = false
-      const said = offOf(current.env) === 'closed' ? 'This environment has closed.' : 'This environment is unavailable.'
-      fill(notice, h('div', { class: 'envs-off', role: 'status', 'data-hmz': 'envs-off' }, read ? h('p', {}, h('strong', {}, said), ' What was last read of it is shown; nothing in it can be changed.') : empty(said, ' Pick another, or open it again by running the flow.')))
+      const said = offOf(current.env) === 'closed' ? t('This environment has closed.') : t('This environment is unavailable.')
+      fill(notice, h('div', { class: 'envs-off', role: 'status', 'data-hmz': 'envs-off' }, read ? h('p', {}, h('strong', {}, said), t(' What was last read of it is shown; nothing in it can be changed.')) : empty(said, t(' Pick another, or open it again by running the flow.'))))
     }
     tell()
   }

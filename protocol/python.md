@@ -53,6 +53,16 @@ It is normative. It is cited by the tag [PYTHON].
   - [4.19. `fakes`](#419-fakes)
   - [4.20. Returned types](#420-returned-types)
   - [4.21. `Client`](#421-client)
+  - [4.22. Families](#422-families)
+  - [4.23. `Client.devices`](#423-clientdevices)
+  - [4.24. `Client.chats`](#424-clientchats)
+  - [4.25. `Client.epics` and `Client.hosts`](#425-clientepics-and-clienthosts)
+  - [4.26. `Client.runs`, `Client.backups` and `Client.files`](#426-clientruns-clientbackups-and-clientfiles)
+  - [4.27. `Client.envs`](#427-clientenvs)
+  - [4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`](#428-clientflows-clientflowverses-clientworkspaces-and-clientpaths)
+  - [4.29. `Client.settings`, `Client.accounts` and `Client.nous`](#429-clientsettings-clientaccounts-and-clientnous)
+  - [4.30. `Client.runtimes` and `Client.easytier`](#430-clientruntimes-and-clienteasytier)
+  - [4.31. `Client.btw`, `Client.aichan` and `Client.notices`](#431-clientbtw-clientaichan-and-clientnotices)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -1981,7 +1991,7 @@ module.
 | Source | Holds |
 | --- | --- |
 | `local` | `.hmz/flows/` under the current directory |
-| `user` | `~/.hmz/flows/` |
+| `user` | `<data>/flows/` (Section 4.9 of [FILES]) |
 | `official` | the flows installed from the official index |
 | any other flowverse | the flows installed from its index |
 
@@ -2346,7 +2356,6 @@ members of a returned type that Section 4 does not state are not part of this AP
 class Hmz:
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None: ...
     workspace: Path      # property
-    home: Path           # property
     settings: Settings   # property
     flows: Flows         # property
     verses: Flowverses   # property
@@ -2393,18 +2402,15 @@ class Hmz:
 resolving links; where `workspace` is `None`, it MUST be the current directory at the moment the
 property is read.
 
-**4.4.1.3** `Hmz.home` MUST be the **home** directory as Section 4 of [FILES] locates it, and
-reading it MUST NOT create it.
-
-**4.4.1.4** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
+**4.4.1.3** `Hmz.settings` MUST read and write the settings of Section 3 of [FILES] for this
 workspace and this machine; members of its type are not part of this API.
 
-**4.4.1.5** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
+**4.4.1.4** `Hmz.flows`, `Hmz.accounts`, `Hmz.runtimes`, `Hmz.nous`, `Hmz.epics`, `Hmz.backups`
 and `Hmz.daemons` MUST each return the same object on every access of one `Hmz` instance.
 
-**4.4.1.6** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
+**4.4.1.5** `Hmz.verses` MUST be the identical object `Hmz.flows.verses`.
 
-**4.4.1.7** `Hmz.epics` MUST be the `Epics` of `Hmz.workspace`.
+**4.4.1.6** `Hmz.epics` MUST be the `Epics` of `Hmz.workspace`.
 
 #### 4.4.2. Backends
 
@@ -2856,8 +2862,9 @@ fetched.
 **4.8.21** `Flowverses.plain(url)` MUST return `url` with any credentials removed.
 
 **4.8.22** `Flowverses.whence(one, nowhere)` MUST return the flowverse's credential-free URL; for
-`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in
-~/.hmz/flows`; and `nowhere` for a directory with no readable origin.
+`local`, the text `your own flows in .hmz/flows`; for `user`, the text `your own flows in ` and
+the directory of Section 4.9 of [FILES], a leading home directory written `~`; and `nowhere` for a
+directory with no readable origin.
 
 ### 4.9. `Accounts`
 
@@ -3237,11 +3244,13 @@ class Registry:  # the class's own name is Daemons
     def remove(self, name: str) -> None: ...
     def offered(self) -> dict[str, dict[str, Any]]: ...
     def imported(self, wanted: Sequence[str]) -> list[str]: ...
-    def remotes(self, version: str | None = None) -> Remotes: ...
+    def remotes(self, version: str | None = None, *, install: bool | None = False,
+                kind: Kind = "sdk") -> Remotes: ...
 class Remotes:
     def state(self, name: str) -> dict[str, str]: ...
     def connect(self, name: str) -> dict[str, str]: ...
-    def client(self, name: str) -> Client: ...
+    def answer(self, name: str, install: bool) -> dict[str, str]: ...
+    def client[Made: Client](self, name: str, made: type[Made] = Client) -> Made: ...
     def pair(self, name: str, code: str, *, device: str | None = None) -> dict[str, Any]: ...
     def close(self) -> None: ...
 class Unreached(RuntimeError):
@@ -3270,13 +3279,18 @@ daemon for each `Host` entry named, skipping those already written, and return t
 `LookupError` for a host the config does not name, and `OSError` where the config cannot be read or
 the file written.
 
-**4.14.6** `Registry.remotes(version)` MUST return a `Remotes` that reaches each daemon as it is
-first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` at `version` over a
-`stdio:ssh` route, or at the calling process's version where `version` is `None`.
+**4.14.6** `Registry.remotes(version, install=...)` MUST return a `Remotes` that reaches each daemon
+as it is first asked for, as Section 3.8.2 of [DAEMON] states, installing `hmz` at `version` over a
+`stdio:ssh` route, or at the calling process's version where `version` is `None`. Where no `hmz` is
+on the machine of that route (Section 3.8.3.7 of [DAEMON]), `install` `False` MUST install nothing,
+as a client with no user to ask does (Section 3.8.3.10 of [DAEMON]); `True` MUST install unasked;
+and `None` MUST have the daemon `asking` until `Remotes.answer` answers it. Every session that
+`Remotes` opens MUST say `session.hello` with `kind`, which is `sdk`, `cli` or `tui` (Section 6.5 of
+[WIRE]) and `sdk` where it is not given.
 
 **4.14.7** `Remotes.state(name)` MUST return `{state, detail, version}`, `state` being one of
-`idle`, `connecting`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling process's
-version.
+`idle`, `connecting`, `asking`, `installing`, `up` and `failed`; `local` MUST be `up` at the calling
+process's version.
 
 **4.14.8** `Remotes.connect(name)` MUST start reaching the daemon, or reach it again at once where
 it failed, and return its state; it MUST raise `LookupError` for an unknown name and `Unreached`
@@ -3285,7 +3299,10 @@ where the `Remotes` is closing.
 **4.14.9** `Remotes.client(name)` MUST return the `Client` (Section 4.21) of the session to that
 daemon, reaching it first where needed, and MUST pin the id it answers where the entry's `id` is
 `""` (Section 3.8.2.7 of [DAEMON]); it MUST raise `Unreached` where the daemon cannot be reached,
-with `Unreached.seen` its state, and `LookupError` for an unknown name.
+with `Unreached.seen` its state, and `LookupError` for an unknown name. `Remotes.client(name, made)`
+MUST return that client as an instance of `made`, a subclass of `Client`, so that a caller whose
+clients do more -- `hmz.sdk.Client`, which has the families of Section 4.22 -- holds the one session
+as its own class and reaches into nothing of this one's.
 
 **4.14.10** `Remotes.pair(name, code, device=...)` MUST claim the pairing code over its routes as
 Section 4.5.7 of [WIRE] states, under the device name `device`, this machine's host name where it is
@@ -3295,6 +3312,11 @@ refused or no route opens, with `Unreached.status` the error code of the refusal
 
 **4.14.11** `Remotes.close()` MUST close every session and stop every process started to reach a
 daemon.
+
+**4.14.12** `Remotes.answer(name, install)` MUST answer a daemon that is `asking`, `install` `True`
+the yes and `False` the no of Section 3.8.3.8 of [DAEMON], and MUST return its state; it MUST do
+nothing to a daemon that is not `asking`. `Remotes.client` MUST NOT wait for that answer: of a
+daemon that is `asking` it MUST raise `Unreached` at once, with `Unreached.seen` its state.
 
 ### 4.15. Hosts
 
@@ -3497,11 +3519,14 @@ gave with a fake as it states.
 of that process, and MUST NOT start a process of hmz of its own.
 
 **4.19.5** A private daemon MUST use a temporary home and a temporary machine directory of its own,
-made when it starts, holding a copy of the settings file of the home where there is one, except
-that private daemons running at the same time in one process, whose environment and `tempfile`
-name one home and one machine directory, MAY share them, removed once the last of them is torn
+made when it starts, holding a copy of the settings file of the home where there is one and a
+symbolic link to the user's flows (Section 4.9 of [FILES]) where they are, except
+that private daemons running at the same time in one process, which name one home and one machine
+directory, MAY share them, removed once the last of them is torn
 down; it MUST NOT read, write, start, stop or reach the daemon of this machine, its socket, its
-daemon directory or its home's epics, and MUST NOT listen beyond its socket pair.
+daemon directory or its home's epics, and MUST NOT listen beyond its socket pair. It MUST NOT
+change the variables `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` of
+the process, which the harnesses it starts read as their own.
 
 **4.19.6** A private daemon MUST be torn down -- every host closed as Section 4.13.6 of [DAEMON]
 states, its session closed, its temporary home and machine directory removed where no other private
@@ -3637,6 +3662,7 @@ class Client:
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, kind, why, traceback) -> None: ...
+    # and each family of Section 4.22, as an attribute
 ```
 
 One `Client` is one session of [WIRE] with one daemon.
@@ -3671,6 +3697,1125 @@ the message `the daemon went away`.
 `HUMANIZE_AICHAN_LINK` names (Section 3.11.2.17 of [FILES]) in place of the daemon's socket, MUST
 NOT start a daemon, and MUST raise `OSError` where that variable is unset; Ai-chan's tools speak
 to the daemon over that scoped link alone (Section 14.6.2 of [CORE]).
+
+### 4.22. Families
+
+```python
+class Family:
+    METHODS: ClassVar[tuple[str, ...]]
+
+class Subscription:
+    sub: str
+    def next(self, seconds: float | None = None) -> Mapping[str, Any] | None: ...
+    def __iter__(self) -> Iterator[Mapping[str, Any]]: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+```
+
+A _family_ is the calls of one group of the methods of [OPENRPC], with names and types, made
+through one `Client`. `hmz.sdk.families` holds `Family` and `Subscription`, and one module for each
+family.
+
+**4.22.1** A `Client` MUST have each family as an attribute: `accounts`, `aichan`, `backups`, `btw`,
+`chats`, `devices`, `easytier`, `envs`, `epics`, `files`, `flows`, `flowverses`, `hosts`, `notices`,
+`nous`, `paths`, `runs`, `runtimes`, `settings` and `workspaces`. Each MUST be made when first read
+and MUST be the same object every time after.
+
+**4.22.2** `Family.METHODS` MUST name the methods of [OPENRPC] that are the family's own: each one
+it makes by a method of its own that is that call and what it answers. Every method of [OPENRPC]
+other than `session.hello`, `session.cancel` and `rpc.discover` MUST be named by exactly one
+family. A family that, to do what one of its methods does, also calls a method another family names
+-- `Chats`, `Envs` and `AiChan` attaching to a host with `epic.attach` and letting go with
+`epic.detach`, `Envs` asking `hosts.status` and `chat.get`, `Backups.targets` reading `settings.get`
+(Section 4.26.10), `SideQuestions.sessions` reading `runs.get` and `chat.get` (Section 4.31.16) --
+MUST NOT name it. The methods of `chat.harness.*` are named by `Harness`, the family read as
+`Client.chats.harness`, and not by `Chats`.
+
+**4.22.3** A method of a family MUST make its calls through `Client.call`, so that Section 4.21.4
+and Section 4.21.7 hold of it; it MUST leave out of `params` every parameter it was given as `None`;
+and where its method of [OPENRPC] takes `idem` (Section 6.7 of [WIRE]) it MUST take `idem` by
+keyword and pass it on.
+
+**4.22.4** A method of a family that opens a subscription (Section 6.8 of [WIRE]) MUST return, or
+return with its answer, a `Subscription` whose `sub` is the subscription's. Iterating it MUST yield
+the `params` of each notification of that subscription, in order, the ones that arrived before it
+was made included; `next(seconds)` MUST return the next, or `None` where none came within `seconds`
+or it was closed; `close()` MUST end the iteration and MUST NOT end the subscription at the daemon.
+A notification of a subscription that arrives after its `Subscription` was closed MUST be dropped,
+and MUST NOT be kept for a `Subscription` made later: a `sub` names one subscription of a session
+and no other (Section 6.8 of [WIRE]).
+
+**4.22.6** A method of a family that opens a subscription MUST have the client listening (Section
+4.22.5) before it makes the call that opens it, so that a notification the daemon sends before
+that call is answered is kept for the `Subscription` and not lost.
+
+**4.22.5** A `Client` whose families hold a `Subscription` MUST NOT also be given a listener with
+`Client.heard`; the second of the two MUST raise `RuntimeError` (Section 4.21.5).
+
+### 4.23. `Client.devices`
+
+```python
+class Devices(Family):
+    def list(self) -> list[Device]: ...
+    def revoke(self, name: str, *, idem: str | None = None) -> int: ...
+    def pair(self, *, routes: Sequence[str] | None = None, seconds: int | None = None,
+             idem: str | None = None) -> Code: ...
+    def claim(self, token: str, name: str) -> dict[str, Any]: ...
+
+class Device:   # frozen
+    name: str; fingerprint: str; added: str; seen: str | None
+
+class Code:     # frozen
+    code: str; expires: int; said: dict[str, Any]
+```
+
+**4.23.1** `list()` MUST call `devices.list` and return its devices in the daemon's order.
+
+**4.23.2** `revoke(name)` MUST call `devices.revoke` and return its `dropped`.
+
+**4.23.3** `pair(routes, seconds)` MUST call `pair.create` and return a `Code` of its `code` and
+`expires`, `said` being the whole result.
+
+**4.23.4** `claim(token, name)` MUST call `pair.claim` and return its result.
+
+### 4.24. `Client.chats`
+
+```python
+class Chats(Family):
+    harness: Harness                                                     # property
+    def start(self, workspace: str | None, task: str, *, agent: str | None = None,
+              resume: str | None = None, prefer: str | None = None,
+              permission: str | None = None, worktree: bool | None = None,
+              env: str | None = None, remember: bool | None = None,
+              slot: str = "chat:", idem: str | None = None) -> Started: ...
+    def hold(self, chat: str) -> Held: ...
+    def say(self, workspace: str, slot: str, text: str, *, idem: str | None = None) -> None: ...
+    def rest(self, chat: str, *, seconds: float = 10.0) -> bool: ...
+    def follow(self, workspace: str, slot: str, *, replay: bool = True,
+               line: str | None = None) -> Turn: ...
+    def ask(self, chat: str, text: str, *, idem: str | None = None) -> Turn: ...
+    def commands(self, workspace: str, slot: str) -> Catalogue: ...
+    def set(self, workspace: str, slot: str, *, prefer: str | None = None,
+            permission: str | None = None, idem: str | None = None) -> None: ...
+    def move(self, workspace: str, slot: str, env: str, *, idem: str | None = None) -> str: ...
+    def stop(self, workspace: str, slot: str, *, idem: str | None = None) -> None: ...
+    def list(self, *, workspace: str | None = None, archived: bool | None = None,
+             q: str | None = None, offset: int | None = None,
+             limit: int | None = None) -> Listed: ...
+    def get(self, chat: str, *, trace: bool | None = None) -> Chat: ...
+    def rename(self, chat: str, title: str, *, idem: str | None = None) -> Chat: ...
+    def agent(self, chat: str, agent: str, *, idem: str | None = None) -> Chat: ...
+    def fork(self, chat: str, *, idem: str | None = None) -> str: ...
+    def archive(self, chat: str, *, idem: str | None = None) -> Chat: ...
+    def unarchive(self, chat: str, *, idem: str | None = None) -> Chat: ...
+    def backup(self, chat: str, *, to: Sequence[str] | None = None,
+               idem: str | None = None) -> list[str]: ...
+    def delete(self, chat: str, *, idem: str | None = None) -> None: ...
+    def remembered(self, workspace: str) -> str: ...
+
+class Harness(Family):
+    def list(self, workspace: str, *, offset: int | None = None,
+             limit: int | None = None) -> Sessions: ...
+    def get(self, workspace: str, harness: str, session: str, *,
+            trace: bool | None = None) -> HarnessSession: ...
+    def adopt(self, workspace: str, harness: str, session: str, *,
+              agent: str | None = None, idem: str | None = None) -> str: ...
+
+class Turn(Family):
+    workspace: str; slot: str
+    answer: str | None; failed: str; notes: list[str]
+    ended: tuple[str, str] | None; done: bool
+    def __iter__(self) -> Iterator[Mapping[str, Any]]: ...
+    def wait(self) -> str | None: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+
+class Chat:            # frozen
+    id: str; title: str; workspace: str; folderless: bool; workdir: str; env: str
+    agent: str; model: str; began: str; updated: str; state: str; slot: str
+    asking: tuple[str, ...]; permission: str; archived: bool; said: dict[str, Any]
+class Listed:          # frozen
+    chats: tuple[Chat, ...]; total: int; offset: int; limit: int
+class Started:         # frozen
+    chat: str; workspace: str; slot: str
+class Held:            # frozen
+    workspace: str; slot: str
+class Entry:           # frozen
+    sigil: str; name: str; about: str; how: str; source: str
+class Catalogue:       # frozen
+    entries: tuple[Entry, ...]; prefer: str; prefer_from: str
+    permission: str | None; listed: bool
+class HarnessSession:  # frozen
+    id: str; harness: str; title: str; workspace: str; model: str; began: str
+    updated: str; continuable: bool; trace: Any
+class Sessions:        # frozen
+    sessions: tuple[HarnessSession, ...]; total: int; offset: int; limit: int
+```
+
+`Client.chats` is the family of `chat.*` (Section 4.25 of [DAEMON]); `hmz.sdk.families.chats` holds
+it and these types. `Chats.METHODS` names every method of `chat.*` but those of `chat.harness.*`,
+which `Harness.METHODS` names (Section 4.22.2).
+
+**4.24.1** `start`, `say`, `commands`, `set`, `move`, `stop`, `list`, `get`, `rename`, `agent`,
+`fork`, `archive`, `unarchive`, `backup` and `delete` MUST each make the one call of `chat.*` of that
+name with what they were given as its parameters of the same names (Section 4.22.3). `start` and
+those that Section 4.25.7 of [DAEMON] answers with a chat row MUST return, of `start`, a `Started`
+of `chat`, the workspace and `slot`, and of the others a `Chat` of the row, `said` being the whole
+result; `fork` MUST return the new chat's name, `move` the `env` answered, `backup` the `queued`
+targets, `commands` a `Catalogue` and `list` a `Listed`.
+
+**4.24.2** `start` with `workspace` `None` MUST first make a folderless workspace for the chat
+(`epic.attach` with `scratch` `true`, `replay` `false` and `slot`), MUST start the chat on the
+workspace and slot that answers, and MUST then let that host go (`epic.detach`), whether or not the
+start was refused.
+
+**4.24.3** `hold(chat)` MUST return the workspace and slot of the host holding the chat (`chat.get`),
+and where none does MUST first carry the chat on with nothing said (`chat.start` with `resume` and an
+empty `task`) and return that host's.
+
+**4.24.4** `rest(chat, seconds=...)` MUST say an empty line to the host holding the chat, where one
+does, a refusal 404 or 409 of it being no error, MUST then read the chat until no host holds it or
+`seconds` have passed, and MUST return whether none holds it.
+
+**4.24.5** `follow(workspace, slot, replay=..., line=...)` MUST attach the session to that host
+(`epic.attach`, with `replay` `false` where it is `False`) and return a `Turn` of its subscription.
+The `Client` MUST have its listener (Section 4.22.5) before that call is made, so that nothing the
+host says is lost.
+
+**4.24.6** Iterating a `Turn` MUST yield the `message` of each `epic.event` of its subscription, in
+order, and MUST end once the turn is done, the chat has ended (`ended`), or the host has let go
+(`gone`); it MUST raise `ConnectionError` where the session ended first. The turn is done once the
+line has been seen taken -- a `run` snapshot whose `turn` is `running`, a `result` event, or an
+`asked` record of mode `listen` -- and the latest `run` snapshot's `turn` is `done`. With `line`,
+nothing heard before the host says that line was taken (an `answered` record, a `said` record of
+that text, the text among `given` of a `waiting` snapshot, or among `texts` of an `unheld` record)
+MUST count.
+
+**4.24.7** A `Turn` MUST keep, as it is heard: `answer`, the text of the last `result` event,
+stripped, `None` for none; `failed`, the text of a `failed` event, `""` for none; `notes`, the text
+of each `asked` record of mode `listen` less the answer it ends with, where anything is left and
+the turn did not fail; `ended`, `(how, why)` of an `ended` record, or `("gone", why)` of a `gone`;
+and `done`. `wait()` MUST iterate it to its end and return `answer`.
+
+**4.24.8** Where the host says `gone` with a `why` that begins `too far behind`, a `Turn` MUST
+attach again with `since` the `epoch` of its `welcome` and the last `seq` it heard, and go on.
+
+**4.24.9** `Turn.close()`, and leaving a `with` block over a `Turn`, MUST let the host go
+(`epic.detach`), a refusal of which MUST be suppressed, and stop hearing the subscription; it MUST
+NOT end or stop the chat.
+
+**4.24.10** `ask(chat, text)` MUST hold the chat (4.24.3), follow its host with `replay` `False` and
+`line` `text`, say `text` to it (`chat.say`), and return the `Turn`; where the attach or the say is
+refused 409 it MUST hold the chat again and try once more, and any other refusal MUST be raised
+with the host let go.
+
+**4.24.11** `remembered(workspace)` MUST return `chat` of `settings.get` for that workspace, `""`
+where it remembers none.
+
+**4.24.12** `Harness.list`, `get` and `adopt` MUST make the calls `chat.harness.list`,
+`chat.harness.get` and `chat.harness.adopt`; `list` MUST return a `Sessions`, `get` a
+`HarnessSession` with `trace` where it was asked for, and `adopt` the new chat's name.
+
+### 4.25. `Client.epics` and `Client.hosts`
+
+```python
+class Epics(Family):
+    def attach(self, workspace: str | None = None, *, slot: str | None = None,
+               replay: bool | None = None, since: Mapping[str, Any] | None = None,
+               figures: bool | None = None, scratch: bool | None = None,
+               wait: float | None = None) -> Attached: ...
+    def of(self, sub: str) -> Frontend: ...
+    def ended(self) -> bool: ...
+
+class Frontend:
+    sub: str
+    def start(self, flow: str, task: str | None = None, *, agents=None, envs=None,
+              params=None, budget=None, profile_flow=None, profile_environment=None,
+              resume=None, backup=None, remember=None, idem=None, wait=None) -> Started: ...
+    def say(self, text: str, *, to: str | None = None, idem=None, wait=None) -> None: ...
+    def answer(self, question: str, text: str | None = None, *, value: Any = None,
+               idem=None, wait=None) -> None: ...
+    def face(self, digest: str, *, wait=None) -> Face: ...
+    def stop(self, *, idem=None, wait=None) -> None: ...
+    def force(self, *, idem=None, wait=None) -> int: ...
+    def afk(self, on: bool, role: str | None = None, *, idem=None, wait=None) -> None: ...
+    def claim(self, role: str, *, take: bool | None = None, idem=None, wait=None) -> None: ...
+    def release(self, role: str, *, idem=None, wait=None) -> None: ...
+    def board(self, key: str, value: str | None = None, *, idem=None, wait=None) -> None: ...
+    def aside(self, *, side=None, prompt=None, key=None, fork=None, runs=None, recall=None,
+              kept=None, cwd=None, wait=None) -> dict[str, Any]: ...
+    def unaside(self, side: str, *, wait=None) -> None: ...
+    def status(self, *, wait=None) -> dict[str, Any]: ...
+    def detach(self, *, wait=None) -> None: ...
+    def quit(self, *, idem=None, wait=None) -> None: ...
+
+class Attached(Frontend):
+    client: str; workspace: str; slot: str
+    events: Subscription
+    over: bool
+    def next(self, seconds: float | None = None) -> dict[str, Any] | None: ...
+    def __iter__(self) -> Iterator[dict[str, Any]]: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, kind, why, traceback) -> None: ...
+
+class Started:  # frozen
+    run: int; slot: str; workspace: str
+
+class Face:     # frozen
+    html: str; title: str
+
+class Hosts(Family):
+    def list(self) -> list[Host]: ...
+    def running(self) -> list[Running]: ...
+    def open(self, workspace: str, slot: str | None = None) -> dict[str, Any]: ...
+    def status(self, workspace: str, slot: str | None = None) -> dict[str, Any]: ...
+    def detach(self, workspace: str, slot: str | None = None) -> int: ...
+    def stop(self, workspace: str, slot: str | None = None, *, idem: str | None = None) -> None: ...
+
+class Host:     # frozen
+    pid: int; workspace: str; started: str; slot: str
+
+class Running:  # frozen
+    workspace: str; slot: str; state: str; run: int; kind: str; flow: str; epic: str
+    chat: str; task: str; asking: tuple[str, ...]; turn: str | None
+```
+
+**4.25.1** `Epics.attach(...)` MUST call `epic.attach` (Section 4.7.1 of [DAEMON]) with what it was
+given and return an `Attached` whose `sub`, `client`, `workspace` and `slot` are those answered and
+whose `events` is the `Subscription` of `epic.event` for that `sub` (Section 4.22.4), holding every
+notification of it from the first the host sent.
+
+**4.25.2** `Epics.of(sub)` MUST return a `Frontend` of that subscription and MUST NOT make the
+client hear anything: it is for a client that hears its notifications by `Client.heard`.
+`Epics.ended()` MUST say whether the client's session has ended.
+
+**4.25.3** Each method of a `Frontend` other than `face` MUST call the method `epic.<its name>` of
+Section 4.8 of [DAEMON], and `face` `epic.face`, with `sub` the frontend's and the parameters of
+the same names it was given, `afk` sending `on` and `face` sending its argument as `hash`; `wait`
+MUST be how many seconds the answer is waited for (Section 4.21.4), and MUST NOT be sent. A
+refusal MUST be raised as `Refused` with the host's message, code and data.
+
+**4.25.4** `start` MUST return a `Started` of the `run`, `slot` and `workspace` answered; `force`
+the `closed` answered; `face` a `Face` of the `html` and `title` answered; `aside` and `status`
+the result; and every other method `None`.
+
+**4.25.5** `Attached.next(seconds)` MUST return the `message` of the next notification of the
+subscription, or `None` where none came within `seconds`, with `None` waiting for as long as it
+takes. Iterating an `Attached` MUST yield each message in order. Both MUST end -- `next` returning
+`None` at once, the iteration stopping -- after the message whose `type` is `gone` (Section 4.9.4
+of [DAEMON]), once the client's session has ended with nothing left to yield (Section 4.9.4.3 of
+[DAEMON]), and once `close()` was called; `over` MUST then be true.
+
+**4.25.6** `Attached.close()` MUST call `epic.detach`, ignoring a refusal of it, and MUST close
+`events`; it MUST NOT stop any epic. Leaving a `with` block of an `Attached` MUST call `close()`.
+
+**4.25.7** `Hosts.list()` MUST call `hosts.list` and return a `Host` for each entry of `held`, in
+order; `Hosts.running()` MUST call `hosts.running` and return a `Running` for each entry of
+`running`, `turn` being `None` where the entry has none (Section 4.6.2 of [DAEMON]).
+
+**4.25.8** `Hosts.open`, `Hosts.status`, `Hosts.detach` and `Hosts.stop` MUST call `hosts.open`,
+`hosts.status`, `hosts.detach` and `hosts.stop` with `workspace` and, where it is not `None`,
+`slot`; `open` and `status` MUST return the result, `detach` its `let_go`, and `stop` `None`.
+
+**4.25.9** `Run` (Section 4.5) MUST make its calls to its epic through a `Frontend` of its
+subscription.
+
+### 4.26. `Client.runs`, `Client.backups` and `Client.files`
+
+```python
+class Runs(Family):
+    def list(self, *, workspace: str | None = None, status: str | None = None,
+             flow: str | None = None, query: str | None = None,
+             offset: int | None = None, limit: int | None = None) -> Listing: ...
+    def get(self, name: str) -> dict[str, Any]: ...
+    def trace(self, name: str) -> list[dict[str, Any]]: ...
+    def timeline(self, name: str) -> dict[str, Any]: ...
+    def span(self, name: str, ident: int | str,
+             layout: int | str | None = None) -> dict[str, Any]: ...
+    def bundle(self, name: str) -> Bundle: ...
+    def export(self, name: str, to: str | os.PathLike[str] | None = None) -> Exported: ...
+    def backup(self, name: str, *, to: Sequence[str] | None = None,
+               wait: float | None = 0, idem: str | None = None) -> dict[str, dict[str, Any]]: ...
+    def imported(self, *, handle: str | None = None, path: str | None = None,
+                 idem: str | None = None) -> Imported: ...
+    def import_(self, path: str | os.PathLike[str], *, idem: str | None = None) -> Imported: ...
+    def usage(self, *, days: int | None = None, workspace: str | None = None) -> dict[str, Any]: ...
+
+class Backups(Family):
+    def targets(self) -> list[Target]: ...
+    def epics(self, target: str) -> list[Stored]: ...
+    def pull(self, target: str, key: str, *, idem: str | None = None) -> str: ...
+
+class Files(Family):
+    def create(self, name: str, size: int) -> str: ...
+    def write(self, handle: str, offset: int, data: bytes) -> int: ...
+    def read(self, handle: str, offset: int, length: int = CHUNK) -> Chunk: ...
+    def close(self, handle: str) -> None: ...
+    def upload(self, path: str | os.PathLike[str], *, name: str | None = None) -> str: ...
+    def download(self, handle: str, to: str | os.PathLike[str]) -> int: ...
+
+CHUNK = 1_048_576
+
+class Listing:   # frozen
+    runs: list[dict[str, Any]]; total: int; offset: int; limit: int
+    counts: dict[str, int]; flows: list[str]
+
+class Bundle:    # frozen
+    handle: str; filename: str; size: int; type: str
+
+class Exported:  # frozen
+    path: Path; filename: str; size: int
+
+class Imported:  # frozen
+    name: str; workspace: str; resumable: bool; why: str
+
+class Target:    # frozen
+    name: str; url: str; branch: str; policies: tuple[str, ...]; every: int; default: bool
+
+class Stored:    # frozen
+    key: str; machine: str; workspace: str; epic: str; flow: str; task: str
+    began: str; ended: str; how: str; head: str; chat: bool; here: bool
+
+class Chunk:     # frozen
+    data: bytes; eof: bool
+```
+
+`hmz.sdk.families.runs` holds `Runs`, `Listing`, `Bundle`, `Exported` and `Imported`;
+`hmz.sdk.families.backups` holds `Backups`, `Target` and `Stored`; `hmz.sdk.families.files` holds
+`Files`, `Chunk` and `CHUNK`. The methods they call are those of Section 4.16 of [DAEMON] and
+Section 6.9 of [WIRE].
+
+**4.26.1** `Runs.list(...)` MUST call `runs.list`, `query` as `q`, and return a `Listing` of its
+`runs`, `total`, `offset`, `limit`, `counts` and `flows`, each epic of `runs` as the daemon answered
+it.
+
+**4.26.2** `Runs.get(name)`, `Runs.timeline(name)` and `Runs.usage(days, workspace)` MUST call
+`runs.get`, `runs.timeline` and `runs.usage` and return the result; `Runs.trace(name)` MUST call
+`runs.trace` and return its `sessions`.
+
+**4.26.3** `Runs.span(name, ident, layout)` MUST call `runs.span` with `ident` as `id`; where
+`layout` is `None` it MUST first call `runs.timeline` and give that timeline's `layout`.
+
+**4.26.4** `Runs.bundle(name)` MUST call `runs.bundle` and return a `Bundle` of its `handle`,
+`filename`, `size` and `type`; the handle is the caller's to read and to end.
+
+**4.26.5** `Runs.export(name, to)` MUST call `runs.bundle` and write the file of its handle as
+`Files.download` does: in the directory `to` under the bundle's `filename` where `to` is a directory
+or ends in a path separator, making that directory where it is not there; at `to` otherwise; and in
+the working directory under that `filename` where `to` is `None`.
+It MUST return an `Exported` of the file's absolute path, the bundle's `filename` and the bytes
+written.
+
+**4.26.6** `Runs.backup(name, to=..., wait=...)` MUST call `runs.backup` and return a dictionary
+with one key for each target of its `queued`, in that order. Where `wait` is `0` every value MUST
+be `{}` and no other method MUST be called. Otherwise it MUST call `runs.get` before `runs.backup`
+and again until `backed` holds, for every such target, a record other than the one it held before
+whose `why` is `manual`, MUST return each target with that record, and MUST raise `TimeoutError` where `wait` seconds pass
+first, `None` waiting for as long as it takes.
+
+**4.26.7** `Runs.imported(handle=..., path=...)` MUST call `runs.import` with whichever was given
+and return an `Imported` of its `name`, `workspace`, `resumable` and `why`.
+
+**4.26.8** `Runs.import_(path)` MUST send the file as `Files.upload` does and return what
+`Runs.imported` returns for that handle; where that raises, it MUST end the handle with
+`files.close`, ignoring a refusal of that, and raise what was raised.
+
+**4.26.9** `Backups.epics(target)` MUST call `backups.epics` and return a `Stored` for each of its
+`epics`, in the daemon's order; `Backups.pull(target, key)` MUST call `backups.pull` and return its
+`name`.
+
+**4.26.10** `Backups.targets()` MUST return a `Target` for each backup target of the daemon's
+settings, in the order `settings.get` answers `backup.targets`, `default` being whether
+`backup.defaults` names it. It reads `settings.get`, which `Backups.METHODS` does not name: that
+method is the settings family's (Section 4.22.2).
+
+**4.26.11** `Files.create`, `Files.write`, `Files.read` and `Files.close` MUST call `files.create`,
+`files.write`, `files.read` and `files.close`. `write` MUST send `data` as its base64 and return
+`size`; `read` MUST return a `Chunk` of the bytes `data` is the base64 of and of `eof`; `create`
+MUST return `handle`.
+
+**4.26.12** `Files.upload(path, name=...)` MUST call `files.create` with `name`, the file's own name
+where it is `None`, and the file's length, MUST then write the file in order in chunks of at most
+`CHUNK` bytes, never more than the length declared, and MUST return the handle. Where a call
+raises, it MUST end the handle with `files.close`, ignoring a refusal of that, and raise what was
+raised.
+
+**4.26.13** `Files.download(handle, to)` MUST read the file from offset 0 in chunks of at most
+`CHUNK` bytes until one has `eof` true, MUST write it beside `to` and move it there only once it is
+whole, replacing a file already there, and MUST return the bytes written. It MUST end the handle
+with `files.close` however the reading went, ignoring a refusal of that, and MUST raise `OSError`
+where a chunk holds no bytes and `eof` false.
+
+### 4.27. `Client.envs`
+
+```python
+class Envs(Family):
+    def list(self, workspace: str, *, slot: str | None = None) -> list[Role]: ...
+    def read(self, workspace: str, env: str, path: str, *, slot: str | None = None,
+             offset: int | None = None, length: int | None = None) -> Text: ...
+    def write(self, workspace: str, env: str, path: str, text: str, *,
+              slot: str | None = None, idem: str | None = None) -> int: ...
+    def exec(self, workspace: str, env: str, argv: Sequence[str], *, slot: str | None = None,
+             seconds: int | None = None, idem: str | None = None,
+             wait: float | None = None) -> Ran: ...
+    def grep(self, workspace: str, env: str, pattern: str, *, slot: str | None = None,
+             path: str | None = None, limit: int | None = None) -> Grepped: ...
+    def host(self, chat: str) -> tuple[str, str]: ...
+    def attached(self, workspace: str | None = None, *, slot: str | None = None,
+                 chat: str | None = None, start: bool = False,
+                 wait: float | None = 30.0) -> Attached: ...
+
+class Attached:            # a context manager
+    sub: str; workspace: str; slot: str; gone: str | None
+    def live(self, seconds: float | None = 30.0) -> bool: ...
+    def envs(self, wait: float = 0) -> list[Env]: ...
+    def env(self, name: str | None = None) -> Environment: ...
+    def close(self) -> None: ...
+
+class Environment:
+    env: Env; id: str
+    files: EnvFiles; git: EnvGit; terminals: EnvTerminals
+
+class EnvFiles:
+    def list(self, path: str = ".") -> list[Entry]: ...
+    def stat(self, path: str) -> Entry: ...
+    def read(self, path: str, *, offset: int | None = None,
+             length: int | None = None) -> Read: ...
+    def find(self, *, limit: int | None = None) -> Found: ...
+    def search(self, query: str, *, regex: bool | None = None, case: bool | None = None,
+               glob: str | None = None, limit: int | None = None) -> Searched: ...
+    def write(self, path: str, data: bytes | str, *, if_match: str | None = None,
+              idem: str | None = None) -> Wrote: ...
+    def mkdir(self, path: str, *, idem: str | None = None) -> None: ...
+    def rename(self, path: str, to: str, *, idem: str | None = None) -> None: ...
+    def remove(self, path: str, *, idem: str | None = None) -> None: ...
+
+class EnvGit:
+    def status(self) -> Status: ...
+    def diff(self, path: str, *, staged: bool | None = None) -> Diff: ...
+    def log(self, *, limit: int | None = None) -> list[Commit]: ...
+    def stage(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def unstage(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def discard(self, paths: Sequence[str], *, idem: str | None = None) -> None: ...
+    def commit(self, message: str, *, amend: bool | None = None,
+               idem: str | None = None) -> str: ...
+    def snapshots(self) -> list[str]: ...
+    def rewind(self, ref: str, *, idem: str | None = None) -> None: ...
+
+class EnvTerminals:
+    def open(self, *, cols: int = 80, rows: int = 24, term: str | None = None) -> Terminal: ...
+    def list(self) -> list[Shell]: ...
+    def close(self, term: str) -> None: ...
+
+class Terminal:            # a context manager, and an iterator of bytes
+    id: str; shell: tuple[str, ...] | None; replay: bytes; status: int | None
+    def write(self, data: bytes | str) -> None: ...
+    def resize(self, cols: int, rows: int) -> None: ...
+    def read(self, seconds: float | None = None) -> bytes | None: ...
+    def leave(self) -> None: ...
+    def close(self) -> None: ...
+
+ACK_EVERY = 65536
+
+# each frozen
+class Role:     name: str; kind: str; workdir: str; can: tuple[str, ...]
+class Text:     text: str; size: int; eof: bool
+class Ran:      code: int | None; stdout: str; stderr: str
+class Line:     path: str; line: int; text: str
+class Grepped:  matches: tuple[Line, ...]; more: bool
+class Env:      id: str; role: str; chain: str; parent: str | None; run: int; backend: str
+                provider: str; workdir: str; available: bool; open: bool
+                caps: tuple[str, ...]; declared: tuple[str, ...]; facts: dict[str, Any]
+class Entry:    name: str; kind: str; size: int; mtime: float
+                path: str | None; target: str | None
+class Read:     data: bytes; size: int; mtime: float; etag: str; eof: bool
+class Wrote:    etag: str; size: int; mtime: float
+class Found:    paths: tuple[str, ...]; truncated: bool
+class Match:    path: str; line: int; column: int; text: str
+class Searched: matches: tuple[Match, ...]; truncated: bool
+class Change:   path: str; index: str; worktree: str; state: str; orig: str | None
+class Status:   root: str; branch: str | None; head: str | None; upstream: str | None
+                ahead: int; behind: int; files: tuple[Change, ...]
+class Diff:     old: bytes | None; new: bytes | None; binary: bool
+class Commit:   hash: str; parents: tuple[str, ...]; author: str; date: str; subject: str
+class Shell:    term: str; env: str; title: str; cols: int; rows: int; alive: bool
+```
+
+`hmz.sdk.families.envs` holds every name above. `Envs.METHODS` names the methods of Section 4.23 and
+Section 4.24 of [DAEMON]: every `hosts.env.*` and every `env.*`.
+
+**4.27.1** `list`, `read`, `write`, `exec` and `grep` MUST call `hosts.env.list`, `hosts.env.read`,
+`hosts.env.write`, `hosts.env.exec` and `hosts.env.grep` (Section 4.23 of [DAEMON]) with what they
+were given under the names of [OPENRPC], and MUST return: the `envs` answered as `Role`s; a `Text`;
+the `size` answered; a `Ran`; and a `Grepped`. They MUST NOT attach to the host.
+
+**4.27.2** `attached(workspace, slot=...)` MUST call `epic.attach` with `workspace`, `slot` and
+`replay` `false`, and MUST return an `Attached` of the subscription answered, with `sub`,
+`workspace` and `slot` as answered, once the host has sent `live` (Section 4.9.1 of [DAEMON]). The
+client MUST be listening before `epic.attach` is called (Section 4.22.6), so that nothing the host
+says to the subscription is lost.
+
+**4.27.3** Where `start` is `False`, `attached` MUST first call `hosts.status` with `workspace` and
+`slot`, and MUST raise what it refuses without calling `epic.attach`, so that no host is started.
+`host(chat)` MUST call `chat.get` and return the `workspace` and `slot` of that chat, and MUST raise
+`Refused` with `This chat has folded away.` and `code` 409 where its `slot` is `""`; with `chat`,
+`attached` MUST attach to what `host(chat)` returns instead.
+
+**4.27.4** `attached` MUST raise `TimeoutError` where the host did not send `live` within `wait`
+seconds, and `Refused` with the `why` of `gone` and `code` 409 where it sent `gone` first; in both
+cases it MUST have called `epic.detach`.
+
+**4.27.5** `Attached.envs()` MUST return the `envs` of the last `envs` snapshot the host sent the
+subscription (Section 4.24.2 of [DAEMON]), in its order, `[]` before the first. With `wait`, where
+that is empty it MUST first wait up to `wait` seconds for one that is not.
+
+**4.27.6** `Attached.env(name)` MUST return an `Environment` of the first of `envs()` whose `id` is
+`name`, else whose `chain` is, else whose `role` is; with `name` `None`, of the first that is
+`available` and `open`, else of the first. It MUST raise `Refused` with `code` 404 where there is
+none: `There is no environment <name>.`, or `No environment is open here yet.` for `None`.
+
+**4.27.7** `Attached.close()`, and leaving its `with` block, MUST call `epic.detach` with `sub` and
+end what is waiting on the subscription; it MUST NOT close a terminal. `gone` MUST be the `why` of
+the host's `gone` once it has sent one, and `live()` MUST then return `False`.
+
+**4.27.8** Each method of `EnvFiles`, `EnvGit` and `EnvTerminals` MUST call the method of Section
+4.24 of [DAEMON] this table gives, with `sub`, the environment's `id` as `env`, and what it was given
+under the names of [OPENRPC], and MUST return its result as the type stated.
+
+| Method | Calls | Method | Calls |
+| --- | --- | --- | --- |
+| `EnvFiles.list` | `env.list` | `EnvGit.status` | `env.git.status` |
+| `EnvFiles.stat` | `env.stat` | `EnvGit.diff` | `env.git.diff` |
+| `EnvFiles.read` | `env.read` | `EnvGit.log` | `env.git.log` |
+| `EnvFiles.find` | `env.find` | `EnvGit.stage` | `env.git.stage` |
+| `EnvFiles.search` | `env.search` | `EnvGit.unstage` | `env.git.unstage` |
+| `EnvFiles.write` | `env.write` | `EnvGit.discard` | `env.git.discard` |
+| `EnvFiles.mkdir` | `env.mkdir` | `EnvGit.commit` | `env.git.commit` |
+| `EnvFiles.rename` | `env.rename` | `EnvGit.snapshots` | `env.git.snapshots` |
+| `EnvFiles.remove` | `env.remove` | `EnvGit.rewind` | `env.git.rewind` |
+| `EnvTerminals.open` | `env.term.open` | `EnvTerminals.list` | `env.term.list` |
+
+**4.27.9** Bytes MUST be given and returned as `bytes`, base64 [RFC4648] on the wire; `str` given
+as `data` MUST be sent as its UTF-8. `EnvFiles.write` MUST send `if_match` exactly where it is not
+`None`, `""` included (Section 4.24.3.6 of [DAEMON]).
+
+**4.27.10** `EnvFiles.read(path)` with neither `offset` nor `length` MUST return the whole file, read
+1048576 bytes a call, with `eof` `True`; where the `etag` answered changes between two calls it
+MUST read again from the start, and after three such readings MUST raise `Refused` with `code` 409.
+With either, it MUST make exactly one call.
+
+**4.27.11** `EnvTerminals.open` MUST return a `Terminal` whose `id`, `shell` and `replay` are the
+`term`, `shell` and `replay` answered. Its `write` and `resize` MUST call `env.term.input` and
+`env.term.resize`. `read(seconds)` MUST return the `data` of the next `term` message of that
+terminal the subscription was sent, the ones sent before `EnvTerminals.open` returned included, or
+`None` where none came within `seconds`, where the terminal was sent `term_exit` -- `status` MUST
+then be its `status` -- where it was left, or where the subscription ended; iterating MUST yield
+what `read()` returns until it returns `None`.
+
+**4.27.12** A `Terminal` MUST call `env.term.ack` with the bytes it has returned since it last did,
+whenever those reach `ACK_EVERY`, and on `leave` where there are any (Section 4.24.4.5 of [DAEMON]);
+a refusal of `env.term.ack` MUST NOT be raised. For a terminal that was left, the `Attached` MUST
+go on calling `env.term.ack` for what the host sends of it, as often, until the terminal ends, is
+come back to or the host is let go, so that a terminal nobody reads is never held up (Section
+4.24.4.6 of [DAEMON]).
+
+**4.27.13** `Terminal.leave()` MUST end the reading and MUST NOT call `env.term.close`.
+`Terminal.close()` MUST do as `leave` does and call `env.term.close`; `EnvTerminals.close(term)` MUST
+call it for any terminal of the host. Leaving the `with` block of a `Terminal` whose `status` is
+`None` and that was not left MUST close it. A `Terminal` made by `EnvTerminals.open(term=...)` MUST NOT
+return what the host sent of that terminal before `EnvTerminals.open` was called.
+
+### 4.28. `Client.flows`, `Client.flowverses`, `Client.workspaces` and `Client.paths`
+
+```python
+class Flows(Family):
+    def list(self, workspace: str | None = None) -> Offered: ...
+    def get(self, name: str, workspace: str | None = None) -> Declared: ...
+    def backends(self) -> Backends: ...
+    def setup(self, workspace: str, flow: str, *, agents: Mapping[str, str] | None = None,
+              envs: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None,
+              budget: Mapping[str, Any] | None = None, profile_flow: bool | None = None,
+              profile_environment: bool | None = None, backup: Sequence[str] | None = None,
+              idem: str | None = None) -> Declared: ...
+    def check(self, workspace: str, flow: str, *, agents: Mapping[str, str] | None = None,
+              envs: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None,
+              budget: Mapping[str, Any] | None = None, profile_flow: bool | None = None,
+              profile_environment: bool | None = None, resume: bool | str | None = None,
+              backup: Sequence[str] | None = None) -> Checked: ...
+    def fork(self, workspace: str, flow: str, *, idem: str | None = None) -> Forked: ...
+
+class Flowverses(Family):
+    def list(self) -> Kept: ...
+    def get(self, name: str) -> Index: ...
+    def add(self, url: str, name: str | None = None, *, idem: str | None = None) -> Kept: ...
+    def fetch(self, name: str, *, idem: str | None = None) -> Kept: ...
+    def remove(self, name: str, *, idem: str | None = None) -> Kept: ...
+    def install(self, flow: str, version: str | None = None, *,
+                idem: str | None = None) -> Kept: ...
+    def uninstall(self, flow: str, *, idem: str | None = None) -> Kept: ...
+
+class Workspaces(Family):
+    def list(self, here: str | None = None) -> Known: ...
+    def add(self, workspace: str, here: str | None = None, *,
+            idem: str | None = None) -> Known: ...
+    def forget(self, workspace: str, here: str | None = None, *,
+               idem: str | None = None) -> Known: ...
+
+class Paths(Family):
+    def list(self, at: str | None = None, *, files: bool | None = None,
+             hidden: bool | None = None, env: str | None = None) -> Directory: ...
+    def complete(self, typed: str) -> list[str]: ...
+
+# hmz.sdk.families.flows -- each frozen
+class Offered:   flows: tuple[Flow, ...]; flow: str; running: tuple[Running, ...]; answer: dict
+class Flow:      whose: str; name: str; about: str
+class Running:   ref: str; name: str; depth: int; since: str; task: str
+class Declared:  name: str; ref: str; description: str; resumable: bool; resumes: bool
+                 agents: tuple[AgentRole, ...]; envs: tuple[EnvRole, ...]
+                 params: dict; remembered: dict; answer: dict
+class AgentRole: name: str; required: bool; auto: bool; harness: str; permission: dict
+                 skills: tuple[str, ...]; clis: tuple[str, ...]
+class EnvRole:   name: str; required: bool; auto: bool; cpu: Any; memory: Any; gpu: Any; image: Any
+class Checked:   flow: str; ref: str; declared: Declared; names: dict[str, str]
+                 budget: dict | None; backup: tuple[str, ...]; unreadable: str; answer: dict
+class Backends:  clis: dict[str, tuple[Account, ...]]; installable: dict[str, tuple[Model, ...]]
+                 envs: tuple[str, ...]; answer: dict
+class Account:   name: str; models: tuple[Model, ...]; asked: str
+class Model:     name: str; efforts: tuple[str, ...]
+class Forked:    said: str; at: str
+
+# hmz.sdk.families.flowverses -- each frozen
+class Kept:      verses: tuple[Verse, ...]; installed: tuple[Installed, ...]
+                 updates: tuple[Update, ...]; said: str; answer: dict
+class Verse:     name: str; url: str; fetched: bool; fixed: bool; edited: bool; installed: int
+class Installed: flow: str; verse: str; listed: str; version: str; repo: str; ref: str
+class Update:    flow: str; was: str; to: str
+class Index:     name: str; url: str; fetched: bool; fixed: bool; edited: bool
+                 flows: tuple[Listed, ...]; skipped: tuple[Skipped, ...]; answer: dict
+class Listed:    listed: str; flow: str; installed: str; releases: tuple[Release, ...]
+class Release:   version: str; description: str; prerelease: bool; license: str; repo: str
+                 dependencies: Any
+class Skipped:   at: str; why: str
+
+# hmz.sdk.families.workspaces and hmz.sdk.families.paths -- each frozen
+class Known:     here: str; workspaces: tuple[Workspace, ...]; kept: str; answer: dict
+class Workspace: path: str; name: str; epics: int; chats: int; last: str
+                 running: bool; here: bool; there: bool
+class Directory: at: str; whole: str; up: str; entries: tuple[Entry, ...]; more: int; answer: dict
+class Entry:     name: str; dir: bool
+```
+
+The families of this section are the daemon's view of flows, flowverses, workspaces and
+directories. They are not the `Flows` and `Flowverses` of Section 4.7 and Section 4.8, which read
+this machine's files in the calling process and which `hmz.sdk` exports under those names.
+
+**4.28.1** Each method of this section MUST call the method of [OPENRPC] of its family's group and
+its own name -- `Flows.list` `flows.list`, `Flows.get` `flows.get`, `Paths.complete`
+`paths.complete`, and so on -- once, with each argument under its parameter's name, the first
+argument of `Flowverses.get`, `fetch` and `remove` as `name`.
+
+**4.28.2** A result type of this section that has `answer` MUST hold in it the whole result of the
+call, unchanged, and in its other fields that result's fields of the same names, each list as a
+tuple of the type shown, in the daemon's order.
+
+**4.28.3** `Flows.list(workspace)` MUST return what Section 4.17.1 of [DAEMON] answers;
+`workspace` `None` MUST be sent as no workspace.
+
+**4.28.4** `Flows.get(name, workspace)`, and `Flows.setup`, MUST return a `Declared` of what Section
+4.17.2 of [DAEMON] answers, `params` being the flow's JSON schema and `remembered` what the
+workspace last set the flow up with, each as the daemon answered it.
+
+**4.28.5** `Flows.backends()` MUST return a `Backends` whose `clis` holds, for each CLI of the
+result, an `Account` for each of its `accounts`, in order, and whose `installable` holds, for each
+CLI, a `Model` for each model.
+
+**4.28.6** `Flows.setup` and `Flows.check` MUST send `agents` and `envs` as objects of role to text,
+`params` and `budget` as objects, and `backup` as a list, and MUST send none of the arguments given
+as `None`. `Flows.check` MUST return a `Checked` of what Section 4.17.8.2 of [DAEMON] answers,
+`declared` being a `Declared`.
+
+**4.28.7** `Flows.fork(workspace, flow)` MUST return a `Forked` of the result's `said` and `at`.
+
+**4.28.8** `Flowverses.list()` and each of `add`, `fetch`, `remove`, `install` and `uninstall` MUST
+return a `Kept` of what Section 4.17.6 of [DAEMON] answers: `said` being the result's `said`, `""`
+from `list`, and an `Update`'s `was` being the result's `from`.
+
+**4.28.9** `Flowverses.get(name)` MUST return an `Index` of what Section 4.17.6.2 of [DAEMON]
+answers.
+
+**4.28.10** `Workspaces.list(here)`, `add(workspace, here)` and `forget(workspace, here)` MUST
+return a `Known` of what Section 4.17.5 of [DAEMON] answers, `kept` being the result's `kept` from
+`add` and `""` from the others.
+
+**4.28.11** `Paths.list(at, files, hidden, env)` MUST return a `Directory` of what Section 4.17.7.1
+of [DAEMON] answers, and `Paths.complete(typed)` the result's `paths` as a list.
+
+### 4.29. `Client.settings`, `Client.accounts` and `Client.nous`
+
+```python
+class Settings(Family):
+    def get(self, workspace: str | None = None) -> Kept: ...
+    def set(self, *, workspace: str | None = None, chat: str | None = None,
+            prefer: str | None = None, details: bool | None = None,
+            harness_sessions: bool | None = None, reports: bool | None = None,
+            backup: Backup | Mapping[str, Any] | None = None,
+            listen: Sequence[str] | None = None,
+            ice_servers: Sequence[Mapping[str, Any]] | None = None,
+            idem: str | None = None) -> Kept: ...
+    def forget(self, workspace: str, *, idem: str | None = None) -> Kept: ...
+
+class Kept:     # frozen
+    workspace: str; flow: str; chat: str; prefer: str; ai_chan: str
+    details: bool; harness_sessions: bool; reports: bool | None
+    flows: tuple[str, ...]; backup: Backup; listen: tuple[str, ...]
+    ice_servers: tuple[dict[str, Any], ...]; forgot: bool | None; said: dict[str, Any]
+
+class Backup:   # frozen
+    targets: tuple[Target, ...]; defaults: tuple[str, ...]
+    def sent(self) -> dict[str, Any]: ...
+
+class Target:   # frozen
+    name: str; url: str; branch: str; policies: tuple[str, ...]; every: int
+    def sent(self) -> dict[str, Any]: ...
+
+class Accounts(Family):
+    def list(self) -> Listing: ...
+    def create(self, cli: str, name: str, way: str, answers: Mapping[str, str] | None = None,
+               *, idem: str | None = None) -> Listing: ...
+    def correct(self, cli: str, name: str, answers: Mapping[str, str] | None = None,
+                *, idem: str | None = None) -> Listing: ...
+    def remove(self, cli: str, name: str, *, idem: str | None = None) -> Listing: ...
+    def models(self, cli: str, name: str = "", *, idem: str | None = None,
+               wait: float | None = None) -> Listing: ...
+    def copy(self, cli: str, name: str, into: str, *, idem: str | None = None) -> Listing: ...
+
+class Listing:  # frozen
+    gateway: str; accounts: tuple[Account, ...]; backends: tuple[Backend, ...]
+    said: dict[str, Any]
+    def account(self, cli: str, name: str) -> Account | None: ...
+    def backend(self, cli: str) -> Backend | None: ...
+
+class Account:  # frozen
+    cli: str; name: str; way: str; sets: tuple[str, ...]; made: str
+    models: tuple[str, ...]; asked: str; serves: tuple[str, ...]
+
+class Backend:  # frozen
+    cli: str; ways: tuple[Way, ...]; wants: str
+    def way(self, name: str) -> Way | None: ...
+
+class Way:      # frozen
+    name: str; about: str; group: str; terminal: bool; asks: tuple[Ask, ...]
+
+class Ask:      # frozen
+    env: str; about: str; secret: bool; fixed: str
+
+class Nous(Family):
+    def list(self) -> Book: ...
+    def scan(self, *, idem: str | None = None, wait: float | None = None) -> Book: ...
+    def set(self, name: str, *, tries: int | None = None, policy: str | None = None,
+            timeout: float | None = None,
+            graph: Graph | str | Sequence[str] | Mapping[str, Any] | None = None,
+            then: Graph | str | Sequence[str] | Mapping[str, Any] | None = None,
+            idem: str | None = None) -> Book: ...
+    def rename(self, name: str, to: str, *, idem: str | None = None) -> Book: ...
+    def clear(self, name: str, *, idem: str | None = None) -> Book: ...
+
+class Book:     # frozen
+    nous: tuple[Entry, ...]; policies: tuple[Kind, ...]; default: str
+    strategies: tuple[Kind, ...]; faults: tuple[str, ...]; concrete: tuple[str, ...]
+    scanning: bool; failed: tuple[Failed, ...]; said: dict[str, Any]
+    def entry(self, name: str) -> Entry | None: ...
+
+class Entry:    # frozen
+    name: str; virtual: bool; tries: int; policy: str; timeout: float
+    graph: Graph | None; then: Graph | None
+
+class Graph:    # frozen
+    start: str; nodes: tuple[Node, ...]
+    def sent(self) -> dict[str, Any]: ...
+
+class Node:     # frozen
+    id: str; use: str; balance: str; among: tuple[Member, ...]; spread: int
+    on: dict[str, str]
+
+class Member:   # frozen
+    nous: str; weight: int
+
+class Kind:     # frozen
+    name: str; about: str
+
+class Failed:   # frozen
+    cli: str; account: str; why: str
+```
+
+These are the families of `settings.*`, `accounts.*` and `nous.*` (Section 4.18 of [DAEMON]), in
+`hmz.sdk.families.settings`, `hmz.sdk.families.accounts` and `hmz.sdk.families.nous`. `Accounts`
+here is not the `Accounts` of Section 4.9, which reads this machine's files, and `Nous` is not the
+`NousBook` of Section 4.11; `hmz.sdk` exports neither of these families' classes by name.
+
+**4.29.1** Every method of these three families MUST make exactly one call, of the method of
+[OPENRPC] whose name is its family's prefix and its own name (`Settings.get` calls `settings.get`,
+`Accounts.create` calls `accounts.create`, `Nous.scan` calls `nous.scan`), and MUST return its
+result as the type shown, whose `said` is the whole result.
+
+**4.29.2** `Settings.get(workspace)` MUST send `workspace` where it is not `None`. `Settings.set`
+MUST send each setting it was given and no other, a `Backup` as its `sent()`; and
+`Settings.forget(workspace)` MUST return a `Kept` whose `forgot` is the result's. `forgot` MUST be
+`None` in a `Kept` any other method returns.
+
+**4.29.3** A `Kept` MUST hold `reports` as `None` where the result's is `null`, each target's `url`
+as the daemon answered it, and each entry of `ice_servers` as the daemon answered it. `Backup.sent()`
+MUST be a `backup` that `settings.set` writes as the same targets and defaults.
+
+**4.29.4** `Accounts.create` and `Accounts.correct` MUST send `answers` as given, an empty object
+where it is `None`. `Accounts.models(cli, name)` MUST send `name` where it is `""`, which names the
+sign-in of the daemon's machine.
+
+**4.29.5** A type of these families MUST NOT hold the value of a variable an account sets: the
+only place one passes is the `answers` a caller gives; an `Account` holds the names in `sets`, as the daemon answers them
+(Section 4.18.2.2 of [DAEMON]).
+
+**4.29.6** `Listing.account(cli, name)` MUST return the account of that harness and name, and
+`Listing.backend(cli)`, `Backend.way(name)` and `Book.entry(name)` the one of that name; each MUST
+return `None` where there is none.
+
+**4.29.7** `Nous.set` MUST send `graph` and `then` as given: a `Graph` as its `sent()`, a string as
+it is, a sequence as a list and a mapping as an object; and MUST leave out each that is `None`, so
+that the daemon writes the nous whole with nothing there. `Graph.sent()` of a graph a `Book` holds
+MUST be a graph that `nous.set` reads as the same graph.
+
+**4.29.8** `Nous.scan` MUST return a `Book` whose `failed` holds each entry of the result's
+`failed`; `failed` MUST be empty in a `Book` any other method returns. `Nous.scan` and
+`Accounts.models` MUST take `wait`, the seconds an answer is waited for.
+
+### 4.30. `Client.runtimes` and `Client.easytier`
+
+```python
+class Runtimes(Family):                       # hmz.sdk.families.runtimes
+    def list(self) -> Listed: ...
+    def set(self, backend: str, name: str, fields: Mapping[str, Any] | None = None, *,
+            replace: bool = False, idem: str | None = None) -> Listed: ...
+    def remove(self, backend: str, name: str, *, idem: str | None = None) -> Listed: ...
+    def check(self, backend: str, name: str, *, wait: float | None = None) -> Checked: ...
+    def hosts(self) -> tuple[Host, ...]: ...
+    def import_(self, names: Sequence[str], *, update: bool = False,
+                idem: str | None = None) -> Listed: ...
+
+class Listed:    # frozen
+    local: dict[str, Any]; runtimes: tuple[Runtime, ...]; blanks: dict[str, dict[str, Any]]
+
+class Runtime:   # frozen
+    backend: str; name: str; made: str; fields: dict[str, Any]
+
+class Checked:   # frozen
+    reached: bool; why: str; cpus: float; memory: int; gpus: tuple[str, ...]
+    short: tuple[str, ...]; said: dict[str, Any]
+
+class Host:      # frozen
+    alias: str; host: str; user: str; port: int; saved: bool; said: dict[str, Any]
+
+class EasyTier(Family):                       # hmz.sdk.families.easytier
+    def list(self) -> tuple[Network, ...]: ...
+    def set(self, name: str, nodes: Sequence[str], *, secret: str | None = None,
+            idem: str | None = None) -> tuple[Network, ...]: ...
+    def remove(self, name: str, *, idem: str | None = None) -> tuple[Network, ...]: ...
+    def nodes(self) -> tuple[Node, ...]: ...
+
+class Network:   # frozen
+    name: str; nodes: tuple[str, ...]; secret: bool
+
+class Node:      # frozen
+    url: str; name: str; version: str; up: bool | None; uptime: float | None
+
+class Client:
+    @classmethod
+    def named(cls, name: str, *, kind: Kind = "sdk") -> Client: ...
+```
+
+The family `Runtimes` of this section is the calls of `runtimes.*` on a daemon, and is distinct from
+`hmz.sdk.Runtimes` (Section 4.10), which reads and writes the runtimes of the calling process's own
+machine.
+
+**4.30.1** `Runtimes.list()` MUST call `runtimes.list` and return a `Listed`: `local` and `blanks`
+as the daemon answered them, and each runtime, in the daemon's order, as a `Runtime` whose `fields`
+are every member the daemon answered of it other than `backend`, `name` and `made`.
+
+**4.30.2** `Runtimes.set(backend, name, fields, replace=...)` MUST call `runtimes.set` with
+`backend`, `name`, `fields`, an empty object where it is `None`, and `replace` `true` where it is
+true; `Runtimes.remove(backend, name)` MUST call `runtimes.remove`; and
+`Runtimes.import_(names, update=...)` MUST call `runtimes.import` with `names` as a list and
+`update` `true` where it is true. Each MUST return the `Listed` of what the daemon answered.
+
+**4.30.3** `Runtimes.check(backend, name, wait=...)` MUST call `runtimes.check`, waiting `wait`
+seconds for the answer where it is given (Section 4.21.4), and return a `Checked`: `reached`, `why`
+the result's `said`, `cpus`, `memory`, `gpus` and `short`, and `said` the whole result.
+
+**4.30.4** `Runtimes.hosts()` MUST call `runtimes.hosts` and return each host, in the daemon's
+order, as a `Host` whose `said` is everything the daemon answered of it.
+
+**4.30.5** `EasyTier.list()` MUST call `easytier.list` and return each entry as a `Network`, whose
+`secret` is whether one is written and never the secret.
+
+**4.30.6** `EasyTier.set(name, nodes, secret=...)` MUST call `easytier.set` with `name`, `nodes` as
+a list and, where it is not `None`, `secret`; `EasyTier.remove(name)` MUST call `easytier.remove`.
+Each MUST return the entries the daemon answered, as `list()` does.
+
+**4.30.7** `EasyTier.nodes()` MUST call `easytier.nodes` and return each node as a `Node`, `name`
+and `version` being `""` and `up` and `uptime` `None` where the daemon said nothing of them.
+
+**4.30.8** `Runtimes.METHODS` MUST be `runtimes.list`, `runtimes.set`, `runtimes.remove`,
+`runtimes.check`, `runtimes.hosts` and `runtimes.import`, and `EasyTier.METHODS` `easytier.list`,
+`easytier.set`, `easytier.remove` and `easytier.nodes`.
+
+**4.30.9** `Client.named(name, kind=...)` MUST return a `Client` (Section 4.21) of a session with
+the daemon the registry of Section 4.14 keeps under `name`, reached as `Registry.remotes(kind=kind)`
+reaches it (Section 4.14.6, Section 4.14.9) with `install` `False`: over its routes in order,
+pinning the id it answers where none is pinned, and never installing `hmz` on a machine that has
+none. The session MUST say `session.hello` with `kind`, `sdk` where it is not given; a declared
+command given `--daemon` (Section 23.5 of [CLI]) gives `cli`. It MUST wait for a
+daemon that is `connecting` or `installing` until it is `up` or `failed`.
+
+**4.30.10** `Client.named` MUST raise `LookupError` where the registry keeps no daemon under
+`name`, and `OSError` where the daemon cannot be reached, its message how the daemon stands
+(Section 4.14.7); either way it MUST leave nothing running that it started to reach the daemon.
+
+**4.30.11** Section 4.21.2 to Section 4.21.7 and Section 4.22 MUST hold of the `Client` that
+`Client.named` returns.
+
+**4.30.12** `Client.close()` on a `Client` that `Client.named` returned MUST also close the session
+and stop every process started to reach the daemon (Section 4.14.11).
+
+### 4.31. `Client.btw`, `Client.aichan` and `Client.notices`
+
+```python
+class SideQuestions(Family):
+    def list(self, workspace: str, *, epic: str | None = None,
+             chat: str | None = None) -> list[Aside]: ...
+    def sessions(self, *, epic: str | None = None,
+                 chat: str | None = None) -> list[Session]: ...
+    def ask(self, workspace: str, question: str, *, to: str, aside: str | None = None,
+            epic: str | None = None, chat: str | None = None,
+            wait: float | None = None) -> Answer: ...
+    def leave(self, workspace: str, aside: str | None = None) -> None: ...
+
+class Answer:        # frozen
+    aside: str; to: str; question: str; answer: str
+
+class Aside:         # frozen
+    aside: str; to: str; question: str; said: tuple[Answer, ...]
+
+class Session:       # frozen
+    key: str; agent: str; harness: str
+
+class AiChan(Family):
+    def create(self, task: str, *, scope: str = "daemon", workspace: str | None = None,
+               epic: str | None = None, nous: str | None = None,
+               preset: str | None = None, idem: str | None = None) -> Made: ...
+    def list(self) -> list[Conversation]: ...
+    def get(self, id: int) -> Conversation: ...
+    def rename(self, id: int, title: str, *, idem: str | None = None) -> None: ...
+    def forget(self, id: int, *, idem: str | None = None) -> None: ...
+    def say(self, id: int, text: str, *, hear: bool = True,
+            wait: float | None = None) -> Reply | None: ...
+    def heard(self, id: int, *, wait: float | None = None) -> Reply: ...
+    def stop(self, id: int) -> None: ...
+
+class Conversation:  # frozen
+    id: int; title: str; scope: str; workspace: str; epic: str; nous: str; preset: str
+    slot: str; state: str; created: str; latest: str; updated: str
+
+class Made:          # frozen
+    id: int; workspace: str; slot: str
+
+class Reply:         # frozen
+    text: str; mode: str
+
+class Notices(Family):
+    def list(self, after: int | None = None) -> list[Notice]: ...
+    def last(self) -> int: ...
+    def kept(self, after: int | None = None) -> tuple[list[Notice], int]: ...
+    def subscribe(self, after: int | None = None) -> Subscription: ...
+    def unsubscribe(self, subscription: Subscription | str) -> None: ...
+    def follow(self, after: int | None = None) -> Generator[Notice]: ...
+
+class Notice:        # frozen
+    id: int; kind: str; workspace: str; slot: str; epic: str; chat: str; flow: str
+    task: str; role: str; text: str; at: float
+    @classmethod
+    def of(cls, said: Mapping[str, Any]) -> Notice: ...
+```
+
+**4.31.1** `SideQuestions.list(workspace, epic, chat)` MUST call `btw.list` and return its `asides`
+in the daemon's order, the `said` of each as `Answer`s.
+
+**4.31.2** `SideQuestions.ask(workspace, question, to, aside, epic, chat)` MUST call `btw.ask` and
+return its result as an `Answer`; where `aside` is `None` it MUST send a name of its own making,
+new for every call. `wait` MUST be how long the answer is waited for (Section 4.22).
+
+**4.31.3** `SideQuestions.leave(workspace, aside)` MUST call `btw.leave`, with no `aside` where it
+is `None`.
+
+**4.31.4** `SideQuestions.sessions` MUST take exactly one of `epic` and `chat`, else raise
+`ValueError` and call nothing; it MUST read `sessions` from `runs.get` for an epic and from
+`chat.get` for a chat, and return one `Session` for each, in that order, `key` being
+`<agent>/<n>`, `<n>` counting that agent's sessions from 1, and `harness` its `backend`.
+
+**4.31.5** `AiChan.create` MUST call `aichan.create` and return a `Made` of its `id`, `workspace`
+and `slot`; `list()` MUST call `aichan.list` and return its conversations in the daemon's order;
+`rename(id, title)` and `forget(id)` MUST call `aichan.rename` and `aichan.forget`.
+
+**4.31.6** `AiChan.get(id)` MUST return the conversation of that `id` among those of `aichan.list`,
+and MUST raise `Refused` with `code` 404, `There is no Ai-chan #<id>.`, where there is none.
+
+**4.31.7** `AiChan.say`, `AiChan.heard` and `AiChan.stop` MUST each read the conversation as
+`get(id)` does and attach to its host with `epic.attach` `{workspace, slot, replay: false}`, and
+MUST let go of it with `epic.detach` however they end; a detach that is refused or cannot be made
+MUST NOT be raised.
+
+**4.31.8** `AiChan.say(id, text)` MUST read the host's status (`epic.status`) until it holds a
+question or its `turn` is `running`, and MUST then call `epic.answer` with the first question it
+holds and `text`, or `epic.say` with `text` where it holds none. With `hear` true it MUST then read
+the status until it holds a question it did not hold when `text` was sent, and return a `Reply` of
+that question's `text` and `mode`; with `hear` false it MUST return `None`.
+
+**4.31.9** `AiChan.heard(id)` MUST read the host's status until it holds a question, and return a
+`Reply` of the first one's `text` and `mode`.
+
+**4.31.10** While `say` or `heard` waits, a status that holds no question, whose `turn` is not
+`running` and whose `ended` says how it ended, other than `stopped`, MUST raise `Refused` with `code` 409 and that `why`, or
+`This conversation failed. Start a new one.` where it says none; and `wait` seconds passing, where
+it is not `None`, MUST raise `TimeoutError`.
+
+**4.31.11** `AiChan.stop(id)` MUST call `epic.stop` on the host, and for a conversation whose
+`state` is `folded` MUST attach to nothing and raise `Refused` with `code` 409, `Ai-chan is not
+answering, so there is nothing to stop`.
+
+**4.31.12** `Notices.kept(after)` MUST call `notices.list` once and return its `notices`, oldest
+first, and its `last`; `list(after)` MUST return the first of the two and `last()` the second.
+
+**4.31.13** `Notices.subscribe(after)` MUST call `notices.subscribe` and return the `Subscription`
+(Section 4.22) of its `sub`, which is told the `params` of each `notices.event`: `{sub, notice}`,
+or `{sub, gone}`. `unsubscribe` MUST take that `Subscription`, which it MUST also close, or a `sub`,
+and call `notices.unsubscribe`.
+
+**4.31.14** `Notices.follow(after)` MUST subscribe and yield each notice it is told as a `Notice`,
+for as long as it is iterated. Told `gone`, it MUST subscribe again after the last notice it
+yielded, or, where it yielded none, after `after`, or the `last` its first subscription was
+answered with where `after` is `None`. Closed, it MUST unsubscribe, and a refusal of that MUST NOT
+be raised. Once the session has ended it MUST raise `ConnectionError`.
+
+**4.31.17** `AiChan.list()` MUST return `""` for a text a conversation's entry holds `null` for.
+
+**4.31.15** `Notice.of(said)` MUST return the `Notice` of one notice as a daemon says it (Section
+4.19.1.2 of [DAEMON]).
+
+**4.31.16** The `METHODS` of these three families MUST name the methods of `btw.*`, `aichan.*` and
+`notices.*` alone. The calls `AiChan` makes of `epic.*` and `SideQuestions.sessions` makes of
+`runs.get` and `chat.get` are named by the families of those methods (Section 4.22.2), and MUST be
+made as Section 4.22.3 states.
 
 ## 5. Security Considerations
 

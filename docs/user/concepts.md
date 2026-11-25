@@ -1,187 +1,90 @@
-<script setup>
-import RunAnatomy from '../.vitepress/theme/components/user-concepts/RunAnatomy.vue'
-</script>
-
-# Glossary
-
-The words the rest of these docs use, one entry each, with where to read more.
-
-```text
-epic ─── one run of a flow, written down
- │
-flow ─── the loop: who is asked what, and until when
- │
- ├── role "builder" ─── agent: backend, model, effort
- │                       └── session ─── turn, turn, turn …
- │
- └── role "reviewer" ── agent: …
-                         └── session ─── turn …
-```
-
-## One run, in these words
-
-Most of the words below meet in a single command. This one runs the [`rlar`](https://humanfia.ai/flows/rlar)
-flow, where an actor works and a reviewer checks each of its turns:
-
-```sh
-hmz exec -f rlar \
-    -a actor=claude/claude-opus-5-5:high \
-    -a reviewer=codex/gpt-5.6-sol:high \
-    -p budget.duration=2h,budget.cost=10 \
-    "fix the flaky payment test"
-```
-
-1. **`-f rlar`** names the [flow](#flow): the loop that says who is asked what, and when to
-   stop.
-2. **`actor=` and `reviewer=`** are its two [roles](#role). Each is filled with an
-   [agent](#agent): a [backend](#backend) (`claude`, `codex`), a model, and an
-   [effort](#effort) (`high`). With no `@`, each runs as the [provider](#provider) you signed
-   the CLI in as.
-3. **`-p budget.duration=2h,budget.cost=10`** is the [budget](#budget): the run stops at two
-   hours or ten dollars, whichever comes first.
-4. **The quoted line** is the task.
-
-While it runs, the actor keeps one [session](#session) and the reviewer opens a fresh one
-every round; each exchange inside a session is a [turn](#turn). All of them work in the
-[workspace](#workspace), the directory you ran the command in, which is the run's one
-[environment](#environment). The whole run is written down as an [epic](#epic), and afterwards
-its [trace](#trace) shows every turn on one timeline.
-
-<RunAnatomy />
-
-The same run at the prompt is `/flow`, the same choices made in menus, and
-`$rlar fix the flaky payment test` typed at `❯`. See [Your first run](/user/first-run).
-
-## Agent
-
-What fills one role of a flow: a [backend](#backend), a model and an [effort](#effort), and
-optionally the [provider](#provider) it runs as. On a command line it is written after the role
-it fills:
-
-```text
-reviewer=claude@work/claude-opus-4-8:high
-   │       │     │         │           └── effort
-   │       │     │         └── model
-   │       │     └── provider; left out, as you signed in
-   │       └── backend
-   └── role
-```
-
-An agent holds no conversation of its own: it is the settings every [session](#session) it
-opens runs at. Two agents set up alike are still two agents. Set one up in `/flow`:
-[Your first run](/user/first-run).
-
-## Backend
-
-A coding agent CLI that Humanize drives: `agy`, `claude`, `codex`, `cursor-agent`, `dsh`,
-`grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `pi` or `qwen`. It is the `cli` row of an
-agent. See [Installation](/user/installation) and [Many backends, one
-agent](/features/backends).
-
-## Budget
-
-What a run may spend before it is stopped: a `duration`, a `cost` in US dollars, or a number of
-`output_tokens`. Every flow needs one; a [chat](#chat) has none. See [Every run has a
-budget](/features/allowances). A single turn can also have a budget of its own, set by the
-flow: [A turn can be cut off](/features/budgets).
-
-## Chat
-
-You talking to one [agent](#agent), a turn at a time, in one conversation in one
-[workspace](#workspace): a session of its own, which is no [epic](#epic), with no flow, params
-or budget. It is kept as its own record, under its own id and title, listed apart from the
-epics, and carried on by saying something in it. `hmz` opens on one, and lines your agent's CLI
-reads natively, such as its `/` commands and skills, work in it. See [Chat](/user/chat).
-
-## Effort
-
-How hard the model thinks, in the backend's own words: `high`, `max`, `off` and so on. Each
-model has its own list. See [Efforts](/user/efforts).
-
-## Environment
-
-Where a turn's work lands: this directory, another directory, or a directory on another
-machine. A flow declares the ones it needs, and most need only this directory. The flow names
-one each time it runs a turn, so one [session](#session) may work in more than one; a turn
-that names none works in the [workspace](#workspace). See
-[Remote execution](/user/remote-execution) and [Containers](/user/containers).
-
-## Epic
-
-One run of one flow, written down as it happens: the flow, its agents,
-and every session they opened. `/epics` lists the epics of this directory. A [chat](#chat) is
-not an epic. See [Tracing](/user/tracing) and
-[Picking a run up](/user/resuming).
-
-## Flow
-
-The loop: Python that says which agent is asked what, in what order, and when to stop. You
-choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run) and
-[Flows](https://humanfia.ai/flows/).
-
-## Flowverse
-
-An index of flows: a git repository listing each release of a flow, and the repository and
-commit it is. A flow it lists runs once you install it from `/flow`. `official` is Humanize's
-own; add others on `/flow`'s Flowverses page. Humanize ships no flow: until one is installed,
-or you write your own, only the [chat](/user/chat) works. A flow installed from `official` is
-named as `official` lists it -- `aot` for humanfia's own, `<user>/<flow>` for anybody else's --
-and one installed from another flowverse `@<flowverse>/<flow>`. See
-[Flowverses](/weaver/flowverses).
-
-## Outworlder
-
-You, as a flow sees you: whoever is at the prompt, when the flow asks something. `/afk` says
-you are away. See [Being away](/user/afk).
-
-## Permission
-
-What an agent may touch, declared by the flow for each role: a `preset` (`read-only`,
-`workspace-write` or `danger-full-access`), whether it may reach the `network`, and
-`granular` rules that allow, keep read-only or deny one path each, the last that matches
-winning. See [Permissions](/user/permissions) and
-[Security](/user/security).
-
-## Provider
-
-A named account for one backend, kept apart from the CLI's own login: a login, an API key, or a
-gateway. It is the `account` row of an agent, where `as local` means the CLI as you signed it
-in. See [Accounts](/user/settings#accounts).
-
-## Role
-
-A named slot a flow declares, such as `agent`, `builder` or `reviewer`. You give each agent
-role an agent; the flow says what the role is for and what it may touch. See [Your first
-run](/user/first-run).
-
-## Session
-
-One conversation with one agent, kept across its turns. When to start a fresh one is the
-biggest choice a flow makes, because it decides what the agent remembers: a Ralph loop starts a
-new session every round, so the agent starts from the task each time. See
-[Many conversations at once](/user/conversations).
-
-## Trace
-
-A whole run as one timeline, which you open in Perfetto. See [Tracing](/user/tracing).
-
-## Turn
-
-One exchange with the model: it is told something, works with its tools, and answers. A line
-you type while a turn is running goes into that turn. See [Talking to a running
-turn](/user/steering).
-
-## Weaver
-
-Whoever writes a flow. [Writing Flows](/weaver/) is for them; the User Guide never asks for
-Python.
-
-## Workspace
-
-The directory `hmz` runs in. What is remembered, the run you can leave and come back to, and
-the runs `/epics` lists all belong to one workspace. See
-[Settings](/user/settings).
-
+---
+title: Concepts
+description: Know what each word in Humanize means, and where you meet it in the app, the terminal and on the command line.
 ---
 
-Writing a flow of your own? The [flow API](/reference/flows) has the Python.
+# Concepts
+
+Humanize is infrastructure for running flows, not a flow itself: a flow is a program, and Humanize schedules the nous it asks for, in the environments it names, under a budget. It uses a small vocabulary for this. This page defines each word and shows where you find it.
+
+![Four frontends attach to one daemon. The daemon holds an epic, one run of a flow. Each role of the flow is filled by a nous or by you, and turns work in an environment on a runtime.](/diagrams/user-concepts-1.svg)
+
+*How the words fit together.*
+
+## The work
+
+| Word | Meaning |
+| --- | --- |
+| Flow | A Python program that decides what to ask each agent, in what order, and when to stop. Humanize ships no flows; you install them or write your own. See [Find and install flows](/user/flows). |
+| Flowverse | A git repository that indexes flows. The `official` one lists `ralph_loop`, `stateful_ralph`, `continue_loop`, `goal`, `flame_chase` and `rlar` at [humanfia.ai/flows](https://humanfia.ai/flows/). Flows in your own project use the name `@local/<flow>`. |
+| Epic | One recorded run of a flow on one task. Every epic has a budget. You cannot reopen an ended epic; running the flow again creates a new one, which a resumable flow can start from where the last one stopped. See [Start an epic](/user/epics), [Budgets](/user/budgets) and [Resume a run](/user/resuming). |
+| Chat | A direct conversation with one agent, with no flow and no budget. A chat is not an epic and works with no flow installed. See [Chat with an agent](/user/chat). |
+
+## Who does it
+
+| Word | Meaning |
+| --- | --- |
+| Agent role | A named slot that a flow declares, such as `actor` or `reviewer`. You fill each agent role with a nous. |
+| Harness | A coding agent CLI that Humanize drives, such as `claude` or `codex`. See [Coding agents](/user/agents). |
+| Account | Named credentials for one harness. With no account, the harness uses your local sign-in on this machine, which the app calls `Local`. See [Accounts](/user/accounts). |
+| Effort | How hard the model thinks, in the harness's own terms, such as `high` or `max`. Leave it blank to use the harness default. See [Effort and swarm mode](/user/efforts). |
+| Nous | What an agent thinks with: a harness, an account, a model and an effort, written `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`. A virtual nous is a name, such as `careful`, that groups other nous with retries and fallback. See [Nous: models, retries and fallback](/user/nous). |
+| Outworlder | You, acting as a role in a flow. The flow asks a question, and you answer in any frontend. You never assign this role yourself. See [Answer a flow's questions](/user/questions). |
+
+## Where it runs
+
+| Word | Meaning |
+| --- | --- |
+| Environment | The directory where a turn's work happens. By default, this is the folder you started in; pick **No folder** in the app and the epic or chat gets a temporary directory of its own. A flow can also declare environment roles, which you fill with `-e`. See [Environments](/user/environments). |
+| Runtime | A saved machine: an ssh host, a Docker daemon, a Docker swarm, Apple containers on this Mac, or a Slurm cluster. An environment is a directory on a runtime. `This machine` is always available. See [Runtimes: servers, containers and clusters](/user/runtimes). |
+| Daemon | One background process per machine and user. It starts automatically and holds every epic and chat so they keep running when you close the window. See [The daemon](/user/daemon). |
+| Frontend | The interface you use to reach the daemon: Humanize Desktop, the browser page, the terminal interface or the command line. Several frontends can follow the same epic at once. |
+
+## In the app
+
+Click **New epic** in Humanize Desktop or the browser page (`hmz web`) to see these terms on one form.
+
+![The New epic form in Humanize Desktop for the flow rlar, with the nous menu of the actor role open on Harness, Account, Model and Effort](/shots/user-concepts-app.svg)
+
+*A flow, its two agent roles, and the four parts of a nous.*
+
+**Flow** at the top names the flow. **Daemon** and **Folder** select the machine that holds the epic and its working directory. **Agents** lists one row per agent role; click a row to pick its **Harness**, **Account**, **Model** and **Effort**. **Budget** sets what the epic may spend.
+
+See [Humanize Desktop](/user/desktop) and [The browser page](/user/web).
+
+## In the terminal
+
+Run `hmz`, type `/flow`, and open a flow. You see one row for each agent role, with its nous written as a single string.
+
+![The terminal interface on the set-up sheet of the flow rlar: rows for actor, reviewer and budget](/shots/user-concepts-terminal.svg)
+
+*The same flow in the terminal interface.*
+
+See [The terminal interface](/user/terminal).
+
+## From the command line
+
+Run `hmz exec` to start an epic with one command:
+
+```sh
+hmz exec -f rlar -a actor=claude/claude-haiku-4-5:high -a reviewer=claude/claude-haiku-4-5 -p budget.output_tokens=20000 "Add a discount code to checkout"
+```
+
+| Part | Word |
+| --- | --- |
+| `-f rlar` | The flow |
+| `-a actor=…` | An agent role and its nous |
+| `-p budget.output_tokens=20000` | The budget of the epic |
+| The quoted text | The task |
+
+![The command hmz exec running the flow rlar: the actor answers, then the reviewer](/shots/user-concepts-cli.svg)
+
+*One epic, run from the command line.*
+
+See [The command line](/user/command-line).
+
+## Good to know
+
+- The terminal and `hmz exec --help` call a harness a `CLI`. `hmz exec --help` also calls an account a `PROVIDER`.
+- In the app, an omitted effort appears as `Default`, and the working directory for an epic or chat is called **Folder**.
+- You never pass an outworlder role with `-a`; under `hmz exec`, the flow treats you as away and does not wait for your answers.

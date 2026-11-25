@@ -1,67 +1,56 @@
-"""`hmz chat`: one turn of a chat from the command line, the daemon a stand-in.
-
-The workspace (`hmz.sdk.Hmz`), the session with the daemon (`hmz.sdk.client.Client`) and the
-reading of a chat line (`hmz.runtime.chatting.resolve`) are mocked: what is here is what `hmz
-chat` reads off its line, what it asks the daemon, and what it makes of what the chat's
-subscription tells it.
-"""
+"""`hmz chat`: a chat started, said to and managed, through a chats family that is mocked."""
 
 from __future__ import annotations
 
-import errno
-import os
+import io
+import json
 import signal
-import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 from unittest import mock
 
 import pytest
 
-import hmz.daemon.where
-import hmz.runtime.chatting
-import hmz.runtime.kept
 import hmz.sdk
-import hmz.sdk.client
-from hmz.cli import main
-from hmz.runtime import Refused
-from hmz.runtime.chatting import Resolved
+from hmz.cli import main, tree
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
-    from pathlib import Path
+    from collections.abc import Iterator
 
-#: What the turn's subscription says when nothing in a test says otherwise: the turn opening,
-#: the assistant answering, and the chat between turns.
-_TURN: list[dict[str, Any]] = [
-    {"type": "welcome", "epoch": "e1"},
-    {"type": "run", "seq": 1, "state": "running", "turn": "running"},
-    {"type": "opened", "seq": 2, "role": "assistant", "key": "NeiKos/1",
-     "agent": "NeiKos", "cli": "claude", "model": "m"},
-    {"type": "event", "seq": 3, "agent": "NeiKos", "session": "NeiKos/1",
-     "kind": "begins", "key": "NeiKos/1", "text": ""},
-    {"type": "event", "seq": 4, "agent": "NeiKos", "session": "NeiKos/1",
-     "kind": "result", "key": "NeiKos/1", "text": "answered", "spent": {},
-     "tokens": {}, "model": "m"},
-    {"type": "run", "seq": 5, "state": "running", "turn": "done"},
-]  # fmt: skip
+ID = "20261117T100000.000Z-ab12cd"
 
 
-class _Client:
-    """A session with the daemon: what it was asked, and the chat's subscription, scripted.
+def _chat(**said: Any) -> mock.Mock:
+    """A chat as the family returns one: its row, and the row as attributes."""
+    row = {"id": ID, "title": "the  parser\nagain", "state": "resting", **said}
+    made = mock.Mock(said=row)
+    made.configure_mock(**{"slot": "", **row})
+    return made
 
-    Attributes:
-      said: What the subscription says on each attach, in turn; the last for every later one.
-    """
 
-    def __init__(self) -> None:
-        self.asked: list[tuple[str, dict[str, Any]]] = []
-        self.said: list[list[dict[str, Any]]] = [list(_TURN)]
-        self.refuses: dict[str, BaseException] = {}
-        self.answers: dict[str, dict[str, Any]] = {}
-        self.attached: Callable[[], None] = lambda: None
-        self.listener: Callable[[str, dict[str, Any]], None] | None = None
-        self.ended = False
+class Turn:
+    """A turn as the family hands one out: what it is told, and what it came to."""
+
+    def __init__(self, *messages: dict[str, Any], **came: Any) -> None:
+        self.workspace, self.slot = "/w", "chat:ab"
+        self.answer: str | None = came.get("answer")
+        self.failed: str = came.get("failed", "")
+        self.notes: list[str] = came.get("notes", [])
+        self.ended: tuple[str, str] | None = came.get("ended")
+        self.done: bool = came.get("done", True)
+        self.signals: int | None = came.get("signals")
         self.closed = False
+        self._messages = messages
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        yield from self._messages
+        if self.signals is not None:
+            signal.raise_signal(self.signals)
+
+    def wait(self) -> str | None:
+        for _ in self:
+            pass
+        return self.answer
 
     def __enter__(self) -> Self:
         return self
@@ -69,732 +58,569 @@ class _Client:
     def __exit__(self, *_: object) -> None:
         self.closed = True
 
-    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
-        self.listener = listener
-
-    def wait(self, timeout: float | None = None) -> bool:
-        del timeout
-        return self.ended
-
-    def call(
-        self,
-        method: str,
-        params: dict[str, Any] | None = None,
-        *,
-        idem: str | None = None,
-        seconds: float | None = None,
-    ) -> dict[str, Any]:
-        del idem, seconds
-        self.asked.append((method, dict(params or {})))
-        if method in self.refuses:
-            raise self.refuses[method]
-        if method == "chat.start":
-            return {"slot": "chat:ab12", "chat": "E"}
-        if method in self.answers:
-            return self.answers[method]
-        if method == "epic.attach":
-            assert self.listener is not None
-            said = self.said.pop(0) if len(self.said) > 1 else self.said[0]
-            for one in said:
-                self.listener("epic.event", {"sub": "s1", "message": one})
-            self.attached()
-            return {"sub": "s1"}
-        return {}
-
-    def methods(self) -> list[str]:
-        return [method for method, _ in self.asked]
-
-    def params(self, method: str, nth: int = 0) -> dict[str, Any]:
-        return [params for named, params in self.asked if named == method][nth]
-
 
 @pytest.fixture
-def workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> mock.Mock:
-    """`hmz.sdk.Hmz`, mocked: a workspace remembering an agent, with one flow `goal`."""
-
-    def find(name: str) -> str:
-        return "/flows/goal" if name == "goal" else ""
-
-    def written(runs: object) -> str:
-        del runs
-        return "claude/m:high"
-
-    held = mock.Mock()
-    held.workspace = tmp_path
-    held.flows.find.side_effect = find
-    monkeypatch.setattr(hmz.sdk, "Hmz", mock.Mock(return_value=held), raising=False)
-    monkeypatch.setattr(hmz.daemon.where, "workspace", str)
-    # The remembered agent, as a file writes it.
-    monkeypatch.setattr(hmz.runtime.kept, "written", written)
-    return held
+def chats(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    """The chats family of the client the command reaches."""
+    client = mock.Mock()
+    monkeypatch.setattr(tree, "reach", mock.Mock(return_value=client))
+    client.chats.start.return_value = mock.Mock(chat=ID, workspace="/w", slot="chat:ab")
+    client.chats.hold.return_value = mock.Mock(workspace="/w", slot="chat:ab")
+    return client.chats
 
 
-@pytest.fixture
-def resolving(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """`hmz.runtime.chatting.resolve`, reading every line as prose unless a test says not."""
-    held = mock.Mock(return_value=Resolved("prose"))
-    monkeypatch.setattr(hmz.runtime.chatting, "resolve", held)
-    return held
+def _event(kind: str, text: str) -> dict[str, Any]:
+    return {
+        "type": "event", "seq": 3, "agent": "Pan", "session": "Pan/1", "kind": kind,
+        "text": text, "at": 0.0, "cli": "claude", "model": "m", "ident": "i",
+        "whose": "", "tokens": {}, "spent": None, "key": "Pan/1", "mono": 0.0,
+    }  # fmt: skip
 
 
-@pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch, resolving: mock.Mock) -> _Client:
-    """`Client.local`, answering with one stand-in session."""
-    del resolving
-    held = _Client()
-    monkeypatch.setattr(
-        hmz.sdk.client.Client, "local", mock.Mock(return_value=held), raising=False
-    )
-    return held
-
-
-def test_one_turn_is_taken_answered_on_stdout_and_ended_with_nothing_said(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert main(["chat", "-a", "codex/o3", "hello"]) == 0
-
-    assert client.methods() == ["chat.start", "epic.attach", "chat.say"]
-    at = {"workspace": str(workspace.workspace), "slot": "chat:ab12"}
-    assert client.params("chat.start") == {
-        "workspace": str(workspace.workspace),
-        "slot": "chat:",
-        "agent": "codex/o3",
-        "task": "hello",
-        "remember": False,
-    }
-    assert client.params("epic.attach") == {**at, "since": None}
-    assert client.params("chat.say") == {**at, "text": ""}
-    assert client.closed
-    assert capsys.readouterr().out == "answered\n"
-
-
-def test_without_an_agent_the_one_remembered_here_is_talked_to(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    del workspace
-    assert main(["chat", "hello"]) == 0
-    assert client.params("chat.start")["agent"] == "claude/m:high"
-
-
-def test_the_last_agent_given_is_the_one_used(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    del workspace
-    assert main(["chat", "-a", "codex/o3", "--agent", "pi/x", "hello"]) == 0
-    assert client.params("chat.start")["agent"] == "pi/x"
-
-
-def test_without_an_agent_or_one_remembered_the_chat_is_refused(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    workspace.settings.chat_agent = None
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "hello"])
-    assert raised.value.code == 2
-    assert capsys.readouterr().err == (
-        "hmz chat: error: no chat agent is remembered here; give one with -a\n"
-    )
-    assert client.asked == []
-
-
-def test_resume_carries_the_chat_of_that_id_on_with_its_own_agent(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    workspace.settings.chat_agent = None
-    assert main(["chat", "--resume", "20261117T000000-ab12cd", "and then?"]) == 0
-    started = client.params("chat.start")
-    assert "agent" not in started
-    assert started["resume"] == "20261117T000000-ab12cd"
-    assert started["task"] == "and then?"
-    assert "worktree" not in started
-
-
-def test_worktree_starts_the_chat_in_a_new_worktree(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    del workspace
-    assert main(["chat", "--worktree", "-a", "codex/o3", "hello"]) == 0
-    started = client.params("chat.start")
-    assert started["worktree"] is True
-    assert "resume" not in started
-
-
-def test_a_chat_started_without_worktree_does_not_ask_for_one(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    del workspace
-    assert main(["chat", "hello"]) == 0
-    assert "worktree" not in client.params("chat.start")
-
-
-def test_worktree_is_refused_with_resume(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "--worktree", "--resume", "E", "and then?"])
-    assert raised.value.code == 2
-    assert "one carried on works where it worked" in capsys.readouterr().err
-    assert client.asked == []
-
-
-def test_a_worktree_the_daemon_refuses_is_said_as_it_says_it(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.refuses["chat.start"] = Refused("this is no git repository", code=400)
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "--worktree", "hello"])
-    assert raised.value.code == 2
-    assert capsys.readouterr().err == ("hmz chat: error: this is no git repository\n")
-
-
-def test_resume_with_an_agent_carries_the_chat_on_with_that_one(
-    workspace: mock.Mock, client: _Client
-) -> None:
-    del workspace
-    assert main(["chat", "--resume", "E", "-a", "codex/o3", "and then?"]) == 0
-    assert client.params("chat.start")["agent"] == "codex/o3"
-
-
-@pytest.mark.parametrize(
-    ("argv", "says"),
-    [
-        ([], "the following arguments are required: message"),
-        ([""], "the message is empty"),
-        (["-x"], "unrecognized arguments: -x"),
-        (["--list", "hello"], "--list takes no message"),
-        (
-            ["--list", "--fork", "E"],
-            "argument --fork: not allowed with argument --list",
-        ),
-        (["--archived", "hello"], "--archived goes with --list"),
-        (["--yes", "hello"], "--yes goes with --delete"),
-        (["--rename", "E"], "--rename takes the chat and then its title"),
-        (["--rename", "E", " "], "--rename takes the chat and then its title"),
-        (["--fork", "E", "-a", "codex/o3"], "--fork says nothing to a chat"),
-        (["--delete", "E", "--resume", "F"], "--delete says nothing to a chat"),
-        (["one", "two"], "unrecognized arguments"),
-    ],
-)
-def test_a_line_that_is_not_one_is_a_usage_error(
-    workspace: mock.Mock,
-    client: _Client,
+def test_help_says_every_command_of_the_group(
     capsys: pytest.CaptureFixture[str],
-    argv: list[str],
-    says: str,
 ) -> None:
-    del workspace
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", *argv])
-    assert raised.value.code == 2
-    err = capsys.readouterr().err
-    assert err.startswith("usage: hmz chat")
-    assert f"hmz chat: error: {says}" in err
-    assert client.asked == []
+    assert main(["chat"]) == 0
+
+    out = capsys.readouterr().out
+    for name in (
+        "start", "say", "list", "show", "rename", "fork", "archive", "unarchive",
+        "delete", "stop", "set", "move", "agent", "commands", "backup", "harness",
+    ):  # fmt: skip
+        assert f"\n  {name} " in out
 
 
-def test_a_message_that_starts_with_a_dash_is_said_after_two(
-    workspace: mock.Mock, client: _Client
+def test_every_text_of_help_is_thirty_words_at_most() -> None:
+    (chat,) = (one for name, one in tree.commands().items() if name == "chat")
+
+    assert [text for text in chat.texts() if len(text.split()) > 30] == []
+
+
+def test_starting_draws_the_turn_and_prints_the_answer_and_ends_the_host(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    del workspace
-    assert main(["chat", "--", "--force is not a flag here"]) == 0
-    assert client.params("chat.start")["task"] == "--force is not a flag here"
+    turn = Turn(_event("result", "it parses"), answer="it parses", notes=["a new one"])
+    chats.follow.return_value = turn
 
-
-def test_help_is_written_to_stdout(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "--help"])
-    assert raised.value.code == 0
-    assert capsys.readouterr().out.startswith("usage: hmz chat")
-    assert client.asked == []
-
-
-@pytest.mark.parametrize(
-    ("message", "read", "says"),
-    [
-        ("/clear", Resolved("reserved", "clear"), "/clear is kept"),
-        ("/flow goal win", Resolved("reserved", "flow", "goal win"), "/flow is kept"),
-        ("$goal win", Resolved("flow", "goal", "win"), "$goal names a flow"),
-    ],
-)
-def test_a_name_kept_for_hmz_or_a_flow_is_refused_naming_it(
-    workspace: mock.Mock,
-    client: _Client,
-    resolving: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
-    message: str,
-    read: Resolved,
-    says: str,
-) -> None:
-    del workspace
-    resolving.return_value = read
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", message])
-    assert raised.value.code == 2
-    assert capsys.readouterr().err.startswith(f"hmz chat: error: {says}")
-    assert client.asked == []
-
-
-@pytest.mark.parametrize(
-    ("message", "flows"),
-    [("$goal win", {"goal"}), ("$nothing here", set[str]()), ("/compact", set[str]())],
-)
-def test_a_line_is_read_with_no_catalogue_and_the_flow_its_dollar_names(
-    workspace: mock.Mock,
-    client: _Client,
-    resolving: mock.Mock,
-    message: str,
-    flows: set[str],
-) -> None:
-    del workspace
-    assert main(["chat", message]) == 0
-    resolving.assert_called_once_with(message, catalog=(), flows=flows, prefer="flow")
-    assert client.params("chat.start")["task"] == message
-
-
-def test_a_start_the_daemon_refuses_is_said_as_it_refused(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.refuses["chat.start"] = Refused("no-such-cli is no harness", code=400)
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "-a", "no-such-cli/m", "hello"])
-    assert raised.value.code == 2
-    assert capsys.readouterr().err == "hmz chat: error: no-such-cli is no harness\n"
-    assert client.methods() == ["chat.start"]
-
-
-@pytest.mark.parametrize(
-    ("raised", "says"),
-    [
-        (OSError("no socket"), "hmz: the daemon cannot be reached: no socket\n"),
-        (
-            OSError(errno.EADDRINUSE, "held by an older Humanize"),
-            "hmz: held by an older Humanize\n",
-        ),
-    ],
-)
-def test_a_daemon_that_cannot_be_reached_is_said_and_exits_one(
-    workspace: mock.Mock,
-    resolving: mock.Mock,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    raised: OSError,
-    says: str,
-) -> None:
-    del workspace, resolving
-    monkeypatch.setattr(
-        hmz.sdk.client.Client, "local", mock.Mock(side_effect=raised), raising=False
-    )
-    assert main(["chat", "hello"]) == 1
-    assert capsys.readouterr().err == says
-
-
-def test_a_first_turn_that_fails_says_what_the_harness_said_and_exits_one(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [
-        [
-            {"type": "run", "state": "running", "turn": "running"},
-            {"type": "ended", "how": "failed", "why": "HarnessError: it broke"},
-        ]
-    ]
-    assert main(["chat", "hello"]) == 1
-    assert "HarnessError: it broke" in capsys.readouterr().err
-    assert "chat.say" not in client.methods()
-
-
-def test_a_later_turn_that_fails_is_said_and_exits_one(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [
-        [
-            {"type": "run", "state": "running", "turn": "running"},
-            {"type": "event", "agent": "NeiKos", "session": "NeiKos/1",
-             "kind": "failed", "key": "NeiKos/1", "text": "the turn broke"},
-            {"type": "run", "state": "running", "turn": "done"},
-        ]
-    ]  # fmt: skip
-    assert main(["chat", "--resume", "E", "and then?"]) == 1
-    assert capsys.readouterr().err.endswith("the turn broke\n")
-    # Between turns all the same, so it is ended as a turn that answered is.
-    assert client.methods()[-1] == "chat.say"
-
-
-def test_a_turn_replayed_after_the_snapshot_saying_it_is_done_is_done(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [[_TURN[-1], *_TURN[2:-1]]]
-    assert main(["chat", "hello"]) == 0
-    assert capsys.readouterr().out == "answered\n"
-    assert client.methods()[-1] == "chat.say"
-
-
-def test_a_frontend_let_go_of_for_falling_behind_attaches_again_from_there(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [
-        [*_TURN[:3], {"type": "gone", "why": "too far behind; attach again"}],
-        _TURN[3:],
-    ]
-    assert main(["chat", "hello"]) == 0
-    assert client.methods() == ["chat.start", "epic.attach", "epic.attach", "chat.say"]
-    assert client.params("epic.attach", 1)["since"] == {"epoch": "e1", "seq": 2}
-    assert capsys.readouterr().out == "answered\n"
-
-
-def test_a_host_that_goes_mid_turn_fails_the_chat(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [[*_TURN[:3], {"type": "gone", "why": "the host went away"}]]
-    assert main(["chat", "hello"]) == 1
-    assert "hmz chat: the host went away" in capsys.readouterr().err
-    assert "chat.say" not in client.methods()
-
-
-def test_a_daemon_that_goes_without_a_word_ends_the_wait(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [_TURN[:3]]
-
-    def goes() -> None:
-        client.ended = True
-
-    client.attached = goes
-    assert main(["chat", "hello"]) == 1
-    assert "hmz chat: the daemon went away" in capsys.readouterr().err
-
-
-def test_a_turn_done_is_done_however_the_chat_takes_its_end(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.refuses["chat.say"] = Refused(
-        "this chat has folded away; carry it on with chat.start", code=409
-    )
-    assert main(["chat", "hello"]) == 0
-    assert capsys.readouterr().out == "answered\n"
-
-
-def test_what_the_host_printed_and_noticed_is_said_where_exec_says_it(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [
-        [
-            {"type": "printed", "text": "a line"},
-            {"type": "notice", "text": "moved to docker"},
-            *_TURN,
-        ]
-    ]
-    assert main(["chat", "hello"]) == 0
-    captured = capsys.readouterr()
-    assert captured.out == "a line\nanswered\n"
-    assert "hmz chat: moved to docker\n" in captured.err
-
-
-@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGHUP, signal.SIGINT])
-def test_a_signal_leaves_the_chat_to_its_host_and_exits_as_the_signal_would(
-    workspace: mock.Mock, client: _Client, signum: int
-) -> None:
-    del workspace
-    was = signal.getsignal(signum)
-    client.said = [_TURN[:-1]]
-    client.attached = lambda: threading.Timer(
-        0.1, os.kill, (os.getpid(), signum)
-    ).start()
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "hello"])
-    assert raised.value.code == 128 + signum
-    # Left to its host: nothing ends it, and the session is let go of.
-    assert client.methods() == ["chat.start", "epic.attach"]
-    assert client.closed
-    assert signal.getsignal(signum) == was
-
-
-#: What the subscription says of a first line served with no turn, after the chat is opened:
-#: the chat asks for its next line, and the snapshot never said its turn was running.
-_OPENED: list[dict[str, Any]] = [_TURN[0], {**_TURN[2], "seq": 1}]
-
-
-def _listens(text: str, seq: int) -> list[dict[str, Any]]:
-    """The chat asking for its next line, `text` what it says back, and so between turns."""
-    return [
-        {"type": "asked", "seq": seq, "run": 1, "question": "q1", "role": "person",
-         "text": text, "options": [], "mode": "listen", "key": ""},
-        {"type": "run", "seq": seq + 1, "state": "running", "turn": "done"},
-    ]  # fmt: skip
-
-
-@pytest.fixture
-def leaving(client: _Client) -> Generator[None]:
-    """The daemon going away after a while, which ends a wait that nothing else would."""
-    timer = threading.Timer(5, lambda: setattr(client, "ended", True))
-    timer.start()
-    yield
-    timer.cancel()
-
-
-@pytest.mark.usefixtures("leaving")
-def test_a_command_run_with_no_turn_is_shown_with_what_it_printed_and_the_chat_ended(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    shell = {"type": "shell", "seq": 2, "run": 1, "key": "NeiKos/1", "command": "ls nope",
-             "out": "hi\n", "err": "no nope\n", "status": 2}  # fmt: skip
-    client.said = [[*_OPENED, shell, *_listens("", 3)]]
-
-    assert main(["chat", "--", "!ls nope"]) == 0
-
-    captured = capsys.readouterr()
-    assert captured.out == "hi\n"
-    assert "ls nope" in captured.err
-    assert "no nope" in captured.err
-    assert "exit 2" in captured.err
-    assert client.methods() == ["chat.start", "epic.attach", "chat.say"]
-
-
-@pytest.mark.usefixtures("leaving")
-def test_a_line_the_chat_refuses_is_said_why_and_the_chat_ended(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [[*_OPENED, *_listens("no such command: /nope", 2)]]
-
-    assert main(["chat", "/nope"]) == 0
-
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "hmz chat: no such command: /nope\n" in captured.err
-    assert client.methods() == ["chat.start", "epic.attach", "chat.say"]
-
-
-def test_what_a_turn_answered_is_not_said_again_where_the_chat_asks_for_its_next_line(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    client.said = [[*_TURN[:-1], *_listens("answered", 5)]]
-
-    assert main(["chat", "hello"]) == 0
-
-    captured = capsys.readouterr()
-    assert captured.out == "answered\n"
-    assert "hmz chat: answered" not in captured.err
-
-
-def test_what_the_chat_says_ahead_of_a_turns_answer_is_said_and_the_answer_once(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    unkept = "This conversation could not be carried on (no conversation), so this is a new one."
-    client.said = [[*_TURN[:-1], *_listens(f"{unkept}\n\nanswered", 5)]]
-
-    assert main(["chat", "--resume", "E", "and then?"]) == 0
-
-    captured = capsys.readouterr()
-    assert captured.out == "answered\n"
-    assert f"hmz chat: {unkept}\n" in captured.err
-    assert "hmz chat: answered" not in captured.err
-
-
-def test_the_id_of_the_chat_is_said_on_standard_error_as_it_starts(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    assert main(["chat", "hello"]) == 0
+    assert main(["chat", "start", "-a", "claude/m", "-w", "/w", "what is here?"]) == 0
 
     said = capsys.readouterr()
-    assert "hmz chat: chat E\n" in said.err
-    assert said.out == "answered\n"
-    assert client.methods()[0] == "chat.start"
-
-
-def _chat_row(name: str, title: str, state: str = "resting") -> dict[str, Any]:
-    return {"id": name, "title": title, "state": state}
-
-
-def test_list_says_each_chat_of_this_directory_by_its_id_newest_first(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    client.answers["chat.list"] = {
-        "chats": [
-            _chat_row("E2", "the  parser\n" + "x" * 80),
-            _chat_row("E1", "hi", "going"),
-        ],
-        "total": 2,
-    }
-
-    assert main(["chat", "--list"]) == 0
-
-    assert client.asked == [
-        (
-            "chat.list",
-            {
-                "workspace": str(workspace.workspace),
-                "archived": False,
-                "offset": 0,
-                "limit": 200,
-            },
-        )
-    ]
-    assert capsys.readouterr().out == (
-        f"E2  resting  the parser {'x' * 48}…\nE1  going  hi\n"
+    assert said.out == "it parses\n"
+    assert said.err.startswith(f"Chat {ID}\n")
+    assert "a new one\n" in said.err
+    chats.start.assert_called_once_with(
+        "/w",
+        "what is here?",
+        agent="claude/m",
+        env=None,
+        permission=None,
+        prefer=None,
+        worktree=None,
+        remember=None,
     )
-    assert client.closed
+    chats.follow.assert_called_once_with("/w", "chat:ab")
+    # Nobody is here to say the next line, so the host this started is ended.
+    chats.rest.assert_called_once_with(ID)
+    assert turn.closed
 
 
-def test_list_archived_asks_for_the_archived_chats_alone(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+def test_starting_takes_the_current_directory_and_the_agent_it_remembers(
+    chats: mock.Mock, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    del workspace
-    client.answers["chat.list"] = {"chats": [], "total": 0}
+    monkeypatch.chdir(tmp_path)
+    chats.remembered.return_value = "codex/gpt"
+    chats.follow.return_value = Turn(answer="ok")
 
-    assert main(["chat", "--list", "--archived"]) == 0
+    code = main(
+        ["chat", "start", "--json", "--worktree", "--remember", "--permission",
+         "read-only", "--prefer", "flow", "-e", "ssh@box/srv", "hello"]
+    )  # fmt: skip
 
-    assert client.params("chat.list")["archived"] is True
-    assert capsys.readouterr().out == ""
+    assert code == 0
+    here = str(Path.cwd().resolve())
+    chats.remembered.assert_called_once_with(here)
+    chats.start.assert_called_once_with(
+        here,
+        "hello",
+        agent="codex/gpt",
+        env="ssh@box/srv",
+        permission="read-only",
+        prefer="flow",
+        worktree=True,
+        remember=True,
+    )
+
+
+def test_starting_with_no_agent_given_or_remembered_is_refused(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.remembered.return_value = ""
+
+    assert main(["chat", "start", "hello"]) == 1
+
+    assert "name one with `-a`" in capsys.readouterr().err
+    chats.start.assert_not_called()
+
+
+def test_a_chat_of_no_folder_names_no_workspace_and_takes_no_worktree(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.follow.return_value = Turn(answer="ok")
+
+    assert main(["chat", "start", "--no-folder", "-a", "claude/m", "hello"]) == 0
+    assert chats.start.call_args.args == (None, "hello")
+    chats.remembered.assert_not_called()
+    capsys.readouterr()
+
+    assert main(["chat", "start", "--no-folder", "--worktree", "-a", "x/y", "hi"]) == 1
+    assert capsys.readouterr().err == "hmz chat start: A worktree needs a folder\n"
+
+
+def test_json_is_one_document_and_nothing_is_drawn(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.follow.return_value = Turn(
+        _event("result", "it parses"), answer="it parses", notes=["a new one"]
+    )
+
+    assert main(["chat", "start", "--json", "-a", "claude/m", "what?"]) == 0
+
+    said = capsys.readouterr()
+    assert json.loads(said.out) == {
+        "chat": ID,
+        "workspace": "/w",
+        "slot": "chat:ab",
+        "answer": "it parses",
+        "notes": ["a new one"],
+        "detached": False,
+    }
+    assert said.err == ""
+
+
+def test_events_are_the_records_of_the_turn_a_line_apiece_then_the_document(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.follow.return_value = Turn(
+        {"type": "welcome", "epoch": "e"},
+        {"type": "run", "turn": "running"},
+        _event("result", "it parses"),
+        {"type": "live", "seq": 3, "elided": 0},
+        answer="it parses",
+    )
+
+    assert main(["chat", "start", "--events", "-a", "claude/m", "what?"]) == 0
+
+    said = capsys.readouterr()
+    first, last = (json.loads(line) for line in said.out.splitlines())
+    assert (first["type"], first["text"]) == ("event", "it parses")
+    assert (last["chat"], last["answer"]) == (ID, "it parses")
+    assert said.err == ""
+
+
+def test_detached_the_id_is_printed_and_nothing_is_followed(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["chat", "start", "--detach", "-a", "claude/m", "go"]) == 0
+    assert capsys.readouterr().out == f"{ID}\n"
+    chats.follow.assert_not_called()
+    chats.rest.assert_not_called()
+
+    assert main(["chat", "start", "--detach", "--json", "-a", "claude/m", "go"]) == 0
+    assert json.loads(capsys.readouterr().out)["detached"] is True
 
 
 @pytest.mark.parametrize(
-    ("argv", "method", "params"),
+    ("came", "message"),
     [
+        ({"failed": "it broke"}, "it broke"),
+        ({"ended": ("crashed", "Traceback"), "done": False}, "Traceback"),
         (
-            ["--rename", "E", "the parser"],
-            "chat.rename",
-            {"chat": "E", "title": "the parser"},
+            {"ended": ("gone", "the host went away"), "done": False},
+            "the host went away",
         ),
-        (["--archive", "E"], "chat.archive", {"chat": "E"}),
-        (["--unarchive", "E"], "chat.unarchive", {"chat": "E"}),
+        ({"ended": ("failed", ""), "done": False}, "The turn failed."),
     ],
 )
-def test_a_chat_is_renamed_archived_and_put_back_and_said_as_it_now_stands(
-    workspace: mock.Mock,
-    client: _Client,
+def test_a_turn_that_failed_exits_one_with_what_was_said(
+    chats: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    came: dict[str, Any],
+    message: str,
+) -> None:
+    chats.follow.return_value = Turn(**came)
+
+    assert main(["chat", "start", "-a", "claude/m", "go"]) == 1
+    assert capsys.readouterr().err.endswith(f"hmz chat start: {message}\n")
+
+    assert main(["chat", "start", "--json", "-a", "claude/m", "go"]) == 1
+    said = capsys.readouterr()
+    assert json.loads(said.out) == {
+        "error": {"code": 0, "message": message},
+        "chat": ID,
+        "workspace": "/w",
+        "slot": "chat:ab",
+    }
+    assert said.err == ""
+
+
+def test_a_chat_that_ended_under_the_turn_is_not_ended_again(chats: mock.Mock) -> None:
+    chats.follow.return_value = Turn(ended=("stopped", ""), done=False)
+
+    assert main(["chat", "start", "--json", "-a", "claude/m", "go"]) == 0
+    chats.rest.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("signum", "status"),
+    [(signal.SIGINT, 130), (signal.SIGTERM, 143), (signal.SIGHUP, 129)],
+)
+def test_a_signal_leaves_the_chat_to_its_host_and_exits_as_the_signal_says(
+    chats: mock.Mock, signum: int, status: int
+) -> None:
+    turn = Turn(signals=signum)
+    chats.follow.return_value = turn
+    before = signal.getsignal(signum)
+
+    assert main(["chat", "start", "--json", "-a", "claude/m", "go"]) == status
+
+    # Left, not stopped: the host is let go of and the chat is said nothing.
+    assert turn.closed
+    chats.rest.assert_not_called()
+    chats.stop.assert_not_called()
+    assert signal.getsignal(signum) == before
+
+
+def test_saying_asks_the_chat_and_ends_a_host_only_this_started(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.get.return_value = _chat()
+    chats.ask.return_value = Turn(_event("result", "tested"), answer="tested")
+
+    assert main(["chat", "say", ID, "and how is it tested?"]) == 0
+
+    assert capsys.readouterr().out == "tested\n"
+    chats.ask.assert_called_once_with(ID, "and how is it tested?")
+    chats.rest.assert_called_once_with(ID)
+
+    chats.rest.reset_mock()
+    chats.get.return_value = _chat(slot="chat:ab", state="going")
+    chats.ask.return_value = Turn(answer="again")
+    assert main(["chat", "say", "--json", ID, "again"]) == 0
+    assert json.loads(capsys.readouterr().out)["answer"] == "again"
+    # Somebody else's host, which stays for them.
+    chats.rest.assert_not_called()
+
+
+def test_saying_nothing_is_refused_and_detached_nothing_is_waited_for(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["chat", "say", ID, "  "]) == 1
+    assert "The message is empty" in capsys.readouterr().err
+    chats.ask.assert_not_called()
+
+    assert main(["chat", "say", "--detach", ID, "go on"]) == 0
+    assert capsys.readouterr().out == f"{ID}\n"
+    chats.say.assert_called_once_with("/w", "chat:ab", "go on")
+    chats.ask.assert_not_called()
+    chats.rest.assert_not_called()
+
+
+def test_the_chats_of_this_directory_are_listed_a_line_apiece(
+    chats: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    long = _chat(id="c2", state="turn", title="x" * 80)
+    chats.list.return_value = mock.Mock(
+        chats=(_chat(), long), total=2, offset=0, limit=50
+    )
+
+    assert main(["chat", "list"]) == 0
+
+    assert capsys.readouterr().out == (
+        f"{ID}  resting  the parser again\nc2{' ' * 27}turn     {'x' * 59}…\n"
+    )
+    chats.list.assert_called_once_with(
+        workspace=str(Path.cwd().resolve()),
+        archived=None,
+        q=None,
+        offset=None,
+        limit=None,
+    )
+
+    assert main(
+        ["chat", "list", "--all", "--archived", "-q", "pars", "--limit", "5", "--json"]
+    ) == 0  # fmt: skip
+    said = json.loads(capsys.readouterr().out)
+    assert [one["id"] for one in said["chats"]] == [ID, "c2"]
+    assert (said["total"], said["offset"], said["limit"]) == (2, 0, 50)
+    assert chats.list.call_args.kwargs == {
+        "workspace": None, "archived": True, "q": "pars", "offset": None, "limit": 5,
+    }  # fmt: skip
+
+
+def test_a_chat_is_shown_a_field_a_line_and_its_trace_after(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    trace = [{"key": "claude:1", "agent": "Pan", "actions": [{"name": "say: hi\nyou"}]}]
+    chats.get.return_value = _chat(agent="claude/m", archived=False, trace=trace)
+
+    assert main(["chat", "show", ID, "--trace"]) == 0
+
+    assert capsys.readouterr().out == (
+        f"id        {ID}\n"
+        "title     the parser again\n"
+        "state     resting\n"
+        "agent     claude/m\n"
+        "archived  false\n"
+        "\n"
+        "Pan  claude:1\n"
+        "  say: hi you\n"
+    )
+    chats.get.assert_called_once_with(ID, trace=True)
+
+    assert main(["chat", "show", ID, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["id"] == ID
+
+
+@pytest.mark.parametrize(
+    ("argv", "method", "given"),
+    [
+        (["rename", ID, "new"], "rename", (ID, "new")),
+        (["archive", ID], "archive", (ID,)),
+        (["unarchive", ID], "unarchive", (ID,)),
+        (["agent", ID, "claude/m:high"], "agent", (ID, "claude/m:high")),
+    ],
+)
+def test_what_changes_a_chat_prints_its_line_as_it_then_is(
+    chats: mock.Mock,
     capsys: pytest.CaptureFixture[str],
     argv: list[str],
     method: str,
-    params: dict[str, Any],
+    given: tuple[str, ...],
 ) -> None:
-    del workspace
-    client.answers[method] = _chat_row("E", "the parser")
+    getattr(chats, method).return_value = _chat(title="new")
 
     assert main(["chat", *argv]) == 0
+    assert capsys.readouterr().out == f"{ID}  resting  new\n"
+    getattr(chats, method).assert_called_once_with(*given)
 
-    assert client.asked == [(method, params)]
-    assert capsys.readouterr().out == "E  resting  the parser\n"
+    assert main(["chat", *argv, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["title"] == "new"
 
 
-def test_fork_says_the_id_of_the_new_chat(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+def test_a_fork_prints_the_new_chats_id(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    del workspace
-    client.answers["chat.fork"] = {"chat": "F"}
+    chats.fork.return_value = "c2"
 
-    assert main(["chat", "--fork", "E"]) == 0
-
-    assert client.asked == [("chat.fork", {"chat": "E"})]
-    assert capsys.readouterr().out == "F\n"
-
-
-def test_delete_with_yes_deletes_without_asking(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
-) -> None:
-    del workspace
-    assert main(["chat", "--delete", "E", "--yes"]) == 0
-
-    assert client.asked == [("chat.delete", {"chat": "E"})]
-    assert capsys.readouterr() == ("", "")
+    assert main(["chat", "fork", ID]) == 0
+    assert capsys.readouterr().out == "c2\n"
+    assert main(["chat", "fork", ID, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"chat": "c2"}
 
 
-@pytest.mark.parametrize(
-    ("typed", "status", "methods"),
-    [
-        ("y\n", 0, ["chat.get", "chat.delete"]),
-        ("yes\n", 0, ["chat.get", "chat.delete"]),
-        ("\n", 1, ["chat.get"]),
-        ("no\n", 1, ["chat.get"]),
-    ],
-)
-def test_delete_asks_at_a_terminal_saying_it_is_for_good(
-    workspace: mock.Mock,
-    client: _Client,
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    typed: str,
-    status: int,
-    methods: list[str],
-) -> None:
-    del workspace
-    client.answers["chat.get"] = _chat_row("E", "the parser")
-    stdin = mock.Mock()
-    stdin.isatty.return_value = True
-    stdin.readline.return_value = typed
-    monkeypatch.setattr("sys.stdin", stdin)
-
-    assert main(["chat", "--delete", "E"]) == status
-
-    assert client.methods() == methods
-    err = capsys.readouterr().err
-    assert "hmz chat: delete E  resting  the parser\n" in err
-    assert "for good? It cannot be brought back. [y/N] " in err
-    assert ("hmz chat: chat E was not deleted\n" in err) is bool(status)
+def _stdin(monkeypatch: pytest.MonkeyPatch, typed: str, *, terminal: bool) -> None:
+    held = io.StringIO(typed)
+    held.isatty = lambda: terminal  # type: ignore[method-assign]
+    monkeypatch.setattr("sys.stdin", held)
 
 
-def test_delete_asks_nobody_off_a_terminal_and_deletes_nothing(
-    workspace: mock.Mock,
-    client: _Client,
+def test_deleting_asks_first_and_deletes_on_a_yes(
+    chats: mock.Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del workspace
-    stdin = mock.Mock()
-    stdin.isatty.return_value = False
-    monkeypatch.setattr("sys.stdin", stdin)
+    chats.get.return_value = _chat()
+    _stdin(monkeypatch, "Yes\n", terminal=True)
 
-    assert main(["chat", "--delete", "E"]) == 1
+    assert main(["chat", "delete", ID]) == 0
 
-    assert client.methods() == ["chat.get"]
-    assert capsys.readouterr().err == (
-        "hmz chat: nobody is at a terminal to ask; say --yes\n"
-        "hmz chat: chat E was not deleted\n"
+    said = capsys.readouterr()
+    assert said.out == ""
+    assert said.err == (
+        f"Delete {ID}  resting  the parser again? It cannot be brought back. [y/N] "
+    )
+    chats.delete.assert_called_once_with(ID)
+
+
+def test_a_chat_is_not_deleted_for_want_of_a_yes(
+    chats: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chats.get.return_value = _chat()
+    _stdin(monkeypatch, "\n", terminal=True)
+
+    assert main(["chat", "delete", ID]) == 1
+    assert capsys.readouterr().err.endswith("hmz chat delete: Nothing was changed.\n")
+
+    # Nobody at a terminal is nobody to ask, and neither is a program reading a document.
+    _stdin(monkeypatch, "yes\n", terminal=False)
+    assert main(["chat", "delete", ID]) == 1
+    assert "run it again with `-y`" in capsys.readouterr().err
+    _stdin(monkeypatch, "yes\n", terminal=True)
+    assert main(["chat", "delete", ID, "--json"]) == 1
+    assert "`-y`" in json.loads(capsys.readouterr().out)["error"]["message"]
+    chats.delete.assert_not_called()
+
+
+def test_yes_deletes_without_asking(
+    chats: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stdin(monkeypatch, "", terminal=False)
+
+    assert main(["chat", "delete", "-y", ID, "--json"]) == 0
+
+    assert json.loads(capsys.readouterr().out) == {"deleted": ID}
+    chats.get.assert_not_called()
+    chats.delete.assert_called_once_with(ID)
+
+
+def test_stop_set_move_and_commands_reach_the_chat_where_it_is_held(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    entry = mock.Mock(sigil="/", about="clears  it", how="", source="hmz")
+    entry.name = "clear"
+    chats.commands.return_value = mock.Mock(
+        entries=(entry,),
+        prefer="flow",
+        prefer_from="chat",
+        permission="read-only",
+        listed=True,
+    )
+    chats.move.return_value = "ssh@box/srv"
+
+    assert main(["chat", "stop", ID]) == 0
+    assert capsys.readouterr().out == "Stopped\n"
+    chats.stop.assert_called_once_with("/w", "chat:ab")
+
+    assert (
+        main(["chat", "set", ID, "--permission", "read-only", "--prefer", "flow"]) == 0
+    )
+    assert capsys.readouterr().out == (
+        "permission   read-only\nprefer       flow\nprefer_from  chat\n"
+    )
+    chats.set.assert_called_once_with(
+        "/w", "chat:ab", prefer="flow", permission="read-only"
     )
 
+    chats.get.return_value = _chat(workspace="/w", slot="chat:ab")
+    assert main(["chat", "move", ID, "ssh@box/srv", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"chat": ID, "env": "ssh@box/srv"}
+    chats.move.assert_called_once_with("/w", "chat:ab", "ssh@box/srv")
+    # At rest, it is carried on where it is moved to: where it worked may be out of reach.
+    chats.get.return_value = _chat(workspace="/w", env="local/w2")
+    assert main(["chat", "move", ID, "local/w2"]) == 0
+    assert capsys.readouterr().out == "local/w2\n"
+    chats.start.assert_called_once_with("/w", "", resume=ID, env="local/w2")
+    chats.move.assert_called_once()
 
-def test_what_the_daemon_refuses_of_a_chat_is_an_error_and_exits_two(
-    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+    assert main(["chat", "commands", ID]) == 0
+    assert capsys.readouterr().out == "/clear  hmz  clears it\n"
+    assert main(["chat", "commands", ID, "--json"]) == 0
+    said = json.loads(capsys.readouterr().out)
+    assert said["entries"] == [
+        {
+            "sigil": "/",
+            "name": "clear",
+            "about": "clears  it",
+            "how": "",
+            "source": "hmz",
+        }
+    ]
+    assert (said["prefer"], said["listed"]) == ("flow", True)
+    assert chats.hold.call_args_list == [mock.call(ID)] * 4
+
+
+def test_a_backup_is_queued_for_the_targets_named(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    del workspace
-    client.refuses["chat.fork"] = Refused("There is no chat E.", code=404)
+    chats.backup.return_value = ["lab", "home"]
 
-    with pytest.raises(SystemExit) as raised:
-        main(["chat", "--fork", "E"])
+    assert main(["chat", "backup", ID, "--to", "lab", "--to", "home"]) == 0
+    assert capsys.readouterr().out == "lab\nhome\n"
+    chats.backup.assert_called_once_with(ID, to=["lab", "home"])
 
-    assert raised.value.code == 2
-    assert capsys.readouterr().err == "hmz chat: error: There is no chat E.\n"
+    assert main(["chat", "backup", ID, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"queued": ["lab", "home"]}
+    assert chats.backup.call_args == mock.call(ID, to=None)
 
 
-def test_a_daemon_that_cannot_be_reached_lists_nothing_and_exits_one(
-    workspace: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
+def _session(**said: Any) -> mock.Mock:
+    row = {
+        "id": "s9", "harness": "claude", "title": "hello  there", "workspace": "/w",
+        "model": "m", "began": "b", "updated": "u", "continuable": True, "trace": None,
+    }  # fmt: skip
+    made = mock.Mock()
+    made.configure_mock(**{**row, **said})
+    return made
+
+
+def test_harness_sessions_are_listed_shown_and_adopted(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    del workspace
-    monkeypatch.setattr(
-        hmz.sdk.client.Client,
-        "local",
-        mock.Mock(side_effect=OSError(errno.ECONNREFUSED, "refused")),
-        raising=False,
+    chats.harness.list.return_value = mock.Mock(
+        sessions=(_session(),), total=1, offset=0, limit=50
     )
+    chats.harness.get.return_value = _session(trace=[])
+    chats.harness.adopt.return_value = "c3"
 
-    assert main(["chat", "--list"]) == 1
-    assert capsys.readouterr().out == ""
+    assert main(["chat", "harness", "list", "-w", "/w", "--limit", "9"]) == 0
+    assert capsys.readouterr().out == "claude  s9  u  hello there\n"
+    chats.harness.list.assert_called_once_with("/w", offset=None, limit=9)
+
+    assert main(["chat", "harness", "list", "-w", "/w", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["sessions"][0]["continuable"] is True
+    assert "trace" not in listed["sessions"][0]
+
+    assert main(["chat", "harness", "show", "claude", "s9", "-w", "/w", "--trace"]) == 0
+    assert capsys.readouterr().out.startswith("id           s9\nharness      claude\n")
+    chats.harness.get.assert_called_once_with("/w", "claude", "s9", trace=True)
+
+    code = main(
+        ["chat", "harness", "adopt", "claude", "s9", "-w", "/w", "-a", "claude/m"]
+    )
+    assert code == 0
+    assert capsys.readouterr().out == "c3\n"
+    chats.harness.adopt.assert_called_once_with("/w", "claude", "s9", agent="claude/m")
+
+
+def test_a_session_that_ended_under_a_turn_is_a_daemon_not_reached(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.start.side_effect = hmz.sdk.Refused("the daemon went away", code=503)
+    # The session has ended, as the client says it of one whose daemon went.
+    tree.reach.return_value.wait.return_value = True  # pyright: ignore[reportFunctionMemberAccess]
+
+    assert main(["chat", "start", "-a", "claude/m", "go"]) == 3
+    assert "the daemon went away" in capsys.readouterr().err
+
+
+def test_what_the_daemon_refuses_is_said_in_its_words_and_exits_one(
+    chats: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    chats.get.side_effect = hmz.sdk.Refused("There is no chat nope.", code=404)
+
+    assert main(["chat", "show", "nope"]) == 1
+    assert capsys.readouterr().err == "hmz chat show: There is no chat nope.\n"
+
+
+def test_a_line_that_cannot_be_read_exits_two(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    for argv in (
+        ["start"],
+        ["say", ID],
+        ["set", ID, "--permission", "all"],
+        ["--list"],
+    ):
+        with pytest.raises(SystemExit) as stopped:
+            main(["chat", *argv])
+        assert stopped.value.code == 2
+    assert "Run `hmz chat" in capsys.readouterr().err

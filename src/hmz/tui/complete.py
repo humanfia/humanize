@@ -31,6 +31,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from hmz.words import t
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
@@ -270,12 +272,18 @@ def tagged(
     if sigil == "$":
         flow = name in flows
         if native is not None and flow:
-            picks = "the skill" if prefer == "native" else "the flow"
-            return f"skill and flow: runs {picks}; /flow {name} starts the flow"
+            picks = t("the skill") if prefer == "native" else t("the flow")
+            return t(
+                "skill and flow: runs {picked}; /flow {name} starts the flow",
+                picked=picks,
+                name=name,
+            )
         if flow:
-            return "flow"
+            return t("flow")
         if native is not None:
-            return f"skill · {native.about}" if native.about else "skill"
+            return (
+                t("skill · {about}", about=native.about) if native.about else t("skill")
+            )
         return ""
     return native.about if native is not None else ""
 

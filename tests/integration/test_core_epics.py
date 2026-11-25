@@ -15,6 +15,7 @@ import pytest
 from hmz.cli import main
 from hmz.runtime.epic import logs
 from hmz.sdk import Hmz
+from tests.conftest import rehome
 from tests.integration.doubles_core import AGENT, hmz_exec, install, started
 
 if TYPE_CHECKING:
@@ -146,7 +147,7 @@ def test_an_exported_epic_imports_on_another_machine_and_picks_up_where_it_can(
     landed, _ = epics.bundled(first, output=tmp_path)
 
     # Another machine: a home of its own, the same workspace.
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    rehome(monkeypatch, tmp_path / "elsewhere")
     assert epics.all() == []
     back = Hmz().epics.imported(landed)
 

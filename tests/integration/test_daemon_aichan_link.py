@@ -17,6 +17,7 @@ import pytest
 
 from hmz.daemon.reach import Links
 from hmz.runtime.doing import aichan
+from tests.conftest import rehome
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,7 +30,7 @@ pytestmark = [
 def test_a_scoped_link_is_made_and_reached_under_a_long_machine_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
+    rehome(monkeypatch, tmp_path / "home")
     deep = tmp_path / ("x" * 60) / ("y" * 60)
     deep.mkdir(parents=True)
     monkeypatch.setenv("TMPDIR", str(deep))
@@ -49,7 +50,6 @@ def test_a_scoped_link_is_made_and_reached_under_a_long_machine_directory(
             "epic": "",
             "nous": "claude/opus",
             "preset": "read-only",
-            "network": False,
         }
     )
     try:

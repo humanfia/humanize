@@ -1,160 +1,195 @@
 /* The sidebar's frame, measured off Claude's desktop app: 275 wide with a splitter on its right
-   edge, a title row of 28px buttons, entries 258 by 32 set 2px apart and 8px in, and a foot of
-   one 28px row. Colours, fonts and rules are style.css's tokens; only the measures are set here. */
+   edge, a title row as tall as the bar over the view, entries 258 by 32 set 2px apart and 8px in
+   from either edge, and a foot of one 32px row over a hairline. Colours, fonts and how a row
+   stands are style.css's; only the measures are set here. */
 
 /* ----------------------------------------------------------------------- the title row */
 
-/* The mark, then hiding the sidebar, back and forward, side by side; the bell at the far end. */
+/* The mark, then hiding the sidebar, back and forward, side by side.
+   Its foot is level with the line under the view's bar. */
 .side-top {
-  justify-content: flex-start;
-  gap: 0;
-  padding: 4px 7px 0 8px;
-}
-
-.side-top .icon-btn {
-  width: 28px;
-  height: 28px;
+  height: var(--bar-h);
+  padding: 0 var(--side-gutter);
 }
 
 /* The mark stands where a desktop app's window keeps its traffic lights, in as much room: the
-   three buttons after it start 84 in, as that app's do. Its name is said, not drawn. */
+   three buttons after it start 84 in, as that app's do. In a sidebar too narrow for the row
+   that room is what gives way, down to the mark. */
 .side-top .brand {
-  flex: none;
-  width: 76px;
-  height: 28px;
-  padding-left: 6px;
+  flex: 0 1 76px;
+  height: var(--control-h-sm);
+  padding-left: var(--space-8);
 }
 
-.side-top .brand img {
-  flex: none;
-}
-
-.side-top .brand strong {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-/* In Humanize Desktop's window on macOS the traffic lights are there themselves: the row stands
-   beside them, in their strip, the three buttons straight after them and the mark before the bell. */
+/* In Humanize Desktop's window on macOS the traffic lights are there themselves, over this row's
+   left end: the three buttons stand straight after them and the mark at the far end, as far
+   from the sidebar's edge as it stands from it elsewhere. A sidebar at its narrowest has not the
+   room for that: there the buttons stand a few pixels nearer the lights, which reach 76 across,
+   so that the last keeps the gutter at the far end. */
 :root[data-shell='macos']:not([data-fullscreen]) .side-top {
-  margin-top: -2px;
-  padding-top: 0;
-  padding-left: 84px;
+  padding-left: min(var(--lights), 100% - 3 * var(--control-h-sm) - var(--side-gutter));
 }
 
+/* The mark is drawn whole or not at all: in a row too narrow for it, it falls onto a second
+   line, which is cut off. */
 :root[data-shell='macos']:not([data-fullscreen]) .side-top .brand {
   order: 1;
-  width: auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
   margin-left: auto;
-  padding: 0 4px;
+  padding: 0;
+  overflow: hidden;
 }
 
-:root[data-shell='macos']:not([data-fullscreen]) .side-top .notify-bell {
-  order: 2;
-  margin-left: 0;
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand::before {
+  content: '';
+  height: 100%;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand .brand-mark {
+  margin: 0 var(--space-8) 0 var(--space-4);
 }
 
 /* ------------------------------------------------------------------------- the entries */
 
-/* Every entry drawn alike: the one the page is on is marked, the rest are plain. */
+/* Every entry drawn alike: the one the page is on is marked, the rest are plain. Its icon stands
+   in a slot 16 in and its words start 44 in. Room is kept under the last, so that a row of the
+   list scrolled up to them is never cut hard against it. */
 .side-nav {
-  gap: 2px;
-  padding: 10px 7px 0 8px;
-  border-bottom: 0;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--side-gutter) var(--space-8);
 }
 
 .side-nav a {
-  align-items: center;
-  height: 32px;
-  min-height: 0;
-  padding: 0 10px;
+  height: var(--row-h);
+  padding: 0 var(--space-8);
+  font: 500 var(--text) / 20px var(--sans);
+}
+
+/* An entry's shortcut keeps its distance from its label: a label gives way before the keys are
+   cut, and a sidebar too narrow for the keys written as words says the label alone. */
+.side-nav {
+  container-type: inline-size;
+}
+
+.side-nav a > span:not(.side-badge) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-keys {
+  padding-left: var(--space-8);
+}
+
+@container (max-width: 200px) {
+  .side-keys[data-os='pc'] {
+    display: none;
+  }
+}
+
+/* Under a finger, and in the phone's drawer, there are no keys to press. */
+@media (max-width: 860px), (hover: none) {
+  .side-keys {
+    display: none;
+  }
+}
+
+/* Once the list under them is scrolled, a hairline across their foot marks where its rows pass
+   under: it is drawn by how far the list is scrolled, and is not there while the list is at its
+   top. It follows the scroll and moves by nothing of its own, so it is kept where motion is
+   reduced and every other animation is not. */
+@supports (animation-timeline: scroll()) {
+  .sidebar {
+    timeline-scope: --side-list;
+  }
+
+  .side-scroll {
+    scroll-timeline: --side-list;
+  }
+
+  .side-nav {
+    position: relative;
+  }
+
+  .side-nav::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: var(--border-w);
+    background: var(--line);
+    opacity: 0;
+    animation: side-seam linear both !important;
+    animation-timeline: --side-list !important;
+    animation-range: 0 var(--space-4) !important;
+  }
+
+  @keyframes side-seam {
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 /* ---------------------------------------------------------------------------- the foot */
 
 /* One row: the daemon the page is of, which opens its menu, and the settings beside it. */
 .side-foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px 8px 8px;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--side-gutter);
 }
 
 .side-account {
   flex: 1 1 auto;
-  width: auto;
   min-width: 0;
-  height: 28px;
-  gap: 8px;
-  padding: 0 6px;
-}
-
-.side-avatar {
-  width: 20px;
-  height: 20px;
-  font-size: 11px;
-}
-
-/* Its name and host, then how it stands, on one line. */
-.side-account .side-account-text {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.side-account .side-daemon {
-  flex: 1 1 auto;
-}
-
-.side-account .side-state {
-  flex: none;
-}
-
-.icon-btn.side-gear {
-  width: 28px;
-  height: 28px;
+  height: var(--row-h);
+  padding: 0 var(--space-8);
 }
 
 /* ------------------------------------------------------------------------ the splitter */
 
-/* Across the sidebar's right edge, 12px wide: dragged, it sizes the sidebar. */
+/* Across the sidebar's right edge, 8px wide: dragged, it sizes the sidebar. It reaches 2px into
+   the sidebar and no further, so that the list's scrollbar beside it can still be taken hold of.
+   It is placed in the window, by the sidebar's width, and not in the sidebar, which so holds
+   nothing wider than itself. */
 .side-split {
   display: none;
 }
 
 @media (min-width: 861px) {
-  .sidebar {
-    position: relative;
-  }
-
   .side-split {
     display: block;
-    position: absolute;
-    z-index: 5;
+    position: fixed;
+    z-index: var(--z-float);
     top: 0;
     bottom: 0;
-    right: -8px;
-    width: 12px;
+    left: calc(var(--side-wide) - var(--border-w) - var(--space-2));
+    width: var(--space-8);
     cursor: col-resize;
     touch-action: none;
   }
 
-  /* A line down the edge itself, where it is pointed at, dragged or holds the focus. */
+  /* A line down the edge itself: darker where it is pointed at, and the link's colour, twice as
+     wide, while it is dragged or holds the focus. */
   .side-split::after {
     content: '';
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 4px;
-    width: 2px;
+    left: var(--space-2);
+    width: var(--border-w);
+    transition: background-color var(--dur) var(--ease);
   }
 
-  .side-split:is(:hover, :focus-visible, .dragging)::after {
-    background: var(--cyan);
+  .side-split:hover::after {
+    background: var(--line-strong);
+  }
+
+  .side-split:is(:focus-visible, .dragging)::after {
+    width: 2px;
+    background: var(--link);
   }
 
   .side-split:focus-visible {

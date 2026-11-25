@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 248" role="img">
+  <title>A side question goes to a read-only copy of a session, never to the session itself</title>
+  <rect width="760" height="248" rx="12" fill="#172026"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa9b0"/>
+    </marker>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#ff94c2"/>
+    </marker>
+  </defs>
+  <style>
+    .s { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    @keyframes q { 0%, 76% { opacity: 1 } 82%, 86% { opacity: 0 } 92%, 100% { opacity: 1 } }
+    @keyframes r { 0%, 76% { opacity: 1 } 82%, 93% { opacity: 0 } 99%, 100% { opacity: 1 } }
+    .q { animation: q 8s infinite; }
+    .r { animation: r 8s infinite; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+
+  <text class="s" x="24" y="44" font-size="16" font-weight="600" fill="#e8f0f2">A side question never reaches the run</text>
+
+  <rect x="24" y="88" width="208" height="88" rx="8" fill="#12343b" stroke="#4fd8ea" stroke-width="1.5"/>
+  <text class="s" x="40" y="120" font-size="14" fill="#e8f0f2">The session at work</text>
+  <text class="m" x="40" y="144" font-size="12" fill="#4fd8ea">actor/1</text>
+  <text class="s" x="40" y="164" font-size="12" fill="#b3c3c8">carries on, untouched</text>
+
+  <line x1="232" y1="132" x2="310" y2="132" stroke="#9aa9b0" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/>
+  <text class="s" x="272" y="118" font-size="12" fill="#9aa9b0" text-anchor="middle">copied</text>
+  <text class="s" x="272" y="158" font-size="12" fill="#9aa9b0" text-anchor="middle">one way</text>
+
+  <rect x="312" y="88" width="208" height="88" rx="8" fill="#0f161a" stroke="#435058" stroke-width="1.5"/>
+  <text class="s" x="328" y="120" font-size="14" fill="#e8f0f2">Its side copy</text>
+  <text class="m" x="328" y="144" font-size="12" fill="#b3c3c8">btw · actor/1</text>
+  <text class="s" x="328" y="164" font-size="12" fill="#b3c3c8">read-only, closed after</text>
+
+  <rect x="624" y="88" width="112" height="88" rx="8" fill="#3b1f2c" stroke="#ff94c2" stroke-width="1.5"/>
+  <text class="s" x="680" y="137" font-size="14" fill="#e8f0f2" text-anchor="middle">You</text>
+
+  <g class="q">
+    <line x1="624" y1="116" x2="524" y2="116" stroke="#ff94c2" stroke-width="1.5" marker-end="url(#p)"/>
+    <text class="s" x="572" y="106" font-size="12" fill="#ff94c2" text-anchor="middle">question</text>
+  </g>
+  <g class="r">
+    <line x1="520" y1="150" x2="620" y2="150" stroke="#9aa9b0" stroke-width="1.5" marker-end="url(#a)"/>
+    <text class="s" x="572" y="170" font-size="12" fill="#9aa9b0" text-anchor="middle">answer</text>
+  </g>
+
+  <text class="s" x="24" y="216" font-size="12" fill="#9aa9b0">The same agent answers. No transcript, board, budget limit or outcome of the run changes.</text>
+</svg>

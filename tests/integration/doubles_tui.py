@@ -377,7 +377,7 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     await shows(pilot, trail("Installed", OWN), "an epic needs one")
     await gives_a_budget(pilot)
     await leaves(pilot)
-    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+    await shows(pilot, f"Flow set up; `/flow {OWN} <task>` starts it.")
 
 
 async def gives_a_budget(pilot: Pilot[None]) -> None:
@@ -461,6 +461,17 @@ def screen(app: App[Any]) -> str:
     return "\n".join(one for one in drawn if one)
 
 
+def status(drawn: str) -> str:
+    """The status line of a screen read by :func:`screen`: the row under the prompt's lower rule.
+
+    Under it are the keys, on as many rows as they take, so it is found from the rule and not
+    counted from the bottom.
+    """
+    lines = drawn.splitlines()
+    ruled = [at for at, line in enumerate(lines) if line.strip().startswith("────")]
+    return lines[ruled[-1] + 1]
+
+
 async def until(pilot: Pilot[None], ready: Callable[[], bool], what: str) -> None:
     """Pumps the interface until `ready` holds, and fails the test if it never does.
 
@@ -510,7 +521,8 @@ async def wrapped(pilot: Pilot[None], *texts: str) -> None:
     app = _app(pilot)
 
     def flat() -> str:
-        return " ".join(screen(app).replace("│", " ").split())
+        # The list's edge, light as a sheet once drew it or heavy as it does now.
+        return " ".join(screen(app).replace("│", " ").replace("┃", " ").split())
 
     try:
         await until(pilot, lambda: all(one in flat() for one in texts), "it")

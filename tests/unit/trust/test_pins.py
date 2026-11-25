@@ -1,4 +1,4 @@
-"""`hmz.trust.pins`: the daemon ids `settings.yaml` keeps under `daemons`."""
+"""`hmz.trust.pins`: the daemon ids `settings.toml` keeps under `daemons`."""
 
 from __future__ import annotations
 

@@ -72,6 +72,8 @@ import contextlib
 import hashlib
 import json
 import os
+import shutil
+import subprocess
 import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -84,18 +86,17 @@ from hmz.coganchor.homes import merged, merger
 from .acp import _ALWAYS, _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged
 from .acp import _SAYS as _TOLD
 from .base import (
+    _IN_SHAPE,
     AgentBase,
     CommandSessionBase,
     SessionBase,
     StreamSessionBase,
     _ended,
 )
-from .config import AgentConfig, Unfenced
+from .config import AgentConfig, Unfenced, Unserved
 from .event import Event, Failed, Saying, Unrecoverable, Usage
-from .hooks import EVERYWHERE, Moment
 
 if TYPE_CHECKING:
-    import subprocess
     from collections.abc import Iterator, Mapping
     from pathlib import Path
 
@@ -155,7 +156,93 @@ _READERS = ("read_file", "grep", "list_dir", "run_terminal_cmd")
 _SEARCHERS = ("web_search", "web_fetch")
 
 
-def _granted(config: AgentConfig) -> tuple[str, ...]:
+#: What `grok inspect --json` lists, under `permissions.enforced`, for an administrator's lock on
+#: always-approve: `[ui] disable_bypass_permissions_mode = true`, or the legacy `[ui] yolo =
+#: false`, in a `requirements.toml` or the macOS MDM domain `ai.x.grok`. 1.0.62 reports it as
+#: `{"setting": "alwaysApprove", "enabled": false, "source": <the file>}`, and under it takes
+#: `--always-approve` with a warning and runs at its ask mode: over the protocol every tool call
+#: comes to the client as `session/request_permission`, and on `grok -p`, which has no client,
+#: a call that needs approval is refused -- `permission required: ... was not run` -- in a turn
+#: that still exits 0. The same lock in Claude Code's `managed-settings.json` is one Grok Build
+#: reads as advisory (`claudeBypassLockAdvisory`) and does not enforce, so it is not looked for.
+_LOCK = "alwaysApprove"
+
+#: What `grok -p` says on stderr of a tool call it refused for want of anyone to approve it: the
+#: backstop for a lock the probe did not see -- a run on another machine is one it does not look
+#: at -- and for an administrator's `ask` rule, which 1.0.62 holds even under always-approve.
+_LOCKED = "a headless run cannot ask for approval"
+
+#: How long `grok inspect` is given to say, which takes a fifth of a second.
+_INSPECTING = 10.0
+
+#: What each `grok` this process has run, under each `GROK_HOME`, was found locked by: the source
+#: of the lock, or "" for none. A machine's requirements are not a flow's to move, so one probe
+#: is the whole cost of finding out.
+_PROBED: dict[tuple[str, str], str] = {}
+_PROBING = threading.Lock()
+
+
+def _locked() -> str:
+    """Where always-approve is locked off for the `grok` this machine runs, asked of `grok` itself.
+
+    `grok inspect --json` rather than the files: it reads every layer the lock can come from --
+    the signed `$GROK_HOME/requirements.toml`, `/etc/grok/requirements.toml` and the MDM domain --
+    as the CLI that enforces it reads them, runs no model and writes nothing of the user's, and
+    takes a fifth of a second. A `grok` that cannot say -- missing, older than the field, its
+    answer unreadable -- is taken as unlocked, the turn's own stderr (:data:`_LOCKED`) being the
+    backstop.
+
+    Returns:
+      The source of the lock, or "" where there is none.
+    """
+    found = shutil.which(_COMMAND) or ""
+    key = (found, os.environ.get("GROK_HOME", ""))
+    with _PROBING:
+        if key not in _PROBED:
+            _PROBED[key] = _inspected(found) if found else ""
+        return _PROBED[key]
+
+
+def _inspected(found: str) -> str:
+    """What one `grok inspect --json` says locks always-approve off, as :func:`_locked` says it.
+
+    Args:
+      found: The `grok` to ask.
+
+    Returns:
+      The source of the lock, or "" where it names none or cannot be read.
+    """
+    try:
+        ran = subprocess.run(
+            [found, "inspect", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=_INSPECTING,
+            check=False,
+        )
+        said = json.loads(ran.stdout)
+        enforced = said["permissions"]["enforced"]
+        return next(
+            (
+                str(one.get("source") or "requirements.toml")
+                for one in enforced
+                if one.get("setting") == _LOCK and one.get("enabled") is False
+            ),
+            "",
+        )
+    # An answer of another shape is one that names no lock this can read.
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        ValueError,
+        LookupError,
+        TypeError,
+        AttributeError,
+    ):
+        return ""
+
+
+def _granted(config: AgentConfig, *, locked: bool = False) -> tuple[str, ...]:
     """What a turn at this config is run as, said as the command line says it.
 
     Read off the fence and nothing else. A fence that writes nothing is approved its tools and
@@ -166,13 +253,18 @@ def _granted(config: AgentConfig) -> tuple[str, ...]:
     -- its own prompting, the permission rules this machine carries, the tools it starts with
     -- which is exactly what `grok -p` does when nobody hands it a flag.
 
+    Where always-approve is locked off (:data:`_LOCK`), nothing either: the conversation is held
+    open on the protocol, every tool comes to the client to be granted, and the allowlist goes
+    with the command line that alone carries it -- confinement refusing the writes.
+
     Args:
       config: What the agent is to run at.
+      locked: Whether always-approve is locked off where the agent runs.
 
     Returns:
       The flags, to go on the command line as they are.
     """
-    if config.fence is None:
+    if config.fence is None or locked:
         return ()
     if config.fence.writes:
         return (_APPROVAL,)
@@ -187,7 +279,7 @@ def _granted(config: AgentConfig) -> tuple[str, ...]:
 #: excluded 'echo hello-from-grok' from future runs in this project` -- which is one refused
 #: turn leaving a rule behind it on somebody's machine -- where a refusal is reached for an
 #: agent driven by hand, whose whole meaning is that Humanize settles nothing about this
-#: machine, or for one whose hook said no to a single call, not to every call like it. So a request
+#: machine. So a request
 #: offering no `reject_once` falls through to `cancelled` instead of to that: refusing without
 #: writing anything down is worth more than refusing in the agent's preferred words.
 #:
@@ -318,6 +410,9 @@ class GrokBuildSession(StreamSessionBase):
         #: cancelled` and says nothing about who cancelled it, and a turn that reads as the
         #: CLI giving up is a turn whose flow cannot tell a refusal from a fault.
         self._refused: str | None = None
+        #: What a run of `grok -p` said of an always-approve lock it found, which no probe
+        #: here saw: a fenced turn under it is one whose tool calls nobody approved.
+        self._locked_out = ""
         #: Those same chunks, gathered into the answers they are pieces of: a response is one
         #: paragraph and is worth one row of a transcript rather than one row a word.
         self._saying = Saying()
@@ -350,6 +445,11 @@ class GrokBuildSession(StreamSessionBase):
         it is what mints the id this conversation is from then on. One turn that way, and the
         turns after it are ordinary ones on the process that loads what it minted.
 
+        Where always-approve is locked off, every turn stays on the protocol, whose client is
+        asked and grants: a shape is asked for in the prompt (:meth:`_shaped_ask`), a fence
+        that writes nothing is held by confinement alone, and what only `grok -p` can say is
+        refused before a session opens (:meth:`GrokBuildAgent._admits`). Said once per agent.
+
         Args:
           prompt: The input prompt for this turn.
           schema: The shape to answer in, or None to take what the agent says.
@@ -362,7 +462,11 @@ class GrokBuildSession(StreamSessionBase):
             callbacks are offered: `grok -p` takes no MCP server, and a turn whose model was
             never told of them reads as a model that would not use them.
         """
-        if schema is not None or self._commanded() or self._forking():
+        agent = self._agent
+        if isinstance(agent, GrokBuildAgent):
+            agent._admits()  # noqa: SLF001 -- the session is the agent's own
+        locked = _locks(agent)
+        if (schema is not None and not locked) or self._commanded() or self._forking():
             if self._agent.toolbox.offered():
                 said = (
                     f"{_COMMAND} -p, which this turn needs, takes no MCP server, so it "
@@ -378,6 +482,13 @@ class GrokBuildSession(StreamSessionBase):
                     cast("CommandSessionBase", self), prompt, schema=schema
                 )
             return
+        # Only a grok agent is ever locked, and the session is its own.
+        if locked and cast("GrokBuildAgent", agent)._first_locked():  # noqa: SLF001
+            yield Event(
+                kind="notice",
+                text=f"{_COMMAND}: always-approve is locked off by {locked}, so this agent "
+                "runs asking, and every tool call it asks about is granted",
+            )
         with self._lock:
             self._requested = self._settings()
             self._said, self._failed, self._shown = [], None, set()
@@ -390,6 +501,53 @@ class GrokBuildSession(StreamSessionBase):
                 # back onto a process started afresh.
                 self._shut()
                 raise
+
+    def _shaped_ask(self, prompt: str, schema: type[BaseModel] | None) -> str:
+        """The prompt, with the shape under it where always-approve is locked off.
+
+        `--json-schema` is `grok -p`'s, which has nobody to grant a tool call under the lock,
+        so a shaped turn is asked for its shape and taken on the protocol like any other.
+
+        Args:
+          prompt: What the flow is asking.
+          schema: The shape it wants back, or None.
+
+        Returns:
+          The prompt as this turn is to be given it.
+        """
+        if schema is None or not _locks(self._agent):
+            return prompt
+        return prompt + _IN_SHAPE.format(
+            schema=json.dumps(schema.model_json_schema(), indent=2)
+        )
+
+    @property
+    def forks(self) -> bool:
+        """Whether this conversation can be cut into a second one.
+
+        Not where always-approve is locked off: `--fork-session` is `grok -p`'s, where nothing
+        can grant a tool call.
+        """
+        return super().forks and not _locks(self._agent)
+
+    def fork(
+        self,
+        *,
+        into: AgentBase | None = None,
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase:
+        """Cuts a second conversation from this one, as :meth:`SessionBase.fork` does.
+
+        Raises:
+          NotImplementedError: Where always-approve is locked off, said as the session is cut
+            rather than as its first turn runs with nobody to grant what it asks.
+        """
+        if locked := _locks(self._agent) or _locks(into or self._agent):
+            raise NotImplementedError(
+                f"{_COMMAND}: always-approve is locked off by {locked}, and a fork is cut "
+                f"only by `{_COMMAND} -p`, where nothing can grant a tool call"
+            )
+        return super().fork(into=into, cwd=cwd)
 
     def _forking(self) -> bool:
         """Whether this turn is the one that cuts this conversation from the one it came from.
@@ -424,7 +582,11 @@ class GrokBuildSession(StreamSessionBase):
         # shorter test would send every turn of every such conversation to the command line
         # for a flag it was never going to write.
         return bool(
-            (config.fence is not None and not config.fence.writes)
+            (
+                config.fence is not None
+                and not config.fence.writes
+                and not _locks(self._agent)
+            )
             or not _searches(config)
             or _extras(config)
         )
@@ -527,7 +689,10 @@ class GrokBuildSession(StreamSessionBase):
             # until the first shaped turn goes out on the command line, so an agent at no rung
             # is better off saying nothing than saying "".
             *(["--effort", self.effort] if self.effort else []),
-            *_granted(self._agent.config),
+            *_granted(
+                self._agent.config,
+                locked=bool(_locks(self._agent)),
+            ),
             *_LEADING.get(_leads(self._agent), ()),
             "stdio",
         ]
@@ -697,19 +862,19 @@ class GrokBuildSession(StreamSessionBase):
         A tool call it asks permission for is answered by whether there is a fence. Under one
         the answer is yes, whatever the fence lets it write: `--always-approve` has already
         approved every tool the process was started with, a request arriving anyway is one a
-        hook of Grok Build's own put in front of the client, which a flow watches rather than
-        gates, and the fence is what holds the grant. With no fence the flag is not sent, so
+        hook of Grok Build's own put in front of the client, and the fence is what holds the
+        grant. With no fence the flag is not sent, so
         the asking is `grok`'s own and the answer is no -- Humanize, told nothing about this
         agent, does not grant on its behalf: a machine whose `[ui] permission_mode` is left at
         `default` asks tool call by tool call, and answering yes there would be Humanize
         settling what it exists not to settle. Answered either way by the *kind* of the option
         rather than by its id, which is the agent's own word for it.
 
-        A hook hung on `PERMISSION_REQUEST` is told either way and may refuse either way,
-        this being the one moment `grok agent` waits on and so the one place a refusal here
-        stops the agent doing something. What it may say is no: `Verdict` carries a refusal
-        and a reason and no yes at all, so with no fence a hook gives the refusal its words
-        rather than turning it round.
+        No hook is told. The asking is not a moment a flow could be written against: under a
+        fence `--always-approve` has settled every tool before one is asked about -- or, where an
+        administrator locks it off, every tool is asked about and granted alike -- and a turn
+        that falls to `grok -p` has no client to ask at all, so a hook hung on it would be one
+        that looked held and was never called (Section 4.9.1.3 of the protocol).
 
         Args:
           at: The id it asked under.
@@ -717,14 +882,7 @@ class GrokBuildSession(StreamSessionBase):
           params: What it asked with, which carries the options for a permission.
         """
         if method == "session/request_permission":
-            called = cast("dict[str, Any]", params.get("toolCall") or {})
-            asking = self._fire(
-                Moment.PERMISSION_REQUEST,
-                tool=str(called.get("title") or called.get("kind") or ""),
-                about=json.dumps(called.get("rawInput") or {}),
-                called=called,
-            )
-            granted = not asking.refused and self._agent.config.fence is not None
+            granted = self._agent.config.fence is not None
             self._send(
                 json.dumps(
                     {
@@ -739,7 +897,7 @@ class GrokBuildSession(StreamSessionBase):
                 # Remembered so that the turn this ends says who ended it. Grok answers a
                 # refused prompt with `stopReason: cancelled` and nothing about why, and a
                 # flow told only that is a flow reading a refusal as the CLI misbehaving.
-                self._refused = asking.because or "Humanize did not permit a tool call"
+                self._refused = "Humanize did not permit a tool call"
             return
         # Everything else is something this client said it could not do, and an agent asking
         # anyway is told so in the protocol's own words rather than left waiting.
@@ -922,6 +1080,7 @@ class GrokBuildSession(StreamSessionBase):
         """
         self._said, self._failed, self._shown = [], None, set()
         self._costing, self._saying, self._refused = Usage(), Saying(), None
+        self._locked_out = ""
         config = self._agent.config
         argv = [
             _COMMAND,
@@ -970,6 +1129,8 @@ class GrokBuildSession(StreamSessionBase):
           What it said, which is nothing for a line saying nothing worth showing.
         """
         if error:
+            if _LOCKED in line and self._agent.config.fence is not None:
+                self._locked_out = line.strip()
             return
         said = _parsed(line)
         if said is None:
@@ -1041,6 +1202,14 @@ class GrokBuildSession(StreamSessionBase):
             running on it as the work of the turn.
         """
         said = "".join(self._said)
+        if self._locked_out:
+            raise Unrecoverable(
+                1,
+                [_COMMAND],
+                said,
+                f"{self._locked_out}: a fenced `{_COMMAND} -p` turn had nobody to grant "
+                "what it asked, which a policy on this machine put to approval",
+            )
         if self._failed is not None:
             raise Failed(1, [_COMMAND], said, self._failed)
         if not transcript.strip():
@@ -1107,9 +1276,8 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
 
     Args:
       params: What was asked, which carries the options the agent offers.
-      granted: Whether Humanize says yes: under a fence, unless a hook refused. Where it
-        does not, the asking is the CLI's own or the hook's, and so is the tool that does
-        not run.
+      granted: Whether Humanize says yes: under a fence. Where it does not, the asking is
+        the CLI's own, and so is the tool that does not run.
 
     Returns:
       The outcome to answer with: the best option of the kind called for, and a
@@ -1221,6 +1389,18 @@ def _fenced(agent: AgentBase, config: AgentConfig) -> bool:
     return config.fence is not None and not agent.natively(config.fence).open
 
 
+def _locks(agent: AgentBase) -> str:
+    """Where always-approve is locked off for this agent, or "" for one it is not or no grok.
+
+    Args:
+      agent: The agent a conversation is of.
+
+    Returns:
+      What :meth:`GrokBuildAgent.locks` says.
+    """
+    return agent.locks() if isinstance(agent, GrokBuildAgent) else ""
+
+
 def _searches(config: AgentConfig) -> bool:
     """Whether a turn at this config is let keep its web tools, rather than told to drop them.
 
@@ -1259,6 +1439,10 @@ def _leads(agent: AgentBase) -> bool | None:
     config = agent.config
     leader: bool | None = getattr(config, "leader", False)
     return False if _fenced(agent, config) else leader
+
+
+#: The flags :func:`_extras` writes, without what each is given.
+_EXTRAS = ("--sandbox", "--max-turns", "--no-subagents", "--rules")
 
 
 def _extras(config: AgentConfig) -> list[str]:
@@ -1482,13 +1666,28 @@ class GrokBuildAgent(AgentBase):
     #: a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
-    #: And the one moment beyond every backend's that this one reaches. `grok agent` puts a
-    #: tool call to its client as `session/request_permission` and holds the tool until the
-    #: answer comes back, so this is a moment a hook can actually refuse something at rather
-    #: than one it is told about after the fact. Reached on the held-open transport only, a
-    #: `grok -p` run having no client to ask; a fenced turn that falls to the command line is
-    #: one `--always-approve` already settled, so there is nothing there to be asked about.
-    moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
+    # No moment beyond every backend's. `grok agent` can put a tool call to its client as
+    # `session/request_permission`, and that is answered (`GrokBuildSession._answers`) but is
+    # not a moment: a fenced conversation is started with `--always-approve`, which settles
+    # every tool before one is asked about, and a turn taken with `grok -p` has no client to
+    # ask. A hook there would be one a flow could hang and never hear from. Where an
+    # administrator locks always-approve off, every request does come to the client, and is
+    # granted as `--always-approve` would have granted it.
+
+    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
+        """Initializes an agent that has said nothing yet of a lock on always-approve.
+
+        Args:
+          config: The model and effort every session of this agent runs at.
+          name: What to call this agent, defaulting to one nothing else answers to.
+        """
+        super().__init__(config, name=name)
+        #: Whether it has been said that this agent runs asking (Section 4.6.2 of the protocol
+        #: has that said once per agent).
+        self._noted = False
+        self._noting = threading.Lock()
+        #: What locks always-approve off on this machine, once asked (:meth:`locks`).
+        self._probed: str | None = None
 
     def environment(self) -> Mapping[str, str]:
         """The provider's variables, and the one that has Grok Build read a project's skills.
@@ -1563,6 +1762,61 @@ class GrokBuildAgent(AgentBase):
                 "which runs its tools outside the fence; set leader to False or None"
             )
 
+    def locks(self) -> str:
+        """Where always-approve is locked off for this agent, if anything locks it.
+
+        Asked only for an agent hmz fences, which is the one it would approve, and only on this
+        machine, whose `grok` is the one asked (:func:`_locked`); a `grok` on another machine
+        says so on the run instead (:data:`_LOCKED`).
+
+        Returns:
+          The source of the lock, or "" where there is none.
+        """
+        if self.config.fence is None or self.config.machine is not None:
+            return ""
+        if self._probed is None:
+            self._probed = _locked()
+        return self._probed
+
+    def _admits(self) -> None:
+        """Refuses a fenced agent that only `grok -p` can run, where always-approve is locked.
+
+        `grok -p` has no client to ask, so under the lock a tool call it would ask about is
+        refused in a turn that still answers. A fence that writes nothing and a shape move to
+        the protocol; a fork is refused as it is cut (:meth:`GrokBuildSession.fork`); web
+        search switched off and the settings :func:`_extras` writes are said nowhere else, and
+        an agent set up with them is refused here, before a session opens.
+
+        Raises:
+          Unserved: If the lock is there and the agent needs `grok -p` for every turn.
+        """
+        config = self.config
+        needs = ([] if _searches(config) else [_NO_WEB]) + [
+            flag for flag in _extras(config) if flag in _EXTRAS
+        ]
+        if needs and (locked := self.locks()):
+            raise Unserved(
+                f"{type(self).__name__}: always-approve is locked off by {locked}, and "
+                f"{', '.join(needs)} is said only on `{_COMMAND} -p`, where nothing can "
+                "grant a tool call"
+            )
+
+    def _first_locked(self) -> bool:
+        """Notes that this agent has been told it runs asking, under the lock.
+
+        Returns:
+          Whether this is the first time, and so something to say.
+        """
+        with self._noting:
+            first, self._noted = not self._noted, True
+            return first
+
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
-        """Opens a new Grok Build session, in the directory it is given or in this one."""
+        """Opens a new Grok Build session, in the directory it is given or in this one.
+
+        Raises:
+          Unserved: For an agent that cannot run where always-approve is locked off
+            (:meth:`_admits`).
+        """
+        self._admits()
         return GrokBuildSession(self, cwd)

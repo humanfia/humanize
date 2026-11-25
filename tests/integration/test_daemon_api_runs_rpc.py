@@ -36,9 +36,10 @@ _CHUNK = 4096
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A project, and an epic an earlier hmz recorded for a chat written down in it."""
+    """A project, and an epic of a flow written down in it."""
     at = install(tmp_path, monkeypatch)
-    old_chat(at, "hello there")
+    with Epic("ralph", "hello there", at):
+        pass
     return at
 
 
@@ -121,10 +122,9 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     listed = client.call("runs.list", {"workspace": str(project)}, timeout=30)
     (run,) = listed["runs"]
     name = run["name"]
-    # An epic an earlier hmz recorded for a chat reads as a chat, of no flow.
     assert (run["kind"], run["flow"], run["task"], listed["total"]) == (
-        "chat",
-        "",
+        "flow",
+        "ralph",
         "hello there",
         1,
     )
@@ -163,6 +163,39 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     assert "is already here" in again.message
 
 
+def test_a_chat_an_earlier_hmz_kept_as_an_epic_is_read_back_in_as_a_chat(
+    project: Path, client: Peer, tmp_path: Path
+) -> None:
+    from hmz.runtime import Hmz
+
+    # As another machine's earlier hmz carried one away: an epic, of kind `chat`.
+    old = old_chat(project, "old words")
+    archive, _ = Hmz(project).epics.bundled(old, output=tmp_path)
+    shutil.rmtree(old)
+
+    imported = client.call(
+        "runs.import",
+        {"handle": _sent(client, archive.name, archive.read_bytes())},
+        timeout=30,
+    )
+
+    assert (imported["name"], imported["resumable"]) == (old.name, False)
+    assert [one.name for one in written_chats()] == [old.name]
+    assert not old.exists()
+    whole = client.call("chat.get", {"chat": old.name}, timeout=30)
+    assert (whole["id"], whole["task"]) == (old.name, "old words")
+    gone = _refused(client, "runs.get", {"name": old.name})
+    assert (gone.code, gone.message) == (404, f"There is no epic {old.name}.")
+    assert client.call("runs.list", {}, timeout=30)["total"] == 1
+    # Here already, as the chat it is.
+    again = _refused(
+        client,
+        "runs.import",
+        {"handle": _sent(client, archive.name, archive.read_bytes())},
+    )
+    assert (again.code, again.data) == (409, {"name": old.name})
+
+
 def test_a_chat_is_read_by_chat_get_and_is_none_of_the_runs(
     project: Path, client: Peer
 ) -> None:
@@ -183,16 +216,16 @@ def test_a_chat_is_read_by_chat_get_and_is_none_of_the_runs(
     # The runs are as they were: the one epic, and neither chat by any name for it.
     listed = client.call("runs.list", {"workspace": str(project)}, timeout=30)
     assert [one["name"] for one in listed["runs"]] == [old["name"]]
-    assert (listed["total"], listed["flows"]) == (1, ["chat"])
+    assert (listed["total"], listed["flows"]) == (1, ["ralph"])
     for method in ("runs.get", "runs.trace", "runs.bundle", "runs.backup"):
         gone = _refused(client, method, {"name": name})
         assert (gone.code, gone.message) == (404, f"There is no epic {name}.")
     # No kind is asked of the runs any more.
     invalid = _refused(client, "runs.list", {"kind": "chat"})
     assert (invalid.code, invalid.message) == (-32602, "runs.list takes no kind.")
-    # Nor is anything of a chat's said of an epic: not even of one recorded for a chat.
+    # Nor is anything of a chat's said of an epic.
     whole = client.call("runs.get", {"name": old["name"]}, timeout=30)
-    assert whole["kind"] == "chat"
+    assert whole["kind"] == "flow"
     for absent in ("earlier", "permission", "prefer"):
         assert absent not in whole
 

@@ -1,0 +1,20 @@
+{
+ "entries": [
+  {
+   "wants": "what the up and down arrow keys do while reading what was said in a harness session: scroll it",
+   "where": "key hint on the bottom line of the terminal interface, beside hints such as `Open`, `Back`, `New epic`, `Search`: sentence case with a capital first letter, one word",
+   "text": "Scroll"
+  },
+  {
+   "wants": "a chat was started in another folder than the one this terminal interface was opened in, named by {folder}; it is read by opening hmz in that folder",
+   "where": "one line in the log of the terminal interface, two short sentences with full stops, keep {folder}",
+   "text": "The chat was started in {folder}. Open hmz in that folder to read it."
+  },
+  {
+   "wants": "the folder has no harness session to read: no harness kept a session of its own that worked in this folder",
+   "where": "one short sentence with full stop, shown on the Harness session page of the terminal interface where there is nothing to read",
+   "text": "No harness session in this folder."
+  }
+ ],
+ "model": "gcp/google/gemini-4-argon"
+}

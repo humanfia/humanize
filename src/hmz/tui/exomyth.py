@@ -42,7 +42,9 @@ from textual.widgets import ContentSwitcher, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from hmz.runtime.watching.monitor import thousands
+from hmz.words import t
 
+from . import humanfia
 from .pick import Crumbed, Key, bad
 
 if TYPE_CHECKING:
@@ -116,7 +118,10 @@ _TICKS = 12
 _LEVELS = 6
 
 #: What the flame can be weighed by, and what each is called.
-_WEIGHTS = {"time": "time", "in": "tokens in", "out": "tokens out", "count": "count"}
+_WEIGHTS = {"time": "Time", "in": "Tokens in", "out": "Tokens out", "count": "Count"}
+
+#: What the column of the flame's weights is headed, by what it is weighed by.
+_WEIGHED = {"time": "time", "in": "In", "out": "Out", "count": "Count"}
 
 #: The categories, in the order a stretch of time sums them; any other after, by name.
 _CATEGORIES = ("flow", "session", "turn", "llm", "tool", "message", "event", "process")
@@ -128,24 +133,37 @@ _LISTED = 400
 _ARGS = 12
 _ARG = 200
 
-#: What each category and kind of process is coloured as, by the theme's own name for a colour.
-#: A kind is said with a `~` before it: `flow` and `session` are both.
+#: What each category and kind of process is coloured as, by the theme's own name for a colour:
+#: the lanes the web page draws them in, a turn the first of them. A kind is said with a `~`
+#: before it: `flow` and `session` are both. The one the page draws in the second lane is the
+#: mark's green here instead, since the second lane is pink and pink is the span under the
+#: cursor; it is only ever drawn inside a turn, which is cyan, and green stands beside cyan.
 _HUES = {
-    "flow": "primary",
-    "session": "accent",
-    "turn": "secondary",
-    "llm": "success",
-    "tool": "warning",
-    "message": "primary",
-    "event": "accent",
-    "process": "secondary",
-    "~flow": "primary",
-    "~session": "secondary",
-    "~os": "warning",
+    "flow": "hmz-ink-3",
+    "session": "hmz-lane-3",
+    "turn": "hmz-lane-1",
+    "llm": "hmz-green",
+    "tool": "hmz-lane-4",
+    "message": "hmz-lane-5",
+    "event": "hmz-lane-6",
+    "process": "hmz-lane-3",
+    "~flow": "hmz-ink-3",
+    "~session": "hmz-lane-3",
+    "~os": "hmz-lane-6",
 }
 
-#: What a span's name is written in, on its bar: the theme's ink for the cursor's fill.
+#: What any other category is coloured as: the last lane, which is the one in no order.
+_OTHER = "hmz-lane-6"
+
+#: What a span's name is written in, on its bar, and what the span under the cursor is filled
+#: with: the cursor's own pair, which is the one pink plane.
 _INK = "block-cursor-foreground"
+_CHOSEN = "block-cursor-background"
+
+
+def _inks(app: App[Any]) -> dict[str, str]:
+    """The theme's colours by name, humanfia's own given a value where the theme has none."""
+    return {**humanfia.FALLBACK, **app.theme_variables}
 
 
 def spaced(us: float) -> str:
@@ -243,7 +261,11 @@ class Laid:
         """
         if document.get("version") != _VERSION:
             raise ValueError(
-                f"timeline version {document.get('version')} is not {_VERSION}"
+                t(
+                    "This timeline is version {theirs}; this view reads version {ours}.",
+                    theirs=document.get("version"),
+                    ours=_VERSION,
+                )
             )
         self.strings: list[str] = document["strings"]
         self.processes: list[dict[str, Any]] = document["processes"]
@@ -873,13 +895,13 @@ def described(laid: Laid, said: dict[str, Any]) -> str:
                 escape(str(said["cat"])),
                 escape(laid.strings[int(process["name"])]),
                 escape(laid.strings[int(track["name"])]),
-                f"depth {said['depth']}",
+                t("depth {n}", n=said["depth"]),
             )
         ),
         _DOT.join(
             (
-                f"start {spaced(said['start'])}",
-                f"lasted {spaced(said['dur'])}",
+                t("start {time}", time=spaced(said["start"])),
+                t("lasted {time}", time=spaced(said["dur"])),
                 escape(str(said["at"])),
             )
         ),
@@ -902,7 +924,7 @@ def described(laid: Laid, said: dict[str, Any]) -> str:
         text = text if len(text) <= _ARG else f"{text[: _ARG - 1]}…"
         lines.append(f"[$text-muted]{escape(str(key))}[/] {escape(text)}")
     if len(args) > _ARGS:
-        lines.append(f"[$text-muted]+{len(args) - _ARGS} more[/]")
+        lines.append(f"[$text-muted]+{t('{n} more', n=len(args) - _ARGS)}[/]")
     return "\n".join(lines)
 
 
@@ -921,19 +943,24 @@ def portrayed(laid: Laid, process: int) -> str:
     parent = int(one["parent"])
     start, end = int(one.get("start", 0)), int(one.get("end", 0))
     facts = [
-        f"{field} {escape(said)}"
+        f"{t(field)} {escape(said)}"
         for field in ("agent", "role", "backend", "model", "label")
         if (said := laid.strings[int(one.get(field, 0))])
     ]
     more = [
-        *((f"pid {one['pid']}",) if one.get("pid") else ()),
+        *((t("pid {pid}", pid=one["pid"]),) if one.get("pid") else ()),
         *(
-            (f"parent {escape(laid.strings[int(laid.processes[parent]['name'])])}",)
+            (
+                t(
+                    "parent {name}",
+                    name=escape(laid.strings[int(laid.processes[parent]["name"])]),
+                ),
+            )
             if 0 <= parent < len(laid.processes)
             else ()
         ),
         *(
-            (f"record {escape(said)}",)
+            (t("record {path}", path=escape(said)),)
             if (said := laid.strings[int(one.get("record", 0))])
             else ()
         ),
@@ -945,10 +972,10 @@ def portrayed(laid: Laid, process: int) -> str:
             *(_DOT.join(line) for line in (facts, more) if line),
             _DOT.join(
                 (
-                    f"start {spaced(start)}",
-                    f"lasted {spaced(end - start)}",
-                    _many(len(tracks), "track"),
-                    _many(sum(int(laid.tracks[at]["count"]) for at in tracks), "span"),
+                    t("start {time}", time=spaced(start)),
+                    t("lasted {time}", time=spaced(end - start)),
+                    t("{n} tracks", n=len(tracks)),
+                    _spans(sum(int(laid.tracks[at]["count"]) for at in tracks)),
                 )
             ),
         )
@@ -977,22 +1004,25 @@ def summed(laid: Laid, t0: float, t1: float) -> str:
     order += sorted(set(by) - set(order))
     return "\n".join(
         (
-            "[b]Range[/]",
+            f"[b]{t('Range')}[/]",
             _DOT.join(
                 (
-                    f"from {spaced(t0)}",
-                    f"to {spaced(t1)}",
-                    f"lasted {spaced(t1 - t0)}",
+                    t("from {time}", time=spaced(t0)),
+                    t("to {time}", time=spaced(t1)),
+                    t("lasted {time}", time=spaced(t1 - t0)),
                 )
             ),
             _DOT.join(
                 (
-                    _many(int(count), "span"),
-                    f"{thousands(ins)} in",
-                    f"{thousands(outs)} out",
+                    _spans(int(count)),
+                    t("{tokens} in", tokens=thousands(ins)),
+                    t("{tokens} out", tokens=thousands(outs)),
                 )
             ),
-            f"[$text-muted]{'category':<10}{'spans':>7}{'time':>9}{'in':>9}{'out':>9}[/]",
+            (
+                f"[$text-muted]{t('Category').lower():<10}{t('spans'):>7}{t('time'):>9}"
+                f"{t('In').lower():>9}{t('Out').lower():>9}[/]"
+            ),
             *(
                 f"{escape(f'{cat:<10}')}{int(by[cat][0]):>7}{spaced(by[cat][1]):>9}"
                 f"{thousands(by[cat][2]):>9}{thousands(by[cat][3]):>9}"
@@ -1002,9 +1032,13 @@ def summed(laid: Laid, t0: float, t1: float) -> str:
     )
 
 
-def _many(count: int, thing: str) -> str:
-    """How many of something, as English says it."""
-    return f"{count} {thing}" if count == 1 else f"{count} {thing}s"
+def _spans(count: int) -> str:
+    """How many spans, as the page says it."""
+    return (
+        t("{count} span", count=count)
+        if count == 1
+        else t("{count} spans", count=count)
+    )
 
 
 #: The styles cells are drawn in, by interface: the theme's colours they were made of, and the
@@ -1034,13 +1068,12 @@ def _style(app: App[Any], hue: str, how: str, *, chosen: bool) -> Style:
     key = (hue, how, chosen)
     held = styles.get(key)
     if held is None:
+        inks = _inks(app)
 
         def colour(name: str) -> RichColor:
-            return Color.parse(variables.get(name) or variables["primary"]).rich_color
+            return Color.parse(inks.get(name) or inks["primary"]).rich_color
 
-        paint, ink = colour(_HUES.get(hue, "primary")), colour(_INK)
-        if chosen:
-            paint, ink = ink, paint
+        paint, ink = colour(_CHOSEN if chosen else _HUES.get(hue, _OTHER)), colour(_INK)
         held = styles[key] = {
             "fill": Style(color=ink, bgcolor=paint, bold=chosen),
             "start": Style(color=paint, reverse=True),
@@ -1165,11 +1198,11 @@ class _Chart(ScrollView, can_focus=True, inherit_bindings=False):
     def _line(self, laid: Laid, row: Row, chosen: int, *, here: bool) -> Strip:
         """One line, drawn."""
         gutter = self.names
-        variables = _app(self).theme_variables
+        variables = _inks(_app(self))
         name = Style(
             color=Color.parse(
                 variables[
-                    "primary" if here else "foreground" if row.head else "text-muted"
+                    "primary" if here else "foreground" if row.head else "hmz-ink-3"
                 ]
             ).rich_color,
             bold=here,
@@ -1232,22 +1265,24 @@ class Exomyth(ModalScreen[None]):
     Exomyth #ruler { height: 1; color: $text-muted; }
     Exomyth #detail {
         display: none; height: auto; max-height: 16; padding: 0 1;
-        border: round $accent; overflow-y: auto; }
+        border: heavy $border-blurred; overflow-y: auto; }
     Exomyth #heading, Exomyth #columns {
         padding: 1 0 0 0; height: 2; color: $text-muted; }
     Exomyth #stacks, Exomyth #sliced {
         height: 1fr; padding: 0; background: $background;
-        border: round $accent; scrollbar-size: 1 1; }
+        border: heavy $border-blurred; scrollbar-size: 1 1;
+        border-title-color: $text-muted; border-title-style: bold; }
     Exomyth #sliced { text-wrap: nowrap; text-overflow: ellipsis; }
     Exomyth #stacks:focus, Exomyth #sliced:focus {
-        border: round $primary; background-tint: $background 0%; }
+        border: heavy $primary; background-tint: $background 0%;
+        border-title-color: $primary; }
     Exomyth OptionList > .option-list--option-highlighted {
         background: $block-cursor-blurred-background;
         color: $block-cursor-blurred-foreground; text-style: none; }
     Exomyth OptionList:focus > .option-list--option-highlighted {
         background: $block-cursor-background; color: $block-cursor-foreground;
         text-style: bold; }
-    Exomyth #seek { display: none; border: round $primary; background: $background; }
+    Exomyth #seek { display: none; border: heavy $primary; background: $background; }
     Exomyth #tuning { width: 100%; height: auto; padding: 0 1; }
     Exomyth #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
     """
@@ -1313,16 +1348,16 @@ class Exomyth(ModalScreen[None]):
     #: The columns of the slices, in the order they are drawn and `o` goes round them: what
     #: each is called, the field it says, and how wide it is.
     _COLUMNS: ClassVar = (
-        ("count", "spans", 6),
+        ("Count", "spans", 6),
         ("total", "total", 6),
-        ("self", "own", 6),
-        ("avg", "mean", 6),
+        ("Self", "own", 6),
+        ("Avg", "mean", 6),
         ("p50", "p50", 6),
         ("p95", "p95", 6),
-        ("max", "longest", 6),
-        ("in", "ins", 6),
-        ("out", "outs", 6),
-        ("category", "cat", -9),
+        ("Max", "longest", 6),
+        ("In", "ins", 6),
+        ("Out", "outs", 6),
+        ("Category", "cat", -9),
         ("name", "name", 0),
     )
 
@@ -1359,7 +1394,7 @@ class Exomyth(ModalScreen[None]):
             "",
         )
         #: What is worth saying under the view.
-        self._said = "reading…"
+        self._said = t("Reading the timeline…")
         #: The spans the last search found, and which of them the cursor is on.
         self._sought = ""
         #: The category of the slice the search was picked as, or "" for words typed.
@@ -1373,7 +1408,7 @@ class Exomyth(ModalScreen[None]):
         with Vertical(id="sheet"):
             with Horizontal(id="top"):
                 yield Label(id="trail")
-                yield Label("Exomyth", id="asked")
+                yield Label(t("Exomyth"), id="asked")
                 yield Label(id="tabs")
             yield Label(id="about")
             with ContentSwitcher(initial="timeline", id="views"):
@@ -1384,11 +1419,15 @@ class Exomyth(ModalScreen[None]):
                 with Vertical(id="flame"):
                     yield _Icicle(id="icicle")
                     yield Label(id="heading")
-                    yield OptionList(id="stacks")
+                    stacks = OptionList(id="stacks")
+                    stacks.border_title = t("Flame").upper()
+                    yield stacks
                 with Vertical(id="slices"):
                     yield Label(id="columns")
-                    yield OptionList(id="sliced")
-            yield Input(placeholder="span name", id="seek")
+                    sliced = OptionList(id="sliced")
+                    sliced.border_title = t("Slices").upper()
+                    yield sliced
+            yield Input(placeholder=t("span name"), id="seek")
             yield Label(id="tuning")
             yield Label(id="keys")
 
@@ -1478,7 +1517,7 @@ class Exomyth(ModalScreen[None]):
         """Reads the epic again."""
         if self._again is not None:
             self._again.stop()
-        self._said = "reading…"
+        self._said = t("Reading the timeline…")
         self._drawn()
         self._reads()
 
@@ -1919,9 +1958,9 @@ class Exomyth(ModalScreen[None]):
         view = self._view
         self.query_one("#tabs", Label).update(
             "   ".join(
-                f"[b $primary]{one.title()}[/]"
+                f"[b $primary]{t(one.title())}[/]"
                 if one == view
-                else f"[$text-muted]{one.title()}[/]"
+                else f"[$text-muted]{t(one.title())}[/]"
                 for one in self._VIEWS
             )
         )
@@ -1930,10 +1969,10 @@ class Exomyth(ModalScreen[None]):
             sessions = sum(one["kind"] == "session" for one in laid.processes)
             about += _DOT + _DOT.join(
                 (
-                    _many(sessions, "session"),
-                    _many(len(laid.starts), "span"),
+                    t("{n} sessions", n=sessions),
+                    _spans(len(laid.starts)),
                     spaced(laid.end),
-                    *(("live",) if laid.live else ()),
+                    *((t("live"),) if laid.live else ()),
                 )
             )
         self.query_one("#about", Label).update(about)
@@ -1945,12 +1984,13 @@ class Exomyth(ModalScreen[None]):
         said = self._said
         if not said and self._sought and view == "timeline":
             said = (
-                f"{self._finding + 1} of {len(self._found)}{_DOT}{escape(self._sought)}"
+                t("{at} of {total}", at=self._finding + 1, total=len(self._found))
+                + f"{_DOT}{escape(self._sought)}"
                 if self._found
-                else f"no span named {escape(self._sought)}"
+                else t("no span named {name}", name=escape(self._sought))
             )
         self.query_one("#heading", Label).update(
-            f"{_WEIGHTS[self._weight].split()[-1]:>9}  {'spans':>7}  stack"
+            f"{t(_WEIGHED[self._weight]).lower():>9}  {t('spans'):>7}  {t('stack')}"
         )
         self.query_one("#columns", Label).update(
             escape(
@@ -1963,12 +2003,15 @@ class Exomyth(ModalScreen[None]):
         if not said and view != "timeline":
             lo, hi = self._stretch()
             how = (
-                (f"weighed by {_WEIGHTS[self._weight]}", f"sessions {self._manner}")
+                (
+                    t("weighed by {weight}", weight=t(_WEIGHTS[self._weight]).lower()),
+                    t("sessions apart") if self._apart else t("sessions merged"),
+                )
                 if view == "flame"
-                else (f"sorted by {self._heading(self._by)}",)
+                else (t("sorted by {column}", column=self._heading(self._by)),)
             )
             said = _DOT.join(
-                (*how, *(("range",) if picked else ()), spaced(lo), spaced(hi))
+                (*how, *((t("range"),) if picked else ()), spaced(lo), spaced(hi))
             )
         self.query_one("#tuning", Label).update(
             said if said.startswith("[") or not said else f"[$text-muted]{said}[/]"
@@ -1976,20 +2019,15 @@ class Exomyth(ModalScreen[None]):
         self._paned()
         self.query_one("#keys", Label).update(
             "   ".join(
-                f"[b $accent]{escape(one.key)}[/] {escape(one.does)}"
+                f"[b $primary]{escape(one.key)}[/] {escape(one.does)}"
                 for one in self._keys()
             )
         )
 
-    @property
-    def _manner(self) -> str:
-        """How the flame has sessions: `merged`, or `apart`."""
-        return "apart" if self._apart else "merged"
-
     def _heading(self, field: str) -> str:
         """What a column of the slices is called, with which way it is sorted where it is."""
         name = next(said for said, one, _ in self._COLUMNS if one == field)
-        return f"{name}{('↓' if self._down else '↑') if field == self._by else ''}"
+        return f"{t(name).lower()}{('↓' if self._down else '↑') if field == self._by else ''}"
 
     def _paned(self) -> None:
         """Says in the pane under the chart what it is open on, or shuts it."""
@@ -2014,45 +2052,49 @@ class Exomyth(ModalScreen[None]):
     def _keys(self) -> list[Key]:
         """The keys of the view as it is."""
         if isinstance(self.focused, Input):
-            return [Key("enter", "find"), Key("esc", "clear")]
-        after = _after(list(self._VIEWS), self._view)
+            return [Key("enter", t("Find")), Key("esc", t("Clear"))]
+        after = t(_after(list(self._VIEWS), self._view).title())
         if self._view == "flame":
             return [
-                Key("↑/↓", "stack"),
-                Key("t", _WEIGHTS[_after(list(_WEIGHTS), self._weight)]),
-                Key("m", "merge" if self._apart else "apart"),
-                Key("r", "refresh"),
+                Key("↑/↓", t("Stack")),
+                Key("t", t(_WEIGHTS[_after(list(_WEIGHTS), self._weight)])),
+                Key("m", t("Merge sessions") if self._apart else t("Split sessions")),
+                Key("r", t("Refresh")),
                 Key("tab", after),
-                Key("esc", "back"),
+                Key("esc", t("Back")),
             ]
         if self._view == "slices":
             return [
-                Key("↑/↓", "slice"),
-                Key("enter", "timeline"),
-                Key("o", "sort"),
-                Key("O", "reverse"),
-                Key("r", "refresh"),
+                Key("↑/↓", t("Slice")),
+                Key("enter", t("Show in timeline")),
+                Key("o", t("Sort by")),
+                Key("O", t("Reverse order")),
+                Key("r", t("Refresh")),
                 Key("tab", after),
-                Key("esc", "back"),
+                Key("esc", t("Back")),
             ]
-        found = [Key("n/N", "next")] if self._found else []
+        found = [Key("n/N", t("Next"))] if self._found else []
         ranging = (
-            "range" if self._marked is None else "hold" if not self._held else "drop"
+            t("Mark range")
+            if self._marked is None
+            else t("Hold range")
+            if not self._held
+            else t("Clear range")
         )
         return [
-            Key("w/s", "zoom"),
-            Key("a/d", "pan"),
-            Key("←/→", "span"),
-            Key("enter", "details"),
-            Key("p", "process"),
+            Key("w/s", t("Zoom")),
+            Key("a/d", t("Pan")),
+            Key("←/→", t("Span")),
+            Key("enter", t("Details")),
+            Key("p", t("Process")),
             Key("v", ranging),
-            Key("f", "fit"),
-            Key("0", "whole"),
-            Key("space", "fold"),
-            Key("/", "search"),
+            Key("f", t("Fit")),
+            Key("0", t("Whole run")),
+            Key("space", t("Fold")),
+            Key("/", t("Search")),
             *found,
             Key("tab", after),
-            Key("esc", "back"),
+            Key("esc", t("Back")),
         ]
 
     def on_resize(self) -> None:

@@ -1,323 +1,127 @@
-<script setup>
-import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
-</script>
+---
+title: Security
+description: Know what an agent may touch, where your credentials are kept, which devices reach your daemon, and what Humanize reports about itself.
+---
 
 # Security
 
-What to check before you point a flow at work you care about, and what holds an agent back
-while it works.
+Agents in Humanize act without asking for approval. Permissions limit what an agent can touch, the sandbox enforces those limits, and pairing controls which devices reach your daemon.
 
-::: danger Nothing an agent does is put to you for approval
-Every flow's agents run with approvals bypassed, whatever flow it is and whether or not you are
-watching. They edit files, run commands and make commits on their own. What holds an agent back
-is what its flow declares, below.
-:::
+![A permission sets a fence around the coding agent; by default it writes the work folder, reads the rest of the machine and reaches the network](/diagrams/user-security-1.svg)
 
-::: info At a glance
-- **You will** make a run you can undo, read what each role of a flow may touch, and know which
-  account every turn is billed to.
-- **Use it when** you are about to run a flow on a real repository, install a flow, or save
-  an account.
-- **You need** Humanize installed, and git for the repository the flow works in.
-:::
+## What an agent may do
 
-## Try it
+One of three permission presets limits each agent, in chats and in flows.
 
-The checklist, before a flow touches anything you care about:
-
-<div class="u7-checklist">
-
-- **The work can be undone.** Run in a git repository and tag where you started
-  (`git tag start`): `git diff start` then shows everything the flow changed, committed or
-  not, and `git reset --hard start` takes it back.
-- **You have read what each role may touch.** It is in the flow's code, not in any menu.
-- **You trust every flow you installed.** Listing a flow runs its code.
-- **You know which account each agent runs as.** It is the `account` row of the agent, and
-  every turn is billed to it.
-
-</div>
-
-## How it works
-
-A flow runs its agents unattended, so the protection has to be decided before the run, not
-during it. Three things decide it, and none of them is a prompt:
-
-| What | Decided by | Where you check it |
+| In the app | Name in a flow | The agent may |
 | --- | --- | --- |
-| what each agent may read, write and reach | the flow, one role at a time | the flow's code, or its page under [Flows](https://humanfia.ai/flows/) |
-| whose code runs at all | you, by installing a flow | `/flow`, on its Installed page |
-| whose credentials a turn uses | you, on the agent's `account` row | `/flow`, and the Accounts page of `/settings` |
+| **Read only** | `read-only` | read files and run commands, and change no file |
+| **Edit this folder** | `workspace-write` | change files in its work folder only, and read the rest. The default |
+| **Full access** | `danger-full-access` | change files anywhere on the machine |
 
-Git is what makes the rest safe to try: a tag before the run turns everything the agents did
-into one diff you can read and one command that takes it back.
+Chats always have network access. A flow sets the permission for each of its roles, and can turn the network off or add rules for single paths. You do not pick permissions when starting an epic, so check the flow first. See [Permissions](/user/permissions).
 
-## Example: read a flow's grants before running it
+### In the app
 
-You want to run [`aot`](https://humanfia.ai/flows/aot), which writes a flow from a description, in a repository
-you care about. First, make the run undoable:
+Click the permission chip under the message box and pick a preset. The new preset applies on the next turn.
+
+![The permission chip under the message box opens a menu of three presets, and Read only is picked](/shots/user-security-permission.svg)
+
+A chat started in the terminal or with `hmz chat` uses **Edit this folder**.
+
+## The sandbox
+
+The operating system enforces the permission outside the agent across its entire process and every command it runs, using Seatbelt on macOS and Landlock or bubblewrap on Linux. If the machine cannot enforce a permission, Humanize refuses to start the session rather than run the agent with wider access.
+
+When a flow turns the network off, the agent can reach only the hosts for its model and sign-in.
+
+Work on a server or in a container is fenced the same way on the machine where the commands run. See [The sandbox](/user/sandbox) for details and settings.
+
+## Credentials
+
+- **Accounts.** An account is a named set of credentials for one coding agent, stored under `~/.local/share/humanize/providers/`. Humanize never displays saved values; the app and terminal list only the variable names an account sets. A turn running under an account ignores any other credentials for that agent in your environment. See [Accounts](/user/accounts).
+- **Your agent's own settings.** An agent that rewrites its settings while it runs, or that Humanize adds settings to, starts in a settings directory of its own. The settings files there are copies, and Humanize drops the agent's changes to them when the process stops. The agent still uses your own sign-in and sessions.
+- **Remote machines.** When an agent runs on another machine under an account, Humanize places the account's credentials there for the turn and removes them afterward.
+- **Archives and backups.** Humanize scrubs every exported `.hmzepic` archive and every backup. It replaces every secret it finds with `[redacted]`, including account values, vendor keys, web and bearer tokens, URL credentials, and any field named as a token, key, secret, or password. It keeps your prompts and the agents' output. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
+
+## Other devices
+
+![Another device pairs with the daemon: you carry a pairing code over, the device checks the daemon's key over TLS, and once paired it may call the daemon's methods](/diagrams/user-security-2.svg)
+
+The app, terminal, and command line on your local machine reach the daemon directly and are trusted, as are connections over SSH and WSL. `hmz web` listens only on the local machine and admits only a browser that opens the printed address.
+
+Every other device must pair first. A pairing code admits one device a single time and expires after 10 minutes, unless you pass `--seconds` with a value from 60 to 86400. TLS encrypts the connection, and each side proves itself with its own key: the device accepts only the daemon matching the key in the code, and the daemon knows each paired device by its key. There are no certificates to manage.
+
+An unpaired device can only say hello, claim a pairing code, and list the daemon's methods. The daemon refuses any other request with `This device is not paired: claim a pairing code first.`
+
+A paired device has the same access you do, except it cannot open a terminal in an environment. Set `envs.paired_terminals` to `true` in `settings.toml` to allow terminal access.
+
+Revoking a device closes its sessions immediately, and it cannot reconnect without a new code. See [Connect to other machines](/user/daemons) to add a machine.
+
+### In the app
+
+1. Open **Settings**, then **Daemons**.
+2. Find **Devices** under a running daemon to see paired devices.
+3. Click **Revoke** and confirm.
+
+![The Daemons page of Settings lists the device laptop under Local, with a Revoke button](/shots/user-security-devices.svg)
+
+### In the terminal
+
+1. Type `/settings`, open **Daemons**, and press <kbd>enter</kbd> on a daemon.
+2. Choose `Pair a device` to generate a code, or `Devices` to list paired devices.
+3. Press <kbd>enter</kbd> on a device and choose `Revoke`.
+
+### From the command line
 
 ```sh
-cd ~/src/app
-git status --short             # nothing uncommitted of yours to lose
-git tag start
+hmz devices pair
+hmz devices list
+hmz devices revoke laptop
 ```
 
-Then read what its roles may touch. In `hmz`, open `/flow`. If `aot` is not installed yet,
-press **Install more…**, open `official` and install it, then come back to **Installed**. Put
-the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>:
+![hmz devices list lists one device with its fingerprint, then hmz devices revoke laptop revokes it](/shots/user-security-revoke.svg)
 
-<Term title="hmz · /flow">
+## Error reports
 
-<pre>  <span class="m">hmz › /flow ›</span> <span class="p b">Installed</span>
-  <span class="m">…</span>
-  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-   <span class="p">official</span>
-   <b>aot</b>                                                               <span class="a">0.1.0</span>
-     <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
+Humanize sends failure reports to its developers only if you opt in.
 
-   <span class="p">local</span> <span class="n">1</span>
-   <b>@local/aot</b>
-     <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
-  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
-   <span class="m">copied to .hmz/flows/aot -- you can edit it, and aot now points to it</span> <span class="n">2</span>
+A report includes the error and its location in Humanize, the flow and what each agent was set to run, installed coding agents, account names, active skill and flowverse names, that a run went five minutes without progress, and versions. It never includes your input, agent output, files, paths outside Humanize, keys, tokens, or credentials. See [Report a problem](/user/reporting).
 
-    Install more…   Update   Uninstall   <span class="sel"> Copy here </span>   Search…       Save
+### In the app
 
-  <b>enter</b> copy   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
+Open **Settings**, then **General**, and set **Error reports** to **On** or **Off**, and click **Save**.
 
-</Term>
+![The General page of Settings, with Error reports not set](/shots/user-security-reports.svg)
 
-Now the flow is a directory in your project, and its grants are one search away:
+### In the terminal
 
-```sh
-grep -rn "_permission" .hmz/flows/aot
-```
+`hmz` prompts you once on first start. To change your choice later, type `/settings general`, switch **Error reports**, and save when you leave. Select **What is sent** to view both lists.
 
-```console
-.hmz/flows/aot/__init__.py:51:    _permission = Permission(preset="read-only", network=False)
-```
+![The General settings page in the terminal, with What is sent opened and both lists shown below](/shots/user-security-terminal.svg)
 
-What to look at, by number:
+### From the command line
 
-1. **`local`** appears under `official`: the copy is this project's own flow now, and no
-   update to the installed `aot` changes what you run.
-2. **`aot now points to it`**: `$aot` and `-f aot` in this directory run your copy, which is
-   the code you just read.
+`hmz exec`, the daemon, and `hmz web` never prompt you. Set `HUMANIZE_SENTRY=on` or `HUMANIZE_SENTRY=off` to configure reporting for a single process.
 
-And in the search result: one role, the critic, declares `preset="read-only"` and
-`network=False`. It reads the draft, never writes, and cannot reach the web. Every role that
-declares nothing, here all the others, runs at the default in the table below: it writes this
-directory and nothing else of yours.
+## Settings
 
-### Check it worked
+Configure these keys in `settings.toml`. See [settings.toml](/reference/settings).
 
-- `git tag --list start` prints `start`.
-- After the run, `git diff start` shows everything the flow changed, and nothing outside the
-  repository was written by a role at the default grant.
-- On `/flow`, each role's `account` row reads the account you meant, `as local` or one of
-  yours.
-
-## What a flow lets its agents touch
-
-A flow declares a permission on each role it drives. You don't choose it at the prompt, so
-read it in the flow before you run the flow. It has three settings:
-
-| Setting | What it covers | A role that says nothing gets |
-| --- | --- | --- |
-| `preset` | the files: `read-only`, `workspace-write` (read anything, write the working directory of the session) or `danger-full-access` | `workspace-write` |
-| `network` | the network, the CLI's own web search and fetch among it | `True` |
-| `granular` | rules laid over the preset, path by path: `allow` to write, `read_only`, `deny`; the last rule that holds a path decides it | none |
-
-What that comes to in practice:
-
-- **Every setting is enforced** on the agent and on every command it runs, by Landlock on
-  Linux -- or bubblewrap, where Landlock cannot hold it -- and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
-  its CLI's own settings, login and sessions, a temporary directory of its own, the
-  shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
-  includes the login keychain, which is where Claude Code keeps it.
-- **Claude Code, Codex, Grok Build, Qwen Code and pi never write your settings.** Each process
-  starts in a home of its own, made for it and removed when it stops: copies of the files the
-  CLI rewrites as it runs (Claude Code's `.claude.json`, its backups and `settings.json`;
-  Codex's and Grok Build's `config.toml`; Qwen Code's `settings.json`; pi's `models.json` and
-  `settings.json`), links to the rest of yours, so its login and sessions are your own, and the
-  flow's skills beside yours (Oh My Pi gets that home for the skills alone). What it writes
-  into a copy, such as that it trusts the workspace, goes with it, and so does what Humanize
-  adds there: Qwen Code's effort, hooks and tool server, a gateway account's model entry for
-  Grok Build or provider for pi. Your system-wide settings and the project's own are read as
-  the CLI always reads them.
-- **A rule that writes `~`** (`allow("~")`) lets an agent change whatever your user account
-  may change, anywhere on the machine, the file permissions being what hold it; run as root,
-  the rest of the machine stays as the other rules say.
-- **A `deny` can be undone by a later rule.** `deny("./.env")` followed by `allow(".")` leaves
-  `.env` writable, since the last rule that holds a path wins.
-- **A read-only role** (no rule that writes anything, such as `preset="read-only"` alone) also
-  has its CLI's file-writing tools withheld where the CLI can withhold them; its shell is
-  kept, and the fence refuses the writes it attempts.
-- **`network=False`** cuts the network, except the hosts the agent's model and login are
-  at. The CLI's web tools are switched off too, where it can be told. Those hosts are
-  reached through a proxy Humanize runs on loopback; where your own `HTTPS_PROXY`,
-  `HTTP_PROXY` or `ALL_PROXY` names an `http://` proxy, that loopback proxy goes on through
-  yours, except for the hosts your `NO_PROXY` names.
-- **Work in a container or on an ssh host is fenced there too.** Every command the agent
-  runs on that machine is held by that machine's own Landlock, bubblewrap or Seatbelt, around
-  its own working directory and home.
-- **A grant that cannot be held is refused, not widened.** On a Linux kernel without
-  Landlock and with no bubblewrap that starts, on a Mac where Humanize already runs inside
-  another sandbox, and for work on a
-  machine like either, a role runs only at `danger-full-access` with `network=True` and no
-  rule that takes anything back. A role with a rule this machine's sandbox cannot carve out
-  is refused too.
-- **Unless you hand it to Codex.** A machine whose `sandbox.native` names `codex` lets Codex's
-  own sandbox hold its grant instead: what the commands it runs may write and reach, and not
-  Codex itself, its MCP servers or its hooks, nor what anything reads. The agent says so once.
-  See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant).
-- **Some ways out remain.** Neither Landlock nor Seatbelt governs a Unix socket reached by its
-  path, so an agent can still talk to a socket another program listens on, a docker daemon's
-  among them; on macOS a system service reached over Mach is the same. On a Linux kernel
-  older than 6.12 (Landlock ABI 6), an agent can also signal processes outside its fence and
-  reach their abstract Unix sockets. With `network=False` on macOS, a
-  program the agent runs may serve on any address, not only loopback. And whatever an agent
-  can write, a later run can read.
-
-[Permissions](/user/permissions) lists what the official flows declare, and how each CLI holds
-to it.
-
-## Listing a flow runs its Python
-
-A flow is a directory of Python, and Humanize runs it to find out what it is. Opening `/flow`,
-or naming a flow after `$` at the prompt, runs every flow Humanize lists: the ones you
-installed, this project's and yours.
-
-Installing a flow from a [flowverse](/weaver/flowverses) therefore trusts the repository it
-comes from with this machine, the way installing a package does: install only the flows you
-would install as one. Adding a flowverse runs nothing: it is an index of releases, and holds no
-code. `official` is always there: it is Humanize's own, at
-[humanfia/flowverse](https://github.com/humanfia/flowverse), and its maintainers review every
-release it lists, which lowers the risk without removing it.
-
-An installed flow is the exact commit its release names, and stays that commit until you update
-it: `hmz` fetches the flowverses each time it opens, and only says when a newer release is
-listed. To keep a flow as you read it whatever you install later, put the cursor on it in
-`/flow` and press **Copy here**, as in the example: it is copied into this project's own flows,
-and the flow's name here runs the copy.
-
-## Where your credentials are
-
-| An agent runs as | Humanize keeps |
+| Key | What it does |
 | --- | --- |
-| `as local`, the default | nothing. The CLI reads its own login, where it always keeps it. |
-| a login made on the Accounts page of `/settings` | the files that CLI wrote when it signed in, under `~/.hmz/providers/<cli>/<name>/` |
-| a key or a gateway made on the Accounts page of `/settings` | what you typed, the key and a gateway's URL, in `provider.json` in that same directory |
+| `sandbox.backend` | On Linux, which sandbox to use: `auto`, `landlock` or `bwrap` |
+| `sandbox.native` | Lets Codex's own sandbox hold its permission instead |
+| `envs.paired_terminals` | Lets paired devices open terminals. Off by default |
+| `listen` | Where the daemon listens for other devices. Nothing by default |
+| `enable_sentry` | Your answer about error reports |
 
-- Those directories and files are readable by you alone.
-- The Accounts page of `/settings` names the variables an account sets and never shows their
-  values. A secret you type is drawn as bullets.
-- A turn run as an account from `/settings` has the keys other accounts would use unset, so a
-  key left in your shell profile cannot take its place.
-- Removing `~/.hmz` removes every account. The CLIs' own logins stay where they are.
+## Good to know
 
-How an account's credentials reach a turn is in the [Providers
-reference](/reference/providers).
-
-## Other things worth knowing
-
-- **Reporting.** Humanize reports what goes wrong to its developers only if you said yes when
-  it first asked. A report carries more than a crash; [Reporting](/user/reporting) lists what
-  is sent and what never is.
-- **A remote target served over TCP** is a shell on that machine for anyone who can reach the
-  port and holds its token. The session is encrypted and the token is never sent, but the
-  token is the whole of its protection: give it a real one, or prefer `ssh://` and
-  `docker://`. See
-  [Remote execution](/user/remote-execution).
-- **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
-  It never makes an agent ask before it acts.
-- **A `dsh` agent works with full access** whatever its flow declares.
-- **A project's hooks run only on the project's own machine.** Project settings such as
-  Claude Code's `hooks` or a `.mcp.json` stdio server start programs where the CLI runs. If
-  a flow's agent runs on a different machine from its environment's work (harness `local`
-  with the work elsewhere, or a harness runtime other than the work's machine), Humanize
-  refuses to open the session while the project has any such setting. Run the agent on that
-  machine (harness `env`), or remove the setting. See
-  [Remote execution](/reference/remote-execution#a-projects-own-programs).
-
-## Troubleshooting
-
-### A role is refused before the run starts
-
-Its grant cannot be held here: on a kernel without Landlock and with no bubblewrap that starts, on a Mac where Humanize runs
-inside another sandbox, or on a machine like either, only a role at `danger-full-access`
-with `network=True` and no rule that takes anything back runs. And a `cursor-agent` role with
-`network=False` is refused on every machine, because
-Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or bubblewrap, or on macOS
-outside any other sandbox, or choose another CLI for the role. See
-[Permissions](/user/permissions).
-
-### The flow changed things I did not expect
-
-Read them all with `git diff start`, and take them back with `git reset --hard start`. Commits
-the agents made are undone too, since the tag is older. Files outside the repository are not
-in git: a role at the default grant cannot write there, but one at `danger-full-access`, or
-with a rule such as `allow("~")`, can.
-
-### A flow I read last week behaves differently
-
-It was updated: an update installs the newer release over the one you read. Choose the release
-you read on the flow's page in `/flow` (**Switch to**), then **Copy here** to keep it as it
-is.
-
-### A turn was billed to the wrong account
-
-The agent's `account` row decides it. Open `/flow`, <kbd>enter</kbd> on the role, and check
-`account`. An account that does not exist fails every turn of that agent, naming it; it never
-falls back to `as local` quietly.
-
-## Reporting a vulnerability
-
-Report it privately, never in a public issue:
-[SECURITY.md](https://github.com/humanfia/humanize/blob/main/SECURITY.md) says how, what counts
-as a vulnerability, and when you will hear back.
-
-## Next steps
-
-- [Permissions](/user/permissions): what each official flow grants, and how each CLI holds it.
-- [Accounts](/user/settings#accounts): API keys, gateways and second logins, kept apart.
-- [Flowverses](/weaver/flowverses): what installing a flow means, and publishing your own.
-- [Containers](/user/containers): put the work somewhere a mistake cannot reach you.
-
-<style scoped>
-kbd {
-  display: inline-block;
-  padding: 0 6px;
-  border: 1px solid var(--vp-c-divider);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  background: var(--vp-c-bg-soft);
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.85em;
-  line-height: 1.6;
-  white-space: nowrap;
-}
-.u7-checklist ul {
-  list-style: none;
-  padding-left: 0;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  background: var(--vp-c-bg-soft);
-  padding: 12px 16px;
-}
-.u7-checklist li {
-  position: relative;
-  padding-left: 1.9em;
-  margin: 8px 0;
-}
-.u7-checklist li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.3em;
-  width: 1.05em;
-  height: 1.05em;
-  border: 2px solid var(--vp-c-brand-1);
-  border-radius: 4px;
-}
-</style>
+- A flow is Python code that runs as your user outside the sandbox. Install only flows you trust.
+- **Full access** imposes no file limits. Use it only when you accept the risk of losing files on the machine.
+- The sandbox does not block access to Unix sockets such as Docker's, or to Mach services on macOS.
+- When an agent runs on a different machine than its workspace, Humanize refuses the session if project settings such as hooks would execute programs on the agent's machine.
+- [Ai-chan](/user/ai-chan) stays within the scope you assign her and cannot reach the daemon outside it.
+- A daemon holds at most 16 unclaimed pairing codes in memory. Generating a 17th code drops the oldest one.
+- A paired device runs all actions as the daemon's operating system user.

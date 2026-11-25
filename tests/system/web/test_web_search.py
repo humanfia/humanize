@@ -147,34 +147,54 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
     ):
         _search(page)
-        # The box: 672 by 584, in the middle across and 127 down a window 792 tall.
+        # The box: 672 by 584, in the middle of the window: 104 down one 792 tall.
         left, top, wide, tall = _box(page, "[data-hmz=dialog-search]")
         assert (left, wide, tall) == (312, 672, 584)
-        assert abs(top - 127) <= 1
+        assert abs(top - 104) <= 1
+        # Flat: a hairline around it, and no shadow under it or under anything in it.
+        assert page.evaluate(
+            """() => {
+              const box = document.querySelector('[data-hmz=dialog-search]')
+              return [box, ...box.querySelectorAll('*')].every(
+                (one) => getComputedStyle(one).boxShadow === 'none')
+            }"""
+        )
+        assert (
+            page.locator("[data-hmz=dialog-search]").evaluate(
+                "(box) => getComputedStyle(box).borderTopWidth"
+            )
+            == "1px"
+        )
 
         def within(selector: str) -> tuple[int, int, int, int]:
             x, y, w, h = _box(page, selector)
             return (x - left, y - top, w, h)
 
         # The field across its top, and `Close` at its right.
-        assert within("[data-hmz=dialog-search] .dialog-search") == (25, 18, 577, 32)
+        assert within("[data-hmz=dialog-search] .dialog-search") == (25, 17, 594, 32)
         assert within("[data-hmz=dialog-search] .dialog-head .icon-btn") == (
-            634,
-            20,
+            627,
+            19,
             28,
             28,
         )
-        # Under it the tabs, 29 tall, from the field's left edge.
+        # Under it the tabs, 29 tall, the first one's word on the field's left edge.
         tabs = page.locator("[data-hmz=search-tabs] [role=tab]")
         expect(tabs).to_have_text(["All", "Chats", "Epics"])
         expect(tabs.first).to_have_attribute("aria-selected", "true")
-        assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (25, 58)
+        assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (17, 57)
+        assert (
+            tabs.first.evaluate(
+                "(one) => parseFloat(getComputedStyle(one).paddingLeft)"
+            )
+            == 8
+        )
         assert set(
             tabs.evaluate_all(
                 "(all) => all.map((one) => one.getBoundingClientRect().height)"
             )
         ) == {29}
-        # Then what was found: a quiet heading, and a line apiece, 36 apart.
+        # Then what was found: a quiet heading, and a line apiece, 32 tall and 34 apart.
         expect(page.locator("[data-hmz=found] .search-heading").first).to_contain_text(
             "Recents"
         )
@@ -185,9 +205,10 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
         first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
         assert first is not None
         assert second is not None
-        assert (round(first["x"]) - left, round(first["y"]) - top) == (11, 148)
-        assert (round(first["height"]), round(second["y"] - first["y"])) == (36, 36)
-        # And a foot that says what the keys do, its last word 21 over the box's bottom.
+        assert (round(first["x"]) - left, round(first["y"]) - top) == (9, 131)
+        assert (round(first["height"]), round(second["y"] - first["y"])) == (32, 34)
+        # And a foot that says what the keys do, from the field's left edge, in the middle of
+        # its 40.
         hints = page.locator("[data-hmz=search-hints] .search-hint")
         expect(hints).to_have_text(
             [
@@ -199,14 +220,17 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
                 re.compile("^Open"),
             ]
         )
+        foot = within("[data-hmz=dialog-search] .search-foot")
+        assert (foot[1], foot[3]) == (543, 40)
         x, y, _, h = within("[data-hmz=search-hints] .search-hint")
-        assert x == 21
+        assert x == 25
         assert abs(y + h / 2 - 563) <= 1
-        # What was found runs to the foot: nothing is said between them of a line that no
-        # key and no pointer has moved to.
+        # Nothing is said between what was found and the foot of a line that no key and no
+        # pointer has moved to; the room of what will be, 32 tall, is kept, so that nothing
+        # moves as the first is.
         expect(page.locator("[data-hmz=search-detail]")).to_be_hidden()
         _, y, _, h = within("[data-hmz=found]")
-        assert y + h == within("[data-hmz=dialog-search] .search-foot")[1]
+        assert y + h + 32 == foot[1]
         # A key the pages at the foot's right leave no room for is left unsaid, not cut.
         assert page.evaluate(
             """() => {
@@ -218,8 +242,8 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
               })
             }"""
         )
-        assert (
-            within("[data-hmz=search-hints] .search-hint:nth-child(4)")[1] == y + h + 14
+        assert within("[data-hmz=search-hints] .search-hint:nth-child(4)")[1] == (
+            foot[1] + 11
         )
         # Nothing of it is wider than the box, or under its foot.
         assert page.evaluate(
@@ -327,10 +351,10 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         expect(opener).to_have_attribute("aria-expanded", "true")
         expect(filters.get_by_role("group", name="How it went")).to_be_visible()
         expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
-        # A chat is of no flow: the flows offered are the flows, and the chats offer none
-        # to filter by.
+        # The flows offered are every flow the daemon names, one named `chat` as any other;
+        # a chat is of no flow, and the chats offer none to filter by.
         flows = page.locator("[data-hmz=search-flow]")
-        expect(flows.locator("option")).to_have_text(["All flows", "ralph"])
+        expect(flows.locator("option")).to_have_text(["All flows", "chat", "ralph"])
         page.get_by_role("tab", name="Chats").click()
         expect(found).to_have_count(40)
         expect(flows).to_be_hidden()
@@ -357,8 +381,7 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         )
         expect(found).to_have_count(10)
 
-        # Opened again on an address that names a filter, the filters are open; one of before
-        # the tabs, with the chats as a flow, is the chats.
+        # Opened again on an address that names a filter, the filters are open.
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
         page.evaluate("location.hash = '/search?kind=flow&status=done'")
@@ -368,10 +391,20 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
         # A chat is not found by how it went: the filter by it is not offered on the chats.
-        page.evaluate("location.hash = '/search?flow=chat&status=done'")
+        page.evaluate("location.hash = '/search?kind=chat&status=done'")
         expect(chosen).to_have_text("Chats")
         expect(filters).to_be_hidden()
         expect(found).to_have_count(40)
+        # A flow named `chat` is a flow as any other: offered among the flows, and what an
+        # address that names it filters the epics by.
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+        page.evaluate("location.hash = '/search?flow=chat'")
+        expect(chosen).to_have_text("All")
+        expect(filters).to_be_visible()
+        expect(flows).to_have_value("chat")
+        expect(found).to_have_count(0)
+        assert wire.params("runs.list")[-1]["flow"] == "chat"
 
         # What can be done stands under what was found, whatever was.
         expect(page.locator("[data-hmz=search-new-chat]")).to_have_text("New chat")
@@ -513,8 +546,21 @@ def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
         expect(empty).to_contain_text("No chats yet")
         expect(empty).not_to_contain_text("filters")
         expect(page.locator("[data-hmz=search-new-chat]")).to_be_visible()
-        page.get_by_role("combobox", name="Search").fill("zebra")
+        # What gets a chat there is offered with it, and is no line the arrows move to.
+        start = empty.get_by_role("link", name="New chat")
+        expect(start).to_have_attribute("href", "#/new/chat")
+        expect(empty.locator("[role=option]")).to_have_count(0)
+        field = page.get_by_role("combobox", name="Search")
+        field.fill("zebra")
         expect(empty).to_contain_text("Nothing is like that")
+        expect(empty.get_by_role("link")).to_have_count(0)
+        # Cleared, what was typed is gone and the tab stays; the keys stay in the field.
+        empty.get_by_role("button", name="Clear filters").click()
+        expect(field).to_have_value("")
+        expect(field).to_be_focused()
+        expect(empty).to_contain_text("No chats yet")
+        expect(chosen).to_have_text("Chats")
+        assert "q=" not in page.url
 
 
 #: A chat going, one that asks, one that failed, one at rest and an epic of a flow.
@@ -583,16 +629,21 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
     ):
         side = page.locator("[data-hmz=sidebar] [data-hmz=epic]")
         expect(side).to_have_count(5)
+        # What each row says of how it stands: its word, or what its dot is named where a
+        # chat that waits on its person is marked by one.
         said = {
             one.locator(".side-label").first.inner_text(): one.locator(
-                ".side-status"
-            ).all_inner_texts()
+                ".side-status, [data-hmz=chat-state]"
+            ).evaluate_all(
+                "all => all.map((one) => one.textContent || one.getAttribute('aria-label'))"
+            )
             for one in side.all()
         }
         page.keyboard.press("Control+k")
         found = page.locator("[data-hmz=found] [data-hmz=epic]")
         expect(found).to_have_count(5)
-        # Side by side, the same chat is said to stand the same way: nothing while it rests.
+        # Side by side, the same chat is said to stand the same way: nothing while it rests,
+        # and in words here what the sidebar's dot is named.
         for one in found.all():
             task = one.locator(".result-task").inner_text()
             assert one.locator("[data-hmz=result-how]").all_inner_texts() == said[task]
@@ -608,6 +659,10 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
         expect(
             page.locator("[data-hmz=search-detail] [data-hmz=result-state]")
         ).to_have_text("Awaiting input")
+        # A chat's agent is said by what it runs, with no name or role of an epic's agent.
+        chip = page.locator("[data-hmz=search-detail] .chip")
+        expect(chip).to_have_text("Claude Code sonnet")
+        expect(chip).to_have_attribute("title", "claude/sonnet")
         page.keyboard.press("ArrowDown")
         page.keyboard.press("ArrowDown")
         expect(
