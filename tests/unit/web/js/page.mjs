@@ -38,7 +38,24 @@ class El extends EventTarget {
   }
   get classList() {
     const has = () => (this.attributes.class || '').split(' ').filter(Boolean)
-    return { contains: (name) => has().includes(name) }
+    const put = (names) => {
+      this.attributes.class = [...new Set([...has(), ...names])].join(' ')
+    }
+    return {
+      contains: (name) => has().includes(name),
+      add: (...names) => put(names),
+      remove: (...names) => {
+        this.attributes.class = has()
+          .filter((one) => !names.includes(one))
+          .join(' ')
+      },
+      toggle: (name, force) => {
+        const on = force === undefined ? !has().includes(name) : Boolean(force)
+        if (on) put([name])
+        else this.attributes.class = has().filter((one) => one !== name).join(' ')
+        return on
+      },
+    }
   }
   append(...kids) {
     for (const kid of kids) {

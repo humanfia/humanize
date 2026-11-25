@@ -55,6 +55,8 @@ Click a session row to read that session as a thread, or click `≡ log` to read
 
 A thread shows when a turn starts, each tool call, the agent's answer, and the turn duration. A thread scrolled to the bottom stays pinned there as new lines arrive. Opening a session marks it read. A thread also dimly shows any action a person took in the epic's environments, inline where it happened.
 
+What was written as Markdown is drawn as Markdown: headings, lists, tables, fenced code, links and line breaks. **Copy** on a line, and **Copy thread**, give what was written rather than what was drawn. A tool's output and a thought stay monospace text. HTML a message carries is drawn as the text it is, and a `file:` path as code with the path it names.
+
 ### Switch to a list
 
 Press **List** in the corner of the view to show agents as a list. Working agents appear first, each with its `≡ log` link and sessions. Press **Graph** to switch back. The browser remembers your choice.
@@ -68,7 +70,7 @@ Click the panel button on the right of the top bar to open or close the summary 
 | Section | What it shows |
 | --- | --- |
 | **Figures** | Time elapsed, money spent and rate, tokens by kind, and a meter for each budget limit |
-| **Task** | The task the epic was given |
+| **Task** | The task the epic was given, drawn as Markdown |
 | **Handovers** | Each direction and its count, the latest marked |
 | **Spending** | A row per model: tokens of each kind, **Cost** and **Out/s**, and a total row |
 | **Environments** | Where each session works, with a link to open that environment |

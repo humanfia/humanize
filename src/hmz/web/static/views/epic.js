@@ -23,6 +23,7 @@
 // the daemon's word.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
+import { markdownInto } from '../asking/blocks.js'
 import { settle } from '../asking/card.js'
 import { call, daemon, exported, given, hash, idOf, refresh } from '../api.js'
 import { go, renamed } from '../app.js'
@@ -947,7 +948,14 @@ export function mount(root, { parts, query }) {
         ),
       )
     }
-    parts.push(section(chat ? t('First message') : t('Task'), detail.task.length > 400 ? h('details', {}, h('summary', {}, detail.task.slice(0, 240), '…'), h('pre', { class: 'block' }, detail.task)) : h('p', { class: 'prose' }, detail.task)))
+    parts.push(
+      section(
+        chat ? t('First message') : t('Task'),
+        detail.task.length > 400
+          ? h('details', {}, h('summary', {}, detail.task.slice(0, 240), '…'), markdownInto(h('div', {}), detail.task, { html: 'text' }))
+          : markdownInto(h('div', { class: 'prose' }), detail.task, { html: 'text' }),
+      ),
+    )
     // One agent, in one session, hands to nobody and calls no flow.
     if (!chat) parts.push(
       section(

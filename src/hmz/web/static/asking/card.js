@@ -8,7 +8,7 @@
 import { fill, h, problem } from '../dom.js'
 import { ask, shownTo } from '../held.js'
 import { t } from '../i18n.js'
-import { blocks } from './blocks.js'
+import { blocks, markdownInto } from './blocks.js'
 import { schemaForm } from './form.js'
 import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, draftable } from './logic.js'
 
@@ -44,7 +44,7 @@ export function questionCard(where, one, me, clients) {
   const held = Boolean(one.owner && one.owner !== me)
   const node = h('section', { class: ['question', 'ask-card', 'ask-new', held && 'is-held'], 'data-hmz': 'question', 'data-question': String(one.question), 'aria-labelledby': promptId })
   const kicker = h('div', { class: 'kicker ask-kicker' }, h('span', {}, one.role ? t('{role} asks', { role: one.role }) : t('the flow asks')))
-  const prompt = h('div', { class: 'body ask-prompt', id: promptId, 'data-hmz': 'ask-prompt' }, one.text || '')
+  const prompt = markdownInto(h('div', { class: 'body ask-prompt', id: promptId, 'data-hmz': 'ask-prompt' }), one.text || '', { html: 'text' })
   // On a card, only the first block is open: the rest wait behind what they hold, one line each.
   const context = blocks(one.context, { open: (one.context || []).map((_, at) => at === 0) })
   const answer = h('div', { class: 'ask-answer' })

@@ -46,6 +46,8 @@ Your messages appear on the right. The agent's answers appear beside a green dot
 
 Right-click any line to open **Copy** and **Copy thread**. Right-click a `!` shell line to choose **Copy** (the command and its output) or **Copy output** (the output alone). To use the keyboard, press <kbd>tab</kbd> to focus the conversation, press <kbd>↑</kbd> and <kbd>↓</kbd> to move between lines, and press <kbd>alt+enter</kbd> (<kbd>option+enter</kbd> on a Mac) or the menu key to open the line menu.
 
+What was written as Markdown is drawn as Markdown: headings, lists, tables, fenced code, links and line breaks. **Copy** and **Copy thread** give what was written rather than what was drawn, while a tool's output and a thought stay monospace text.
+
 In the sidebar, a chat row shows `Running` during an open turn, `Failed` when the chat has failed, and a dot when the agent waits for your answer.
 
 Use the top bar to manage the chat and open side panels:
