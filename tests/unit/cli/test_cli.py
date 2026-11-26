@@ -44,6 +44,7 @@ def test_the_commands_are_these_and_the_internal_door() -> None:
         "relay",
         "update",
         "internal",
+        "server",
     ]
     assert list(COMMANDS) == commands
     assert set(INTERNAL) == {"anchor", "cli", "cred", "fence", "hook", "tools"}

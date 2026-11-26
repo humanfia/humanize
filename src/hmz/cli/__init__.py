@@ -538,6 +538,13 @@ def _internal(argv: list[str]) -> int:
     return INTERNAL[argv[0]][0](argv[1:])
 
 
+def _server(argv: list[str]) -> int:
+    """Installs or manages this machine's web server service."""
+    from .server import server
+
+    return server(argv)
+
+
 def _line(*, plain: bool = False) -> ArgumentParser:
     """The line `hmz` itself takes, which is how the interface is opened.
 
@@ -720,6 +727,7 @@ COMMANDS = {
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),
+    "server": (_server, "install and manage this machine's web server service"),
 }
 
 

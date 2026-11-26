@@ -56,6 +56,7 @@ python -m hmz ...
 |  | `help` | Show the help of hmz or of one command. |
 |  | `update` | Update hmz to its newest release. |
 |  | `internal` | Internal commands used by Humanize; do not run directly. |
+| Other commands | `server` | Install and manage this machine's web server service. |
 
 <!-- command list: end -->
 
@@ -239,6 +240,24 @@ hmz web [--port PORT] [--origin ORIGIN] [--no-open] [--attached]
 | `--attached` | | Stops when standard input closes. |
 
 A browser opens automatically on macOS, or when `DISPLAY` or `WAYLAND_DISPLAY` is set. SIGINT, SIGTERM or SIGHUP stops the server with exit 0 without stopping any epics. Exits 1 if the page cannot be served. See [The browser page](/user/web).
+
+## hmz server
+
+Install and manage the web interface as a per-user service that starts at login.
+
+```text
+hmz server install
+hmz server uninstall
+hmz server status
+```
+
+| Subcommand | What it does |
+| --- | --- |
+| `install` | Installs and starts at login. Linux uses systemd --user; macOS uses a LaunchAgent. |
+| `uninstall` | Stops the service, then removes its unit or plist. |
+| `status` | If installed, prints its active and enabled state on Linux or loaded state on macOS, and the log path. Otherwise, prints that it is not installed and the service-file path. |
+
+The service runs `hmz web --no-open`, is kept running, and writes stdout and stderr to a private per-user log. Stopping it lets the web server close cleanly. Exits 1 if the platform is unsupported or service management fails.
 
 ## hmz daemon
 
