@@ -165,10 +165,12 @@ def test_status_reports_an_uninstalled_service(
 ) -> None:
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    called = _commands(monkeypatch)
     assert server.server(["status"]) == 0
     assert capsys.readouterr().out == (
         f"hmz server: not installed ({tmp_path / '.config/systemd/user' / server.UNIT})\n"
     )
+    assert called == [["systemctl", "--user", "show-environment"]]
 
 
 def test_status_refuses_an_unsupported_platform(
