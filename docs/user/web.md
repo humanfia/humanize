@@ -31,6 +31,26 @@ This starts the daemon if none is running, prints the page address, and opens it
 
 The folder where you run `hmz web` is the folder offered first for new chats and epics.
 
+## Run as a login service
+
+To start the web interface when you log in:
+
+```sh
+hmz server install
+hmz server status
+```
+
+Linux uses a systemd user service; macOS uses a LaunchAgent. The service starts at login
+and is kept running. Its output is written to a private log in your state directory on Linux
+or `~/Library/Logs/hmz-web.log` on macOS. The log contains the keyed page address. Stopping
+or uninstalling the service lets the web server close cleanly.
+
+Remove the service with:
+
+```sh
+hmz server uninstall
+```
+
 ### Sign in with the key
 
 The page listens on the local machine only (`127.0.0.1`), at an address ending in a secret key. Open the full address once to set a browser cookie. After that, the plain address, such as `http://127.0.0.1:8420/`, works in that browser until you quit it.

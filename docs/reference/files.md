@@ -369,3 +369,5 @@ Humanize never prunes these paths; delete them manually when you no longer need 
 Humanize reads `~/.ssh/config` and its included files, and never writes to them.
 
 `hmz daemon install` writes one file outside these places: `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` on macOS, or `$XDG_CONFIG_HOME/systemd/user/hmz-daemon.service` on Linux, with the `XDG_CONFIG_HOME` of your systemd user manager (`~/.config/systemd/user/hmz-daemon.service` when it is unset or relative). `hmz daemon uninstall` removes it. See [Daemon and wire](/reference/daemon).
+
+`hmz server install` writes `~/Library/LaunchAgents/ai.humanfia.hmz.web.plist` on macOS or `$XDG_CONFIG_HOME/systemd/user/hmz-web.service` on Linux, using the systemd user manager's `XDG_CONFIG_HOME` (`~/.config/systemd/user/hmz-web.service` when unset or relative). The web log is `~/Library/Logs/hmz-web.log` on macOS or `~/.local/state/humanize/hmz-web.log` on Linux, mode `0600`. `hmz server uninstall` removes the service file but leaves the log.
