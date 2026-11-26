@@ -136,9 +136,14 @@ It is normative. It is cited by the tag [CLI].
   - [26.4. `--json`](#264---json)
   - [26.5. Completion scripts](#265-completion-scripts)
   - [26.6. How a help is set](#266-how-a-help-is-set)
-- [27. Security Considerations](#27-security-considerations)
-- [28. References](#28-references)
-  - [28.1. Normative References](#281-normative-references)
+- [27. `hmz server`](#27-hmz-server)
+  - [27.1. Synopsis](#271-synopsis)
+  - [27.2. Installing and removing the service](#272-installing-and-removing-the-service)
+  - [27.3. Status](#273-status)
+  - [27.4. Exit](#274-exit)
+- [28. Security Considerations](#28-security-considerations)
+- [29. References](#29-references)
+  - [29.1. Normative References](#291-normative-references)
 
 ## 1. Introduction
 
@@ -3016,7 +3021,55 @@ usage line and the line of an example MUST NOT be broken.
 **26.6.2** Such a help MAY write its headings in bold, and MUST write no other escape. It MUST write
 none where Section 4.2.1 says no for standard output, and none where `--no-color` is given.
 
-## 27. Security Considerations
+## 27. `hmz server`
+
+### 27.1. Synopsis
+
+```text
+hmz server install
+hmz server uninstall
+hmz server status
+```
+
+**27.1.1** `hmz server` MUST take exactly one of `install`, `uninstall` and `status`. Any other
+line MUST be a usage error (Section 16.10).
+
+### 27.2. Installing and removing the service
+
+**27.2.1** On macOS, `hmz server install` MUST write a LaunchAgent to
+`~/Library/LaunchAgents/ai.humanfia.hmz.web.plist`, using `~/Library/Logs/hmz-web.log` for its
+standard output and standard error, and MUST start it immediately and at login. On Linux, it MUST
+write a systemd user unit named `hmz-web.service` under `systemd/user` in the absolute
+`XDG_CONFIG_HOME` reported by the systemd user manager, or under `~/.config` where none is reported.
+It MUST use `~/.local/state/humanize/hmz-web.log` for the unit's standard output and standard error,
+and MUST enable and start the unit immediately and at login.
+
+**27.2.2** Each service MUST run `hmz web --no-open`, restart it when it exits, and create its log
+with permissions readable and writable by the user alone. On success, `install` MUST write
+`hmz server: installed <path>` and a line feed to standard output, `<path>` being the service file.
+
+**27.2.3** `hmz server uninstall` MUST stop the service and remove its LaunchAgent or systemd user
+unit. Where Linux's current service path differs from `~/.config/systemd/user/hmz-web.service` and
+the latter exists, it MUST remove that older unit too. On success, `uninstall` MUST write
+`hmz server: uninstalled <path>` and a line feed to standard output.
+
+### 27.3. Status
+
+**27.3.1** `hmz server status` MUST write
+`hmz server: not installed (<path>)` and a line feed to standard output where no service file
+exists. Where installed, it MUST report the service state and the log path as
+`hmz server: installed, <state> (<path>); log: <log>` and a line feed. On Linux, `<state>` MUST
+contain the states reported by `systemctl --user is-active` and `systemctl --user is-enabled`; on
+macOS, it MUST be `loaded` or `not loaded` according to `launchctl`.
+
+### 27.4. Exit
+
+**27.4.1** Successful operations MUST exit with status 0. `status` MUST exit with status 0 when
+the service is not installed. An unsupported operating system, an uninstall when no service is
+installed, or a failure to prepare, start, stop, inspect or remove the service MUST exit with status
+1.
+
+## 28. Security Considerations
 
 This section states no requirement; it summarises the security-relevant properties the rest of this
 document states.
@@ -3050,7 +3103,8 @@ document states.
   relay serve` listens where it is told, on plain WebSockets, admits anybody, and carries only what
   is secured end to end (Section 14.2.1).
 - **Services.** `hmz daemon install` makes the daemon start at login and keeps it running with its
-  listeners (Section 13.2.4). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
+  listeners (Section 13.2.4). `hmz server install` runs `hmz web --no-open` as a login service for
+  this user (Section 27.2). `hmz daemon connect --stdio` gives whoever runs it, as this user, the
   daemon's socket on its standard streams (Section 13.2.3).
 - **`hmz internal`.** These commands are the command lines hmz starts its own processes with and
   are not a public interface, yet each runs when a user types it (Section 11.1). `hmz internal
@@ -3064,9 +3118,9 @@ document states.
   (Section 3.8.5.6 of [DAEMON]). `hmz web` opens a browser unless `--no-open` is given (Section
   8.2.5).
 
-## 28. References
+## 29. References
 
-### 28.1. Normative References
+### 29.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
