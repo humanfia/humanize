@@ -103,6 +103,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor import prices
 from hmz.coganchor.homes import merged, merger
 
+from . import codex_history
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Unrecoverable, Usage, say
@@ -1028,6 +1029,8 @@ class _AppServer:
         argv: list[str],
         env: Mapping[str, str] | None = None,
         home: Home | None = None,
+        *,
+        history_store: Path | None = None,
     ) -> None:
         """Starts the server, which its owner holds before :meth:`initialize` waits on it.
 
@@ -1038,6 +1041,7 @@ class _AppServer:
             server is the agent's, so its account is the agent's too.
           home: The virtual home it is started in, which is dropped once it is down; None for
             one started in the user's own.
+          history_store: The durable session store for this server.
 
         Raises:
           OSError: If the process cannot be started.
@@ -1052,6 +1056,7 @@ class _AppServer:
         self.knows: _Knows = ("", (), (), None, "", (), None)
         #: The virtual home it was started in, dropped once it is down.
         self.home = home
+        self.history_store = history_store
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
         #: weakly: the agent holds the server, and the finalizer that takes the server down is
         #: the agent's -- so a server holding its agent back would be an agent nothing could
@@ -1077,6 +1082,8 @@ class _AppServer:
         #: The last lines of its stderr, which a server that stopped carries as the failure's
         #: own: codex says why it would not start there and nowhere else -- one that lost the
         #: race to create its run's state database, say, which is a turn to take again.
+        if home is not None and history_store is not None:
+            codex_history.record_owner(home, self._proc.pid)
         self._said: collections.deque[str] = collections.deque(maxlen=_STDERR_LINES)
         self._draining = threading.Thread(target=self._drain, daemon=True)
         self._draining.start()
@@ -1295,6 +1302,27 @@ class _AppServer:
         Raises:
           subprocess.CalledProcessError: If it refused the call, or stopped before answering.
         """
+        if (
+            self.home is not None
+            and self.history_store is not None
+            and params is not None
+            and isinstance(thread := params.get("threadId"), str)
+            and method
+            in {"thread/resume", "thread/fork", "thread/archive", "thread/unarchive"}
+        ):
+            try:
+                with codex_history.rebind(
+                    self.home,
+                    self.history_store,
+                    thread,
+                    keep_active=method == "thread/resume",
+                ):
+                    return self._call(method, params)
+            except codex_history.HistoryBusyError as why:
+                raise Failed(1, self._argv, "", str(why)) from why
+        return self._call(method, params)
+
+    def _call(self, method: str, params: dict[str, Any] | None) -> Any:
         ident = next(self._pending)
         # Said where the answer is to be put before it is asked for, rather than after: the
         # stream is read by a thread of its own, and an answer that came back first would
@@ -1837,7 +1865,13 @@ class _AppServer:
             self._proc.wait()
             try:
                 if self.home is not None:
-                    self.home.drop()
+                    try:
+                        if self.history_store is not None:
+                            codex_history.persist(
+                                self.home, self.history_store, retiring=True
+                            )
+                    finally:
+                        self.home.drop()
             finally:
                 # Down whether or not its home would go: a group signalled again once reaped
                 # could be somebody else's by then.
@@ -3592,11 +3626,22 @@ class CodexAgent(AgentBase):
         try:
             environ = self._environ()
             argv = self.spawned(list(knows[2]), home=home)
+            store = None
+            if (
+                home is not None
+                and (keeps := self.keeps) is not None
+                and self._keeping()
+            ):
+                store = keeps / self.backend
+                codex_history.persist(home, store)
             with self._serving:
                 server = None
                 if not self.stopped:
                     server = _AppServer(
-                        argv, environ if home is None else home.environ(environ), home
+                        argv,
+                        environ if home is None else home.environ(environ),
+                        home,
+                        history_store=store,
                     )
                     self._forget_stopped()
                     if self._reaping is None:
