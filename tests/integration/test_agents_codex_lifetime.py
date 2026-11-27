@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import gc
+import json
+import os
+import sqlite3
+import subprocess
+import sys
 import threading
 import time
 import weakref
@@ -21,6 +27,7 @@ from hmz.coganchor.agents import (
     Failed,
     SessionBase,
     Stopped,
+    codex_history,
 )
 from hmz.coganchor.homes import Home
 from tests.integration.doubles_agents import Standins, standins
@@ -382,3 +389,93 @@ def test_stopped_servers_are_released_and_collection_still_stops_live_ones(
         if remaining := owner():
             remaining.stop()
         _killed(codex)
+
+
+def test_codex_reopens_and_persists_paginated_history(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SQLite points into the active home for the RPC and into storage when it stops."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: False)
+    monkeypatch.delenv("HUMANIZE_SESSIONS", raising=False)
+    thread = "01a00000-0000-7000-8000-000000000001"
+    relative = Path("sessions") / f"rollout-test-{thread}.jsonl"
+    kept = tmp_path / "run" / "codex"
+    rollout = kept / relative
+    rollout.parent.mkdir(parents=True)
+    rollout.write_text(
+        json.dumps({"type": "session_meta", "payload": {"id": thread}}) + "\n"
+    )
+    old_home = tmp_path / "hmz-home-old"
+    old_home.mkdir()
+    with subprocess.Popen(
+        [sys.executable, "-c", "pass"], start_new_session=True
+    ) as previous:
+        codex_history.record_owner(
+            Home(at=old_home, real=old_home, sets=()), previous.pid
+        )
+        assert previous.wait(timeout=10) == 0
+
+    index = kept / "state_5.sqlite"
+    with contextlib.closing(sqlite3.connect(index)) as db, db:
+        db.execute("CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT)")
+        db.execute(
+            "INSERT INTO threads VALUES (?, ?)",
+            (thread, str(old_home / relative)),
+        )
+
+    codex.install(
+        "codex",
+        CODEX.replace(
+            '    elif method == "thread/resume":\n',
+            """    elif method == "thread/resume":
+        import sqlite3
+        with sqlite3.connect(pathlib.Path(os.environ["CODEX_HOME"], "state_5.sqlite")) as db:
+            thread_id = params["threadId"]
+            row = db.execute("SELECT rollout_path FROM threads WHERE id = ?",
+                             (thread_id,)).fetchone()
+            expected = pathlib.Path(os.environ["CODEX_HOME"], "sessions",
+                                    "rollout-test-" + thread_id + ".jsonl")
+            if row != (str(expected),) or not expected.is_file():
+                send({"jsonrpc": "2.0", "id": call["id"],
+                      "error": {"code": -32600, "message": "missing source rollout"}})
+                continue
+""",
+        ),
+    )
+
+    def indexed_path() -> str:
+        with contextlib.closing(sqlite3.connect(index)) as db:
+            row = db.execute(
+                "SELECT rollout_path FROM threads WHERE id = ?", (thread,)
+            ).fetchone()
+        assert row is not None
+        assert isinstance(row[0], str)
+        return row[0]
+
+    agent = CodexAgent(CONFIG)
+    agent.keeps = kept.parent
+    try:
+        server = agent.server
+        assert indexed_path() == str(rollout)
+        assert old_home.is_dir()
+
+        lock = os.open(kept, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with monkeypatch.context() as short:
+                short.setattr(codex_history, "_LOCK_TIMEOUT", 0.0)
+                with pytest.raises(Failed) as busy:
+                    server.call("thread/resume", {"threadId": thread})
+            assert "Codex history is busy" in str(busy.value.stderr)
+            assert indexed_path() == str(rollout)
+        finally:
+            os.close(lock)
+
+        assert server.call("thread/resume", {"threadId": thread}) == {
+            "thread": {"id": thread}
+        }
+        assert server.home is not None
+        assert indexed_path() == str(server.home.at / relative)
+    finally:
+        agent.stop()
+    assert indexed_path() == str(rollout)

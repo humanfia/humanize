@@ -107,6 +107,12 @@ If the CLI supports resuming, the next retry picks up the conversation. On `code
 
 A run waiting for your input is not stalled: see [Answer a flow's questions](/user/questions). To stop a run yourself, see [Stop a run](/user/stopping).
 
+## Resume a Codex conversation
+
+Humanize opens saved Codex history again when its app server restarts. If you see
+`Codex history is busy; retry the request`, another request is opening or updating that
+history. Wait for it to finish, then retry the message or fork.
+
 ## Sandbox refusals {#sandbox-refusals}
 
 | What you see | Cause | Fix |
